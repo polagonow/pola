@@ -87,6 +87,9 @@ func walkReactElement(rt *goja.Runtime, obj *goja.Object, fw *FlightWriter, sche
 				if marker := typeObj.Get("$$isClientReference"); marker != nil && marker.ToBoolean() {
 					id := typeObj.Get("$$id").String()
 					name := typeObj.Get("$$name").String()
+					if name == "" {
+						name = "default"
+					}
 					ref, ok := manifest[id]
 					if !ok {
 						ref = ClientRef{ID: id, Name: name, Chunks: []string{"main.js"}}

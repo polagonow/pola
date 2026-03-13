@@ -3,15 +3,7 @@
     "id": "components/Counter",
     "name": "default",
     "chunks": [
-      "/public/Counter-5CEIKPPH.js"
-    ],
-    "async": false
-  },
-  "components/Counter/default": {
-    "id": "components/Counter",
-    "name": "default",
-    "chunks": [
-      "/public/Counter-5CEIKPPH.js"
+      "default"
     ],
     "async": false
   },
@@ -19,15 +11,7 @@
     "id": "components/ThemeToggle",
     "name": "default",
     "chunks": [
-      "/public/ThemeToggle-2AVG5DS5.js"
-    ],
-    "async": false
-  },
-  "components/ThemeToggle/default": {
-    "id": "components/ThemeToggle",
-    "name": "default",
-    "chunks": [
-      "/public/ThemeToggle-2AVG5DS5.js"
+      "default"
     ],
     "async": false
   }

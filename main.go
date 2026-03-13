@@ -26,7 +26,8 @@ type App struct {
 	routes            []Route
 	publicDir         string
 	manifest          runtime.ClientManifest
-	clientEntryScript string // /public/client-entry-[hash].js
+	importURLs        map[string]string // moduleId → /public/chunk-HASH.js
+	clientEntryScript string            // /public/client-entry-[hash].js
 }
 
 func main() {
@@ -137,6 +138,7 @@ func main() {
 		renderer:          runtime.NewRenderer(pool, manifest),
 		publicDir:         publicDir,
 		manifest:          manifest,
+		importURLs:        bundleResult.ImportURLs,
 		clientEntryScript: bundleResult.ClientEntryOutput,
 	}
 
@@ -207,7 +209,7 @@ func (a *App) handlePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(w, htmlShell(buildImportMap(a.manifest)))
+	fmt.Fprint(w, htmlShell(buildImportMap(a.importURLs)))
 	fmt.Fprint(w, htmlClose(a.clientEntryScript))
 }
 
@@ -328,27 +330,11 @@ function UserPage(props) {
 // module IDs (e.g. "components/ThemeToggle") to the hashed client bundle URLs
 // emitted by esbuild (e.g. "/public/ThemeToggle-XYZ.js"). This lets the
 // react-server-dom-esm client import() those IDs directly in the browser.
-func buildImportMap(man runtime.ClientManifest) string {
-	if man == nil || len(man) == 0 {
+func buildImportMap(importURLs map[string]string) string {
+	if len(importURLs) == 0 {
 		return ""
 	}
-	type importsMap map[string]string
-	imports := make(importsMap)
-	for id, ref := range man {
-		// Skip the "/default" aliases – map only the base IDs.
-		if strings.HasSuffix(id, "/default") {
-			continue
-		}
-		if len(ref.Chunks) == 0 {
-			continue
-		}
-		// Use the first chunk URL as the specifier target.
-		imports[id] = ref.Chunks[0]
-	}
-	if len(imports) == 0 {
-		return ""
-	}
-	payload, err := json.Marshal(map[string]any{"imports": imports})
+	payload, err := json.Marshal(map[string]any{"imports": importURLs})
 	if err != nil {
 		return ""
 	}

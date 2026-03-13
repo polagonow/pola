@@ -118,7 +118,7 @@ func (r *Renderer) renderFallback(fw *FlightWriter, vm *VM, opts RenderOptions, 
 	return nil
 }
 
-// ClientManifest maps component IDs to their client bundle references.
+// ClientManifest maps moduleId → ClientRef.
 type ClientManifest map[string]ClientRef
 
 // LoadManifest parses the client component manifest JSON.

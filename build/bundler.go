@@ -40,8 +40,16 @@ type BundleResult struct {
 	// injected as <script type="module" src="..."> in the HTML shell.
 	ClientEntryOutput string
 
-	// Manifest is the JSON client component manifest.
+	// Manifest is the JSON client component manifest passed to __CLIENT_MANIFEST__
+	// in the server bundle. Format: {moduleId: {id, chunks, name, async}}.
+	// chunks is set to ["default"] so that react-server-dom-esm/client reads
+	// metadata[1] as the export name ("default") rather than a chunk URL.
 	Manifest []byte
+
+	// ImportURLs maps module IDs to their browser-loadable chunk URLs.
+	// Used by the HTML shell's <script type="importmap"> so that
+	// import("components/Counter") resolves to /public/Counter-HASH.js.
+	ImportURLs map[string]string
 }
 
 // BundlerConfig controls both build passes.
@@ -88,7 +96,7 @@ func Bundle(cfg BundlerConfig) (*BundleResult, error) {
 		return nil, err
 	}
 
-	manifest, err := buildManifest(cfg.ClientComponents, clientFiles, cfg.AppDir)
+	manifest, importURLs, err := buildManifest(cfg.ClientComponents, clientFiles, cfg.AppDir)
 	if err != nil {
 		return nil, fmt.Errorf("bundler: manifest: %w", err)
 	}
@@ -115,6 +123,7 @@ func Bundle(cfg BundlerConfig) (*BundleResult, error) {
 		ClientFiles:       clientFiles,
 		ClientEntryOutput: clientEntryOutput,
 		Manifest:          manifestJSON,
+		ImportURLs:        importURLs,
 	}, nil
 }
 
@@ -149,66 +158,52 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 		clientSet[abs] = moduleId
 	}
 
-	// useClientPlugin intercepts component imports to check for 'use client',
-	// matching the JS resolve-client-imports plugin pattern.
-	// OnResolve reads each file to detect the directive (like the JS version),
-	// then routes it into the "client-proxy" namespace. OnLoad in that namespace
-	// emits a synthetic CJS stub that calls createClientModuleProxy(moduleId) so
-	// the Flight encoder serialises it as a ClientReference (I: row) instead of rendering.
+	// useClientPlugin intercepts "use client" files during the server pass and
+	// replaces them with a synthetic proxy stub.
+	//
+	// Why OnLoad (not OnResolve): TypeScript imports omit file extensions
+	// (e.g. `import Counter from "./Counter"`). OnResolve sees the raw import
+	// specifier before extension resolution, so a filter like `\.(tsx|ts)$`
+	// would never match. OnLoad fires after esbuild has fully resolved the path
+	// (args.Path is always the absolute path with extension), so the filter works
+	// correctly and we can read the real file to detect the directive.
 	useClientPlugin := api.Plugin{
 		Name: "resolve-client-imports",
 		Setup: func(build api.PluginBuild) {
-			// Intercept component imports to check for 'use client'
-			build.OnResolve(api.OnResolveOptions{Filter: `\.(tsx|ts|jsx|js)$`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
-				// Only intercept normal file imports, not our own virtual namespace.
-				if args.Namespace != "" && args.Namespace != "file" {
-					return api.OnResolveResult{}, nil
-				}
-
-				absPath := args.Path
-				if !filepath.IsAbs(absPath) {
-					absPath = filepath.Join(args.ResolveDir, args.Path)
-				}
-
+			build.OnLoad(api.OnLoadOptions{Filter: `\.(tsx|ts|jsx|js)$`}, func(args api.OnLoadArgs) (api.OnLoadResult, error) {
 				// Read the file to check for the 'use client' directive,
 				// mirroring how the JS plugin calls readFile on each resolved import.
-				contents, err := os.ReadFile(absPath)
+				contents, err := os.ReadFile(args.Path)
 				if err != nil {
-					return api.OnResolveResult{}, nil
+					return api.OnLoadResult{}, nil
 				}
 				trimmed := strings.TrimSpace(string(contents))
 				if !strings.HasPrefix(trimmed, "'use client'") && !strings.HasPrefix(trimmed, `"use client"`) {
 					// Not a client component — let esbuild handle normally.
-					return api.OnResolveResult{}, nil
+					return api.OnLoadResult{}, nil
 				}
 
-				// Compute moduleId from the clientSet (path relative to appDir, no extension).
-				moduleId, ok := clientSet[absPath]
+				// Compute moduleId: prefer the pre-registered value from clientSet
+				// (guarantees manifest alignment), fall back to deriving from appDir.
+				moduleId, ok := clientSet[args.Path]
 				if !ok {
-					// Dynamically discovered — derive moduleId from appDir.
-					rel, relErr := filepath.Rel(cfg.AppDir, absPath)
+					rel, relErr := filepath.Rel(cfg.AppDir, args.Path)
 					if relErr != nil {
-						rel = filepath.Base(absPath)
+						rel = filepath.Base(args.Path)
 					}
 					moduleId = strings.TrimSuffix(rel, filepath.Ext(rel))
 					moduleId = strings.ReplaceAll(moduleId, string(filepath.Separator), "/")
 				}
 
-				// Route into the client-proxy namespace so OnLoad can emit the stub.
-				return api.OnResolveResult{
-					Path:      moduleId,
-					Namespace: "client-proxy",
-				}, nil
-			})
-
-			// Emit the synthetic server-side stub for each client-proxy module:
-			//   import { createClientModuleProxy } from "react-server-dom-webpack/server.browser";
-			//   module.exports = createClientModuleProxy("<moduleId>");
-			build.OnLoad(api.OnLoadOptions{Filter: `.*`, Namespace: "client-proxy"}, func(args api.OnLoadArgs) (api.OnLoadResult, error) {
+				// Emit the synthetic server-side stub:
+				//   import { createClientModuleProxy } from "react-server-dom-webpack/server.browser";
+				//   module.exports = createClientModuleProxy("<moduleId>");
+				// The proxy intercepts any property access and returns a registered
+				// ClientReference, which the Flight encoder serialises as an I: row.
 				stub := fmt.Sprintf(
 					`import { createClientModuleProxy } from "react-server-dom-webpack/server.browser";`+"\n"+
 						`module.exports = createClientModuleProxy(%q);`+"\n",
-					args.Path,
+					moduleId,
 				)
 				return api.OnLoadResult{
 					Contents: &stub,
@@ -327,8 +322,21 @@ type clientManifestEntry struct {
 	Async  bool     `json:"async"`
 }
 
-func buildManifest(clientComponents []string, clientFiles map[string][]byte, appDir string) (map[string]clientManifestEntry, error) {
+// buildManifest returns two things:
+//
+//  1. manifest — flat webpack-format map for __CLIENT_MANIFEST__ in the server
+//     bundle.  react-server-dom-webpack/server emits I rows as the 3-element
+//     array [id, chunks, name]. react-server-dom-esm/client reads that array
+//     as [specifier, name] — so metadata[1] (chunks) is used as the export
+//     name on the loaded module. Setting chunks=["default"] makes the ESM
+//     client call moduleExports["default"] which is the correct export.
+//
+//  2. importURLs — moduleId → real chunk URL, used by the HTML import map so
+//     the browser can resolve import("components/Counter") to the hashed file.
+func buildManifest(clientComponents []string, clientFiles map[string][]byte, appDir string) (map[string]clientManifestEntry, map[string]string, error) {
 	m := make(map[string]clientManifestEntry)
+	importURLs := make(map[string]string)
+
 	for _, src := range clientComponents {
 		rel, err := filepath.Rel(appDir, src)
 		if err != nil {
@@ -337,21 +345,23 @@ func buildManifest(clientComponents []string, clientFiles map[string][]byte, app
 		id := strings.TrimSuffix(rel, filepath.Ext(rel))
 		id = strings.ReplaceAll(id, string(filepath.Separator), "/")
 		base := strings.TrimSuffix(filepath.Base(src), filepath.Ext(src))
-		var chunks []string
+
+		// Find the real chunk URL for the import map.
+		chunkURL := "/public/main.js"
 		for out := range clientFiles {
 			b := filepath.Base(out)
 			if strings.HasPrefix(b, base+"-") || b == base+".js" {
-				chunks = append(chunks, "/public/"+out)
+				chunkURL = "/public/" + out
+				break
 			}
 		}
-		if len(chunks) == 0 {
-			chunks = []string{"/public/main.js"}
-		}
-		entry := clientManifestEntry{ID: id, Name: "default", Chunks: chunks}
-		m[id] = entry
-		m[id+"/default"] = entry
+		importURLs[id] = chunkURL
+
+		// Set chunks=["default"] so the ESM client uses metadata[1] as the
+		// export name ("default") rather than treating it as a chunk path.
+		m[id] = clientManifestEntry{ID: id, Name: "default", Chunks: []string{"default"}}
 	}
-	return m, nil
+	return m, importURLs, nil
 }
 
 // ------------------------------------------------------------------ //
