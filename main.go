@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gojsx/build"
 	"gojsx/runtime"
@@ -49,11 +50,7 @@ func main() {
 		},
 	})
 	if err != nil {
-		log.Printf("⚠️  bundle warning (using demo shim): %v", err)
-		bundleResult = &build.BundleResult{
-			ServerBundle: demoServerBundle(),
-			Manifest:     []byte(`{}`),
-		}
+		log.Fatalf("⚠️  bundle warning: %v", err)
 	}
 
 	// ------------------------------------------------------------------
@@ -98,6 +95,7 @@ func main() {
 		},
 		Context: map[string]runtime.GoFunc{
 			"getProducts": func(args []runtime.GoValue) (any, error) {
+				time.Sleep(10 * time.Second)
 				return []map[string]any{
 					{"id": 1, "name": "Widget Alpha", "price": 29.99, "stock": 142},
 					{"id": 2, "name": "Widget Beta", "price": 49.99, "stock": 37},
@@ -265,63 +263,6 @@ func flush(w http.ResponseWriter) {
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()
 	}
-}
-
-// ---- Demo server bundle (used when esbuild can't compile the .tsx files) ---
-
-func demoServerBundle() string {
-	return `
-function IndexPage(props) {
-  return React.createElement('div', { className: 'page' },
-    React.createElement('h1', null, props.title || 'GoJSX'),
-    React.createElement('p', null,
-      'Server-rendered with Go + Goja + RSC Flight Protocol. ',
-      'Go functions are available as ',
-      React.createElement('code', null, 'ctx.fn()'),
-      ' inside every Server Component.'
-    ),
-    React.createElement(ProductList, null)
-  );
-}
-
-function ProductList() {
-  var products = ctx.getProducts();
-  var items = products.map(function(p) {
-    return React.createElement('div', { key: String(p.id), className: 'product' },
-      React.createElement('strong', null, p.name),
-      React.createElement('span', { className: 'price' }, ' $' + p.price.toFixed(2)),
-      React.createElement('small', null, ' (' + p.stock + ' in stock)')
-    );
-  });
-  return React.createElement('section', null,
-    React.createElement('h2', null, 'Products (from ctx.getProducts)'),
-    React.createElement('div', { className: 'product-list' }, items)
-  );
-}
-
-function ProductsPage(props) {
-  return React.createElement('div', { className: 'page' },
-    React.createElement('h1', null, 'Products'),
-    props.category
-      ? React.createElement('p', null, 'Category: ' + props.category)
-      : null,
-    React.createElement(ProductList, null)
-  );
-}
-
-function UserPage(props) {
-  var user = ctx.getUser(props.userID);
-  return React.createElement('div', { className: 'page' },
-    React.createElement('h1', null, 'User Profile'),
-    React.createElement('dl', null,
-      React.createElement('dt', null, 'ID'),    React.createElement('dd', null, user.id),
-      React.createElement('dt', null, 'Name'),  React.createElement('dd', null, user.name),
-      React.createElement('dt', null, 'Email'), React.createElement('dd', null, user.email),
-      React.createElement('dt', null, 'Role'),  React.createElement('dd', null, user.role)
-    )
-  );
-}
-`
 }
 
 // ---- HTML shell templates ------------------------------------------------

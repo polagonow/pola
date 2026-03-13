@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+
 function ProductCard({ product }: { product: { id: number; name: string; price: number; stock: number } }) {
   return (
     <div className="product">
@@ -10,13 +12,16 @@ function ProductCard({ product }: { product: { id: number; name: string; price: 
 
 export function ProductsPage({ category }: { category?: string }) {
   const products = ctx.getProducts();
+
   return (
-    <div className="page">
-      <h1>Products</h1>
-      {category && <p style={{ color: "#666" }}>Category: <strong>{category}</strong></p>}
-      <div className="product-list">
-        {products.map(p => <ProductCard key={String(p.id)} product={p} />)}
+    <Suspense fallback={<p>Loading...</p>}>
+      <div className="page">
+        <h1>Products</h1>
+        {category && <p style={{ color: "#666" }}>Category: <strong>{category}</strong></p>}
+        <div className="product-list">
+          {products.map(p => <ProductCard key={String(p.id)} product={p} />)}
+        </div>
       </div>
-    </div>
+    </Suspense>
   );
 }

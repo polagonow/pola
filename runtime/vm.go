@@ -1,3 +1,21 @@
+// Package runtime provides the Goja VM pool and JS rendering bridge.
+//
+// Each VM is backed by a goja_nodejs EventLoop. The loop gives us real
+// setTimeout/setInterval scheduling and — crucially — proper microtask
+// flushing between ticks so that async server components (async/await)
+// resolve correctly inside renderToReadableStream.
+//
+// Render lifecycle per request:
+//
+//  1. loop.Run(setContextFn)   – inject per-request data
+//  2. loop.Run(renderFn)       – start rendering; __poll__ reschedules itself
+//                                via setTimeout(0) until the stream is done;
+//                                loop.Run returns only when no more jobs remain
+//  3. loop.Run(cleanupFn)      – clear per-request globals
+//
+// Because loop.Run executes on the caller's goroutine and the pool ensures
+// at most one goroutine holds a VM at a time, all Goja access is single-
+// threaded and safe.
 package runtime
 
 import (
@@ -5,6 +23,7 @@ import (
 	"sync"
 
 	"github.com/dop251/goja"
+	"github.com/dop251/goja_nodejs/eventloop"
 )
 
 // GoFunc is the signature for Go functions exposed to the JS VM.
@@ -21,37 +40,46 @@ type BridgeConfig struct {
 	Context map[string]GoFunc
 }
 
-// VM wraps a single Goja runtime with the compiled server bundle.
+// VM wraps a goja EventLoop with the pre-loaded server bundle.
+// All Goja operations run on the caller's goroutine via loop.Run.
 type VM struct {
-	rt *goja.Runtime
+	loop *eventloop.EventLoop
 }
 
-// Runtime exposes the underlying goja.Runtime for direct RunString calls.
-func (vm *VM) Runtime() *goja.Runtime { return vm.rt }
+// run executes fn synchronously on the event loop, drains all pending
+// timers and microtasks, then returns. Safe to call repeatedly.
+func (vm *VM) run(fn func(rt *goja.Runtime) error) error {
+	var runErr error
+	vm.loop.Run(func(rt *goja.Runtime) {
+		runErr = fn(rt)
+	})
+	return runErr
+}
 
 // SetRequestContext injects per-request data as __request__ in the VM.
 func (vm *VM) SetRequestContext(ctx map[string]any) error {
 	if ctx == nil {
 		ctx = map[string]any{}
 	}
-	vm.rt.Set("__request__", vm.rt.ToValue(ctx))
-	return nil
+	return vm.run(func(rt *goja.Runtime) error {
+		rt.Set("__request__", rt.ToValue(ctx))
+		return nil
+	})
 }
 
 // CallExport calls a named export from the server bundle (fallback path).
 func (vm *VM) CallExport(name string, args ...goja.Value) (goja.Value, error) {
-	fn, ok := goja.AssertFunction(vm.rt.Get(name))
-	if !ok {
-		return nil, fmt.Errorf("vm: %q is not a function", name)
-	}
-	return fn(goja.Undefined(), args...)
-}
-
-// RunString executes JS and returns the result.
-// Each call to RunString causes Goja to drain its internal Promise job queue
-// via leave() — this is the correct way to settle Promises in Goja.
-func (vm *VM) RunString(src string) (goja.Value, error) {
-	return vm.rt.RunString(src)
+	var result goja.Value
+	err := vm.run(func(rt *goja.Runtime) error {
+		fn, ok := goja.AssertFunction(rt.Get(name))
+		if !ok {
+			return fmt.Errorf("vm: %q is not a function", name)
+		}
+		var err error
+		result, err = fn(goja.Undefined(), args...)
+		return err
+	})
+	return result, err
 }
 
 // VMPool manages a pool of pre-warmed VMs.
@@ -90,84 +118,83 @@ func (p *VMPool) Acquire() *VM {
 	return p.pool.Get().(*VM)
 }
 
-// Release returns a VM to the pool after resetting per-request state.
+// Release clears per-request state and returns the VM to the pool.
 func (p *VMPool) Release(vm *VM) {
-	// Clear per-request globals to avoid leaking between requests.
-	vm.rt.Set("__request__", goja.Undefined())
+	_ = vm.run(func(rt *goja.Runtime) error {
+		rt.Set("__request__", goja.Undefined())
+		rt.Set("__gojsx_stream__", goja.Undefined())
+		return nil
+	})
 	p.pool.Put(vm)
 }
 
-// newVM creates a fresh Goja runtime, injects the bridge, and runs the bundle.
+// newVM creates a fresh EventLoop, registers the bridge, and runs the bundle.
 func newVM(prog *goja.Program, bridge BridgeConfig) (*VM, error) {
-	rt := goja.New()
+	// EnableConsole(false): we provide our own console below.
+	loop := eventloop.NewEventLoop(eventloop.EnableConsole(false))
 
-	// Basic globals Goja doesn't provide out of the box.
-	rt.Set("global", rt.GlobalObject())
-	rt.Set("globalThis", rt.GlobalObject())
+	vm := &VM{loop: loop}
+	err := vm.run(func(rt *goja.Runtime) error {
+		// ── Basic globals ─────────────────────────────────────────────
+		rt.Set("global", rt.GlobalObject())
+		rt.Set("globalThis", rt.GlobalObject())
 
-	// console
-	rt.Set("console", map[string]any{
-		"log":   func(c goja.FunctionCall) goja.Value { return logConsole(rt, "LOG", c) },
-		"warn":  func(c goja.FunctionCall) goja.Value { return logConsole(rt, "WARN", c) },
-		"error": func(c goja.FunctionCall) goja.Value { return logConsole(rt, "ERR", c) },
-		"info":  func(c goja.FunctionCall) goja.Value { return logConsole(rt, "INFO", c) },
-	})
-
-	// process.env stub (react-dom checks NODE_ENV)
-	rt.Set("process", map[string]any{
-		"env": map[string]any{"NODE_ENV": "production"},
-	})
-
-	// setTimeout / clearTimeout stubs (react-dom uses these for error reporting)
-	rt.Set("setTimeout", func(c goja.FunctionCall) goja.Value {
-		// No-op: we don't have an event loop. Errors surface via Promise rejection.
-		return rt.ToValue(0)
-	})
-	rt.Set("clearTimeout", func(c goja.FunctionCall) goja.Value { return goja.Undefined() })
-	rt.Set("setInterval", func(c goja.FunctionCall) goja.Value { return rt.ToValue(0) })
-	rt.Set("clearInterval", func(c goja.FunctionCall) goja.Value { return goja.Undefined() })
-
-	// performance.now() stub
-	rt.Set("performance", map[string]any{
-		"now": func(c goja.FunctionCall) goja.Value { return rt.ToValue(0) },
-	})
-
-	// ------------------------------------------------------------------ //
-	// Go → JS bridge                                                       //
-	// ------------------------------------------------------------------ //
-
-	// Global functions
-	for name, fn := range bridge.Globals {
-		name, fn := name, fn // capture
-		rt.Set(name, func(c goja.FunctionCall) goja.Value {
-			result, err := fn(c.Arguments)
-			if err != nil {
-				panic(rt.ToValue(err.Error()))
-			}
-			return rt.ToValue(result)
+		// console (goja_nodejs console module disabled; provide our own)
+		rt.Set("console", map[string]any{
+			"log":   func(c goja.FunctionCall) goja.Value { return logConsole(rt, "LOG", c) },
+			"warn":  func(c goja.FunctionCall) goja.Value { return logConsole(rt, "WARN", c) },
+			"error": func(c goja.FunctionCall) goja.Value { return logConsole(rt, "ERR", c) },
+			"info":  func(c goja.FunctionCall) goja.Value { return logConsole(rt, "INFO", c) },
 		})
-	}
 
-	// ctx object
-	ctxObj := rt.NewObject()
-	for name, fn := range bridge.Context {
-		name, fn := name, fn
-		ctxObj.Set(name, func(c goja.FunctionCall) goja.Value {
-			result, err := fn(c.Arguments)
-			if err != nil {
-				panic(rt.ToValue(err.Error()))
-			}
-			return rt.ToValue(result)
+		// process.env stub (React checks NODE_ENV)
+		rt.Set("process", map[string]any{
+			"env": map[string]any{"NODE_ENV": "production"},
 		})
-	}
-	rt.Set("ctx", ctxObj)
 
-	// Run the compiled bundle (polyfills + server-dom IIFE + pages CJS)
-	if _, err := rt.RunProgram(prog); err != nil {
-		return nil, fmt.Errorf("vm: run program: %w", err)
-	}
+		// performance.now() stub
+		rt.Set("performance", map[string]any{
+			"now": func(c goja.FunctionCall) goja.Value { return rt.ToValue(0) },
+		})
 
-	return &VM{rt: rt}, nil
+		// Note: setTimeout / setInterval / clearTimeout / clearInterval are
+		// provided by goja_nodejs EventLoop — do not override them here.
+
+		// ── Go → JS bridge ───────────────────────────────────────────
+		for name, fn := range bridge.Globals {
+			name, fn := name, fn
+			rt.Set(name, func(c goja.FunctionCall) goja.Value {
+				result, err := fn(c.Arguments)
+				if err != nil {
+					panic(rt.ToValue(err.Error()))
+				}
+				return rt.ToValue(result)
+			})
+		}
+
+		ctxObj := rt.NewObject()
+		for name, fn := range bridge.Context {
+			name, fn := name, fn
+			ctxObj.Set(name, func(c goja.FunctionCall) goja.Value {
+				result, err := fn(c.Arguments)
+				if err != nil {
+					panic(rt.ToValue(err.Error()))
+				}
+				return rt.ToValue(result)
+			})
+		}
+		rt.Set("ctx", ctxObj)
+
+		// ── Run the compiled bundle (polyfills + server-dom + pages) ─
+		if _, err := rt.RunProgram(prog); err != nil {
+			return fmt.Errorf("vm: run program: %w", err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return vm, nil
 }
 
 func logConsole(rt *goja.Runtime, level string, c goja.FunctionCall) goja.Value {
