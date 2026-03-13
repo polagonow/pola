@@ -149,31 +149,69 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 		clientSet[abs] = moduleId
 	}
 
-	// useClientPlugin replaces every "use client" file during the server pass
-	// with a synthetic CJS module that returns a ClientReference proxy.
-	// The proxy is created by createClientModuleProxy(moduleId) from
-	// react-server-dom-webpack/server.browser — which is bundled into this pass.
+	// useClientPlugin intercepts component imports to check for 'use client',
+	// matching the JS resolve-client-imports plugin pattern.
+	// OnResolve reads each file to detect the directive (like the JS version),
+	// then routes it into the "client-proxy" namespace. OnLoad in that namespace
+	// emits a synthetic CJS stub that calls createClientModuleProxy(moduleId) so
+	// the Flight encoder serialises it as a ClientReference (I: row) instead of rendering.
 	useClientPlugin := api.Plugin{
-		Name: "use-client-proxy",
+		Name: "resolve-client-imports",
 		Setup: func(build api.PluginBuild) {
-			build.OnLoad(api.OnLoadOptions{Filter: `\.(tsx|ts|jsx|js)$`}, func(args api.OnLoadArgs) (api.OnLoadResult, error) {
-				moduleId, ok := clientSet[args.Path]
-				if !ok {
-					// Not a registered client component — let esbuild handle normally.
-					return api.OnLoadResult{}, nil
+			// Intercept component imports to check for 'use client'
+			build.OnResolve(api.OnResolveOptions{Filter: `\.(tsx|ts|jsx|js)$`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
+				// Only intercept normal file imports, not our own virtual namespace.
+				if args.Namespace != "" && args.Namespace != "file" {
+					return api.OnResolveResult{}, nil
 				}
-				// Emit a synthetic server-side stub:
-				//   import { createClientModuleProxy } from "react-server-dom-webpack/server.browser";
-				//   module.exports = createClientModuleProxy("<moduleId>");
-				// The Proxy intercepts any property access (default, named exports)
-				// and returns a registered ClientReference for each one.
-				contents := fmt.Sprintf(
+
+				absPath := args.Path
+				if !filepath.IsAbs(absPath) {
+					absPath = filepath.Join(args.ResolveDir, args.Path)
+				}
+
+				// Read the file to check for the 'use client' directive,
+				// mirroring how the JS plugin calls readFile on each resolved import.
+				contents, err := os.ReadFile(absPath)
+				if err != nil {
+					return api.OnResolveResult{}, nil
+				}
+				trimmed := strings.TrimSpace(string(contents))
+				if !strings.HasPrefix(trimmed, "'use client'") && !strings.HasPrefix(trimmed, `"use client"`) {
+					// Not a client component — let esbuild handle normally.
+					return api.OnResolveResult{}, nil
+				}
+
+				// Compute moduleId from the clientSet (path relative to appDir, no extension).
+				moduleId, ok := clientSet[absPath]
+				if !ok {
+					// Dynamically discovered — derive moduleId from appDir.
+					rel, relErr := filepath.Rel(cfg.AppDir, absPath)
+					if relErr != nil {
+						rel = filepath.Base(absPath)
+					}
+					moduleId = strings.TrimSuffix(rel, filepath.Ext(rel))
+					moduleId = strings.ReplaceAll(moduleId, string(filepath.Separator), "/")
+				}
+
+				// Route into the client-proxy namespace so OnLoad can emit the stub.
+				return api.OnResolveResult{
+					Path:      moduleId,
+					Namespace: "client-proxy",
+				}, nil
+			})
+
+			// Emit the synthetic server-side stub for each client-proxy module:
+			//   import { createClientModuleProxy } from "react-server-dom-webpack/server.browser";
+			//   module.exports = createClientModuleProxy("<moduleId>");
+			build.OnLoad(api.OnLoadOptions{Filter: `.*`, Namespace: "client-proxy"}, func(args api.OnLoadArgs) (api.OnLoadResult, error) {
+				stub := fmt.Sprintf(
 					`import { createClientModuleProxy } from "react-server-dom-webpack/server.browser";`+"\n"+
 						`module.exports = createClientModuleProxy(%q);`+"\n",
-					moduleId,
+					args.Path,
 				)
 				return api.OnLoadResult{
-					Contents: &contents,
+					Contents: &stub,
 					Loader:   api.LoaderJS,
 				}, nil
 			})
@@ -196,17 +234,6 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 		MinifySyntax:      true,
 		Plugins:           []api.Plugin{useClientPlugin},
 
-		// EntryPoints:   []string{cfg.ServerEntry},
-		// Bundle:        true,
-		// Format:        api.FormatCommonJS,
-		// Platform:      api.PlatformBrowser,
-		// JSX:           api.JSXAutomatic,
-		// Target:        api.ES2020,
-		// External:      cfg.External,
-		// AbsWorkingDir: absDir,
-		// Write:         false,
-		// Sourcemap:     api.SourceMapNone,
-		// Plugins:       []api.Plugin{useClientPlugin},
 		// react-server → React resolves to its server-safe variant.
 		// browser → selects react-server-dom-webpack-server.browser.production.js
 		Conditions: []string{"react-server", "browser", "module", "default"},
