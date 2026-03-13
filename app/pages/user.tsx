@@ -1,6 +1,7 @@
 
 export function UserPage({ userID }: { userID?: string }) {
   const user = ctx.getUser(userID);
+
   return (
     <div className="page">
       <h1>User Profile</h1>

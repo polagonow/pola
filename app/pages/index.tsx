@@ -6,12 +6,6 @@
 import Counter from "../components/Counter";
 import ThemeToggle from "../components/ThemeToggle";
 
-declare const ctx: {
-  getProducts: () => Array<{ id: number; name: string; price: number; stock: number }>;
-  getUser: (id?: string) => { id: string; name: string; email: string; role: string };
-  query: (sql: string, ...args: any[]) => any[];
-};
-
 function ProductCard({ product }: { product: { id: number; name: string; price: number; stock: number } }) {
   return (
     <div className="product">
@@ -24,6 +18,7 @@ function ProductCard({ product }: { product: { id: number; name: string; price: 
 
 function ProductList() {
   const products = ctx.getProducts();
+
   return (
     <section>
       <h2>Products <small style={{ fontSize: "0.75rem", color: "#888" }}>from ctx.getProducts()</small></h2>
