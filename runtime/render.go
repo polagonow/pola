@@ -47,37 +47,44 @@ func (r *Renderer) Render(fw *FlightWriter, vm *VM, opts RenderOptions) error {
 	// Safety: escape export name to avoid injection
 	exportName := strings.ReplaceAll(opts.ExportName, `"`, `\"`)
 
-	var flight string
+	var wroteAny bool
 	var renderErr error
 
 	err = vm.run(func(rt *goja.Runtime) error {
-		// __gojsx_capture__ is called from JS when the stream is fully drained.
-		rt.Set("__gojsx_capture__", func(call goja.FunctionCall) goja.Value {
+		// __gojsx_chunk__ is called from JS for each batch of Flight bytes.
+		// It writes and flushes immediately so the client sees chunks as they
+		// arrive — the Suspense fallback is flushed on the very first poll
+		// tick, resolved content streams in after async components finish.
+		rt.Set("__gojsx_chunk__", func(call goja.FunctionCall) goja.Value {
 			if len(call.Arguments) > 0 {
-				flight = call.Arguments[0].String()
+				fw.WriteRaw([]byte(call.Arguments[0].String())) //nolint:errcheck
+				fw.Flush()
+				wroteAny = true
 			}
 			return goja.Undefined()
 		})
 
 		// Start the render and schedule the first poll tick.
-		// Each __poll__ call drains one batch of stream chunks; if the stream
-		// is not done yet it reschedules itself via setTimeout(0), yielding
-		// control back to the goja_nodejs event loop so that native Promises
-		// (async/await in server components) can resolve between ticks.
+		// Each __poll__ call drains one batch of stream chunks and flushes
+		// them immediately. If the stream is not done it reschedules itself
+		// via setTimeout(0), yielding to the event loop so that native
+		// Promises (async/await in server components) can resolve between
+		// ticks. loop.Run returns once no more timers are pending.
 		script := fmt.Sprintf(`(function() {
 	__gojsx_stream__ = __render__(%q, %q);
 	var dec = new TextDecoder();
-	var out = "";
 	var safety = 0;
 	function __poll__() {
-		if (safety++ > 2000) { __gojsx_capture__(out); return; }
+		if (safety++ > 2000) { return; }
 		var r = __pullStream__(__gojsx_stream__);
-		for (var i = 0; i < r.chunks.length; i++) {
-			out += dec.decode(r.chunks[i]);
+		if (r.chunks.length > 0) {
+			var text = "";
+			for (var i = 0; i < r.chunks.length; i++) {
+				text += dec.decode(r.chunks[i]);
+			}
+			__gojsx_chunk__(text);
 		}
-		if (r.done) {
-			__gojsx_capture__(out);
-		} else {
+		if (!r.done) {
 			setTimeout(__poll__, 0);
 		}
 	}
@@ -96,19 +103,14 @@ func (r *Renderer) Render(fw *FlightWriter, vm *VM, opts RenderOptions) error {
 	if renderErr != nil {
 		return fmt.Errorf("render: __render__: %w", renderErr)
 	}
-	if flight == "" {
-		return fmt.Errorf("render: empty Flight output")
+	if !wroteAny {
+		return fmt.Errorf("render: no Flight output written")
 	}
-
-	if _, err := fw.WriteRaw([]byte(flight)); err != nil {
-		return fmt.Errorf("render: write: %w", err)
-	}
-	fw.Flush()
 
 	// Clean up per-request globals for next request.
 	_ = vm.run(func(rt *goja.Runtime) error {
 		rt.Set("__gojsx_stream__", goja.Undefined())
-		rt.Set("__gojsx_capture__", goja.Undefined())
+		rt.Set("__gojsx_chunk__", goja.Undefined())
 		return nil
 	})
 
