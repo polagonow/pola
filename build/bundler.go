@@ -119,17 +119,66 @@ func Bundle(cfg BundlerConfig) (*BundleResult, error) {
 }
 
 // buildPagesBundle compiles server-entry.tsx with the react-server condition.
-// react-server-dom-webpack/server.browser is bundled in (not external) so
-// renderToReadableStream is available in Goja at runtime.
+//
+// "use client" files are intercepted by the useClientPlugin: instead of being
+// bundled or marked external, each one is replaced with a synthetic module that
+// calls createClientModuleProxy(moduleId). This is the standard RSC bundler
+// pattern (used by Next.js, Parcel, etc.) — the server never runs client code,
+// it only emits a ClientReference that the Flight encoder serialises as an
+// I: row. The browser receives that row, imports the real chunk, and renders
+// the component with full React state.
 func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON string) (string, error) {
 	if cfg.ServerEntry == "" {
 		return "", nil
 	}
 
-	// Mark "use client" files external — they become ClientReference objects.
-	// react-server-dom-webpack/server.browser is bundled IN (not external).
-	external := append([]string{}, cfg.External...)
-	external = append(external, cfg.ClientComponents...)
+	// Build a set of absolute paths for quick lookup inside the plugin.
+	clientSet := make(map[string]string) // absPath → moduleId
+	for _, src := range cfg.ClientComponents {
+		abs, err := filepath.Abs(src)
+		if err != nil {
+			abs = src
+		}
+		// moduleId matches the manifest key: path relative to appDir, no extension.
+		rel, err := filepath.Rel(cfg.AppDir, src)
+		if err != nil {
+			rel = filepath.Base(src)
+		}
+		moduleId := strings.TrimSuffix(rel, filepath.Ext(rel))
+		moduleId = strings.ReplaceAll(moduleId, string(filepath.Separator), "/")
+		clientSet[abs] = moduleId
+	}
+
+	// useClientPlugin replaces every "use client" file during the server pass
+	// with a synthetic CJS module that returns a ClientReference proxy.
+	// The proxy is created by createClientModuleProxy(moduleId) from
+	// react-server-dom-webpack/server.browser — which is bundled into this pass.
+	useClientPlugin := api.Plugin{
+		Name: "use-client-proxy",
+		Setup: func(build api.PluginBuild) {
+			build.OnLoad(api.OnLoadOptions{Filter: `\.(tsx|ts|jsx|js)$`}, func(args api.OnLoadArgs) (api.OnLoadResult, error) {
+				moduleId, ok := clientSet[args.Path]
+				if !ok {
+					// Not a registered client component — let esbuild handle normally.
+					return api.OnLoadResult{}, nil
+				}
+				// Emit a synthetic server-side stub:
+				//   import { createClientModuleProxy } from "react-server-dom-webpack/server.browser";
+				//   module.exports = createClientModuleProxy("<moduleId>");
+				// The Proxy intercepts any property access (default, named exports)
+				// and returns a registered ClientReference for each one.
+				contents := fmt.Sprintf(
+					`import { createClientModuleProxy } from "react-server-dom-webpack/server.browser";`+"\n"+
+						`module.exports = createClientModuleProxy(%q);`+"\n",
+					moduleId,
+				)
+				return api.OnLoadResult{
+					Contents: &contents,
+					Loader:   api.LoaderJS,
+				}, nil
+			})
+		},
+	}
 
 	r := api.Build(api.BuildOptions{
 		EntryPoints:       []string{cfg.ServerEntry},
@@ -138,15 +187,28 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 		Platform:          api.PlatformBrowser,
 		JSX:               api.JSXAutomatic,
 		Target:            api.ES2020,
-		External:          external,
+		External:          cfg.External,
 		AbsWorkingDir:     absDir,
 		Write:             false,
 		Sourcemap:         api.SourceMapNone,
 		MinifyWhitespace:  true,
 		MinifyIdentifiers: true,
 		MinifySyntax:      true,
-		// react-server resolves React to its server-safe variant
-		// browser selects the .browser.js Flight encoder
+		Plugins:           []api.Plugin{useClientPlugin},
+
+		// EntryPoints:   []string{cfg.ServerEntry},
+		// Bundle:        true,
+		// Format:        api.FormatCommonJS,
+		// Platform:      api.PlatformBrowser,
+		// JSX:           api.JSXAutomatic,
+		// Target:        api.ES2020,
+		// External:      cfg.External,
+		// AbsWorkingDir: absDir,
+		// Write:         false,
+		// Sourcemap:     api.SourceMapNone,
+		// Plugins:       []api.Plugin{useClientPlugin},
+		// react-server → React resolves to its server-safe variant.
+		// browser → selects react-server-dom-webpack-server.browser.production.js
 		Conditions: []string{"react-server", "browser", "module", "default"},
 		Define: map[string]string{
 			"process.env.NODE_ENV": `"production"`,

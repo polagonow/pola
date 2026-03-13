@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"gojsx/build"
 	"gojsx/runtime"
@@ -26,6 +25,7 @@ type App struct {
 	renderer          *runtime.Renderer
 	routes            []Route
 	publicDir         string
+	manifest          runtime.ClientManifest
 	clientEntryScript string // /public/client-entry-[hash].js
 }
 
@@ -97,7 +97,6 @@ func main() {
 		},
 		Context: map[string]runtime.GoFunc{
 			"getProducts": func(args []runtime.GoValue) (any, error) {
-				time.Sleep(10 * time.Second)
 				return []map[string]any{
 					{"id": 1, "name": "Widget Alpha", "price": 29.99, "stock": 142},
 					{"id": 2, "name": "Widget Beta", "price": 49.99, "stock": 37},
@@ -137,6 +136,7 @@ func main() {
 		pool:              pool,
 		renderer:          runtime.NewRenderer(pool, manifest),
 		publicDir:         publicDir,
+		manifest:          manifest,
 		clientEntryScript: bundleResult.ClientEntryOutput,
 	}
 
@@ -207,7 +207,7 @@ func (a *App) handlePage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(w, htmlShell())
+	fmt.Fprint(w, htmlShell(buildImportMap(a.manifest)))
 	fmt.Fprint(w, htmlClose(a.clientEntryScript))
 }
 
@@ -324,7 +324,38 @@ function UserPage(props) {
 
 // ---- HTML shell templates ------------------------------------------------
 
-func htmlShell() string {
+// buildImportMap generates a <script type="importmap"> block that maps RSC
+// module IDs (e.g. "components/ThemeToggle") to the hashed client bundle URLs
+// emitted by esbuild (e.g. "/public/ThemeToggle-XYZ.js"). This lets the
+// react-server-dom-esm client import() those IDs directly in the browser.
+func buildImportMap(man runtime.ClientManifest) string {
+	if man == nil || len(man) == 0 {
+		return ""
+	}
+	type importsMap map[string]string
+	imports := make(importsMap)
+	for id, ref := range man {
+		// Skip the "/default" aliases – map only the base IDs.
+		if strings.HasSuffix(id, "/default") {
+			continue
+		}
+		if len(ref.Chunks) == 0 {
+			continue
+		}
+		// Use the first chunk URL as the specifier target.
+		imports[id] = ref.Chunks[0]
+	}
+	if len(imports) == 0 {
+		return ""
+	}
+	payload, err := json.Marshal(map[string]any{"imports": imports})
+	if err != nil {
+		return ""
+	}
+	return fmt.Sprintf(`<script type="importmap">%s</script>`, payload)
+}
+
+func htmlShell(importMap string) string {
 	return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -354,6 +385,7 @@ func htmlShell() string {
   </style>
 </head>
 <body>
+` + importMap + `
   <nav>
     <a href="/">Home</a>
     <a href="/products">Products</a>
