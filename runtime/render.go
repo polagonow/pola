@@ -73,9 +73,7 @@ func (r *Renderer) Render(fw *FlightWriter, vm *VM, opts RenderOptions) error {
 		script := fmt.Sprintf(`(function() {
 	__gojsx_stream__ = __render__(%q, %q);
 	var dec = new TextDecoder();
-	var safety = 0;
 	function __poll__() {
-		if (safety++ > 2000) { return; }
 		var r = __pullStream__(__gojsx_stream__);
 		if (r.chunks.length > 0) {
 			var text = "";
@@ -85,7 +83,12 @@ func (r *Renderer) Render(fw *FlightWriter, vm *VM, opts RenderOptions) error {
 			__gojsx_chunk__(text);
 		}
 		if (!r.done) {
-			setTimeout(__poll__, 0);
+			// Back off 5ms when there are no chunks so we don't spin-burn CPU
+			// while waiting for async server components (Promises) to resolve.
+			// When the goroutine calls RunOnLoop(resolve), r.leave() drains
+			// native microtasks so React renders the component and enqueues
+			// chunks before the next poll tick fires.
+			setTimeout(__poll__, r.chunks.length > 0 ? 0 : 5);
 		}
 	}
 	setTimeout(__poll__, 0);

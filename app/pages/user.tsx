@@ -1,6 +1,6 @@
 
-export function UserPage({ userID }: { userID?: string }) {
-  const user = ctx.getUser(userID);
+export async function UserPage({ userID }: { userID?: string }) {
+  const user = await ctx.getUser(userID);
 
   return (
     <div className="page">

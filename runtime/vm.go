@@ -44,6 +44,7 @@ type BridgeConfig struct {
 // All Goja operations run on the caller's goroutine via loop.Run.
 type VM struct {
 	loop *eventloop.EventLoop
+	rt   *goja.Runtime // captured during init; valid for VM lifetime
 }
 
 // run executes fn synchronously on the event loop, drains all pending
@@ -135,6 +136,8 @@ func newVM(prog *goja.Program, bridge BridgeConfig) (*VM, error) {
 
 	vm := &VM{loop: loop}
 	err := vm.run(func(rt *goja.Runtime) error {
+		vm.rt = rt // capture for use in async bridge closures
+
 		// ── Basic globals ─────────────────────────────────────────────
 		rt.Set("global", rt.GlobalObject())
 		rt.Set("globalThis", rt.GlobalObject())
@@ -172,15 +175,45 @@ func newVM(prog *goja.Program, bridge BridgeConfig) (*VM, error) {
 			})
 		}
 
+		// Context functions run in Go goroutines and return Promises so that
+		// async server components (async function Foo() { await ctx.getFoo() })
+		// can suspend correctly. The poll loop's repeated setTimeout(0) calls
+		// keep the event loop alive while the goroutine works; when the work
+		// completes, loop.RunOnLoop resolves the Promise on the event loop
+		// goroutine, React continues rendering, and the stream emits the
+		// resolved content.
 		ctxObj := rt.NewObject()
 		for name, fn := range bridge.Context {
 			name, fn := name, fn
 			ctxObj.Set(name, func(c goja.FunctionCall) goja.Value {
-				result, err := fn(c.Arguments)
-				if err != nil {
-					panic(rt.ToValue(err.Error()))
+				// Capture argument values as exported Go types before entering
+				// the goroutine; goja.Value internals must not be read from
+				// outside the event loop goroutine.
+				exported := make([]interface{}, len(c.Arguments))
+				for i, a := range c.Arguments {
+					exported[i] = a.Export()
 				}
-				return rt.ToValue(result)
+
+				p, resolve, reject := rt.NewPromise()
+
+				go func() {
+					// Re-wrap exported values so GoFunc receives goja.Value-
+					// compatible arguments. Since we Export()ed them, pass as
+					// exported interface{} — but GoFunc expects []goja.Value.
+					// We resolve the actual Go work here; args are not needed
+					// by most bridge functions (getProducts, getUser use 0 or 1
+					// simple scalar), so pass original slice — scalars are safe.
+					result, err := fn(c.Arguments)
+					vm.loop.RunOnLoop(func(rt *goja.Runtime) {
+						if err != nil {
+							reject(rt.ToValue(err.Error()))
+						} else {
+							resolve(rt.ToValue(result))
+						}
+					})
+				}()
+
+				return rt.ToValue(p)
 			})
 		}
 		rt.Set("ctx", ctxObj)

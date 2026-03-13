@@ -16,8 +16,8 @@ function ProductCard({ product }: { product: { id: number; name: string; price: 
   );
 }
 
-function ProductList() {
-  const products = ctx.getProducts();
+async function ProductList() {
+  const products = await ctx.getProducts();
 
   return (
     <section>
