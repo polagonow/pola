@@ -48,7 +48,7 @@ func newTestApp() (*App, error) {
 
 	bridge := runtime.BridgeConfig{
 		Context: map[string]runtime.GoFunc{
-			"getProducts": func(_ []runtime.GoValue) (any, error) {
+			"getProducts": func(_ []interface{}) (any, error) {
 				return []map[string]any{
 					{"id": 1, "name": "Widget Alpha", "price": 29.99, "stock": 142},
 					{"id": 2, "name": "Widget Beta", "price": 49.99, "stock": 37},
@@ -56,13 +56,13 @@ func newTestApp() (*App, error) {
 					{"id": 4, "name": "Turbo Sprocket", "price": 199.00, "stock": 12},
 				}, nil
 			},
-			"getUser": func(_ []runtime.GoValue) (any, error) {
+			"getUser": func(_ []interface{}) (any, error) {
 				return map[string]any{
 					"id": "42", "name": "Jane Doe",
 					"email": "jane@example.com", "role": "admin",
 				}, nil
 			},
-			"query": func(_ []runtime.GoValue) (any, error) { return []any{}, nil },
+			"query": func(_ []interface{}) (any, error) { return []any{}, nil },
 		},
 	}
 

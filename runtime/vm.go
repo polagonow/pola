@@ -27,10 +27,10 @@ import (
 )
 
 // GoFunc is the signature for Go functions exposed to the JS VM.
-type GoFunc func(args []GoValue) (any, error)
-
-// GoValue aliases goja.Value so callers don't need to import goja directly.
-type GoValue = goja.Value
+// Arguments are already exported to plain Go values (string, float64, bool,
+// map[string]interface{}, []interface{}, etc.) so bridge functions never
+// touch goja internals and are safe to call from goroutines.
+type GoFunc func(args []interface{}) (any, error)
 
 // BridgeConfig describes Go functions to expose inside the VM.
 type BridgeConfig struct {
@@ -167,7 +167,7 @@ func newVM(prog *goja.Program, bridge BridgeConfig) (*VM, error) {
 		for name, fn := range bridge.Globals {
 			name, fn := name, fn
 			rt.Set(name, func(c goja.FunctionCall) goja.Value {
-				result, err := fn(c.Arguments)
+				result, err := fn(exportArgs(c.Arguments))
 				if err != nil {
 					panic(rt.ToValue(err.Error()))
 				}
@@ -186,24 +186,15 @@ func newVM(prog *goja.Program, bridge BridgeConfig) (*VM, error) {
 		for name, fn := range bridge.Context {
 			name, fn := name, fn
 			ctxObj.Set(name, func(c goja.FunctionCall) goja.Value {
-				// Capture argument values as exported Go types before entering
-				// the goroutine; goja.Value internals must not be read from
-				// outside the event loop goroutine.
-				exported := make([]interface{}, len(c.Arguments))
-				for i, a := range c.Arguments {
-					exported[i] = a.Export()
-				}
+				// Export args to plain Go values NOW, on the event loop goroutine.
+				// The goroutine must never access goja.Value internals — goja's
+				// backing memory may be reused after this function returns.
+				args := exportArgs(c.Arguments)
 
 				p, resolve, reject := rt.NewPromise()
 
 				go func() {
-					// Re-wrap exported values so GoFunc receives goja.Value-
-					// compatible arguments. Since we Export()ed them, pass as
-					// exported interface{} — but GoFunc expects []goja.Value.
-					// We resolve the actual Go work here; args are not needed
-					// by most bridge functions (getProducts, getUser use 0 or 1
-					// simple scalar), so pass original slice — scalars are safe.
-					result, err := fn(c.Arguments)
+					result, err := fn(args)
 					vm.loop.RunOnLoop(func(rt *goja.Runtime) {
 						if err != nil {
 							reject(rt.ToValue(err.Error()))
@@ -228,6 +219,16 @@ func newVM(prog *goja.Program, bridge BridgeConfig) (*VM, error) {
 		return nil, err
 	}
 	return vm, nil
+}
+
+// exportArgs converts a goja argument slice to plain Go values so bridge
+// functions never touch goja internals and are safe to call from goroutines.
+func exportArgs(vals []goja.Value) []interface{} {
+	out := make([]interface{}, len(vals))
+	for i, v := range vals {
+		out[i] = v.Export()
+	}
+	return out
 }
 
 func logConsole(rt *goja.Runtime, level string, c goja.FunctionCall) goja.Value {

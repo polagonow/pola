@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"gojsx/build"
 	"gojsx/runtime"
@@ -73,11 +72,11 @@ func main() {
 	// ------------------------------------------------------------------
 	bridge := runtime.BridgeConfig{
 		Globals: map[string]runtime.GoFunc{
-			"fetchJSON": func(args []runtime.GoValue) (any, error) {
+			"fetchJSON": func(args []any) (any, error) {
 				if len(args) == 0 {
 					return nil, fmt.Errorf("fetchJSON requires a url argument")
 				}
-				resp, err := http.Get(args[0].String()) //nolint:gosec
+				resp, err := http.Get(fmt.Sprintf("%v", args[0])) //nolint:gosec
 				if err != nil {
 					return nil, err
 				}
@@ -85,12 +84,12 @@ func main() {
 				var v any
 				return v, json.NewDecoder(resp.Body).Decode(&v)
 			},
-			"getEnv": func(args []runtime.GoValue) (any, error) {
+			"getEnv": func(args []any) (any, error) {
 				if len(args) == 0 {
 					return nil, fmt.Errorf("getEnv requires a key argument")
 				}
 				// Read from actual env, safe subset only
-				key := args[0].String()
+				key := fmt.Sprintf("%v", args[0])
 				allowed := map[string]bool{"APP_NAME": true, "VERSION": true}
 				if !allowed[key] {
 					return "", nil
@@ -99,8 +98,8 @@ func main() {
 			},
 		},
 		Context: map[string]runtime.GoFunc{
-			"getProducts": func(args []runtime.GoValue) (any, error) {
-				time.Sleep(10 * time.Second)
+			"getProducts": func(args []any) (any, error) {
+				// time.Sleep(10 * time.Second)
 				return []map[string]any{
 					{"id": 1, "name": "Widget Alpha", "price": 29.99, "stock": 142},
 					{"id": 2, "name": "Widget Beta", "price": 49.99, "stock": 37},
@@ -108,10 +107,10 @@ func main() {
 					{"id": 4, "name": "Turbo Sprocket", "price": 199.0, "stock": 12},
 				}, nil
 			},
-			"getUser": func(args []runtime.GoValue) (any, error) {
+			"getUser": func(args []any) (any, error) {
 				id := "anonymous"
 				if len(args) > 0 {
-					id = args[0].String()
+					id = fmt.Sprintf("%v", args[0])
 				}
 				return map[string]any{
 					"id":    id,
@@ -120,7 +119,7 @@ func main() {
 					"role":  "admin",
 				}, nil
 			},
-			"query": func(args []runtime.GoValue) (any, error) {
+			"query": func(args []any) (any, error) {
 				// Placeholder for real DB access
 				return []any{}, nil
 			},
