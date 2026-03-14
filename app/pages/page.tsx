@@ -11,7 +11,7 @@ import jsi from "@/jsi";
 function ProductCard({ product }: { product: { id: number; name: string; price: number; stock: number } }) {
   return (
     <div className="product">
-      <strong>{product.name}</strong>
+      <a href={`/products/${product.id}`}><strong>{product.name}</strong></a>
       <span className="price">${product.price.toFixed(2)}</span>
       <small>({product.stock} in stock)</small>
     </div>
@@ -33,7 +33,8 @@ async function ProductList() {
   );
 }
 
-export default function IndexPage({ title }: { title?: string }) {
+export default function IndexPage({ searchParams }: { searchParams?: Record<string, string> }) {
+  const title = searchParams?.title;
   return (
     <div className="page">
       <h1>{title ?? "GoJSX — Go + Goja + RSC"}</h1>

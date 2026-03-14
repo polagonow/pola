@@ -4,7 +4,7 @@ import jsi from '@/jsi'
 function ProductCard({ product }: { product: { id: number; name: string; price: number; stock: number } }) {
   return (
     <div className="product">
-      <strong>{product.name}</strong>
+      <a href={`/products/${product.id}`}><strong>{product.name}</strong></a>
       <span className="price">${product.price.toFixed(2)}</span>
       <small>({product.stock} in stock)</small>
     </div>
@@ -27,10 +27,10 @@ async function ProductList({ category }: { category?: string }) {
 }
 
 // Parent wraps the async child in Suspense
-export default function ProductsPage({ category }: { category?: string }) {
+export default function ProductsPage({ searchParams }: { searchParams?: Record<string, string> }) {
   return (
     <Suspense fallback={<p>Loading Products...</p>}>
-      <ProductList category={category} /> {/* ← this can suspend */}
+      <ProductList category={searchParams?.category} /> {/* ← this can suspend */}
     </Suspense>
   );
 }

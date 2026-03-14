@@ -74,15 +74,56 @@ func TestDiscoverPages(t *testing.T) {
 
 	dirs := make(map[string]bool)
 	for _, p := range pages {
-		if p.Export != "default" {
-			t.Errorf("%s: Export = %q, want default", p.File, p.Export)
-		}
 		dirs[filepath.Base(filepath.Dir(p.File))] = true
 	}
 	for _, want := range []string{"index", "products", "user", "about"} {
 		if !dirs[want] {
 			t.Errorf("route %q not discovered", want)
 		}
+	}
+}
+
+func TestDiscoverPages_MissingDefaultExport(t *testing.T) {
+	appDir := t.TempDir()
+	dir := filepath.Join(appDir, "pages", "bad")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	// Named export — violates the convention
+	writeFile(t, dir, "page.tsx", "export function BadPage() { return null; }\n")
+
+	_, err := DiscoverPages(appDir)
+	if err == nil {
+		t.Fatal("expected error for missing default export, got nil")
+	}
+}
+
+// ── hasDefaultExport ────────────────────────────────────────────────────────
+
+func TestHasDefaultExport(t *testing.T) {
+	dir := t.TempDir()
+	cases := []struct {
+		name    string
+		content string
+		want    bool
+	}{
+		{"sync function", "export default function Page() { return null; }", true},
+		{"async function", "export default async function Page() { return null; }", true},
+		{"named export only", "export function Page() { return null; }", false},
+		{"re-export", "export { Page as default } from './other'", false},
+		{"empty file", "", false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := writeFile(t, dir, tc.name+".tsx", tc.content)
+			got, err := hasDefaultExport(path)
+			if err != nil {
+				t.Fatalf("hasDefaultExport: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
 	}
 }
 

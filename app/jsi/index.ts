@@ -2,6 +2,7 @@
 // Go bridge / runtime globals (injected by runtime/vm.go)
 declare const __JSI__: {
     getProducts: () => Array<{ id: number; name: string; price: number; stock: number }>;
+    getProduct: (id: string) => { id: number; name: string; price: number; stock: number };
     getUser: (id?: string) => { id: string; name: string; email: string; role: string };
     query: (sql: string, ...args: unknown[]) => unknown[];
 };

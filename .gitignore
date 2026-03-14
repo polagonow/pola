@@ -3,3 +3,4 @@ dist
 .env
 .env*
 public/assets
+_server.js

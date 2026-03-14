@@ -26,21 +26,12 @@ const (
 	defaultPublicURL = "/public"
 )
 
-// Route maps a URL pattern to a Server Component and its props factory.
-// The JS alias for the component is derived from the pattern via patternToAlias.
+// Route maps a URL pattern to a Server Component export name.
+// Pattern supports dynamic segments: "/products/:id".
+// Export is the JS key in __pages__ (e.g. "Products").
 type Route struct {
-	Pattern   string
-	PropsFunc func(r *http.Request) map[string]any
-}
-
-// patternToAlias converts a URL pattern to the JS identifier used as the key
-// in __pages__. "/" maps to "Index"; "/products" maps to "Products".
-func patternToAlias(pattern string) string {
-	seg := strings.TrimPrefix(pattern, "/")
-	if seg == "" {
-		seg = "index"
-	}
-	return strings.ToUpper(seg[:1]) + seg[1:]
+	Pattern string
+	Export  string
 }
 
 // App is the top-level application.
@@ -94,6 +85,13 @@ func main() {
 	//    Globals  → bare function calls:  getEnv("KEY")
 	//    Context  → ctx object calls:     ctx.getProducts()
 	// ------------------------------------------------------------------
+	productCatalog := []map[string]any{
+		{"id": 1, "name": "Widget Alpha", "price": 29.99, "stock": 142},
+		{"id": 2, "name": "Widget Beta", "price": 49.99, "stock": 37},
+		{"id": 3, "name": "Widget Gamma", "price": 9.99, "stock": 891},
+		{"id": 4, "name": "Turbo Sprocket", "price": 199.0, "stock": 12},
+	}
+
 	bridge := runtime.BridgeConfig{
 		Globals: map[string]runtime.GoFunc{
 			"fetchJSON": func(args []any) (any, error) {
@@ -112,24 +110,30 @@ func main() {
 				if len(args) == 0 {
 					return nil, fmt.Errorf("getEnv requires a key argument")
 				}
-				// Read from actual env, safe subset only
 				key := fmt.Sprintf("%v", args[0])
 				allowed := map[string]bool{"APP_NAME": true, "VERSION": true}
 				if !allowed[key] {
 					return "", nil
 				}
-				return key, nil // return key as demo value
+				return key, nil
 			},
 		},
 		Context: map[string]runtime.GoFunc{
 			"getProducts": func(args []any) (any, error) {
 				time.Sleep(500 * time.Millisecond)
-				return []map[string]any{
-					{"id": 1, "name": "Widget Alpha", "price": 29.99, "stock": 142},
-					{"id": 2, "name": "Widget Beta", "price": 49.99, "stock": 37},
-					{"id": 3, "name": "Widget Gamma", "price": 9.99, "stock": 891},
-					{"id": 4, "name": "Turbo Sprocket", "price": 199.0, "stock": 12},
-				}, nil
+				return productCatalog, nil
+			},
+			"getProduct": func(args []any) (any, error) {
+				id := ""
+				if len(args) > 0 {
+					id = fmt.Sprintf("%v", args[0])
+				}
+				for _, p := range productCatalog {
+					if fmt.Sprintf("%v", p["id"]) == id {
+						return p, nil
+					}
+				}
+				return nil, fmt.Errorf("product %q not found", id)
 			},
 			"getUser": func(args []any) (any, error) {
 				id := "anonymous"
@@ -144,7 +148,6 @@ func main() {
 				}, nil
 			},
 			"query": func(args []any) (any, error) {
-				// Placeholder for real DB access
 				return []any{}, nil
 			},
 		},
@@ -153,8 +156,11 @@ func main() {
 	// ------------------------------------------------------------------
 	// 4. Boot VM pool
 	// ------------------------------------------------------------------
-	serverJS := bundleResult.ServerBundle
-	pool, err := runtime.NewVMPool(serverJS, bridge)
+	serverJS, err := os.ReadFile(bundleResult.ServerBundlePath)
+	if err != nil {
+		log.Fatalf("read server bundle: %v", err)
+	}
+	pool, err := runtime.NewVMPool(string(serverJS), bridge)
 	if err != nil {
 		log.Fatalf("vm pool: %v", err)
 	}
@@ -169,44 +175,20 @@ func main() {
 	}
 
 	// ------------------------------------------------------------------
-	// 5. Manual route registration
+	// 5. Auto-register routes from discovered pages
 	// ------------------------------------------------------------------
-	app.Register(Route{
-		Pattern: "/",
-		PropsFunc: func(r *http.Request) map[string]any {
-			return map[string]any{"title": "GoJSX — Go + Goja + RSC"}
-		},
-	})
-
-	app.Register(Route{
-		Pattern: "/products",
-		PropsFunc: func(r *http.Request) map[string]any {
-			return map[string]any{"category": r.URL.Query().Get("category")}
-		},
-	})
-
-	app.Register(Route{
-		Pattern: "/user",
-		PropsFunc: func(r *http.Request) map[string]any {
-			return map[string]any{"userID": r.URL.Query().Get("id")}
-		},
-	})
-
-	app.Register(Route{
-		Pattern: "/about",
-		PropsFunc: func(r *http.Request) map[string]any {
-			return map[string]any{"version": "0.1.0"}
-		},
-	})
+	for _, p := range pages {
+		app.routes = append(app.routes, Route{
+			Pattern: build.RoutePattern(appDir, p.File),
+			Export:  build.PageAlias(p),
+		})
+	}
 
 	// ------------------------------------------------------------------
 	// 6. HTTP handlers
 	// ------------------------------------------------------------------
-	// Static assets
 	http.Handle(defaultPublicURL+"/", http.StripPrefix(defaultPublicURL+"/",
 		http.FileServer(http.Dir(defaultPublicDir))))
-
-	// All page routes: HTML shell or RSC Flight based on Content-Type header.
 	http.HandleFunc("/", app.handleRoute)
 
 	addr := ":3000"
@@ -214,28 +196,65 @@ func main() {
 	log.Fatal(http.ListenAndServe(addr, nil))
 }
 
-func (a *App) Register(r Route) {
-	a.routes = append(a.routes, r)
-}
-
-func (a *App) match(path string) *Route {
-	for i := range a.routes {
-		if a.routes[i].Pattern == path {
-			return &a.routes[i]
+// matchPattern matches a URL path against a route pattern.
+// Dynamic segments (":name") capture into the returned map.
+// Returns (params, true) on match, (nil, false) otherwise.
+func matchPattern(pattern, path string) (map[string]string, bool) {
+	pp := strings.Split(pattern, "/")
+	rp := strings.Split(path, "/")
+	if len(pp) != len(rp) {
+		return nil, false
+	}
+	params := map[string]string{}
+	for i, seg := range pp {
+		if strings.HasPrefix(seg, ":") {
+			params[seg[1:]] = rp[i]
+		} else if seg != rp[i] {
+			return nil, false
 		}
 	}
-	return nil
+	return params, true
+}
+
+func (a *App) match(path string) (*Route, map[string]string) {
+	for i := range a.routes {
+		if params, ok := matchPattern(a.routes[i].Pattern, path); ok {
+			return &a.routes[i], params
+		}
+	}
+	return nil, nil
+}
+
+// buildPageProps constructs the standard PageProps passed to every page component:
+//
+//	{ params: { <path segments> }, searchParams: { <query string> } }
+func buildPageProps(r *http.Request, params map[string]string) map[string]any {
+	searchParams := map[string]any{}
+	for k, vs := range r.URL.Query() {
+		if len(vs) == 1 {
+			searchParams[k] = vs[0]
+		} else {
+			searchParams[k] = vs
+		}
+	}
+	p := map[string]any{}
+	for k, v := range params {
+		p[k] = v
+	}
+	return map[string]any{"params": p, "searchParams": searchParams}
 }
 
 // handleRoute serves all page routes. When the request carries
 // Content-Type: text/x-component it returns the RSC Flight stream;
 // otherwise it returns the HTML shell that bootstraps the client.
 func (a *App) handleRoute(w http.ResponseWriter, r *http.Request) {
-	route := a.match(r.URL.Path)
+	route, params := a.match(r.URL.Path)
 	if route == nil {
 		http.NotFound(w, r)
 		return
 	}
+
+	props := buildPageProps(r, params)
 
 	if r.Header.Get("Content-Type") == "text/x-component" {
 		w.Header().Set("Content-Type", "text/x-component; charset=utf-8")
@@ -243,8 +262,8 @@ func (a *App) handleRoute(w http.ResponseWriter, r *http.Request) {
 		vm := a.pool.Acquire()
 		defer a.pool.Release(vm)
 		if err := a.renderer.Render(fw, vm, runtime.RenderOptions{
-			ExportName:     patternToAlias(route.Pattern),
-			Props:          route.PropsFunc(r),
+			ExportName:     route.Export,
+			Props:          props,
 			RequestContext: requestCtx(r),
 		}); err != nil {
 			log.Printf("rsc %s: %v", r.URL.Path, err)
@@ -255,31 +274,28 @@ func (a *App) handleRoute(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
-	params := ghtml.Params{
+	htmlParams := ghtml.Params{
 		ImportURLs:   a.importURLs,
 		ClientScript: a.clientEntryScript,
 	}
 
 	if !ssrStreaming {
-		// Inline mode: buffer the full RSC flight payload and embed it in the HTML.
-		// Eliminates the second fetch but requires the full render to complete before
-		// any bytes are sent — no Suspense streaming.
 		var buf bytes.Buffer
 		bfw := runtime.NewFlightWriterBuffer(&buf)
 		vm := a.pool.Acquire()
 		defer a.pool.Release(vm)
 		if err := a.renderer.Render(bfw, vm, runtime.RenderOptions{
-			ExportName:     patternToAlias(route.Pattern),
-			Props:          route.PropsFunc(r),
+			ExportName:     route.Export,
+			Props:          props,
 			RequestContext: requestCtx(r),
 		}); err != nil {
 			log.Printf("html render %s: %v", r.URL.Path, err)
 		}
 		flightJSON, _ := json.Marshal(buf.String())
-		params.Scripts = append(params.Scripts, "self.__flight_data="+string(flightJSON))
+		htmlParams.Scripts = append(htmlParams.Scripts, "self.__flight_data="+string(flightJSON))
 	}
 
-	fmt.Fprint(w, ghtml.Render(params))
+	fmt.Fprint(w, ghtml.Render(htmlParams))
 }
 
 func requestCtx(r *http.Request) map[string]any {

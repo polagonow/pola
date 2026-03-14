@@ -30,8 +30,8 @@ import (
 
 // BundleResult is the output of a successful build.
 type BundleResult struct {
-	// ServerBundle is the JS for the Goja VM: pages CJS bundle.
-	ServerBundle string
+	// ServerBundlePath is the on-disk path of the emitted server CJS bundle.
+	ServerBundlePath string
 
 	// ClientFiles maps relative output path → bytes written to OutDir.
 	ClientFiles map[string][]byte
@@ -53,39 +53,13 @@ type BundleResult struct {
 }
 
 // PageEntry describes one server-rendered page.
+// Every page must use `export default function` — the convention is enforced
+// by DiscoverPages at discovery time.
 type PageEntry struct {
-	// File is the path to the TSX/TS file, relative to cwd (e.g. "./app/pages/index.tsx").
+	// File is the absolute or cwd-relative path to the page.tsx file.
 	File string
-	// Export is either a named export (e.g. "IndexPage") or the sentinel "default"
-	// to use the file's default export. When "default", the JS identifier used in
-	// the generated server entry is derived from the file basename (e.g.
-	// "pages/index.tsx" → "Index").
-	Export string
 }
 
-// pageAlias returns the JS identifier used for p in the generated server entry.
-// For named exports it is p.Export unchanged.
-// For default exports from a file named "page.tsx", the alias is derived from
-// the parent directory (e.g. "pages/products/page.tsx" → "Products").
-// For default exports from any other file, it falls back to the file basename.
-func pageAlias(p PageEntry) string {
-	if p.Export != "default" {
-		return p.Export
-	}
-	base := strings.TrimSuffix(filepath.Base(p.File), filepath.Ext(p.File))
-	if base == "page" {
-		dir := filepath.Base(filepath.Dir(p.File))
-		// pages/page.tsx is the root page — alias it as "Index"
-		if dir == "pages" {
-			return "Index"
-		}
-		base = dir
-	}
-	if len(base) == 0 {
-		return "Page"
-	}
-	return strings.ToUpper(base[:1]) + base[1:]
-}
 
 // BundlerConfig controls both build passes.
 type BundlerConfig struct {
@@ -102,6 +76,10 @@ type BundlerConfig struct {
 
 	// ClientEntry is app/_client.tsx — the browser bootstrap.
 	ClientEntry string
+
+	// ServerEntry is the path where the server CJS bundle is emitted.
+	// Defaults to filepath.Dir(OutDir)/_server.js when empty.
+	ServerEntry string
 
 	// ClientComponents are all "use client" TSX files.
 	ClientComponents []string
@@ -153,15 +131,27 @@ func Bundle(cfg BundlerConfig) (*BundleResult, error) {
 		return nil, fmt.Errorf("bundler: manifest pass: %w", err)
 	}
 
-	pagesJS, err := buildPagesBundle(cfg, absDir, string(manifestDefine))
+	absOutDir, err := filepath.Abs(cfg.OutDir)
+	if err != nil {
+		return nil, fmt.Errorf("bundler: abs outdir: %w", err)
+	}
+	serverEntry := cfg.ServerEntry
+	if serverEntry == "" {
+		serverEntry = filepath.Join(filepath.Dir(absOutDir), "_server.js")
+	} else {
+		serverEntry, err = filepath.Abs(serverEntry)
+		if err != nil {
+			return nil, fmt.Errorf("bundler: abs server entry: %w", err)
+		}
+	}
+
+	serverBundlePath, err := buildPagesBundle(cfg, absDir, string(manifestDefine), serverEntry)
 	if err != nil {
 		return nil, fmt.Errorf("bundler: pages pass: %w", err)
 	}
 
-	serverBundle := pagesJS
-
 	return &BundleResult{
-		ServerBundle:      serverBundle,
+		ServerBundlePath: serverBundlePath,
 		ClientFiles:       clientFiles,
 		ClientEntryOutput: clientEntryOutput,
 		Manifest:          manifestJSON,
@@ -205,7 +195,7 @@ func newAtAliasPlugin(absAppDir string) api.Plugin {
 	}
 }
 
-func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON string) (string, error) {
+func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON string, serverOutFile string) (string, error) {
 	if len(cfg.Pages) == 0 {
 		return "", nil
 	}
@@ -224,16 +214,12 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 			rel = absFile
 		}
 		importPath := "./" + filepath.ToSlash(rel)
-		alias := pageAlias(p)
-		if p.Export == "default" {
-			entry.WriteString(fmt.Sprintf("import %s from %q;\n", alias, importPath))
-		} else {
-			entry.WriteString(fmt.Sprintf("import { %s } from %q;\n", alias, importPath))
-		}
+		alias := PageAlias(p)
+		entry.WriteString(fmt.Sprintf("import %s from %q;\n", alias, importPath))
 	}
 	entry.WriteString("const __pages__ = {\n")
 	for _, p := range cfg.Pages {
-		entry.WriteString(fmt.Sprintf("  %s,\n", pageAlias(p)))
+		entry.WriteString(fmt.Sprintf("  %s,\n", PageAlias(p)))
 	}
 	entry.WriteString("};\n")
 	entry.WriteString(`
@@ -316,6 +302,10 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 		},
 	}
 
+	if err := os.MkdirAll(filepath.Dir(serverOutFile), 0o755); err != nil {
+		return "", fmt.Errorf("bundler: mkdir server out: %w", err)
+	}
+
 	entryStr := entry.String()
 	r := api.Build(api.BuildOptions{
 		Stdin: &api.StdinOptions{
@@ -331,7 +321,8 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 		Target:            api.ES2020,
 		External:          cfg.External,
 		AbsWorkingDir:     absDir,
-		Write:             false,
+		Outfile:           serverOutFile,
+		Write:             true,
 		Sourcemap:         api.SourceMapNone,
 		MinifyWhitespace:  true,
 		MinifyIdentifiers: true,
@@ -350,11 +341,7 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 	if len(r.Errors) > 0 {
 		return "", fmtErrors("pages", r.Errors)
 	}
-	var out string
-	for _, f := range r.OutputFiles {
-		out += string(f.Contents)
-	}
-	return out, nil
+	return serverOutFile, nil
 }
 
 // buildClientBundle compiles the browser-side entry + client components.

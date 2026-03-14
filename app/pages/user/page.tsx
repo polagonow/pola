@@ -1,8 +1,8 @@
 
 import jsi from "@/jsi";
 
-export default async function UserPage({ userID }: { userID?: string }) {
-  const user = await jsi.getUser(userID);
+export default async function UserPage({ searchParams }: { searchParams?: Record<string, string> }) {
+  const user = await jsi.getUser(searchParams?.id);
 
   return (
     <div className="page">

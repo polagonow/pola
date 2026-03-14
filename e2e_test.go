@@ -48,15 +48,26 @@ func newTestApp() (*App, error) {
 		return nil, fmt.Errorf("bundle: %w", err)
 	}
 
+	testCatalog := []map[string]any{
+		{"id": 1, "name": "Widget Alpha", "price": 29.99, "stock": 142},
+		{"id": 2, "name": "Widget Beta", "price": 49.99, "stock": 37},
+		{"id": 3, "name": "Widget Gamma", "price": 9.99, "stock": 891},
+		{"id": 4, "name": "Turbo Sprocket", "price": 199.00, "stock": 12},
+	}
 	bridge := runtime.BridgeConfig{
 		Context: map[string]runtime.GoFunc{
-			"getProducts": func(_ []any) (any, error) {
-				return []map[string]any{
-					{"id": 1, "name": "Widget Alpha", "price": 29.99, "stock": 142},
-					{"id": 2, "name": "Widget Beta", "price": 49.99, "stock": 37},
-					{"id": 3, "name": "Widget Gamma", "price": 9.99, "stock": 891},
-					{"id": 4, "name": "Turbo Sprocket", "price": 199.00, "stock": 12},
-				}, nil
+			"getProducts": func(_ []any) (any, error) { return testCatalog, nil },
+			"getProduct": func(args []any) (any, error) {
+				id := ""
+				if len(args) > 0 {
+					id = fmt.Sprintf("%v", args[0])
+				}
+				for _, p := range testCatalog {
+					if fmt.Sprintf("%v", p["id"]) == id {
+						return p, nil
+					}
+				}
+				return nil, fmt.Errorf("product %q not found", id)
 			},
 			"getUser": func(_ []any) (any, error) {
 				return map[string]any{
@@ -68,7 +79,11 @@ func newTestApp() (*App, error) {
 		},
 	}
 
-	pool, err := runtime.NewVMPool(bundleResult.ServerBundle, bridge)
+	serverJS, err := os.ReadFile(bundleResult.ServerBundlePath)
+	if err != nil {
+		return nil, fmt.Errorf("read server bundle: %w", err)
+	}
+	pool, err := runtime.NewVMPool(string(serverJS), bridge)
 	if err != nil {
 		return nil, fmt.Errorf("vm pool: %w", err)
 	}
@@ -84,31 +99,13 @@ func newTestApp() (*App, error) {
 		clientEntryScript: bundleResult.ClientEntryOutput,
 	}
 
-	// Register routes — mirrors main()
-	app.Register(Route{
-		Pattern: "/",
-		PropsFunc: func(r *http.Request) map[string]any {
-			return map[string]any{"title": "GoJSX — Go + Goja + RSC"}
-		},
-	})
-	app.Register(Route{
-		Pattern: "/products",
-		PropsFunc: func(r *http.Request) map[string]any {
-			return map[string]any{"category": r.URL.Query().Get("category")}
-		},
-	})
-	app.Register(Route{
-		Pattern: "/user",
-		PropsFunc: func(r *http.Request) map[string]any {
-			return map[string]any{"userID": r.URL.Query().Get("id")}
-		},
-	})
-	app.Register(Route{
-		Pattern: "/about",
-		PropsFunc: func(r *http.Request) map[string]any {
-			return map[string]any{"version": "0.1.0"}
-		},
-	})
+	// Auto-register routes from discovered pages — mirrors main()
+	for _, p := range pages {
+		app.routes = append(app.routes, Route{
+			Pattern: build.RoutePattern(appDir, p.File),
+			Export:  build.PageAlias(p),
+		})
+	}
 
 	return app, nil
 }
@@ -460,5 +457,33 @@ func TestRSC_Concurrent(t *testing.T) {
 		if err := <-results; err != nil {
 			t.Error(err)
 		}
+	}
+}
+
+func TestRSC_ProductDetailPage(t *testing.T) {
+	app := requireApp(t)
+	body := rsc(t, "/products/1")
+	for _, want := range []string{"Widget Alpha", "29.99", "142"} {
+		if !flightContains(body, want) {
+			t.Errorf("product detail missing %q in Flight body", want)
+		}
+	}
+	// Back link present
+	if !flightContains(body, "/products") {
+		t.Errorf("product detail missing back link")
+	}
+	_ = app
+}
+
+func TestRSC_ProductDetailPage_NotFound(t *testing.T) {
+	app := requireApp(t)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "/products/999", nil)
+	req.Header.Set("Content-Type", "text/x-component")
+	app.handleRoute(w, req)
+	body, _ := io.ReadAll(w.Result().Body)
+	// React encodes thrown errors as a Flight error row: 0:E{"digest":"..."}
+	if !strings.Contains(string(body), "0:E") {
+		t.Errorf("expected Flight error row for unknown product, got: %s", string(body)[:min(len(string(body)), 200)])
 	}
 }

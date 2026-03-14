@@ -2,7 +2,8 @@
 // Used to verify that non-async RSC pages render correctly alongside
 // async/Suspense-based pages.
 
-export default function AboutPage({ version }: { version?: string }) {
+export default function AboutPage() {
+  const version = "dev";
   return (
     <div className="page">
       <h1>About</h1>
