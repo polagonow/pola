@@ -36,7 +36,7 @@ type GoFunc func(args []interface{}) (any, error)
 type BridgeConfig struct {
 	// Globals are injected as bare global functions: fetchJSON("url")
 	Globals map[string]GoFunc
-	// Context functions are injected on a `ctx` object: ctx.getProducts()
+	// Context functions are injected on a `jsi` object: jsi.getProducts()
 	Context map[string]GoFunc
 }
 
