@@ -133,7 +133,7 @@ func Bundle(cfg BundlerConfig) (*BundleResult, error) {
 		return nil, fmt.Errorf("bundler: manifest: %w", err)
 	}
 	manifestJSON, _ := json.MarshalIndent(manifest, "", "  ")
-	_ = os.WriteFile(filepath.Join(cfg.OutDir, "client-manifest.json"), manifestJSON, 0o644)
+	_ = os.WriteFile(filepath.Join(cfg.OutDir, "manifest.json"), manifestJSON, 0o644)
 
 	// ------------------------------------------------------------------ //
 	// Pass 2 — Pages bundle (react-server condition, CJS)                 //

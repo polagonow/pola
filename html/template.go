@@ -1,8 +1,12 @@
 package html
 
-// shellHead is the HTML document head, closed at </head><body>.
-// The import map and body content are appended after it.
-const shellHead = `<!DOCTYPE html>
+// shellTemplate is the full HTML document template.
+// Dynamic fields:
+//
+//	{{.ImportMap}}    — template.HTML: <script type="importmap">…</script>
+//	{{.Scripts}}      — []template.JS: inline <script> blocks before the entry
+//	{{.ClientScript}} — string: URL of the compiled client module
+const shellTemplate = `<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -29,12 +33,9 @@ const shellHead = `<!DOCTYPE html>
     #root{padding-top:.5rem}
     .rsc-err{color:#c0392b;background:#fdecea;padding:.75rem 1rem;border-radius:8px}
   </style>
+  {{.ImportMap}}
 </head>
 <body>
-`
-
-// shellBody is the fixed body content placed after the import map.
-const shellBody = `
   <nav>
     <a href="/">Home</a>
     <a href="/products">Products</a>
@@ -42,4 +43,7 @@ const shellBody = `
     <a href="/about">About</a>
   </nav>
   <div id="root"></div>
-`
+{{range .Scripts}}  <script>{{.}}</script>
+{{end}}  <script type="module" src="{{.ClientScript}}"></script>
+</body>
+</html>`

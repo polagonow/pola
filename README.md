@@ -91,7 +91,7 @@ esbuild runs two separate builds at startup:
 **Client bundle** (ESM, targeting browsers)
 - Compiles only the `"use client"` components
 - Code-splits with `Splitting: true` — shared dependencies land in `/public/chunks/`
-- Produces a `client-manifest.json` mapping component IDs to their bundle filenames
+- Produces a `manifest.json` mapping component IDs to their bundle filenames
 
 ### The VM pool
 
@@ -145,7 +145,7 @@ gojsx/
 │   │                          Parses chunks, renders DOM, handles navigation
 │   │
 │   └── [generated]            esbuild output (Counter-[hash].js, etc.)
-│                              client-manifest.json
+│                              manifest.json
 │
 ├── vendor/                    All Go dependencies vendored (builds offline)
 │   ├── github.com/dop251/goja
@@ -215,7 +215,7 @@ export function ProductsPage({ category }: { category?: string }) {
 
 ### Client Components
 
-Files with `"use client"` at the top are bundled by esbuild for the browser. The server never executes them — it only writes a `ClientRef` into the Flight stream, and the browser resolves it against `client-manifest.json`.
+Files with `"use client"` at the top are bundled by esbuild for the browser. The server never executes them — it only writes a `ClientRef` into the Flight stream, and the browser resolves it against `manifest.json`.
 
 ```tsx
 "use client"

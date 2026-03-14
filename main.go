@@ -248,12 +248,13 @@ func (a *App) handleRoute(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(w, ghtml.Open(ghtml.Params{ImportURLs: a.importURLs}))
 
-	if ssrStreaming {
-		// Streaming mode (default): serve empty shell; client fetches RSC separately.
-		// Supports Suspense — async chunks stream in as server components resolve.
-	} else {
+	params := ghtml.Params{
+		ImportURLs:   a.importURLs,
+		ClientScript: a.clientEntryScript,
+	}
+
+	if !ssrStreaming {
 		// Inline mode: buffer the full RSC flight payload and embed it in the HTML.
 		// Eliminates the second fetch but requires the full render to complete before
 		// any bytes are sent — no Suspense streaming.
@@ -269,10 +270,10 @@ func (a *App) handleRoute(w http.ResponseWriter, r *http.Request) {
 			log.Printf("html render %s: %v", r.URL.Path, err)
 		}
 		flightJSON, _ := json.Marshal(buf.String())
-		fmt.Fprintf(w, "<script>self.__flight_data=%s</script>\n", flightJSON)
+		params.Scripts = append(params.Scripts, "self.__flight_data="+string(flightJSON))
 	}
 
-	fmt.Fprint(w, ghtml.Close(ghtml.Params{ClientScript: a.clientEntryScript}))
+	fmt.Fprint(w, ghtml.Render(params))
 }
 
 func requestCtx(r *http.Request) map[string]any {
@@ -294,4 +295,3 @@ func flush(w http.ResponseWriter) {
 		f.Flush()
 	}
 }
-
