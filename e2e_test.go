@@ -26,20 +26,23 @@ func init() {
 }
 
 func newTestApp() (*App, error) {
+	appDir := "./app"
+
+	pages, err := build.DiscoverPages(appDir)
+	if err != nil {
+		return nil, fmt.Errorf("discover pages: %w", err)
+	}
+	clientComponents, err := build.DiscoverClientComponents(appDir)
+	if err != nil {
+		return nil, fmt.Errorf("discover client components: %w", err)
+	}
+
 	bundleResult, err := build.Bundle(build.BundlerConfig{
-		AppDir:      "./app",
-		OutDir:      "./public/assets",
-		ClientEntry: "./app/_client.tsx",
-		Pages: []build.PageEntry{
-			{File: "./app/pages/index.tsx", Export: "IndexPage"},
-			{File: "./app/pages/products.tsx", Export: "ProductsPage"},
-			{File: "./app/pages/user.tsx", Export: "UserPage"},
-			{File: "./app/pages/about.tsx", Export: "AboutPage"},
-		},
-		ClientComponents: []string{
-			"./app/components/Counter.tsx",
-			"./app/components/ThemeToggle.tsx",
-		},
+		AppDir:           appDir,
+		OutDir:           "./public/assets",
+		ClientEntry:      "./app/_client.tsx",
+		Pages:            pages,
+		ClientComponents: clientComponents,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("bundle: %w", err)
@@ -47,7 +50,7 @@ func newTestApp() (*App, error) {
 
 	bridge := runtime.BridgeConfig{
 		Context: map[string]runtime.GoFunc{
-			"getProducts": func(_ []interface{}) (any, error) {
+			"getProducts": func(_ []any) (any, error) {
 				return []map[string]any{
 					{"id": 1, "name": "Widget Alpha", "price": 29.99, "stock": 142},
 					{"id": 2, "name": "Widget Beta", "price": 49.99, "stock": 37},
@@ -55,13 +58,13 @@ func newTestApp() (*App, error) {
 					{"id": 4, "name": "Turbo Sprocket", "price": 199.00, "stock": 12},
 				}, nil
 			},
-			"getUser": func(_ []interface{}) (any, error) {
+			"getUser": func(_ []any) (any, error) {
 				return map[string]any{
 					"id": "42", "name": "Jane Doe",
 					"email": "jane@example.com", "role": "admin",
 				}, nil
 			},
-			"query": func(_ []interface{}) (any, error) { return []any{}, nil },
+			"query": func(_ []any) (any, error) { return []any{}, nil },
 		},
 	}
 
@@ -84,28 +87,24 @@ func newTestApp() (*App, error) {
 	// Register routes — mirrors main()
 	app.Register(Route{
 		Pattern: "/",
-		Export:  "IndexPage",
 		PropsFunc: func(r *http.Request) map[string]any {
 			return map[string]any{"title": "GoJSX — Go + Goja + RSC"}
 		},
 	})
 	app.Register(Route{
 		Pattern: "/products",
-		Export:  "ProductsPage",
 		PropsFunc: func(r *http.Request) map[string]any {
 			return map[string]any{"category": r.URL.Query().Get("category")}
 		},
 	})
 	app.Register(Route{
 		Pattern: "/user",
-		Export:  "UserPage",
 		PropsFunc: func(r *http.Request) map[string]any {
 			return map[string]any{"userID": r.URL.Query().Get("id")}
 		},
 	})
 	app.Register(Route{
 		Pattern: "/about",
-		Export:  "AboutPage",
 		PropsFunc: func(r *http.Request) map[string]any {
 			return map[string]any{"version": "0.1.0"}
 		},
@@ -267,12 +266,11 @@ func TestRSC_IndexPage_HasProducts(t *testing.T) {
 
 func TestRSC_ProductsPage(t *testing.T) {
 	body := rsc(t, "/products")
-	tree := flightTree(t, body)
-	treeJSON, _ := json.Marshal(tree)
-	s := string(treeJSON)
+	// Products are delivered in resolved Suspense chunks after the 0: row,
+	// so search the full Flight body rather than only the parsed tree.
 	for _, want := range []string{"Widget Alpha", "Widget Beta", "product-list"} {
-		if !strings.Contains(s, want) {
-			t.Errorf("ProductsPage missing %q in tree", want)
+		if !flightContains(body, want) {
+			t.Errorf("ProductsPage missing %q in Flight body", want)
 		}
 	}
 }
@@ -374,11 +372,12 @@ func TestFlightTree_ProductsPage_Structure(t *testing.T) {
 	body := rsc(t, "/products")
 	tree := flightTree(t, body)
 	arr, ok := tree.([]any)
-	if !ok {
-		t.Fatalf("expected array root, got %T", tree)
+	if !ok || len(arr) < 2 {
+		t.Fatalf("expected array root, got %T: %v", tree, tree)
 	}
-	if len(arr) < 2 || arr[1] != "div" {
-		t.Errorf("expected root div element, got %v", arr)
+	// ProductsPage root is <Suspense> ("$1"), not a plain div.
+	if arr[0] != "$" {
+		t.Errorf("expected '$' as first element, got %v", arr[0])
 	}
 }
 
@@ -441,7 +440,7 @@ func TestRSC_Concurrent(t *testing.T) {
 	const n = 10
 	results := make(chan error, n)
 
-	for i := 0; i < n; i++ {
+	for range n {
 		go func() {
 			req := httptest.NewRequest("GET", "/", nil)
 			req.Header.Set("Content-Type", "text/x-component")
@@ -457,7 +456,7 @@ func TestRSC_Concurrent(t *testing.T) {
 		}()
 	}
 
-	for i := 0; i < n; i++ {
+	for range n {
 		if err := <-results; err != nil {
 			t.Error(err)
 		}

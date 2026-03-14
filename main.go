@@ -224,7 +224,7 @@ func (a *App) match(path string) *Route {
 			return &a.routes[i]
 		}
 	}
-	return &a.routes[0]
+	return nil
 }
 
 // handleRoute serves all page routes. When the request carries
