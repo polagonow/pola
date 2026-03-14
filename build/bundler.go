@@ -461,7 +461,7 @@ func loadPolyfills(path string) (string, error) {
 		return string(b), nil
 	}
 
-	return "", fmt.Errorf("Could not load pollyfiles: v%", err)
+	return "", fmt.Errorf("Could not load pollyfiles: %v", err)
 }
 
 func fmtErrors(pass string, errs []api.Message) error {
