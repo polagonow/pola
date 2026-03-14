@@ -167,6 +167,14 @@ func main() {
 		},
 	})
 
+	app.Register(Route{
+		Pattern: "/about",
+		Export:  "AboutPage",
+		PropsFunc: func(r *http.Request) map[string]any {
+			return map[string]any{"version": "0.1.0"}
+		},
+	})
+
 	// ------------------------------------------------------------------
 	// 6. HTTP handlers
 	// ------------------------------------------------------------------
@@ -174,11 +182,8 @@ func main() {
 	http.Handle("/public/", http.StripPrefix("/public/",
 		http.FileServer(http.Dir(publicDir))))
 
-	// Raw RSC Flight payload (for client-side navigation)
-	http.HandleFunc("/rsc", app.handleRSC)
-
-	// Full HTML page (SSR + streaming RSC payload)
-	http.HandleFunc("/", app.handlePage)
+	// All page routes: HTML shell or RSC Flight based on Content-Type header.
+	http.HandleFunc("/", app.handleRoute)
 
 	addr := ":3000"
 	log.Printf("🚀 GoJSX running → http://localhost%s", addr)
@@ -198,51 +203,35 @@ func (a *App) match(path string) *Route {
 	return &a.routes[0]
 }
 
-// handlePage serves the HTML shell. The div#root is empty — client-entry.tsx
-// calls createFromFetch("/rsc") which fetches the Flight stream and renders
-// the React tree into the root.
-func (a *App) handlePage(w http.ResponseWriter, r *http.Request) {
-	if a.match(r.URL.Path) == nil {
-		http.NotFound(w, r)
-		return
-	}
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(w, htmlShell(buildImportMap(a.importURLs)))
-	fmt.Fprint(w, htmlClose(a.clientEntryScript))
-}
-
-// handleRSC serves the rendered HTML for client-side navigation.
-// createFromFetch in the browser fetches this endpoint and calls root.render().
-// Content-Type is text/x-component to signal RSC payload to react-server-dom-webpack.
-func (a *App) handleRSC(w http.ResponseWriter, r *http.Request) {
-	path := r.URL.Query().Get("path")
-	if path == "" {
-		path = r.URL.Path
-	}
-	if path == "" {
-		path = "/"
-	}
-	route := a.match(path)
+// handleRoute serves all page routes. When the request carries
+// Content-Type: text/x-component it returns the RSC Flight stream;
+// otherwise it returns the HTML shell that bootstraps the client.
+func (a *App) handleRoute(w http.ResponseWriter, r *http.Request) {
+	route := a.match(r.URL.Path)
 	if route == nil {
 		http.NotFound(w, r)
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/x-component; charset=utf-8")
-	w.Header().Set("Transfer-Encoding", "chunked")
-
-	fw := runtime.NewFlightWriter(w)
-	vm := a.pool.Acquire()
-	defer a.pool.Release(vm)
-
-	if err := a.renderer.Render(fw, vm, runtime.RenderOptions{
-		ExportName:     route.Export,
-		Props:          route.PropsFunc(r),
-		RequestContext: requestCtx(r),
-	}); err != nil {
-		log.Printf("rsc %s: %v", path, err)
-		fmt.Fprintf(w, `<div class="rsc-err">%s</div>`, err.Error())
+	if r.Header.Get("Content-Type") == "text/x-component" {
+		w.Header().Set("Content-Type", "text/x-component; charset=utf-8")
+		fw := runtime.NewFlightWriter(w)
+		vm := a.pool.Acquire()
+		defer a.pool.Release(vm)
+		if err := a.renderer.Render(fw, vm, runtime.RenderOptions{
+			ExportName:     route.Export,
+			Props:          route.PropsFunc(r),
+			RequestContext: requestCtx(r),
+		}); err != nil {
+			log.Printf("rsc %s: %v", r.URL.Path, err)
+			fmt.Fprintf(w, `<div class="rsc-err">%s</div>`, err.Error())
+		}
+		return
 	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	fmt.Fprint(w, htmlShell(buildImportMap(a.importURLs)))
+	fmt.Fprint(w, htmlClose(a.clientEntryScript))
 }
 
 func requestCtx(r *http.Request) map[string]any {
@@ -317,6 +306,7 @@ func htmlShell(importMap string) string {
     <a href="/">Home</a>
     <a href="/products">Products</a>
     <a href="/user?id=42">Profile</a>
+    <a href="/about">About</a>
   </nav>
   <div id="root"></div>
 `

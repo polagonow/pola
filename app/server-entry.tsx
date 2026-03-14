@@ -3,11 +3,13 @@ import { renderToReadableStream } from "react-server-dom-webpack/server.browser"
 import { IndexPage }    from "./pages/index";
 import { ProductsPage } from "./pages/products";
 import { UserPage }     from "./pages/user";
+import { AboutPage }    from "./pages/about";
 
 const pages: Record<string, React.ComponentType<Record<string, unknown>>> = {
   IndexPage,
   ProductsPage,
   UserPage,
+  AboutPage,
 };
 
 // renderToReadableStream from react-server-dom-webpack/server.browser returns

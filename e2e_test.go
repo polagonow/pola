@@ -99,6 +99,13 @@ func newTestApp() (*App, error) {
 			return map[string]any{"userID": r.URL.Query().Get("id")}
 		},
 	})
+	app.Register(Route{
+		Pattern: "/about",
+		Export:  "AboutPage",
+		PropsFunc: func(r *http.Request) map[string]any {
+			return map[string]any{"version": "0.1.0"}
+		},
+	})
 
 	return app, nil
 }
@@ -111,28 +118,29 @@ func requireApp(t *testing.T) *App {
 	return _testApp
 }
 
-// rsc performs a GET /rsc?path=<path> and returns the response body.
+// rsc performs a GET <path> with Content-Type: text/x-component and returns the body.
 func rsc(t *testing.T, path string) string {
 	t.Helper()
 	app := requireApp(t)
-	req := httptest.NewRequest("GET", "/rsc?path="+path, nil)
+	req := httptest.NewRequest("GET", path, nil)
+	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
-	app.handleRSC(w, req)
+	app.handleRoute(w, req)
 	resp := w.Result()
 	if resp.StatusCode != http.StatusOK {
-		t.Fatalf("GET /rsc?path=%s → %d", path, resp.StatusCode)
+		t.Fatalf("RSC GET %s → %d", path, resp.StatusCode)
 	}
 	body, _ := io.ReadAll(resp.Body)
 	return string(body)
 }
 
-// page performs a GET <path> for the HTML shell.
+// page performs a plain GET <path> for the HTML shell.
 func page(t *testing.T, path string) string {
 	t.Helper()
 	app := requireApp(t)
 	req := httptest.NewRequest("GET", path, nil)
 	w := httptest.NewRecorder()
-	app.handlePage(w, req)
+	app.handleRoute(w, req)
 	resp := w.Result()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET %s → %d", path, resp.StatusCode)
@@ -196,7 +204,7 @@ func TestHTMLShell_ContentType(t *testing.T) {
 	app := requireApp(t)
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
-	app.handlePage(w, req)
+	app.handleRoute(w, req)
 	ct := w.Result().Header.Get("Content-Type")
 	if !strings.Contains(ct, "text/html") {
 		t.Errorf("expected text/html, got %q", ct)
@@ -207,7 +215,7 @@ func TestHTMLShell_404(t *testing.T) {
 	app := requireApp(t)
 	req := httptest.NewRequest("GET", "/nonexistent", nil)
 	w := httptest.NewRecorder()
-	app.handlePage(w, req)
+	app.handleRoute(w, req)
 	if w.Result().StatusCode != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", w.Result().StatusCode)
 	}
@@ -217,9 +225,10 @@ func TestHTMLShell_404(t *testing.T) {
 
 func TestRSC_ContentType(t *testing.T) {
 	app := requireApp(t)
-	req := httptest.NewRequest("GET", "/rsc?path=/", nil)
+	req := httptest.NewRequest("GET", "/", nil)
+	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
-	app.handleRSC(w, req)
+	app.handleRoute(w, req)
 	ct := w.Result().Header.Get("Content-Type")
 	if !strings.Contains(ct, "text/x-component") {
 		t.Errorf("expected text/x-component, got %q", ct)
@@ -228,11 +237,9 @@ func TestRSC_ContentType(t *testing.T) {
 
 func TestRSC_IndexPage_FlightFormat(t *testing.T) {
 	body := rsc(t, "/")
-	// Must start with a Flight row
 	if !strings.Contains(body, "0:") {
 		t.Errorf("no Flight row in output:\n%s", body)
 	}
-	// Must be valid JSON after the row prefix
 	flightTree(t, body)
 }
 
@@ -278,11 +285,12 @@ func TestRSC_ProductsPage_AllProducts(t *testing.T) {
 
 func TestRSC_UserPage(t *testing.T) {
 	app := requireApp(t)
-	req := httptest.NewRequest("GET", "/rsc?path=/user&id=42", nil)
+	req := httptest.NewRequest("GET", "/user?id=42", nil)
+	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
-	app.handleRSC(w, req)
+	app.handleRoute(w, req)
 	if w.Result().StatusCode != http.StatusOK {
-		t.Fatalf("GET /rsc?path=/user → %d", w.Result().StatusCode)
+		t.Fatalf("RSC GET /user?id=42 → %d", w.Result().StatusCode)
 	}
 	body, _ := io.ReadAll(w.Result().Body)
 	for _, want := range []string{"Jane Doe", "jane@example.com", "admin"} {
@@ -294,11 +302,21 @@ func TestRSC_UserPage(t *testing.T) {
 
 func TestRSC_404(t *testing.T) {
 	app := requireApp(t)
-	req := httptest.NewRequest("GET", "/rsc?path=/nonexistent", nil)
+	req := httptest.NewRequest("GET", "/nonexistent", nil)
+	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
-	app.handleRSC(w, req)
+	app.handleRoute(w, req)
 	if w.Result().StatusCode != http.StatusNotFound {
 		t.Errorf("expected 404 for unknown route, got %d", w.Result().StatusCode)
+	}
+}
+
+func TestRSC_AboutPage(t *testing.T) {
+	body := rsc(t, "/about")
+	for _, want := range []string{"About", "synchronous", "Goja"} {
+		if !flightContains(body, want) {
+			t.Errorf("AboutPage Flight missing %q", want)
+		}
 	}
 }
 
@@ -328,7 +346,6 @@ func walkFlight(v any, target string) bool {
 func TestFlightTree_IndexPage_Structure(t *testing.T) {
 	body := rsc(t, "/")
 	tree := flightTree(t, body)
-	// Root element should be ["$", "div", ...]
 	arr, ok := tree.([]any)
 	if !ok || len(arr) < 2 {
 		t.Fatalf("expected array root, got %T: %v", tree, tree)
@@ -422,12 +439,14 @@ func TestRSC_Concurrent(t *testing.T) {
 
 	for i := 0; i < n; i++ {
 		go func() {
-			req := httptest.NewRequest("GET", "/rsc?path=/", nil)
+			req := httptest.NewRequest("GET", "/", nil)
+			req.Header.Set("Content-Type", "text/x-component")
 			w := httptest.NewRecorder()
-			app.handleRSC(w, req)
+			app.handleRoute(w, req)
 			body, _ := io.ReadAll(w.Result().Body)
-			if !strings.Contains(string(body), "0:") {
-				results <- fmt.Errorf("concurrent request got bad output: %s", string(body)[:min(len(body), 100)])
+			s := string(body)
+			if !strings.Contains(s, "0:") {
+				results <- fmt.Errorf("concurrent request got bad output: %s", s[:min(len(s), 100)])
 			} else {
 				results <- nil
 			}
@@ -439,11 +458,4 @@ func TestRSC_Concurrent(t *testing.T) {
 			t.Error(err)
 		}
 	}
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

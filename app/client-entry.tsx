@@ -1,14 +1,22 @@
-import { createRoot } from 'react-dom/client';
-import { createFromFetch } from 'react-server-dom-esm/client';
+import { createRoot } from "react-dom/client";
+import { createFromFetch } from "react-server-dom-esm/client";
 
-// @ts-expect-error `root` might be null
-const root = createRoot(document.getElementById('root'));
+const container = document.getElementById("root");
 
-/**
- * Fetch your server component stream from `/rsc`
- * and render results into the root element as they come in.
- */
-// @ts-expect-error `comp` might be null
-createFromFetch(fetch('/rsc?path=' + encodeURIComponent(location.pathname + location.search))).then((comp) => {
+if (!container) {
+  throw new Error("Root element not found");
+}
+
+const root = createRoot(container);
+
+createFromFetch(
+  fetch(location.pathname + location.search, {
+    method: "GET",
+    headers: {
+      "Content-Type": "text/x-component",
+    },
+  })
+  // @ts-expect-error type
+).then((comp) => {
   root.render(comp);
 });
