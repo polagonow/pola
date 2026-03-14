@@ -54,12 +54,12 @@ func main() {
 		AppDir:        appDir,
 		OutDir:        defaultPublicDir + "/assets",
 		AssetsURLPath: defaultPublicURL + "/assets",
-		ClientEntry: filepath.Join(appDir, "_client.tsx"),
+		ClientEntry:   filepath.Join(appDir, "_client.tsx"),
 		Pages: []build.PageEntry{
 			{File: filepath.Join(appDir, "pages/index.tsx"), Export: "IndexPage"},
 			{File: filepath.Join(appDir, "pages/products.tsx"), Export: "ProductsPage"},
 			{File: filepath.Join(appDir, "pages/user.tsx"), Export: "UserPage"},
-			{File: filepath.Join(appDir, "pages/about.tsx"), Export: "AboutPage"},
+			{File: filepath.Join(appDir, "pages/about.tsx"), Export: "default"},
 		},
 		ClientComponents: []string{
 			filepath.Join(appDir, "components/Counter.tsx"),
@@ -186,7 +186,7 @@ func main() {
 
 	app.Register(Route{
 		Pattern: "/about",
-		Export:  "AboutPage",
+		Export:  "About",
 		PropsFunc: func(r *http.Request) map[string]any {
 			return map[string]any{"version": "0.1.0"}
 		},
