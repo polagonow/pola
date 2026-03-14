@@ -125,7 +125,10 @@ func Bundle(cfg BundlerConfig) (*BundleResult, error) {
 		return nil, fmt.Errorf("bundler: pages pass: %w", err)
 	}
 
-	polyfills := loadPolyfills(cfg.PolyfillsJS)
+	polyfills, err := loadPolyfills(cfg.PolyfillsJS)
+	if err != nil {
+		return nil, err
+	}
 	serverBundle := polyfills + "\n" + pagesJS
 
 	return &BundleResult{
@@ -415,13 +418,13 @@ func buildManifest(clientComponents []string, clientFiles map[string][]byte, app
 // Polyfills                                                           //
 // ------------------------------------------------------------------ //
 
-func loadPolyfills(path string) string {
-	if path != "" {
-		if b, err := os.ReadFile(path); err == nil {
-			return string(b)
-		}
+func loadPolyfills(path string) (string, error) {
+	b, err := os.ReadFile(path)
+	if err == nil {
+		return string(b), nil
 	}
-	return inlinePolyfills()
+
+	return "", fmt.Errorf("Could not load pollyfiles: v%", err)
 }
 
 func fmtErrors(pass string, errs []api.Message) error {
@@ -434,15 +437,4 @@ func fmtErrors(pass string, errs []api.Message) error {
 		}
 	}
 	return fmt.Errorf("esbuild [%s]:\n%s", pass, strings.Join(msgs, "\n"))
-}
-
-func inlinePolyfills() string {
-	return `
-var TextEncoder=(function(){function T(){}T.prototype.encode=function(s){s=String(s);var b=[];for(var i=0;i<s.length;i++){var c=s.charCodeAt(i);if(c<0x80)b.push(c);else if(c<0x800){b.push(0xC0|(c>>6));b.push(0x80|(c&0x3F));}else{b.push(0xE0|(c>>12));b.push(0x80|((c>>6)&0x3F));b.push(0x80|(c&0x3F));}}return new Uint8Array(b);};T.prototype.encodeInto=function(s,d){var e=this.encode(s);var w=Math.min(e.length,d.length);for(var i=0;i<w;i++)d[i]=e[i];return{read:s.length,written:w};};return T;})();
-var TextDecoder=(function(){function T(e){this.encoding=e||'utf-8';}T.prototype.decode=function(b){if(!b)return'';var a=b instanceof Uint8Array?b:new Uint8Array(b);var s='';for(var i=0;i<a.length;){var c=a[i++];if(c<0x80)s+=String.fromCharCode(c);else if((c&0xE0)===0xC0)s+=String.fromCharCode(((c&0x1F)<<6)|(a[i++]&0x3F));else{s+=String.fromCharCode(((c&0x0F)<<12)|((a[i++]&0x3F)<<6)|(a[i++]&0x3F));}}return s;};return T;})();
-var __microtaskQueue__=[];var queueMicrotask=function(fn){__microtaskQueue__.push(fn);};function __drainMicrotasks__(){while(__microtaskQueue__.length>0){var t=__microtaskQueue__.splice(0);for(var i=0;i<t.length;i++){try{t[i]();}catch(e){}}}};
-var MessageChannel=(function(){function P(){this.onmessage=null;}P.prototype.postMessage=function(d){var s=this;__microtaskQueue__.push(function(){if(s._partner&&typeof s._partner.onmessage==='function')s._partner.onmessage({data:d});});};P.prototype.close=function(){};function MC(){this.port1=new P();this.port2=new P();this.port1._partner=this.port2;this.port2._partner=this.port1;}return MC;})();
-var ReadableStream=(function(){function C(s){this._stream=s;this._chunks=[];this._closed=false;this._error=null;}C.prototype.enqueue=function(c){if(!this._closed)this._chunks.push(c);};C.prototype.close=function(){this._closed=true;};C.prototype.error=function(e){this._error=e;this._closed=true;};Object.defineProperty(C.prototype,'byobRequest',{get:function(){return null;}});Object.defineProperty(C.prototype,'desiredSize',{get:function(){return this._closed?0:1;}});function RS(src,_s){this._controller=new C(this);this._src=src||{};this._started=false;}RS.prototype._start=function(){if(this._started)return;this._started=true;if(typeof this._src.start==='function')this._src.start(this._controller);};RS.prototype._pull=function(){if(typeof this._src.pull==='function')this._src.pull(this._controller);};return RS;})();
-function __pullStream__(s){s._start();__drainMicrotasks__();s._pull();__drainMicrotasks__();var c=s._controller._chunks.splice(0);return{chunks:c,done:s._controller._closed&&c.length===0};}
-`
 }
