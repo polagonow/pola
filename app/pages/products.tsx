@@ -27,7 +27,7 @@ async function ProductList({ category }: { category?: string }) {
 // Parent wraps the async child in Suspense
 export function ProductsPage({ category }: { category?: string }) {
   return (
-    <Suspense fallback={<p>Loading...</p>}>
+    <Suspense fallback={<p>Loading Products...</p>}>
       <ProductList category={category} /> {/* ← this can suspend */}
     </Suspense>
   );

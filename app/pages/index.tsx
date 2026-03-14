@@ -3,6 +3,7 @@
 // The RSC Flight encoder emits an I: module reference row for each one,
 // and the browser loads those chunks via react-server-dom-esm/client.
 //
+import { Suspense } from "react";
 import Counter from "../components/Counter";
 import ThemeToggle from "../components/ThemeToggle";
 
@@ -58,7 +59,9 @@ export function IndexPage({ title }: { title?: string }) {
         </ul>
       </div>
 
-      <ProductList />
+      <Suspense fallback={<p>Loading List...</p>}>
+        <ProductList />
+      </Suspense>
 
       {/*
         Counter is a "use client" component — interactive, lives in the browser.

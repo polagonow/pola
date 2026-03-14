@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"gojsx/build"
 	"gojsx/runtime"
@@ -106,6 +107,7 @@ func main() {
 		},
 		Context: map[string]runtime.GoFunc{
 			"getProducts": func(args []any) (any, error) {
+				time.Sleep(500 * time.Millisecond)
 				return []map[string]any{
 					{"id": 1, "name": "Widget Alpha", "price": 29.99, "stock": 142},
 					{"id": 2, "name": "Widget Beta", "price": 49.99, "stock": 37},

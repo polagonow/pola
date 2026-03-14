@@ -18,8 +18,8 @@ type SuspenseResult struct {
 // the synchronous tree walk. Its content fn is async (returns a Promise in JS)
 // so we schedule it as a goroutine and stream the result when it resolves.
 type SuspenseBoundary struct {
-	ID       int          // pre-assigned flight chunk ID
-	Fallback any          // what to show while loading
+	ID       int                 // pre-assigned flight chunk ID
+	Fallback any                 // what to show while loading
 	Fn       func() (any, error) // the async render thunk
 }
 
