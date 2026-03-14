@@ -28,7 +28,7 @@ func init() {
 func newTestApp() (*App, error) {
 	bundleResult, err := build.Bundle(build.BundlerConfig{
 		AppDir:      "./app",
-		OutDir:      "./public/_pola_",
+		OutDir:      "./public/assets",
 		ClientEntry: "./app/_client.tsx",
 		PolyfillsJS: "./runtime/polyfills.js",
 		Pages: []build.PageEntry{

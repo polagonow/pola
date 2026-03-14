@@ -20,6 +20,11 @@ import (
 // HTML response (false). Streaming supports Suspense; inlining saves a round-trip.
 var ssrStreaming = os.Getenv("SSR_STREAMING") != "false"
 
+const (
+	defaultPublicDir = "./public"
+	defaultPublicURL = "/public"
+)
+
 // Route maps a URL pattern to a Server Component export name and its props factory.
 type Route struct {
 	Pattern   string
@@ -40,16 +45,16 @@ type App struct {
 
 func main() {
 	appDir := "./app"
-	publicDir := "./public"
 
 	// ------------------------------------------------------------------
 	// 1. Build server + client bundles via esbuild
 	// ------------------------------------------------------------------
 	bundleResult, err := build.Bundle(build.BundlerConfig{
-		AppDir:      appDir,
-		OutDir:      publicDir + "/assets",
-		ClientEntry: filepath.Join(appDir, "_client.tsx"),
-		PolyfillsJS: "./runtime/polyfills.js",
+		AppDir:        appDir,
+		OutDir:        defaultPublicDir + "/assets",
+		AssetsURLPath: defaultPublicURL + "/assets",
+		ClientEntry:   filepath.Join(appDir, "_client.tsx"),
+		PolyfillsJS:   "./runtime/polyfills.js",
 		Pages: []build.PageEntry{
 			{File: filepath.Join(appDir, "pages/index.tsx"), Export: "IndexPage"},
 			{File: filepath.Join(appDir, "pages/products.tsx"), Export: "ProductsPage"},
@@ -146,7 +151,7 @@ func main() {
 	app := &App{
 		pool:              pool,
 		renderer:          runtime.NewRenderer(pool, manifest),
-		publicDir:         publicDir,
+		publicDir:         defaultPublicDir,
 		manifest:          manifest,
 		importURLs:        bundleResult.ImportURLs,
 		clientEntryScript: bundleResult.ClientEntryOutput,
@@ -191,8 +196,8 @@ func main() {
 	// 6. HTTP handlers
 	// ------------------------------------------------------------------
 	// Static assets
-	http.Handle("/public/", http.StripPrefix("/public/",
-		http.FileServer(http.Dir(publicDir))))
+	http.Handle(defaultPublicURL+"/", http.StripPrefix(defaultPublicURL+"/",
+		http.FileServer(http.Dir(defaultPublicDir))))
 
 	// All page routes: HTML shell or RSC Flight based on Content-Type header.
 	http.HandleFunc("/", app.handleRoute)
@@ -350,7 +355,7 @@ func htmlShell(importMap string) string {
 func htmlClose(clientScript string) string {
 	// Fall back to the legacy manual renderer if the esbuild entry was not found
 	if clientScript == "" {
-		clientScript = "/public/_client.js"
+		clientScript = defaultPublicURL + "/_client.js"
 	}
 	return fmt.Sprintf(`
   <script type="module" src="%s"></script>

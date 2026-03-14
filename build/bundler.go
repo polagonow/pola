@@ -56,8 +56,25 @@ type BundleResult struct {
 type PageEntry struct {
 	// File is the path to the TSX/TS file, relative to cwd (e.g. "./app/pages/index.tsx").
 	File string
-	// Export is the named export to render (e.g. "IndexPage").
+	// Export is either a named export (e.g. "IndexPage") or the sentinel "default"
+	// to use the file's default export. When "default", the JS identifier used in
+	// the generated server entry is derived from the file basename (e.g.
+	// "pages/index.tsx" → "Index").
 	Export string
+}
+
+// pageAlias returns the JS identifier used for p in the generated server entry.
+// For named exports it is p.Export unchanged; for "default" it derives a name
+// from the file basename (e.g. "pages/index.tsx" → "Index").
+func pageAlias(p PageEntry) string {
+	if p.Export != "default" {
+		return p.Export
+	}
+	base := strings.TrimSuffix(filepath.Base(p.File), filepath.Ext(p.File))
+	if len(base) == 0 {
+		return "Page"
+	}
+	return strings.ToUpper(base[:1]) + base[1:]
 }
 
 // BundlerConfig controls both build passes.
@@ -84,6 +101,11 @@ type BundlerConfig struct {
 
 	// External packages to mark external in all builds.
 	External []string
+
+	// AssetsURLPath is the URL prefix for client bundle files served by the
+	// static file handler (e.g. "/public/assets"). No trailing slash.
+	// Defaults to "/public/assets" when empty.
+	AssetsURLPath string
 }
 
 // Bundle runs both esbuild passes and returns the combined result.
@@ -106,7 +128,7 @@ func Bundle(cfg BundlerConfig) (*BundleResult, error) {
 		return nil, err
 	}
 
-	manifest, importURLs, err := buildManifest(cfg.ClientComponents, clientFiles, cfg.AppDir)
+	manifest, importURLs, err := buildManifest(cfg.ClientComponents, clientFiles, cfg.AppDir, cfg.AssetsURLPath)
 	if err != nil {
 		return nil, fmt.Errorf("bundler: manifest: %w", err)
 	}
@@ -119,7 +141,11 @@ func Bundle(cfg BundlerConfig) (*BundleResult, error) {
 	// RSC Flight wire format from renderToReadableStream().               //
 	// __webpack_require__ is stubbed in polyfills.js.                     //
 	// ------------------------------------------------------------------ //
-	manifestDefine, _ := json.Marshal(manifest)
+	manifestDefine, err := json.Marshal(manifest)
+	if err != nil {
+		return nil, fmt.Errorf("bundler: manifest pass: %w", err)
+	}
+
 	pagesJS, err := buildPagesBundle(cfg, absDir, string(manifestDefine))
 	if err != nil {
 		return nil, fmt.Errorf("bundler: pages pass: %w", err)
@@ -170,11 +196,16 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 			rel = absFile
 		}
 		importPath := "./" + filepath.ToSlash(rel)
-		entry.WriteString(fmt.Sprintf("import { %s } from %q;\n", p.Export, importPath))
+		alias := pageAlias(p)
+		if p.Export == "default" {
+			entry.WriteString(fmt.Sprintf("import %s from %q;\n", alias, importPath))
+		} else {
+			entry.WriteString(fmt.Sprintf("import { %s } from %q;\n", alias, importPath))
+		}
 	}
 	entry.WriteString("const __pages__ = {\n")
 	for _, p := range cfg.Pages {
-		entry.WriteString(fmt.Sprintf("  %s,\n", p.Export))
+		entry.WriteString(fmt.Sprintf("  %s,\n", pageAlias(p)))
 	}
 	entry.WriteString("};\n")
 	entry.WriteString(`
@@ -300,6 +331,9 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 
 // buildClientBundle compiles the browser-side entry + client components.
 func buildClientBundle(cfg BundlerConfig, absDir string) (map[string][]byte, string, error) {
+	if cfg.AssetsURLPath == "" {
+		cfg.AssetsURLPath = "/public/assets"
+	}
 	entries := []string{}
 	if cfg.ClientEntry != "" {
 		entries = append(entries, cfg.ClientEntry)
@@ -353,7 +387,7 @@ func buildClientBundle(cfg BundlerConfig, absDir string) (map[string][]byte, str
 		}
 		files[rel] = f.Contents
 		if entryBase != "" && strings.HasPrefix(filepath.Base(rel), entryBase+"-") {
-			entryOutput = "/public/assets/" + rel
+			entryOutput = cfg.AssetsURLPath + "/" + rel
 		}
 		_ = os.MkdirAll(filepath.Dir(f.Path), 0o755)
 		_ = os.WriteFile(f.Path, f.Contents, 0o644)
@@ -383,7 +417,10 @@ type clientManifestEntry struct {
 //
 //  2. importURLs — moduleId → real chunk URL, used by the HTML import map so
 //     the browser can resolve import("components/Counter") to the hashed file.
-func buildManifest(clientComponents []string, clientFiles map[string][]byte, appDir string) (map[string]clientManifestEntry, map[string]string, error) {
+func buildManifest(clientComponents []string, clientFiles map[string][]byte, appDir string, assetsURLPath string) (map[string]clientManifestEntry, map[string]string, error) {
+	if assetsURLPath == "" {
+		assetsURLPath = "/public/assets"
+	}
 	m := make(map[string]clientManifestEntry)
 	importURLs := make(map[string]string)
 
@@ -397,11 +434,11 @@ func buildManifest(clientComponents []string, clientFiles map[string][]byte, app
 		base := strings.TrimSuffix(filepath.Base(src), filepath.Ext(src))
 
 		// Find the real chunk URL for the import map.
-		chunkURL := "/public/assets/main.js"
+		chunkURL := assetsURLPath + "/main.js"
 		for out := range clientFiles {
 			b := filepath.Base(out)
 			if strings.HasPrefix(b, base+"-") || b == base+".js" {
-				chunkURL = "/public/assets/" + out
+				chunkURL = assetsURLPath + "/" + out
 				break
 			}
 		}
