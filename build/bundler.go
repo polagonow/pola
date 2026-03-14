@@ -15,7 +15,7 @@
 //     Bundles: React + react-dom/client + react-server-dom-esm/client
 //     Output: ESM files written to public/
 //
-// Final Goja VM bundle = polyfills.js + pages CJS bundle
+// Final Goja VM bundle = pages CJS bundle (polyfills are native Go in runtime/polyfill)
 package build
 
 import (
@@ -30,7 +30,7 @@ import (
 
 // BundleResult is the output of a successful build.
 type BundleResult struct {
-	// ServerBundle is the JS for the Goja VM: polyfills + pages CJS bundle.
+	// ServerBundle is the JS for the Goja VM: pages CJS bundle.
 	ServerBundle string
 
 	// ClientFiles maps relative output path → bytes written to OutDir.
@@ -96,9 +96,6 @@ type BundlerConfig struct {
 	// ClientComponents are all "use client" TSX files.
 	ClientComponents []string
 
-	// PolyfillsJS is the path to runtime/polyfills.js.
-	PolyfillsJS string
-
 	// External packages to mark external in all builds.
 	External []string
 
@@ -151,11 +148,7 @@ func Bundle(cfg BundlerConfig) (*BundleResult, error) {
 		return nil, fmt.Errorf("bundler: pages pass: %w", err)
 	}
 
-	polyfills, err := loadPolyfills(cfg.PolyfillsJS)
-	if err != nil {
-		return nil, err
-	}
-	serverBundle := polyfills + "\n" + pagesJS
+	serverBundle := pagesJS
 
 	return &BundleResult{
 		ServerBundle:      serverBundle,
@@ -449,19 +442,6 @@ func buildManifest(clientComponents []string, clientFiles map[string][]byte, app
 		m[id] = clientManifestEntry{ID: id, Name: "default", Chunks: []string{"default"}}
 	}
 	return m, importURLs, nil
-}
-
-// ------------------------------------------------------------------ //
-// Polyfills                                                           //
-// ------------------------------------------------------------------ //
-
-func loadPolyfills(path string) (string, error) {
-	b, err := os.ReadFile(path)
-	if err == nil {
-		return string(b), nil
-	}
-
-	return "", fmt.Errorf("Could not load pollyfiles: %v", err)
 }
 
 func fmtErrors(pass string, errs []api.Message) error {

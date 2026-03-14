@@ -30,7 +30,6 @@ func newTestApp() (*App, error) {
 		AppDir:      "./app",
 		OutDir:      "./public/assets",
 		ClientEntry: "./app/_client.tsx",
-		PolyfillsJS: "./runtime/polyfills.js",
 		Pages: []build.PageEntry{
 			{File: "./app/pages/index.tsx", Export: "IndexPage"},
 			{File: "./app/pages/products.tsx", Export: "ProductsPage"},

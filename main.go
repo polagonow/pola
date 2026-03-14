@@ -54,8 +54,7 @@ func main() {
 		AppDir:        appDir,
 		OutDir:        defaultPublicDir + "/assets",
 		AssetsURLPath: defaultPublicURL + "/assets",
-		ClientEntry:   filepath.Join(appDir, "_client.tsx"),
-		PolyfillsJS:   "./runtime/polyfills.js",
+		ClientEntry: filepath.Join(appDir, "_client.tsx"),
 		Pages: []build.PageEntry{
 			{File: filepath.Join(appDir, "pages/index.tsx"), Export: "IndexPage"},
 			{File: filepath.Join(appDir, "pages/products.tsx"), Export: "ProductsPage"},

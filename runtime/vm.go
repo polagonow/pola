@@ -24,6 +24,7 @@ import (
 
 	"github.com/dop251/goja"
 	"github.com/dop251/goja_nodejs/eventloop"
+	"gojsx/runtime/polyfill"
 )
 
 // GoFunc is the signature for Go functions exposed to the JS VM.
@@ -209,7 +210,10 @@ func newVM(prog *goja.Program, bridge BridgeConfig) (*VM, error) {
 		}
 		rt.Set("__JSI__", jsi)
 
-		// ── Run the compiled bundle (polyfills + server-dom + pages) ─
+		// ── Web API polyfills (native Go) ─────────────────────────────
+		polyfill.Enable(rt)
+
+		// ── Run the compiled bundle (server-dom + pages) ──────────────
 		if _, err := rt.RunProgram(prog); err != nil {
 			return fmt.Errorf("vm: run program: %w", err)
 		}
