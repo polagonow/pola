@@ -1,6 +1,8 @@
 
+import jsi from "../jsi";
+
 export async function UserPage({ userID }: { userID?: string }) {
-  const user = await ctx.getUser(userID);
+  const user = await jsi.getUser(userID);
 
   return (
     <div className="page">

@@ -28,8 +28,8 @@ func init() {
 func newTestApp() (*App, error) {
 	bundleResult, err := build.Bundle(build.BundlerConfig{
 		AppDir:      "./app",
-		OutDir:      "./public",
-		ClientEntry: "./app/client-entry.tsx",
+		OutDir:      "./public/_pola_",
+		ClientEntry: "./app/_client.tsx",
 		PolyfillsJS: "./runtime/polyfills.js",
 		Pages: []build.PageEntry{
 			{File: "./app/pages/index.tsx", Export: "IndexPage"},
@@ -191,8 +191,8 @@ func TestHTMLShell_HasClientEntryScript(t *testing.T) {
 	if !strings.Contains(body, `type="module"`) {
 		t.Errorf("HTML shell missing <script type=\"module\">")
 	}
-	if !strings.Contains(body, `client-entry`) {
-		t.Errorf("HTML shell missing client-entry script reference")
+	if !strings.Contains(body, `client`) {
+		t.Errorf("HTML shell missing client script reference")
 	}
 }
 

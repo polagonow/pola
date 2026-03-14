@@ -9,8 +9,8 @@
 //
 //  1. loop.Run(setContextFn)   – inject per-request data
 //  2. loop.Run(renderFn)       – start rendering; __poll__ reschedules itself
-//                                via setTimeout(0) until the stream is done;
-//                                loop.Run returns only when no more jobs remain
+//     via setTimeout(0) until the stream is done;
+//     loop.Run returns only when no more jobs remain
 //  3. loop.Run(cleanupFn)      – clear per-request globals
 //
 // Because loop.Run executes on the caller's goroutine and the pool ensures
@@ -176,16 +176,16 @@ func newVM(prog *goja.Program, bridge BridgeConfig) (*VM, error) {
 		}
 
 		// Context functions run in Go goroutines and return Promises so that
-		// async server components (async function Foo() { await ctx.getFoo() })
+		// async server components (async function Foo() { await __JSI__.getFoo() })
 		// can suspend correctly. The poll loop's repeated setTimeout(0) calls
 		// keep the event loop alive while the goroutine works; when the work
 		// completes, loop.RunOnLoop resolves the Promise on the event loop
 		// goroutine, React continues rendering, and the stream emits the
 		// resolved content.
-		ctxObj := rt.NewObject()
+		jsi := rt.NewObject()
 		for name, fn := range bridge.Context {
 			name, fn := name, fn
-			ctxObj.Set(name, func(c goja.FunctionCall) goja.Value {
+			jsi.Set(name, func(c goja.FunctionCall) goja.Value {
 				// Export args to plain Go values NOW, on the event loop goroutine.
 				// The goroutine must never access goja.Value internals — goja's
 				// backing memory may be reused after this function returns.
@@ -207,7 +207,7 @@ func newVM(prog *goja.Program, bridge BridgeConfig) (*VM, error) {
 				return rt.ToValue(p)
 			})
 		}
-		rt.Set("ctx", ctxObj)
+		rt.Set("__JSI__", jsi)
 
 		// ── Run the compiled bundle (polyfills + server-dom + pages) ─
 		if _, err := rt.RunProgram(prog); err != nil {

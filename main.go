@@ -35,7 +35,7 @@ type App struct {
 	publicDir         string
 	manifest          runtime.ClientManifest
 	importURLs        map[string]string // moduleId → /public/chunk-HASH.js
-	clientEntryScript string            // /public/client-entry-[hash].js
+	clientEntryScript string            // /public/client-[hash].js
 }
 
 func main() {
@@ -47,8 +47,8 @@ func main() {
 	// ------------------------------------------------------------------
 	bundleResult, err := build.Bundle(build.BundlerConfig{
 		AppDir:      appDir,
-		OutDir:      publicDir,
-		ClientEntry: filepath.Join(appDir, "client-entry.tsx"),
+		OutDir:      publicDir + "/assets",
+		ClientEntry: filepath.Join(appDir, "_client.tsx"),
 		PolyfillsJS: "./runtime/polyfills.js",
 		Pages: []build.PageEntry{
 			{File: filepath.Join(appDir, "pages/index.tsx"), Export: "IndexPage"},
@@ -350,7 +350,7 @@ func htmlShell(importMap string) string {
 func htmlClose(clientScript string) string {
 	// Fall back to the legacy manual renderer if the esbuild entry was not found
 	if clientScript == "" {
-		clientScript = "/public/rsc-client.js"
+		clientScript = "/public/_client.js"
 	}
 	return fmt.Sprintf(`
   <script type="module" src="%s"></script>

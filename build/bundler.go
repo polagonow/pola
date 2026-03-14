@@ -11,7 +11,7 @@
 //     Output: RSC Flight wire format from renderToReadableStream()
 //
 //  2. Client pass (browser condition, ESM)
-//     Entry: app/client-entry.tsx + "use client" components
+//     Entry: app/_client.tsx + "use client" components
 //     Bundles: React + react-dom/client + react-server-dom-esm/client
 //     Output: ESM files written to public/
 //
@@ -36,7 +36,7 @@ type BundleResult struct {
 	// ClientFiles maps relative output path → bytes written to OutDir.
 	ClientFiles map[string][]byte
 
-	// ClientEntryOutput is the /public/... URL of the compiled client-entry
+	// ClientEntryOutput is the /public/... URL of the compiled client
 	// injected as <script type="module" src="..."> in the HTML shell.
 	ClientEntryOutput string
 
@@ -73,7 +73,7 @@ type BundlerConfig struct {
 	// hand-maintained server-entry.tsx is needed.
 	Pages []PageEntry
 
-	// ClientEntry is app/client-entry.tsx — the browser bootstrap.
+	// ClientEntry is app/_client.tsx — the browser bootstrap.
 	ClientEntry string
 
 	// ClientComponents are all "use client" TSX files.
@@ -350,7 +350,7 @@ func buildClientBundle(cfg BundlerConfig, absDir string) (map[string][]byte, str
 		}
 		files[rel] = f.Contents
 		if entryBase != "" && strings.HasPrefix(filepath.Base(rel), entryBase+"-") {
-			entryOutput = "/public/" + rel
+			entryOutput = "/public/assets/" + rel
 		}
 		_ = os.MkdirAll(filepath.Dir(f.Path), 0o755)
 		_ = os.WriteFile(f.Path, f.Contents, 0o644)
@@ -394,11 +394,11 @@ func buildManifest(clientComponents []string, clientFiles map[string][]byte, app
 		base := strings.TrimSuffix(filepath.Base(src), filepath.Ext(src))
 
 		// Find the real chunk URL for the import map.
-		chunkURL := "/public/main.js"
+		chunkURL := "/public/assets/main.js"
 		for out := range clientFiles {
 			b := filepath.Base(out)
 			if strings.HasPrefix(b, base+"-") || b == base+".js" {
-				chunkURL = "/public/" + out
+				chunkURL = "/public/assets/" + out
 				break
 			}
 		}

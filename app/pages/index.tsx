@@ -6,6 +6,7 @@
 import { Suspense } from "react";
 import Counter from "../components/Counter";
 import ThemeToggle from "../components/ThemeToggle";
+import jsi from "../jsi";
 
 function ProductCard({ product }: { product: { id: number; name: string; price: number; stock: number } }) {
   return (
@@ -18,7 +19,7 @@ function ProductCard({ product }: { product: { id: number; name: string; price: 
 }
 
 async function ProductList() {
-  const products = await ctx.getProducts();
+  const products = await jsi.getProducts();
 
   return (
     <section>

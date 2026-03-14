@@ -22,7 +22,6 @@ const fetchPromise = flightData
       headers: { "Content-Type": "text/x-component" },
     });
 
-// @ts-expect-error type error
-createFromFetch(fetchPromise).then((comp) => {
+createFromFetch(fetchPromise).then((comp: React.ReactNode) => {
   root.render(comp);
 });

@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import jsi from '../jsi'
 
 function ProductCard({ product }: { product: { id: number; name: string; price: number; stock: number } }) {
   return (
@@ -12,7 +13,8 @@ function ProductCard({ product }: { product: { id: number; name: string; price: 
 
 // Separate component that does the async work
 async function ProductList({ category }: { category?: string }) {
-  const products = await ctx.getProducts(); // suspends here
+  const products = await jsi.getProducts(); // suspends here
+
   return (
     <div className="page">
       <h1>Products</h1>
