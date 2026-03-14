@@ -9,14 +9,20 @@ if (!container) {
 
 const root = createRoot(container);
 
-createFromFetch(
-  fetch(location.pathname + location.search, {
-    method: "GET",
-    headers: {
-      "Content-Type": "text/x-component",
-    },
-  })
-  // @ts-expect-error type
-).then((comp) => {
+const flightData: string | undefined = (self as any).__flight_data;
+
+const fetchPromise = flightData
+  ? Promise.resolve(
+      new Response(flightData, {
+        headers: { "Content-Type": "text/x-component" },
+      })
+    )
+  : fetch(location.pathname + location.search, {
+      method: "GET",
+      headers: { "Content-Type": "text/x-component" },
+    });
+
+// @ts-expect-error type error
+createFromFetch(fetchPromise).then((comp) => {
   root.render(comp);
 });

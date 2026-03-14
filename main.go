@@ -1,16 +1,23 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 
 	"gojsx/build"
 	"gojsx/runtime"
 )
+
+// ssrStreaming controls whether the HTML path streams RSC via a second
+// client fetch (true, default) or buffers and inlines flight data in the
+// HTML response (false). Streaming supports Suspense; inlining saves a round-trip.
+var ssrStreaming = os.Getenv("SSR_STREAMING") != "false"
 
 // Route maps a URL pattern to a Server Component export name and its props factory.
 type Route struct {
@@ -99,7 +106,6 @@ func main() {
 		},
 		Context: map[string]runtime.GoFunc{
 			"getProducts": func(args []any) (any, error) {
-				// time.Sleep(10 * time.Second)
 				return []map[string]any{
 					{"id": 1, "name": "Widget Alpha", "price": 29.99, "stock": 142},
 					{"id": 2, "name": "Widget Beta", "price": 49.99, "stock": 37},
@@ -235,6 +241,29 @@ func (a *App) handleRoute(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	fmt.Fprint(w, htmlShell(buildImportMap(a.importURLs)))
+
+	if ssrStreaming {
+		// Streaming mode (default): serve empty shell; client fetches RSC separately.
+		// Supports Suspense — async chunks stream in as server components resolve.
+	} else {
+		// Inline mode: buffer the full RSC flight payload and embed it in the HTML.
+		// Eliminates the second fetch but requires the full render to complete before
+		// any bytes are sent — no Suspense streaming.
+		var buf bytes.Buffer
+		bfw := runtime.NewFlightWriterBuffer(&buf)
+		vm := a.pool.Acquire()
+		defer a.pool.Release(vm)
+		if err := a.renderer.Render(bfw, vm, runtime.RenderOptions{
+			ExportName:     route.Export,
+			Props:          route.PropsFunc(r),
+			RequestContext: requestCtx(r),
+		}); err != nil {
+			log.Printf("html render %s: %v", r.URL.Path, err)
+		}
+		flightJSON, _ := json.Marshal(buf.String())
+		fmt.Fprintf(w, "<script>self.__flight_data=%s</script>\n", flightJSON)
+	}
+
 	fmt.Fprint(w, htmlClose(a.clientEntryScript))
 }
 
