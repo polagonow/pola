@@ -33,7 +33,7 @@ async function ProductList() {
   );
 }
 
-export function IndexPage({ title }: { title?: string }) {
+export default function IndexPage({ title }: { title?: string }) {
   return (
     <div className="page">
       <h1>{title ?? "GoJSX — Go + Goja + RSC"}</h1>

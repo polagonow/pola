@@ -26,11 +26,21 @@ const (
 	defaultPublicURL = "/public"
 )
 
-// Route maps a URL pattern to a Server Component export name and its props factory.
+// Route maps a URL pattern to a Server Component and its props factory.
+// The JS alias for the component is derived from the pattern via patternToAlias.
 type Route struct {
 	Pattern   string
-	Export    string // exported function name in the server bundle
 	PropsFunc func(r *http.Request) map[string]any
+}
+
+// patternToAlias converts a URL pattern to the JS identifier used as the key
+// in __pages__. "/" maps to "Index"; "/products" maps to "Products".
+func patternToAlias(pattern string) string {
+	seg := strings.TrimPrefix(pattern, "/")
+	if seg == "" {
+		seg = "index"
+	}
+	return strings.ToUpper(seg[:1]) + seg[1:]
 }
 
 // App is the top-level application.
@@ -50,21 +60,22 @@ func main() {
 	// ------------------------------------------------------------------
 	// 1. Build server + client bundles via esbuild
 	// ------------------------------------------------------------------
+	pages, err := build.DiscoverPages(appDir)
+	if err != nil {
+		log.Fatalf("discover pages: %v", err)
+	}
+	clientComponents, err := build.DiscoverClientComponents(appDir)
+	if err != nil {
+		log.Fatalf("discover client components: %v", err)
+	}
+
 	bundleResult, err := build.Bundle(build.BundlerConfig{
-		AppDir:        appDir,
-		OutDir:        defaultPublicDir + "/assets",
-		AssetsURLPath: defaultPublicURL + "/assets",
-		ClientEntry:   filepath.Join(appDir, "_client.tsx"),
-		Pages: []build.PageEntry{
-			{File: filepath.Join(appDir, "pages/index.tsx"), Export: "IndexPage"},
-			{File: filepath.Join(appDir, "pages/products.tsx"), Export: "ProductsPage"},
-			{File: filepath.Join(appDir, "pages/user.tsx"), Export: "UserPage"},
-			{File: filepath.Join(appDir, "pages/about.tsx"), Export: "default"},
-		},
-		ClientComponents: []string{
-			filepath.Join(appDir, "components/Counter.tsx"),
-			filepath.Join(appDir, "components/ThemeToggle.tsx"),
-		},
+		AppDir:           appDir,
+		OutDir:           defaultPublicDir + "/assets",
+		AssetsURLPath:    defaultPublicURL + "/assets",
+		ClientEntry:      filepath.Join(appDir, "_client.tsx"),
+		Pages:            pages,
+		ClientComponents: clientComponents,
 	})
 	if err != nil {
 		log.Fatalf("⚠️  bundle warning: %v", err)
@@ -162,7 +173,6 @@ func main() {
 	// ------------------------------------------------------------------
 	app.Register(Route{
 		Pattern: "/",
-		Export:  "IndexPage",
 		PropsFunc: func(r *http.Request) map[string]any {
 			return map[string]any{"title": "GoJSX — Go + Goja + RSC"}
 		},
@@ -170,7 +180,6 @@ func main() {
 
 	app.Register(Route{
 		Pattern: "/products",
-		Export:  "ProductsPage",
 		PropsFunc: func(r *http.Request) map[string]any {
 			return map[string]any{"category": r.URL.Query().Get("category")}
 		},
@@ -178,7 +187,6 @@ func main() {
 
 	app.Register(Route{
 		Pattern: "/user",
-		Export:  "UserPage",
 		PropsFunc: func(r *http.Request) map[string]any {
 			return map[string]any{"userID": r.URL.Query().Get("id")}
 		},
@@ -186,7 +194,6 @@ func main() {
 
 	app.Register(Route{
 		Pattern: "/about",
-		Export:  "About",
 		PropsFunc: func(r *http.Request) map[string]any {
 			return map[string]any{"version": "0.1.0"}
 		},
@@ -236,7 +243,7 @@ func (a *App) handleRoute(w http.ResponseWriter, r *http.Request) {
 		vm := a.pool.Acquire()
 		defer a.pool.Release(vm)
 		if err := a.renderer.Render(fw, vm, runtime.RenderOptions{
-			ExportName:     route.Export,
+			ExportName:     patternToAlias(route.Pattern),
 			Props:          route.PropsFunc(r),
 			RequestContext: requestCtx(r),
 		}); err != nil {
@@ -262,7 +269,7 @@ func (a *App) handleRoute(w http.ResponseWriter, r *http.Request) {
 		vm := a.pool.Acquire()
 		defer a.pool.Release(vm)
 		if err := a.renderer.Render(bfw, vm, runtime.RenderOptions{
-			ExportName:     route.Export,
+			ExportName:     patternToAlias(route.Pattern),
 			Props:          route.PropsFunc(r),
 			RequestContext: requestCtx(r),
 		}); err != nil {

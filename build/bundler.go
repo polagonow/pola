@@ -64,13 +64,23 @@ type PageEntry struct {
 }
 
 // pageAlias returns the JS identifier used for p in the generated server entry.
-// For named exports it is p.Export unchanged; for "default" it derives a name
-// from the file basename (e.g. "pages/index.tsx" → "Index").
+// For named exports it is p.Export unchanged.
+// For default exports from a file named "page.tsx", the alias is derived from
+// the parent directory (e.g. "pages/products/page.tsx" → "Products").
+// For default exports from any other file, it falls back to the file basename.
 func pageAlias(p PageEntry) string {
 	if p.Export != "default" {
 		return p.Export
 	}
 	base := strings.TrimSuffix(filepath.Base(p.File), filepath.Ext(p.File))
+	if base == "page" {
+		dir := filepath.Base(filepath.Dir(p.File))
+		// pages/page.tsx is the root page — alias it as "Index"
+		if dir == "pages" {
+			return "Index"
+		}
+		base = dir
+	}
 	if len(base) == 0 {
 		return "Page"
 	}
@@ -241,8 +251,8 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 		if err != nil {
 			abs = src
 		}
-		// moduleId matches the manifest key: path relative to appDir, no extension.
-		rel, err := filepath.Rel(cfg.AppDir, src)
+		// moduleId matches the manifest key: path relative to absAppDir, no extension.
+		rel, err := filepath.Rel(absAppDir, abs)
 		if err != nil {
 			rel = filepath.Base(src)
 		}
@@ -280,7 +290,7 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 				// (guarantees manifest alignment), fall back to deriving from appDir.
 				moduleId, ok := clientSet[args.Path]
 				if !ok {
-					rel, relErr := filepath.Rel(cfg.AppDir, args.Path)
+					rel, relErr := filepath.Rel(absAppDir, args.Path)
 					if relErr != nil {
 						rel = filepath.Base(args.Path)
 					}
@@ -441,11 +451,13 @@ func buildManifest(clientComponents []string, clientFiles map[string][]byte, app
 	if assetsURLPath == "" {
 		assetsURLPath = "/public/assets"
 	}
+	absAppDir, _ := filepath.Abs(appDir)
 	m := make(map[string]clientManifestEntry)
 	importURLs := make(map[string]string)
 
 	for _, src := range clientComponents {
-		rel, err := filepath.Rel(appDir, src)
+		absSrc, _ := filepath.Abs(src)
+		rel, err := filepath.Rel(absAppDir, absSrc)
 		if err != nil {
 			rel = filepath.Base(src)
 		}
@@ -464,9 +476,13 @@ func buildManifest(clientComponents []string, clientFiles map[string][]byte, app
 		}
 		importURLs[id] = chunkURL
 
-		// Set chunks=["default"] so the ESM client uses metadata[1] as the
-		// export name ("default") rather than treating it as a chunk path.
-		m[id] = clientManifestEntry{ID: id, Name: "default", Chunks: []string{"default"}}
+		// React RSC looks up the manifest using "moduleId#exportName".
+		// The proxy stub is CJS (module.exports = createClientModuleProxy(id)),
+		// so React encodes an empty export name → key = id + "#".
+		// We also register id + "#default" for any ESM default-import paths.
+		entry := clientManifestEntry{ID: id, Name: "default", Chunks: []string{"default"}}
+		m[id+"#"] = entry
+		m[id+"#default"] = entry
 	}
 	return m, importURLs, nil
 }
