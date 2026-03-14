@@ -10,7 +10,7 @@ function ProductCard({ product }: { product: { id: number; name: string; price: 
   );
 }
 
-// ✅ Separate component that does the async work
+// Separate component that does the async work
 async function ProductList({ category }: { category?: string }) {
   const products = await ctx.getProducts(); // suspends here
   return (
@@ -24,7 +24,7 @@ async function ProductList({ category }: { category?: string }) {
   );
 }
 
-// ✅ Parent wraps the async child in Suspense
+// Parent wraps the async child in Suspense
 export function ProductsPage({ category }: { category?: string }) {
   return (
     <Suspense fallback={<p>Loading...</p>}>
