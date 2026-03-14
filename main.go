@@ -41,9 +41,14 @@ func main() {
 	bundleResult, err := build.Bundle(build.BundlerConfig{
 		AppDir:      appDir,
 		OutDir:      publicDir,
-		ServerEntry: filepath.Join(appDir, "server-entry.tsx"),
 		ClientEntry: filepath.Join(appDir, "client-entry.tsx"),
 		PolyfillsJS: "./runtime/polyfills.js",
+		Pages: []build.PageEntry{
+			{File: filepath.Join(appDir, "pages/index.tsx"), Export: "IndexPage"},
+			{File: filepath.Join(appDir, "pages/products.tsx"), Export: "ProductsPage"},
+			{File: filepath.Join(appDir, "pages/user.tsx"), Export: "UserPage"},
+			{File: filepath.Join(appDir, "pages/about.tsx"), Export: "AboutPage"},
+		},
 		ClientComponents: []string{
 			filepath.Join(appDir, "components/Counter.tsx"),
 			filepath.Join(appDir, "components/ThemeToggle.tsx"),

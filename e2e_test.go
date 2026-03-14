@@ -29,9 +29,14 @@ func newTestApp() (*App, error) {
 	bundleResult, err := build.Bundle(build.BundlerConfig{
 		AppDir:      "./app",
 		OutDir:      "./public",
-		ServerEntry: "./app/server-entry.tsx",
 		ClientEntry: "./app/client-entry.tsx",
 		PolyfillsJS: "./runtime/polyfills.js",
+		Pages: []build.PageEntry{
+			{File: "./app/pages/index.tsx", Export: "IndexPage"},
+			{File: "./app/pages/products.tsx", Export: "ProductsPage"},
+			{File: "./app/pages/user.tsx", Export: "UserPage"},
+			{File: "./app/pages/about.tsx", Export: "AboutPage"},
+		},
 		ClientComponents: []string{
 			"./app/components/Counter.tsx",
 			"./app/components/ThemeToggle.tsx",

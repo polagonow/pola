@@ -52,6 +52,14 @@ type BundleResult struct {
 	ImportURLs map[string]string
 }
 
+// PageEntry describes one server-rendered page.
+type PageEntry struct {
+	// File is the path to the TSX/TS file, relative to cwd (e.g. "./app/pages/index.tsx").
+	File string
+	// Export is the named export to render (e.g. "IndexPage").
+	Export string
+}
+
 // BundlerConfig controls both build passes.
 type BundlerConfig struct {
 	// AppDir is the root of the app/ directory (absolute or relative to cwd).
@@ -60,8 +68,10 @@ type BundlerConfig struct {
 	// OutDir is where client bundles are written (e.g. "./public").
 	OutDir string
 
-	// ServerEntry is app/server-entry.tsx — the pages bundle entry point.
-	ServerEntry string
+	// Pages lists every server-rendered page. The bundler auto-generates the
+	// server entry (imports + __render__ function) from this list, so no
+	// hand-maintained server-entry.tsx is needed.
+	Pages []PageEntry
 
 	// ClientEntry is app/client-entry.tsx — the browser bootstrap.
 	ClientEntry string
@@ -127,7 +137,9 @@ func Bundle(cfg BundlerConfig) (*BundleResult, error) {
 	}, nil
 }
 
-// buildPagesBundle compiles server-entry.tsx with the react-server condition.
+// buildPagesBundle generates a server entry from cfg.Pages and compiles it
+// with the react-server condition using esbuild's Stdin option — no
+// hand-maintained server-entry.tsx file needed.
 //
 // "use client" files are intercepted by the useClientPlugin: instead of being
 // bundled or marked external, each one is replaced with a synthetic module that
@@ -137,9 +149,38 @@ func Bundle(cfg BundlerConfig) (*BundleResult, error) {
 // I: row. The browser receives that row, imports the real chunk, and renders
 // the component with full React state.
 func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON string) (string, error) {
-	if cfg.ServerEntry == "" {
+	if len(cfg.Pages) == 0 {
 		return "", nil
 	}
+
+	// Generate the server entry in memory from the page list.
+	// The entry imports each page file and exposes __render__ as a global.
+	absAppDir, _ := filepath.Abs(cfg.AppDir)
+	var entry strings.Builder
+	entry.WriteString(`import React from "react";` + "\n")
+	entry.WriteString(`import { renderToReadableStream } from "react-server-dom-webpack/server.browser";` + "\n")
+	for _, p := range cfg.Pages {
+		absFile, _ := filepath.Abs(p.File)
+		// Import path relative to AppDir (the Stdin resolveDir).
+		rel, err := filepath.Rel(absAppDir, absFile)
+		if err != nil {
+			rel = absFile
+		}
+		importPath := "./" + filepath.ToSlash(rel)
+		entry.WriteString(fmt.Sprintf("import { %s } from %q;\n", p.Export, importPath))
+	}
+	entry.WriteString("const __pages__ = {\n")
+	for _, p := range cfg.Pages {
+		entry.WriteString(fmt.Sprintf("  %s,\n", p.Export))
+	}
+	entry.WriteString("};\n")
+	entry.WriteString(`
+(globalThis as any).__render__ = function(exportName: string, propsJSON: string): ReadableStream {
+  const Page = (__pages__ as any)[exportName];
+  if (!Page) throw new Error('__render__: unknown page "' + exportName + '". Known: ' + Object.keys(__pages__).join(", "));
+  return renderToReadableStream(React.createElement(Page, JSON.parse(propsJSON || "{}")), __CLIENT_MANIFEST__);
+};
+`)
 
 	// Build a set of absolute paths for quick lookup inside the plugin.
 	clientSet := make(map[string]string) // absPath → moduleId
@@ -213,8 +254,14 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 		},
 	}
 
+	entryStr := entry.String()
 	r := api.Build(api.BuildOptions{
-		EntryPoints:       []string{cfg.ServerEntry},
+		Stdin: &api.StdinOptions{
+			Contents:   entryStr,
+			ResolveDir: absAppDir, // imports resolve relative to app/
+			Loader:     api.LoaderTSX,
+			Sourcefile: "<generated-server-entry>",
+		},
 		Bundle:            true,
 		Format:            api.FormatCommonJS,
 		Platform:          api.PlatformBrowser,
