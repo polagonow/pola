@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"gojsx/build"
+	ghtml "gojsx/html"
 	"gojsx/runtime"
 )
 
@@ -247,7 +248,7 @@ func (a *App) handleRoute(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprint(w, htmlShell(buildImportMap(a.importURLs)))
+	fmt.Fprint(w, ghtml.Open(ghtml.Params{ImportURLs: a.importURLs}))
 
 	if ssrStreaming {
 		// Streaming mode (default): serve empty shell; client fetches RSC separately.
@@ -271,7 +272,7 @@ func (a *App) handleRoute(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "<script>self.__flight_data=%s</script>\n", flightJSON)
 	}
 
-	fmt.Fprint(w, htmlClose(a.clientEntryScript))
+	fmt.Fprint(w, ghtml.Close(ghtml.Params{ClientScript: a.clientEntryScript}))
 }
 
 func requestCtx(r *http.Request) map[string]any {
@@ -294,71 +295,3 @@ func flush(w http.ResponseWriter) {
 	}
 }
 
-// ---- HTML shell templates ------------------------------------------------
-
-// buildImportMap generates a <script type="importmap"> block that maps RSC
-// module IDs (e.g. "components/ThemeToggle") to the hashed client bundle URLs
-// emitted by esbuild (e.g. "/public/ThemeToggle-XYZ.js"). This lets the
-// react-server-dom-esm client import() those IDs directly in the browser.
-func buildImportMap(importURLs map[string]string) string {
-	if len(importURLs) == 0 {
-		return ""
-	}
-	payload, err := json.Marshal(map[string]any{"imports": importURLs})
-	if err != nil {
-		return ""
-	}
-	return fmt.Sprintf(`<script type="importmap">%s</script>`, payload)
-}
-
-func htmlShell(importMap string) string {
-	return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>GoJSX</title>
-  <style>
-    *,*::before,*::after{box-sizing:border-box}
-    body{font-family:system-ui,sans-serif;margin:0;padding:2rem;background:#f8f8f8;color:#111}
-    .page{max-width:860px;margin:0 auto}
-    h1{font-size:2rem;margin:0 0 .5rem}
-    h2{font-size:1.2rem;margin:1.5rem 0 .5rem;color:#444}
-    code{background:#eee;padding:.1em .35em;border-radius:4px;font-size:.9em}
-    nav{display:flex;gap:1rem;margin-bottom:1.5rem;padding-bottom:1rem;border-bottom:1px solid #e0e0e0}
-    nav a{color:#0070f3;text-decoration:none;font-weight:500}
-    nav a:hover{text-decoration:underline}
-    .product-list{display:grid;gap:.5rem;margin-top:.5rem}
-    .product{background:#fff;padding:.75rem 1rem;border-radius:8px;border:1px solid #e5e5e5;
-             display:flex;align-items:center;gap:.75rem}
-    .product strong{flex:1}
-    .product .price{color:#0070f3;font-weight:600}
-    .product small{color:#999}
-    dl{display:grid;grid-template-columns:max-content 1fr;gap:.25rem 1.5rem;margin-top:.5rem}
-    dt{font-weight:600;color:#555}
-    #root{padding-top:.5rem}
-    .rsc-err{color:#c0392b;background:#fdecea;padding:.75rem 1rem;border-radius:8px}
-  </style>
-</head>
-<body>
-` + importMap + `
-  <nav>
-    <a href="/">Home</a>
-    <a href="/products">Products</a>
-    <a href="/user?id=42">Profile</a>
-    <a href="/about">About</a>
-  </nav>
-  <div id="root"></div>
-`
-}
-
-func htmlClose(clientScript string) string {
-	// Fall back to the legacy manual renderer if the esbuild entry was not found
-	if clientScript == "" {
-		clientScript = defaultPublicURL + "/_client.js"
-	}
-	return fmt.Sprintf(`
-  <script type="module" src="%s"></script>
-</body>
-</html>`, clientScript)
-}
