@@ -1,5 +1,5 @@
 
-import jsi from "../jsi";
+import jsi from "@/jsi";
 
 export async function UserPage({ userID }: { userID?: string }) {
   const user = await jsi.getUser(userID);

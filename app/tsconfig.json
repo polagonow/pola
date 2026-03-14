@@ -11,7 +11,11 @@
     "isolatedModules": true,
     "resolveJsonModule": true,
     "allowJs": true,
-    "types": ["react", "react-dom"]
+    "types": ["react", "react-dom"],
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["./*"]
+    }
   },
   "include": [
     "global.d.ts",

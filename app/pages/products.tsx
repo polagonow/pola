@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import jsi from '../jsi'
+import jsi from '@/jsi'
 
 function ProductCard({ product }: { product: { id: number; name: string; price: number; stock: number } }) {
   return (

@@ -4,9 +4,9 @@
 // and the browser loads those chunks via react-server-dom-esm/client.
 //
 import { Suspense } from "react";
-import Counter from "../components/Counter";
-import ThemeToggle from "../components/ThemeToggle";
-import jsi from "../jsi";
+import Counter from "@/components/Counter";
+import ThemeToggle from "@/components/ThemeToggle";
+import jsi from "@/jsi";
 
 function ProductCard({ product }: { product: { id: number; name: string; price: number; stock: number } }) {
   return (

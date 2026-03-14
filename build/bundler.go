@@ -170,6 +170,31 @@ func Bundle(cfg BundlerConfig) (*BundleResult, error) {
 // it only emits a ClientReference that the Flight encoder serialises as an
 // I: row. The browser receives that row, imports the real chunk, and renders
 // the component with full React state.
+// newAtAliasPlugin returns an esbuild plugin that resolves @/ imports to absAppDir.
+// e.g. import foo from "@/jsi"  →  absAppDir/jsi
+//
+// We delegate back to build.Resolve so esbuild handles extension lookup,
+// directory index files, etc. rather than returning a bare path ourselves.
+func newAtAliasPlugin(absAppDir string) api.Plugin {
+	return api.Plugin{
+		Name: "at-alias",
+		Setup: func(build api.PluginBuild) {
+			build.OnResolve(api.OnResolveOptions{Filter: `^@/`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
+				// "@/foo/bar" → "./foo/bar" resolved from the app root
+				rel := "." + args.Path[1:]
+				result := build.Resolve(rel, api.ResolveOptions{
+					ResolveDir: absAppDir,
+					Kind:       args.Kind,
+				})
+				if len(result.Errors) > 0 {
+					return api.OnResolveResult{}, fmt.Errorf("%s", result.Errors[0].Text)
+				}
+				return api.OnResolveResult{Path: result.Path}, nil
+			})
+		},
+	}
+}
+
 func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON string) (string, error) {
 	if len(cfg.Pages) == 0 {
 		return "", nil
@@ -301,7 +326,7 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 		MinifyWhitespace:  true,
 		MinifyIdentifiers: true,
 		MinifySyntax:      true,
-		Plugins:           []api.Plugin{useClientPlugin},
+		Plugins:           []api.Plugin{newAtAliasPlugin(absAppDir), useClientPlugin},
 
 		// react-server → React resolves to its server-safe variant.
 		// browser → selects react-server-dom-webpack-server.browser.production.js
@@ -342,6 +367,7 @@ func buildClientBundle(cfg BundlerConfig, absDir string) (map[string][]byte, str
 	if err != nil {
 		return nil, "", fmt.Errorf("bundler: abs outdir: %w", err)
 	}
+	absAppDir, _ := filepath.Abs(cfg.AppDir)
 
 	r := api.Build(api.BuildOptions{
 		EntryPoints:       entries,
@@ -361,6 +387,7 @@ func buildClientBundle(cfg BundlerConfig, absDir string) (map[string][]byte, str
 		EntryNames:        "[name]-[hash]",
 		ChunkNames:        "chunks/[name]-[hash]",
 		Conditions:        []string{"browser", "import", "module", "default"},
+		Plugins:           []api.Plugin{newAtAliasPlugin(absAppDir)},
 		Define: map[string]string{
 			"process.env.NODE_ENV": `"production"`,
 			"__DEV__":              "false",
