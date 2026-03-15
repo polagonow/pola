@@ -594,44 +594,56 @@ func assertErrorBoundary(t *testing.T, body string) {
 	}
 }
 
+// assertCorrectErrorBoundary extends assertErrorBoundary by also verifying that
+// the expected error-component module ID is referenced in the Flight body. This
+// proves the *correct* innermost error boundary is mounted for the page — not just
+// that some boundary fired.
+func assertCorrectErrorBoundary(t *testing.T, body, moduleID string) {
+	t.Helper()
+	assertErrorBoundary(t, body)
+	if !strings.Contains(body, moduleID) {
+		t.Errorf("expected error module %q referenced in Flight body, got:\n%s", moduleID, body[:min(len(body), 400)])
+	}
+}
+
 func TestErrorBoundary_Home(t *testing.T) {
-	assertErrorBoundary(t, rsc(t, "/?error=test-error"))
+	assertCorrectErrorBoundary(t, rsc(t, "/?error=test-error"), `"app/error"`)
 }
 
 func TestErrorBoundary_Posts(t *testing.T) {
-	assertErrorBoundary(t, rsc(t, "/posts?error=test-error"))
+	assertCorrectErrorBoundary(t, rsc(t, "/posts?error=test-error"), `"app/(blog)/posts/error"`)
 }
 
 func TestErrorBoundary_Projects(t *testing.T) {
-	assertErrorBoundary(t, rsc(t, "/projects?error=test-error"))
+	assertCorrectErrorBoundary(t, rsc(t, "/projects?error=test-error"), `"app/(work)/projects/error"`)
 }
 
 func TestErrorBoundary_ProjectDetail(t *testing.T) {
-	assertErrorBoundary(t, rsc(t, "/projects/1?error=test-error"))
+	assertCorrectErrorBoundary(t, rsc(t, "/projects/1?error=test-error"), `"app/(work)/projects/[id]/error"`)
 }
 
 func TestErrorBoundary_About(t *testing.T) {
-	assertErrorBoundary(t, rsc(t, "/about?error=test-error"))
+	assertCorrectErrorBoundary(t, rsc(t, "/about?error=test-error"), `"app/about/error"`)
 }
 
 func TestErrorBoundary_Profile(t *testing.T) {
-	assertErrorBoundary(t, rsc(t, "/profile?error=test-error"))
+	assertCorrectErrorBoundary(t, rsc(t, "/profile?error=test-error"), `"app/profile/error"`)
 }
 
 func TestErrorBoundary_PostDetail(t *testing.T) {
-	assertErrorBoundary(t, rsc(t, "/posts/go-react-ssr?error=test-error"))
+	assertCorrectErrorBoundary(t, rsc(t, "/posts/go-react-ssr?error=test-error"), `"app/(blog)/posts/[slug]/error"`)
 }
 
 func TestErrorBoundary_Revisions(t *testing.T) {
-	assertErrorBoundary(t, rsc(t, "/posts/go-react-ssr/revisions?error=test-error"))
+	assertCorrectErrorBoundary(t, rsc(t, "/posts/go-react-ssr/revisions?error=test-error"), `"app/(blog)/posts/[slug]/revisions/error"`)
 }
 
 func TestErrorBoundary_RevisionDetail(t *testing.T) {
-	assertErrorBoundary(t, rsc(t, "/posts/go-react-ssr/revisions/v1?error=test-error"))
+	assertCorrectErrorBoundary(t, rsc(t, "/posts/go-react-ssr/revisions/v1?error=test-error"), `"app/(blog)/posts/[slug]/revisions/[rev]/error"`)
 }
 
 func TestErrorBoundary_Docs(t *testing.T) {
-	assertErrorBoundary(t, rsc(t, "/docs?error=test-error"))
+	assertCorrectErrorBoundary(t, rsc(t, "/docs?error=test-error"), `"app/docs/[[...slug]]/error"`)
 }
 
 // ─── Client bundle tests ───────────────────────────────────────────────────────
@@ -668,6 +680,91 @@ func TestClientBundle_NoWebpackRequire(t *testing.T) {
 	}
 	if strings.Contains(string(data), "__webpack_require__") {
 		t.Error("client bundle contains __webpack_require__")
+	}
+}
+
+// ─── Concurrent requests ───────────────────────────────────────────────────────
+
+// ─── ImportURLs uniqueness regression test ─────────────────────────────────────
+
+// TestImportURLs_ErrorModulesAreUnique verifies that every error module ID maps
+// to a *distinct* chunk URL. This is a regression test for the chunk-collision
+// bug where multiple error.tsx files all matched the same "error-*.js" chunk.
+func TestImportURLs_ErrorModulesAreUnique(t *testing.T) {
+	app := requireApp(t)
+	errorModules := []string{
+		"app/error",
+		"app/(blog)/posts/error",
+		"app/(work)/projects/error",
+		"app/(work)/projects/[id]/error",
+		"app/about/error",
+		"app/profile/error",
+		"app/(blog)/posts/[slug]/error",
+		"app/(blog)/posts/[slug]/revisions/error",
+		"app/(blog)/posts/[slug]/revisions/[rev]/error",
+		"app/docs/[[...slug]]/error",
+	}
+	seen := make(map[string]string) // chunkURL → moduleID
+	for _, id := range errorModules {
+		url, ok := app.ImportURLs[id]
+		if !ok {
+			t.Errorf("module %q missing from importURLs", id)
+			continue
+		}
+		if prev, dup := seen[url]; dup {
+			t.Errorf("chunk collision: %q and %q both map to %q", prev, id, url)
+		}
+		seen[url] = id
+	}
+}
+
+// ─── Layout presence tests ─────────────────────────────────────────────────────
+
+func TestRSC_AboutLayout_WrapsPage(t *testing.T) {
+	body := rsc(t, "/about")
+	if !flightContains(body, "ℹ About") {
+		t.Errorf("expected about layout badge 'ℹ About' in RSC stream, got:\n%s", body[:min(len(body), 400)])
+	}
+}
+
+func TestRSC_ProfileLayout_WrapsPage(t *testing.T) {
+	body := rsc(t, "/profile")
+	if !flightContains(body, "👤 Profile") {
+		t.Errorf("expected profile layout badge '👤 Profile' in RSC stream, got:\n%s", body[:min(len(body), 400)])
+	}
+}
+
+func TestRSC_PostLayout_WrapsPostDetail(t *testing.T) {
+	body := rsc(t, "/posts/go-react-ssr")
+	if !flightContains(body, "← All posts") {
+		t.Errorf("expected post layout back-link '← All posts' in RSC stream, got:\n%s", body[:min(len(body), 400)])
+	}
+}
+
+func TestRSC_ProjectLayout_WrapsProjectDetail(t *testing.T) {
+	body := rsc(t, "/projects/1")
+	if !flightContains(body, "← All projects") {
+		t.Errorf("expected project layout back-link '← All projects' in RSC stream, got:\n%s", body[:min(len(body), 400)])
+	}
+}
+
+// ─── Loading-state tests ───────────────────────────────────────────────────────
+
+// Loading components are Suspense fallbacks that appear only when the async data
+// is delayed. In tests, bridge functions resolve immediately, so the real content
+// is always streamed — confirming the page is NOT stuck in the loading state.
+
+func TestRSC_PostsPage_NoLoadingSkeleton(t *testing.T) {
+	body := rsc(t, "/posts")
+	if !flightContains(body, "Building SSR with Go and React") {
+		t.Error("PostsPage should show real content, not loading skeleton")
+	}
+}
+
+func TestRSC_ProjectsPage_NoLoadingSkeleton(t *testing.T) {
+	body := rsc(t, "/projects")
+	if !flightContains(body, "GoJSX") {
+		t.Error("ProjectsPage should show real content, not loading skeleton")
 	}
 }
 
