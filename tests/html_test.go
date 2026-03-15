@@ -21,14 +21,6 @@ func TestHTMLShell_HasClientEntryScript(t *testing.T) {
 	}
 }
 
-func TestHTMLShell_HasNavLinks(t *testing.T) {
-	body := page(t, "/")
-	// Nav links are rendered by the client Nav component into #nav-root.
-	if !strings.Contains(body, `id="nav-root"`) {
-		t.Error("HTML shell missing nav mount point #nav-root")
-	}
-}
-
 func TestHTMLShell_ContentType(t *testing.T) {
 	app := requireApp(t)
 	req := httptest.NewRequest("GET", "/", nil)

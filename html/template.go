@@ -123,18 +123,7 @@ const shellTemplate = `<!DOCTYPE html>
   {{.ImportMap}}
 </head>
 <body>
-  <div class="shell">
-    <header class="topnav">
-      <a href="/" class="brand">DevBlog</a>
-      <nav id="nav-root"></nav>
-      <div class="actions">
-        <div id="theme-toggle-root"></div>
-      </div>
-    </header>
-    <div class="main">
-      <div id="root"></div>
-    </div>
-  </div>
+  <div id="root"></div>
 {{range .Scripts}}  <script>{{.}}</script>
 {{end}}  <script type="module" src="{{.ClientScript}}"></script>
 </body>

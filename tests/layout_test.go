@@ -2,6 +2,25 @@ package tests
 
 import "testing"
 
+// ─── Root layout ──────────────────────────────────────────────────────────────
+
+// The root layout is a server component that imports Nav and ThemeToggle as
+// client components. Their module references appear in every page's RSC stream.
+
+func TestRSC_RootLayout_HasNav(t *testing.T) {
+	body := rsc(t, "/")
+	if !flightContains(body, `"components/Nav"`) {
+		t.Error("RSC stream missing Nav module reference in root layout")
+	}
+}
+
+func TestRSC_RootLayout_HasThemeToggle(t *testing.T) {
+	body := rsc(t, "/")
+	if !flightContains(body, `"components/ThemeToggle"`) {
+		t.Error("RSC stream missing ThemeToggle module reference in root layout")
+	}
+}
+
 // ─── Route-group layout presence ──────────────────────────────────────────────
 
 func TestRSC_BlogLayout_WrapsPostsPage(t *testing.T) {

@@ -11,7 +11,7 @@ const LINKS = [
 
 export default function Nav() {
   return (
-    <>
+    <nav>
       {LINKS.map(({ href, label }) => (
         <NavLink
           key={href}
@@ -21,6 +21,6 @@ export default function Nav() {
           {label}
         </NavLink>
       ))}
-    </>
+    </nav>
   );
 }
