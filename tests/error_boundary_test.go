@@ -72,6 +72,33 @@ func TestErrorBoundary_Docs(t *testing.T) {
 
 // ─── ImportURLs uniqueness (regression for chunk-collision fix) ────────────────
 
+// ─── Global error boundary ────────────────────────────────────────────────────
+
+// TestGlobalError_InImportURLs verifies that global-error.tsx is present in
+// the client manifest. It is a "use client" component and must be importable
+// by the browser as the outermost error boundary fallback.
+func TestGlobalError_InImportURLs(t *testing.T) {
+	app := requireApp(t)
+	if _, ok := app.ImportURLs["app/global-error"]; !ok {
+		t.Error("global-error module missing from ImportURLs")
+	}
+}
+
+// TestGlobalError_ReferencedInRSCStream verifies that every page's RSC stream
+// references the global-error module. Since GlobalError wraps all pages as the
+// outermost __FrameworkErrorBoundary__ fallback, it is always serialised into
+// the Flight stream as a module (I:) row.
+func TestGlobalError_ReferencedInRSCStream(t *testing.T) {
+	for _, path := range []string{"/", "/posts", "/projects", "/about", "/profile"} {
+		body := rsc(t, path)
+		if !strings.Contains(body, `"app/global-error"`) {
+			t.Errorf("page %s: global-error module not referenced in RSC stream", path)
+		}
+	}
+}
+
+// ─── ImportURLs uniqueness (regression for chunk-collision fix) ────────────────
+
 // TestImportURLs_ErrorModulesAreUnique verifies that every error module ID maps
 // to a *distinct* chunk URL. This guards against the bug where multiple error.tsx
 // files with the same base name all matched the same "error-*.js" chunk.
