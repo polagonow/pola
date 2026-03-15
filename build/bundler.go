@@ -238,7 +238,7 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 	}
 	// Import layout files — deduplicated and in deterministic (page-walk) order.
 	// Each unique layout path is imported once with alias LayoutAlias(...)+"Layout".
-	absPagesDir := filepath.Join(absAppDir, "pages")
+	absPagesDir := filepath.Join(absAppDir, "app")
 	seenLayout := make(map[string]bool)
 	var layoutPaths []string
 	for _, p := range cfg.Pages {

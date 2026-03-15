@@ -26,7 +26,7 @@ func init() {
 }
 
 func newTestApp() (*App, error) {
-	appDir := "./app"
+	appDir := "./ui"
 
 	pages, err := build.DiscoverPages(appDir)
 	if err != nil {
@@ -57,7 +57,7 @@ func newTestApp() (*App, error) {
 	bundleResult, err := build.Bundle(build.BundlerConfig{
 		AppDir:             appDir,
 		OutDir:             "./public/assets",
-		ClientEntry:        "./app/_client.tsx",
+		ClientEntry:        "./ui/_client.tsx",
 		Pages:              pages,
 		ClientComponents:   clientComponents,
 		GlobalNotFoundPath: gc.NotFoundPath,

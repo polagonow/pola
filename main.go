@@ -47,7 +47,7 @@ type App struct {
 }
 
 func main() {
-	appDir := "./app"
+	appDir := "./ui"
 
 	// ------------------------------------------------------------------
 	// 1. Build server + client bundles via esbuild

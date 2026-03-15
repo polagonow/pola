@@ -51,7 +51,7 @@ func TestHasUseClient(t *testing.T) {
 
 func TestDiscoverPages(t *testing.T) {
 	appDir := t.TempDir()
-	pagesDir := filepath.Join(appDir, "pages")
+	pagesDir := filepath.Join(appDir, "app")
 
 	// Create route subdirectories each with a page.tsx
 	for _, route := range []string{"index", "products", "user", "about"} {
@@ -85,7 +85,7 @@ func TestDiscoverPages(t *testing.T) {
 
 func TestDiscoverPages_MissingDefaultExport(t *testing.T) {
 	appDir := t.TempDir()
-	dir := filepath.Join(appDir, "pages", "bad")
+	dir := filepath.Join(appDir, "app", "bad")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +102,7 @@ func TestDiscoverPages_MissingDefaultExport(t *testing.T) {
 
 func TestDiscoverPages_WithCompanions(t *testing.T) {
 	appDir := t.TempDir()
-	dir := filepath.Join(appDir, "pages", "products")
+	dir := filepath.Join(appDir, "app", "products")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +147,7 @@ func TestDiscoverPages_WithCompanions(t *testing.T) {
 
 func TestDiscoverPages_PartialCompanions(t *testing.T) {
 	appDir := t.TempDir()
-	dir := filepath.Join(appDir, "pages", "about")
+	dir := filepath.Join(appDir, "app", "about")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -179,7 +179,7 @@ func TestDiscoverPages_PartialCompanions(t *testing.T) {
 
 func TestDiscoverPages_CompanionWithoutDefaultExport(t *testing.T) {
 	appDir := t.TempDir()
-	dir := filepath.Join(appDir, "pages", "user")
+	dir := filepath.Join(appDir, "app", "user")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -365,7 +365,7 @@ func TestHasDefaultExport(t *testing.T) {
 
 func TestDiscoverGlobalComponents(t *testing.T) {
 	appDir := t.TempDir()
-	pagesDir := filepath.Join(appDir, "pages")
+	pagesDir := filepath.Join(appDir, "app")
 	if err := os.MkdirAll(pagesDir, 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -388,7 +388,7 @@ func TestDiscoverGlobalComponents(t *testing.T) {
 
 	t.Run("neither present", func(t *testing.T) {
 		emptyDir := t.TempDir()
-		if err := os.MkdirAll(filepath.Join(emptyDir, "pages"), 0o755); err != nil {
+		if err := os.MkdirAll(filepath.Join(emptyDir, "app"), 0o755); err != nil {
 			t.Fatal(err)
 		}
 		gc, err := DiscoverGlobalComponents(emptyDir)
@@ -405,7 +405,7 @@ func TestDiscoverGlobalComponents(t *testing.T) {
 
 	t.Run("no default export ignored", func(t *testing.T) {
 		dir := t.TempDir()
-		pd := filepath.Join(dir, "pages")
+		pd := filepath.Join(dir, "app")
 		if err := os.MkdirAll(pd, 0o755); err != nil {
 			t.Fatal(err)
 		}

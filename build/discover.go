@@ -27,7 +27,7 @@ func PageAlias(p PageEntry) string {
 	for {
 		name := filepath.Base(dir)
 		parent := filepath.Dir(dir)
-		if name == "pages" || parent == dir {
+		if name == "app" || parent == dir {
 			break
 		}
 		segs = append([]string{name}, segs...)
@@ -63,7 +63,7 @@ func stripBrackets(s string) string {
 //	app/pages/products/page.tsx      → "/products"
 //	app/pages/products/[id]/page.tsx → "/products/:id"
 func RoutePattern(appDir, file string) string {
-	pagesDir := filepath.Join(appDir, "pages")
+	pagesDir := filepath.Join(appDir, "app")
 	rel, err := filepath.Rel(pagesDir, filepath.Dir(file))
 	if err != nil {
 		return "/"
@@ -176,7 +176,7 @@ func fileExists(path string) bool {
 //
 // The root route uses pages/index/page.tsx → alias "Index", route /.
 func DiscoverPages(appDir string) ([]PageEntry, error) {
-	pagesDir := filepath.Join(appDir, "pages")
+	pagesDir := filepath.Join(appDir, "app")
 	var pages []PageEntry
 
 	err := filepath.WalkDir(pagesDir, func(path string, d fs.DirEntry, err error) error {
@@ -265,7 +265,7 @@ type GlobalComponents struct {
 // DiscoverGlobalComponents checks appDir/pages/ for global-not-found.tsx and
 // global-error.tsx with a default export, returning their paths.
 func DiscoverGlobalComponents(appDir string) (GlobalComponents, error) {
-	pagesDir := filepath.Join(appDir, "pages")
+	pagesDir := filepath.Join(appDir, "app")
 	var gc GlobalComponents
 	for _, item := range []struct {
 		name string
