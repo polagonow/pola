@@ -272,10 +272,9 @@ func TestHTMLShell_HasClientEntryScript(t *testing.T) {
 
 func TestHTMLShell_HasNavLinks(t *testing.T) {
 	body := page(t, "/")
-	for _, href := range []string{`href="/posts"`, `href="/projects"`, `href="/about"`} {
-		if !strings.Contains(body, href) {
-			t.Errorf("HTML shell missing nav link %s", href)
-		}
+	// Nav links are rendered by the client Nav component into #nav-root.
+	if !strings.Contains(body, `id="nav-root"`) {
+		t.Error("HTML shell missing nav mount point #nav-root")
 	}
 }
 

@@ -31,6 +31,7 @@ const shellTemplate = `<!DOCTYPE html>
     .topnav nav{display:flex;gap:1.5rem}
     .topnav nav a{color:var(--muted);font-size:.9rem;font-weight:500}
     .topnav nav a:hover{color:var(--fg);text-decoration:none}
+    .topnav nav a.nav-active{color:var(--fg);font-weight:600}
     .topnav .actions{margin-left:auto;display:flex;align-items:center;gap:.75rem}
     .main{flex:1;max-width:1000px;margin:0 auto;width:100%;padding:2rem 1.5rem}
 
@@ -125,13 +126,7 @@ const shellTemplate = `<!DOCTYPE html>
   <div class="shell">
     <header class="topnav">
       <a href="/" class="brand">DevBlog</a>
-      <nav>
-        <a href="/posts">Posts</a>
-        <a href="/projects">Projects</a>
-        <a href="/about">About</a>
-        <a href="/profile">Profile</a>
-        <a href="/docs">Docs</a>
-      </nav>
+      <nav id="nav-root"></nav>
       <div class="actions">
         <div id="theme-toggle-root"></div>
       </div>

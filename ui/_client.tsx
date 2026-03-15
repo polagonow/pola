@@ -1,6 +1,7 @@
 import { createRoot } from "react-dom/client";
 import { createFromFetch } from "react-server-dom-esm/client";
 import ThemeToggle from "@/components/ThemeToggle";
+import Nav from "@/components/Nav";
 
 // Mount RSC tree into #root
 const container = document.getElementById("root");
@@ -15,6 +16,12 @@ const fetchPromise = flightData
 createFromFetch(fetchPromise).then((comp: React.ReactNode) => {
   root.render(comp);
 });
+
+// Mount Nav into the nav slot
+const navSlot = document.getElementById("nav-root");
+if (navSlot) {
+  createRoot(navSlot).render(<Nav />);
+}
 
 // Mount ThemeToggle into the nav action slot
 const toggleSlot = document.getElementById("theme-toggle-root");
