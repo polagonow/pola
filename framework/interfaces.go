@@ -53,21 +53,6 @@ type EntryGenConfig struct {
 	ManifestJSON       string // injected as a JS define value
 }
 
-// ManifestEncoder converts client component files into the manifest format
-// understood by the chosen framework's server renderer.
-type ManifestEncoder interface {
-	// Encode builds the client manifest and import URL map.
-	Encode(
-		clientComponents []string,
-		clientFiles map[string][]byte,
-		appDir, assetsURLPath string,
-		inputChunkURLs map[string]string,
-	) (contract.ClientManifest, map[string]string, error)
-
-	// InjectGlobal is the JS define name used to embed the manifest JSON in
-	// the server bundle. e.g. "__CLIENT_MANIFEST__".
-	InjectGlobal() string
-}
 
 // RouteBuilder converts a discovered PageEntry into a Route (URL pattern +
 // JS export name). Implementations encode the routing convention.

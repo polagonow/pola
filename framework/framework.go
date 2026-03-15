@@ -320,8 +320,7 @@ var (
 	defaultBundler         func() Bundler
 	defaultEntryGenerator  func() ServerEntryGenerator
 	defaultRouteBuilder    func() RouteBuilder
-	defaultManifestEncoder func() ManifestEncoder
-	defaultStreamProtocol  func() StreamProtocol
+	defaultStreamProtocol func() StreamProtocol
 	defaultHTMLShell       func() HTMLShell
 	defaultAssetServer     func(dir string) AssetServer
 	defaultVMFactory       func(bundle []byte) (VMFactory, error)
@@ -342,9 +341,6 @@ func RegisterDefaults(d Defaults) {
 	}
 	if d.RouteBuilder != nil {
 		defaultRouteBuilder = d.RouteBuilder
-	}
-	if d.ManifestEncoder != nil {
-		defaultManifestEncoder = d.ManifestEncoder
 	}
 	if d.StreamProtocol != nil {
 		defaultStreamProtocol = d.StreamProtocol
@@ -369,8 +365,7 @@ type Defaults struct {
 	Bundler         func() Bundler
 	EntryGenerator  func() ServerEntryGenerator
 	RouteBuilder    func() RouteBuilder
-	ManifestEncoder func() ManifestEncoder
-	StreamProtocol  func() StreamProtocol
+	StreamProtocol func() StreamProtocol
 	HTMLShell       func() HTMLShell
 	AssetServer     func(dir string) AssetServer
 	VMFactory       func(bundle []byte) (VMFactory, error)
