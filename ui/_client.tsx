@@ -1,9 +1,12 @@
 import { createRoot } from "react-dom/client";
 import { createFromFetch } from "react-server-dom-esm/client";
 
+function renderError(root: ReturnType<typeof createRoot>, msg: string) {
+  root.render(<div className="rsc-err">{msg}</div>);
+}
+
 // Mount RSC tree into #root
-const container = document.getElementById("root");
-if (!container) throw new Error("Root element not found");
+const container = document.getElementById("root") ?? document.body;
 const root = createRoot(container);
 
 const flightData: string | undefined = (self as any).__flight_data;
@@ -13,4 +16,6 @@ const fetchPromise = flightData
 
 createFromFetch(fetchPromise).then((comp: React.ReactNode) => {
   root.render(comp);
+}).catch((err: unknown) => {
+  renderError(root, err instanceof Error ? err.message : String(err));
 });
