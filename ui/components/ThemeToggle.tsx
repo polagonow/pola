@@ -1,30 +1,21 @@
-"use client";
-// app/components/ThemeToggle.tsx
-
-import { useState, useEffect } from "react";
+"use client"
+import { useEffect, useState } from "react";
 
 export default function ThemeToggle() {
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
-    document.body.style.background = dark ? "#111" : "#f8f8f8";
-    document.body.style.color = dark ? "#f0f0f0" : "#111";
+    const root = document.documentElement;
+    root.style.setProperty("--bg",      dark ? "#0f172a" : "#fff");
+    root.style.setProperty("--fg",      dark ? "#f1f5f9" : "#111");
+    root.style.setProperty("--surface", dark ? "#1e293b" : "#f9fafb");
+    root.style.setProperty("--border",  dark ? "#334155" : "#e5e7eb");
+    root.style.setProperty("--muted",   dark ? "#94a3b8" : "#6b7280");
   }, [dark]);
 
   return (
-    <button
-      onClick={() => setDark((d) => !d)}
-      style={{
-        padding: "0.4rem 1rem",
-        borderRadius: "6px",
-        border: "1px solid #ccc",
-        cursor: "pointer",
-        background: dark ? "#333" : "#fff",
-        color: dark ? "#fff" : "#111",
-        fontWeight: 500,
-      }}
-    >
-      {dark ? "☀️ Light" : "🌙 Dark"}
+    <button className="btn btn-ghost" onClick={() => setDark(d => !d)} aria-label="Toggle theme">
+      {dark ? "☀︎" : "☾"}
     </button>
   );
 }

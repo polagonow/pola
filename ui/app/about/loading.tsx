@@ -1,3 +1,3 @@
 export default function Loading() {
-  return <div style={{ padding: "1rem", opacity: 0.6 }}>Loading page...</div>;
+  return <div style={{ color: "var(--muted)", opacity: .6 }}>Loading…</div>;
 }

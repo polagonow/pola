@@ -1,10 +1,11 @@
 
 // Go bridge / runtime globals (injected by runtime/vm.go)
 declare const __JSI__: {
-    getProducts: () => Array<{ id: number; name: string; price: number; stock: number }>;
-    getProduct: (id: string) => { id: number; name: string; price: number; stock: number };
-    getUser: (id?: string) => { id: string; name: string; email: string; role: string };
-    query: (sql: string, ...args: unknown[]) => unknown[];
+    getPosts: () => Post[];
+    getPost: (slug: string) => Post;
+    getProjects: () => Project[];
+    getProject: (id: string) => Project;
+    getProfile: (id?: string) => Profile;
 };
 
 export declare function fetchJSON(url: string): unknown;
@@ -16,5 +17,35 @@ export declare const __CLIENT_MANIFEST__: Record<string, {
     chunks: string[];
     async: boolean;
 }>;
+
+export interface Post {
+    id: number;
+    slug: string;
+    title: string;
+    excerpt: string;
+    author: string;
+    date: string;
+    readTime: number;
+    tags: string[];
+}
+
+export interface Project {
+    id: string;
+    title: string;
+    description: string;
+    tech: string[];
+    stars: number;
+    status: 'active' | 'stable' | 'beta';
+}
+
+export interface Profile {
+    id: string;
+    name: string;
+    email: string;
+    role: string;
+    bio: string;
+    github: string;
+    website: string;
+}
 
 export default { ...__JSI__ }

@@ -13,9 +13,9 @@ import (
 // It walks every directory segment between the "pages" root and the file,
 // capitalises each one, and strips dynamic-segment brackets:
 //
-//	pages/page.tsx               → "Index"
-//	pages/products/page.tsx      → "Products"
-//	pages/products/[id]/page.tsx → "ProductsId"
+//	app/page.tsx               → "Index"
+//	app/products/page.tsx      → "Products"
+//	app/products/[id]/page.tsx → "ProductsId"
 func PageAlias(p PageEntry) string {
 	base := strings.TrimSuffix(filepath.Base(p.PageComponentPath), filepath.Ext(p.PageComponentPath))
 	if base != "page" {
@@ -101,9 +101,9 @@ func RoutePattern(appDir, file string) string {
 // It derives the name from the layout's directory position relative to pagesDir,
 // using the same capitalisation rules as PageAlias:
 //
-//	pages/layout.tsx               → "Index"
-//	pages/products/layout.tsx      → "Products"
-//	pages/products/[id]/layout.tsx → "ProductsId"
+//	app/layout.tsx               → "Index"
+//	app/products/layout.tsx      → "Products"
+//	app/products/[id]/layout.tsx → "ProductsId"
 func LayoutAlias(pagesDir, layoutPath string) string {
 	dir := filepath.Dir(layoutPath)
 	absPagesDir, _ := filepath.Abs(pagesDir)
@@ -183,13 +183,13 @@ func fileExists(path string) bool {
 	return err == nil
 }
 
-// DiscoverPages walks appDir/pages/ and returns one PageEntry per page.tsx file.
+// DiscoverPages walks appDir/app/ and returns one PageEntry per page.tsx file.
 //
 // Convention: each route lives in its own subdirectory with a page.tsx file
 // that uses export default. The directory name becomes the JS alias and the
-// URL segment (e.g. pages/products/page.tsx → alias "Products", route /products).
+// URL segment (e.g. app/products/page.tsx → alias "Products", route /products).
 //
-// The root route uses pages/index/page.tsx → alias "Index", route /.
+// The root route uses app/index/page.tsx → alias "Index", route /.
 func DiscoverPages(appDir string) ([]PageEntry, error) {
 	pagesDir := filepath.Join(appDir, "app")
 	var pages []PageEntry
@@ -269,7 +269,7 @@ func hasDefaultExport(path string) (bool, error) {
 }
 
 // GlobalComponents holds the optional global-level components found at the
-// pages/ root (not tied to any route).
+// app/ root (not tied to any route).
 type GlobalComponents struct {
 	// NotFoundPath is the path to global-not-found.tsx, or "" if absent.
 	NotFoundPath string
@@ -277,7 +277,7 @@ type GlobalComponents struct {
 	ErrorPath string
 }
 
-// DiscoverGlobalComponents checks appDir/pages/ for global-not-found.tsx and
+// DiscoverGlobalComponents checks appDir/app/ for global-not-found.tsx and
 // global-error.tsx with a default export, returning their paths.
 func DiscoverGlobalComponents(appDir string) (GlobalComponents, error) {
 	pagesDir := filepath.Join(appDir, "app")

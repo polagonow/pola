@@ -1,13 +1,9 @@
 import React from "react";
 
-type LayoutProps = {
-  children: React.ReactNode
-}
-
-export default function Layout({ children }: LayoutProps) {
+export default function AboutLayout({ children }: { children: React.ReactNode }) {
   return (
     <div>
-      app/about/layout.tsx
+      <div className="section-badge">ℹ About</div>
       {children}
     </div>
   );

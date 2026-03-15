@@ -1,11 +1,11 @@
 "use client"
 import { useEffect } from "react";
 
-export default function AboutError({ error, reset }: { error: Error; reset: () => void }) {
+export default function ProfileError({ error, reset }: { error: Error; reset: () => void }) {
   useEffect(() => { console.error(error); }, [error]);
   return (
     <div className="card rsc-err">
-      <strong>Error loading About</strong>
+      <strong>Could not load profile</strong>
       <p style={{ fontSize: ".9rem", margin: ".5rem 0" }}>{error.message}</p>
       <button className="btn btn-outline" onClick={reset}>Try again</button>
     </div>

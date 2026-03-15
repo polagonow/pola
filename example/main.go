@@ -10,8 +10,8 @@ import (
 	"time"
 
 	"gojsx/build"
-	"gojsx/server"
 	"gojsx/runtime"
+	"gojsx/server"
 )
 
 const (
@@ -75,14 +75,50 @@ func main() {
 
 	// ------------------------------------------------------------------
 	// 3. Wire Go → JS bridge
-	//    Globals  → bare function calls:  getEnv("KEY")
-	//    Context  → ctx object calls:     ctx.getProducts()
 	// ------------------------------------------------------------------
-	productCatalog := []map[string]any{
-		{"id": 1, "name": "Widget Alpha", "price": 29.99, "stock": 142},
-		{"id": 2, "name": "Widget Beta", "price": 49.99, "stock": 37},
-		{"id": 3, "name": "Widget Gamma", "price": 9.99, "stock": 891},
-		{"id": 4, "name": "Turbo Sprocket", "price": 199.0, "stock": 12},
+	posts := []map[string]any{
+		{
+			"id": 1, "slug": "go-react-ssr",
+			"title":   "Building SSR with Go and React",
+			"excerpt": "How to run React Server Components inside a Go process using Goja.",
+			"author":  "Jane Doe", "date": "2024-01-15", "readTime": 5,
+			"tags":    []any{"go", "react", "ssr"},
+		},
+		{
+			"id": 2, "slug": "rsc-deep-dive",
+			"title":   "React Server Components Deep Dive",
+			"excerpt": "Understanding the Flight wire protocol and how RSC trees serialize.",
+			"author":  "Jane Doe", "date": "2024-02-03", "readTime": 8,
+			"tags":    []any{"react", "rsc", "performance"},
+		},
+		{
+			"id": 3, "slug": "goja-vm-internals",
+			"title":   "Goja VM Internals",
+			"excerpt": "A tour through the event loop, promise scheduling, and Go↔JS bridging.",
+			"author":  "Jane Doe", "date": "2024-03-10", "readTime": 12,
+			"tags":    []any{"go", "javascript", "vm"},
+		},
+	}
+
+	projects := []map[string]any{
+		{
+			"id": "1", "title": "GoJSX",
+			"description": "Go-powered React SSR framework with Flight protocol.",
+			"tech":        []any{"Go", "React", "TypeScript", "esbuild"},
+			"stars": 142, "status": "active",
+		},
+		{
+			"id": "2", "title": "GojaBridge",
+			"description": "Type-safe Go ↔ JS function bridge for Goja.",
+			"tech":        []any{"Go", "Goja"},
+			"stars": 38, "status": "stable",
+		},
+		{
+			"id": "3", "title": "FlightDecode",
+			"description": "Pure-Go React Flight wire-format decoder.",
+			"tech":        []any{"Go", "React"},
+			"stars": 21, "status": "beta",
+		},
 	}
 
 	bridge := runtime.BridgeConfig{
@@ -112,37 +148,50 @@ func main() {
 			},
 		},
 		Context: map[string]runtime.GoFunc{
-			"getProducts": func(args []any) (any, error) {
-				time.Sleep(500 * time.Millisecond)
-				return productCatalog, nil
+			"getPosts": func(_ []any) (any, error) {
+				time.Sleep(200 * time.Millisecond)
+				return posts, nil
 			},
-			"getProduct": func(args []any) (any, error) {
-				time.Sleep(500 * time.Millisecond)
+			"getPost": func(args []any) (any, error) {
+				time.Sleep(150 * time.Millisecond)
+				slug := ""
+				if len(args) > 0 {
+					slug = fmt.Sprintf("%v", args[0])
+				}
+				for _, p := range posts {
+					if p["slug"] == slug {
+						return p, nil
+					}
+				}
+				return nil, fmt.Errorf("post %q not found", slug)
+			},
+			"getProjects": func(_ []any) (any, error) {
+				time.Sleep(200 * time.Millisecond)
+				return projects, nil
+			},
+			"getProject": func(args []any) (any, error) {
+				time.Sleep(150 * time.Millisecond)
 				id := ""
 				if len(args) > 0 {
 					id = fmt.Sprintf("%v", args[0])
 				}
-				for _, p := range productCatalog {
-					if fmt.Sprintf("%v", p["id"]) == id {
+				for _, p := range projects {
+					if p["id"] == id {
 						return p, nil
 					}
 				}
-				return nil, fmt.Errorf("product %q not found", id)
+				return nil, fmt.Errorf("project %q not found", id)
 			},
-			"getUser": func(args []any) (any, error) {
-				id := "anonymous"
-				if len(args) > 0 {
-					id = fmt.Sprintf("%v", args[0])
-				}
+			"getProfile": func(_ []any) (any, error) {
 				return map[string]any{
-					"id":    id,
-					"name":  "Jane Doe",
-					"email": "jane@example.com",
-					"role":  "admin",
+					"id":      "1",
+					"name":    "Jane Doe",
+					"email":   "jane@example.com",
+					"role":    "Senior Engineer",
+					"bio":     "Building dev tools with Go and React.",
+					"github":  "janedoe",
+					"website": "https://janedoe.dev",
 				}, nil
-			},
-			"query": func(args []any) (any, error) {
-				return []any{}, nil
 			},
 		},
 	}

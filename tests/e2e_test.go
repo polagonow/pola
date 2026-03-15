@@ -15,8 +15,6 @@ import (
 	"gojsx/server"
 )
 
-// testApp builds the full app once and returns a configured *server.App for reuse.
-// Building is expensive (esbuild + Goja VM init) so we share it across tests.
 var (
 	_testApp *server.App
 	_testErr error
@@ -55,48 +53,78 @@ func newTestApp() (*server.App, error) {
 		clientComponents = append(clientComponents, gc.ErrorPath)
 	}
 
+	posts := []map[string]any{
+		{"id": 1, "slug": "go-react-ssr", "title": "Building SSR with Go and React",
+			"excerpt": "How to run React Server Components inside a Go process using Goja.",
+			"author":  "Jane Doe", "date": "2024-01-15", "readTime": 5,
+			"tags":    []any{"go", "react", "ssr"}},
+		{"id": 2, "slug": "rsc-deep-dive", "title": "React Server Components Deep Dive",
+			"excerpt": "Understanding the Flight wire protocol and how RSC trees serialize.",
+			"author":  "Jane Doe", "date": "2024-02-03", "readTime": 8,
+			"tags":    []any{"react", "rsc", "performance"}},
+		{"id": 3, "slug": "goja-vm-internals", "title": "Goja VM Internals",
+			"excerpt": "A tour through the event loop, promise scheduling, and Go↔JS bridging.",
+			"author":  "Jane Doe", "date": "2024-03-10", "readTime": 12,
+			"tags":    []any{"go", "javascript", "vm"}},
+	}
+	projects := []map[string]any{
+		{"id": "1", "title": "GoJSX", "description": "Go-powered React SSR framework.",
+			"tech": []any{"Go", "React", "TypeScript", "esbuild"}, "stars": 142, "status": "active"},
+		{"id": "2", "title": "GojaBridge", "description": "Type-safe Go ↔ JS bridge.",
+			"tech": []any{"Go", "Goja"}, "stars": 38, "status": "stable"},
+		{"id": "3", "title": "FlightDecode", "description": "Pure-Go Flight wire-format decoder.",
+			"tech": []any{"Go", "React"}, "stars": 21, "status": "beta"},
+	}
+
+	bridge := runtime.BridgeConfig{
+		Context: map[string]runtime.GoFunc{
+			"getPosts": func(_ []any) (any, error) { return posts, nil },
+			"getPost": func(args []any) (any, error) {
+				slug := ""
+				if len(args) > 0 {
+					slug = fmt.Sprintf("%v", args[0])
+				}
+				for _, p := range posts {
+					if p["slug"] == slug {
+						return p, nil
+					}
+				}
+				return nil, fmt.Errorf("post %q not found", slug)
+			},
+			"getProjects": func(_ []any) (any, error) { return projects, nil },
+			"getProject": func(args []any) (any, error) {
+				id := ""
+				if len(args) > 0 {
+					id = fmt.Sprintf("%v", args[0])
+				}
+				for _, p := range projects {
+					if p["id"] == id {
+						return p, nil
+					}
+				}
+				return nil, fmt.Errorf("project %q not found", id)
+			},
+			"getProfile": func(_ []any) (any, error) {
+				return map[string]any{
+					"id": "1", "name": "Jane Doe", "email": "jane@example.com",
+					"role": "Senior Engineer", "bio": "Building dev tools.",
+					"github": "janedoe", "website": "https://janedoe.dev",
+				}, nil
+			},
+		},
+	}
+
 	bundleResult, err := build.Bundle(build.BundlerConfig{
-		AppDir:           appDir,
-		OutDir:           "../public/assets",
-		ClientEntry:      "../ui/_client.tsx",
-		Pages:            pages,
-		ClientComponents: clientComponents,
+		AppDir:             appDir,
+		OutDir:             "../public/assets",
+		ClientEntry:        "../ui/_client.tsx",
+		Pages:              pages,
+		ClientComponents:   clientComponents,
 		GlobalNotFoundPath: gc.NotFoundPath,
 		GlobalErrorPath:    gc.ErrorPath,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("bundle: %w", err)
-	}
-
-	testCatalog := []map[string]any{
-		{"id": 1, "name": "Widget Alpha", "price": 29.99, "stock": 142},
-		{"id": 2, "name": "Widget Beta", "price": 49.99, "stock": 37},
-		{"id": 3, "name": "Widget Gamma", "price": 9.99, "stock": 891},
-		{"id": 4, "name": "Turbo Sprocket", "price": 199.00, "stock": 12},
-	}
-	bridge := runtime.BridgeConfig{
-		Context: map[string]runtime.GoFunc{
-			"getProducts": func(_ []any) (any, error) { return testCatalog, nil },
-			"getProduct": func(args []any) (any, error) {
-				id := ""
-				if len(args) > 0 {
-					id = fmt.Sprintf("%v", args[0])
-				}
-				for _, p := range testCatalog {
-					if fmt.Sprintf("%v", p["id"]) == id {
-						return p, nil
-					}
-				}
-				return nil, fmt.Errorf("product %q not found", id)
-			},
-			"getUser": func(_ []any) (any, error) {
-				return map[string]any{
-					"id": "42", "name": "Jane Doe",
-					"email": "jane@example.com", "role": "admin",
-				}, nil
-			},
-			"query": func(_ []any) (any, error) { return []any{}, nil },
-		},
 	}
 
 	serverJS, err := os.ReadFile(bundleResult.ServerBundlePath)
@@ -107,7 +135,6 @@ func newTestApp() (*server.App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("vm pool: %w", err)
 	}
-
 	manifest, err := runtime.LoadManifest(bundleResult.Manifest)
 	if err != nil {
 		return nil, fmt.Errorf("manifest: %w", err)
@@ -124,15 +151,12 @@ func newTestApp() (*server.App, error) {
 		ImportURLs:           bundleResult.ImportURLs,
 		GlobalNotFoundExport: globalNotFoundExport,
 	}
-
-	// Auto-register routes from discovered pages — mirrors main()
 	for _, p := range pages {
 		app.Routes = append(app.Routes, server.Route{
 			Pattern: build.RoutePattern(appDir, p.PageComponentPath),
 			Export:  build.PageAlias(p),
 		})
 	}
-
 	return app, nil
 }
 
@@ -144,7 +168,6 @@ func requireApp(t *testing.T) *server.App {
 	return _testApp
 }
 
-// rsc performs a GET <path> with Content-Type: text/x-component and returns the body.
 func rsc(t *testing.T, path string) string {
 	t.Helper()
 	app := requireApp(t)
@@ -160,7 +183,6 @@ func rsc(t *testing.T, path string) string {
 	return string(body)
 }
 
-// page performs a plain GET <path> for the HTML shell.
 func page(t *testing.T, path string) string {
 	t.Helper()
 	app := requireApp(t)
@@ -175,9 +197,6 @@ func page(t *testing.T, path string) string {
 	return string(body)
 }
 
-// ─── Flight wire format helpers ──────────────────────────────────────────────
-
-// flightTree finds the first line starting with "0:" and unmarshals it as JSON.
 func flightTree(t *testing.T, body string) any {
 	t.Helper()
 	for _, line := range strings.Split(body, "\n") {
@@ -193,12 +212,9 @@ func flightTree(t *testing.T, body string) any {
 	return nil
 }
 
-// flightContains reports whether the raw Flight body contains substr.
-func flightContains(body, substr string) bool {
-	return strings.Contains(body, substr)
-}
+func flightContains(body, substr string) bool { return strings.Contains(body, substr) }
 
-// ─── HTML shell tests ─────────────────────────────────────────────────────────
+// ─── HTML shell tests ──────────────────────────────────────────────────────────
 
 func TestHTMLShell_HasRootDiv(t *testing.T) {
 	body := page(t, "/")
@@ -212,14 +228,11 @@ func TestHTMLShell_HasClientEntryScript(t *testing.T) {
 	if !strings.Contains(body, `type="module"`) {
 		t.Errorf("HTML shell missing <script type=\"module\">")
 	}
-	if !strings.Contains(body, `client`) {
-		t.Errorf("HTML shell missing client script reference")
-	}
 }
 
 func TestHTMLShell_HasNavLinks(t *testing.T) {
 	body := page(t, "/")
-	for _, href := range []string{`href="/"`, `href="/products"`, `href="/user`} {
+	for _, href := range []string{`href="/posts"`, `href="/projects"`, `href="/about"`} {
 		if !strings.Contains(body, href) {
 			t.Errorf("HTML shell missing nav link %s", href)
 		}
@@ -247,7 +260,7 @@ func TestHTMLShell_404(t *testing.T) {
 	}
 }
 
-// ─── RSC Flight output tests ──────────────────────────────────────────────────
+// ─── RSC tests ─────────────────────────────────────────────────────────────────
 
 func TestRSC_ContentType(t *testing.T) {
 	app := requireApp(t)
@@ -261,67 +274,126 @@ func TestRSC_ContentType(t *testing.T) {
 	}
 }
 
-func TestRSC_IndexPage_FlightFormat(t *testing.T) {
+func TestRSC_HomePage(t *testing.T) {
 	body := rsc(t, "/")
-	if !strings.Contains(body, "0:") {
-		t.Errorf("no Flight row in output:\n%s", body)
-	}
-	flightTree(t, body)
-}
-
-func TestRSC_IndexPage_HasPageContent(t *testing.T) {
-	body := rsc(t, "/")
-	for _, want := range []string{"GoJSX", "className", "page"} {
+	for _, want := range []string{"DevBlog", "posts", "projects"} {
 		if !flightContains(body, want) {
-			t.Errorf("Flight output missing %q", want)
+			t.Errorf("HomePage Flight missing %q", want)
 		}
 	}
 }
 
-func TestRSC_IndexPage_HasProducts(t *testing.T) {
+func TestRSC_HomePage_HasPosts(t *testing.T) {
 	body := rsc(t, "/")
-	for _, product := range []string{"Widget Alpha", "Widget Beta", "Widget Gamma", "Turbo Sprocket"} {
-		if !flightContains(body, product) {
-			t.Errorf("IndexPage Flight missing product %q", product)
-		}
-	}
-}
-
-func TestRSC_ProductsPage(t *testing.T) {
-	body := rsc(t, "/products")
-	// Products are delivered in resolved Suspense chunks after the 0: row,
-	// so search the full Flight body rather than only the parsed tree.
-	for _, want := range []string{"Widget Alpha", "Widget Beta", "product-list"} {
+	for _, want := range []string{"Building SSR with Go and React", "React Server Components Deep Dive"} {
 		if !flightContains(body, want) {
-			t.Errorf("ProductsPage missing %q in Flight body", want)
+			t.Errorf("HomePage missing post %q", want)
 		}
 	}
 }
 
-func TestRSC_ProductsPage_AllProducts(t *testing.T) {
-	body := rsc(t, "/products")
-	products := []string{"Widget Alpha", "Widget Beta", "Widget Gamma", "Turbo Sprocket"}
-	for _, p := range products {
-		if !flightContains(body, p) {
-			t.Errorf("ProductsPage missing product %q", p)
+func TestRSC_PostsPage(t *testing.T) {
+	body := rsc(t, "/posts")
+	for _, want := range []string{"Building SSR with Go and React", "Goja VM Internals", "go-react-ssr"} {
+		if !flightContains(body, want) {
+			t.Errorf("PostsPage missing %q", want)
 		}
 	}
 }
 
-func TestRSC_UserPage(t *testing.T) {
+func TestRSC_PostsPage_TagFilter(t *testing.T) {
 	app := requireApp(t)
-	req := httptest.NewRequest("GET", "/user?id=42", nil)
+	req := httptest.NewRequest("GET", "/posts?tag=go", nil)
 	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
 	app.HandleRoute(w, req)
 	if w.Result().StatusCode != http.StatusOK {
-		t.Fatalf("RSC GET /user?id=42 → %d", w.Result().StatusCode)
+		t.Fatalf("RSC GET /posts?tag=go → %d", w.Result().StatusCode)
 	}
 	body, _ := io.ReadAll(w.Result().Body)
-	for _, want := range []string{"Jane Doe", "jane@example.com", "admin"} {
-		if !flightContains(string(body), want) {
-			t.Errorf("UserPage Flight missing %q", want)
+	if !flightContains(string(body), "go") {
+		t.Error("tag filter result missing 'go'")
+	}
+}
+
+func TestRSC_PostDetailPage(t *testing.T) {
+	body := rsc(t, "/posts/go-react-ssr")
+	for _, want := range []string{"Building SSR with Go and React", "Jane Doe"} {
+		if !flightContains(body, want) {
+			t.Errorf("PostDetail missing %q", want)
 		}
+	}
+}
+
+func TestRSC_PostDetailPage_NotFound(t *testing.T) {
+	app := requireApp(t)
+	req := httptest.NewRequest("GET", "/posts/nonexistent-slug", nil)
+	req.Header.Set("Content-Type", "text/x-component")
+	w := httptest.NewRecorder()
+	app.HandleRoute(w, req)
+	body, _ := io.ReadAll(w.Result().Body)
+	if !strings.Contains(string(body), ":E{") && !strings.Contains(string(body), ":E\"") {
+		t.Errorf("expected Flight error row for missing post, got: %s", string(body)[:min(len(string(body)), 200)])
+	}
+}
+
+func TestRSC_ProjectsPage(t *testing.T) {
+	body := rsc(t, "/projects")
+	for _, want := range []string{"GoJSX", "GojaBridge", "FlightDecode"} {
+		if !flightContains(body, want) {
+			t.Errorf("ProjectsPage missing %q", want)
+		}
+	}
+}
+
+func TestRSC_ProjectDetailPage(t *testing.T) {
+	body := rsc(t, "/projects/1")
+	for _, want := range []string{"GoJSX", "142", "active"} {
+		if !flightContains(body, want) {
+			t.Errorf("ProjectDetail missing %q", want)
+		}
+	}
+}
+
+func TestRSC_ProjectDetailPage_NotFound(t *testing.T) {
+	app := requireApp(t)
+	req := httptest.NewRequest("GET", "/projects/999", nil)
+	req.Header.Set("Content-Type", "text/x-component")
+	w := httptest.NewRecorder()
+	app.HandleRoute(w, req)
+	body, _ := io.ReadAll(w.Result().Body)
+	if !strings.Contains(string(body), ":E{") && !strings.Contains(string(body), ":E\"") {
+		t.Errorf("expected Flight error row for missing project, got: %s", string(body)[:min(len(string(body)), 200)])
+	}
+}
+
+func TestRSC_AboutPage(t *testing.T) {
+	body := rsc(t, "/about")
+	for _, want := range []string{"About", "GoJSX", "Goja"} {
+		if !flightContains(body, want) {
+			t.Errorf("AboutPage missing %q", want)
+		}
+	}
+}
+
+func TestRSC_ProfilePage(t *testing.T) {
+	body := rsc(t, "/profile")
+	for _, want := range []string{"Jane Doe", "jane@example.com", "Senior Engineer"} {
+		if !flightContains(body, want) {
+			t.Errorf("ProfilePage missing %q", want)
+		}
+	}
+}
+
+func TestRSC_ProfilePage_SearchParams(t *testing.T) {
+	app := requireApp(t)
+	req := httptest.NewRequest("GET", "/profile?id=1", nil)
+	req.Header.Set("Content-Type", "text/x-component")
+	w := httptest.NewRecorder()
+	app.HandleRoute(w, req)
+	body, _ := io.ReadAll(w.Result().Body)
+	if !flightContains(string(body), "Jane Doe") {
+		t.Error("ProfilePage with searchParams missing 'Jane Doe'")
 	}
 }
 
@@ -336,18 +408,8 @@ func TestRSC_404(t *testing.T) {
 	}
 }
 
-func TestRSC_AboutPage(t *testing.T) {
-	body := rsc(t, "/about")
-	for _, want := range []string{"About", "synchronous", "Goja"} {
-		if !flightContains(body, want) {
-			t.Errorf("AboutPage Flight missing %q", want)
-		}
-	}
-}
+// ─── Flight tree structure ─────────────────────────────────────────────────────
 
-// ─── Flight tree structure tests ──────────────────────────────────────────────
-
-// walkFlight recursively searches a decoded Flight tree for a string value.
 func walkFlight(v any, target string) bool {
 	switch val := v.(type) {
 	case string:
@@ -368,7 +430,7 @@ func walkFlight(v any, target string) bool {
 	return false
 }
 
-func TestFlightTree_IndexPage_Structure(t *testing.T) {
+func TestFlightTree_Root(t *testing.T) {
 	body := rsc(t, "/")
 	tree := flightTree(t, body)
 	arr, ok := tree.([]any)
@@ -378,58 +440,45 @@ func TestFlightTree_IndexPage_Structure(t *testing.T) {
 	if arr[0] != "$" {
 		t.Errorf("expected '$' as first element, got %v", arr[0])
 	}
-	// arr[1] is the element type — may be "div" (no layout) or a layout/error/suspense
-	// wrapper reference when companion files are present. Only the "$" marker is stable.
 }
 
-func TestFlightTree_IndexPage_HasHeading(t *testing.T) {
+func TestFlightTree_HomePage_HasBranding(t *testing.T) {
 	body := rsc(t, "/")
 	tree := flightTree(t, body)
-	if !walkFlight(tree, "GoJSX") {
-		t.Error("IndexPage tree missing 'GoJSX' heading text")
+	if !walkFlight(tree, "DevBlog") {
+		t.Error("HomePage tree missing 'DevBlog'")
 	}
 }
 
-func TestFlightTree_ProductsPage_Structure(t *testing.T) {
-	body := rsc(t, "/products")
-	tree := flightTree(t, body)
-	arr, ok := tree.([]any)
-	if !ok || len(arr) < 2 {
-		t.Fatalf("expected array root, got %T: %v", tree, tree)
+// ─── Route group layout presence ──────────────────────────────────────────────
+
+func TestRSC_BlogLayout_WrapsPostsPage(t *testing.T) {
+	body := rsc(t, "/posts")
+	// (blog)/layout.tsx contributes the sidebar; (blog)/posts/layout.tsx adds the section badge
+	if !flightContains(body, "Topics") {
+		t.Error("Posts page missing (blog) sidebar layout content 'Topics'")
 	}
-	// ProductsPage root is <Suspense> ("$1"), not a plain div.
-	if arr[0] != "$" {
-		t.Errorf("expected '$' as first element, got %v", arr[0])
+	if !flightContains(body, "Blog") {
+		t.Error("Posts page missing (blog)/posts section badge 'Blog'")
 	}
 }
 
-func TestFlightTree_UserPage_Structure(t *testing.T) {
-	body := rsc(t, "/user")
-	// Content may be in a deferred Suspense chunk; use full-body search.
-	// Structural assertions only on the 0: row.
-	tree := flightTree(t, body)
-	arr, ok := tree.([]any)
-	if !ok || len(arr) < 2 {
-		t.Fatalf("expected array root, got %T: %v", tree, tree)
-	}
-	if arr[0] != "$" {
-		t.Errorf("expected '$' as first element, got %v", arr[0])
-	}
-	// Content assertions use full body (data may be in a resolved Suspense chunk).
-	if !flightContains(body, "Jane Doe") {
-		t.Error("UserPage Flight body missing 'Jane Doe'")
-	}
-	if !flightContains(body, "admin") {
-		t.Error("UserPage Flight body missing role 'admin'")
+func TestRSC_AllRoutesRender(t *testing.T) {
+	paths := []string{"/", "/posts", "/posts/go-react-ssr", "/projects", "/projects/1", "/about", "/profile"}
+	for _, p := range paths {
+		body := rsc(t, p)
+		if !strings.Contains(body, "0:") {
+			t.Errorf("page %s: missing Flight 0: row", p)
+		}
 	}
 }
 
-// ─── Client bundle tests ──────────────────────────────────────────────────────
+// ─── Client bundle tests ───────────────────────────────────────────────────────
 
 func TestClientBundle_Served(t *testing.T) {
 	app := requireApp(t)
 	if app.ClientEntryScript == "" {
-		t.Fatal("ClientEntryScript is empty — esbuild client pass failed")
+		t.Fatal("ClientEntryScript is empty")
 	}
 	if !strings.HasPrefix(app.ClientEntryScript, "/public/") {
 		t.Errorf("ClientEntryScript should start with /public/, got %q", app.ClientEntryScript)
@@ -442,94 +491,48 @@ func TestClientBundle_FileExists(t *testing.T) {
 	path := "../public/" + rel
 	info, err := os.Stat(path)
 	if err != nil {
-		t.Fatalf("client bundle file not found at %q: %v", path, err)
-	}
-	if info.Size() == 0 {
-		t.Errorf("client bundle file is empty: %s", path)
+		t.Fatalf("client bundle not found at %q: %v", path, err)
 	}
 	if info.Size() < 10_000 {
-		t.Errorf("client bundle suspiciously small (%d bytes) — React probably missing", info.Size())
+		t.Errorf("client bundle suspiciously small (%d bytes)", info.Size())
 	}
 }
 
 func TestClientBundle_NoWebpackRequire(t *testing.T) {
 	app := requireApp(t)
 	rel := strings.TrimPrefix(app.ClientEntryScript, "/public/")
-	path := "../public/" + rel
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile("../public/" + rel)
 	if err != nil {
 		t.Fatalf("read client bundle: %v", err)
 	}
 	if strings.Contains(string(data), "__webpack_require__") {
-		t.Error("client bundle contains __webpack_require__ — expected native ESM import()")
+		t.Error("client bundle contains __webpack_require__")
 	}
 }
 
-// ─── Concurrent requests test ─────────────────────────────────────────────────
+// ─── Concurrent requests ───────────────────────────────────────────────────────
 
 func TestRSC_Concurrent(t *testing.T) {
 	app := requireApp(t)
 	const n = 10
 	results := make(chan error, n)
-
 	for range n {
 		go func() {
-			req := httptest.NewRequest("GET", "/", nil)
+			req := httptest.NewRequest("GET", "/posts", nil)
 			req.Header.Set("Content-Type", "text/x-component")
 			w := httptest.NewRecorder()
 			app.HandleRoute(w, req)
 			body, _ := io.ReadAll(w.Result().Body)
-			s := string(body)
-			if !strings.Contains(s, "0:") {
-				results <- fmt.Errorf("concurrent request got bad output: %s", s[:min(len(s), 100)])
+			if !strings.Contains(string(body), "0:") {
+				results <- fmt.Errorf("bad output: %s", string(body)[:min(len(string(body)), 100)])
 			} else {
 				results <- nil
 			}
 		}()
 	}
-
 	for range n {
 		if err := <-results; err != nil {
 			t.Error(err)
-		}
-	}
-}
-
-func TestRSC_ProductDetailPage(t *testing.T) {
-	body := rsc(t, "/products/1")
-	for _, want := range []string{"Widget Alpha", "29.99", "142"} {
-		if !flightContains(body, want) {
-			t.Errorf("product detail missing %q in Flight body", want)
-		}
-	}
-	// Back link present
-	if !flightContains(body, "/products") {
-		t.Errorf("product detail missing back link")
-	}
-}
-
-func TestRSC_ProductDetailPage_NotFound(t *testing.T) {
-	app := requireApp(t)
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "/products/999", nil)
-	req.Header.Set("Content-Type", "text/x-component")
-	app.HandleRoute(w, req)
-	body, _ := io.ReadAll(w.Result().Body)
-	// React encodes thrown errors as a Flight error row: <id>:E{"digest":"..."}
-	// With Suspense/Error wrappers the error may appear in any chunk, not only 0:.
-	if !strings.Contains(string(body), ":E{") && !strings.Contains(string(body), ":E\"") {
-		t.Errorf("expected Flight error row for unknown product, got: %s", string(body)[:min(len(string(body)), 200)])
-	}
-}
-
-func TestRSC_NestedLayouts_AllPagesRender(t *testing.T) {
-	// Verifies that nested layout wrapping (root → segment → page) does not break
-	// any page and that each page returns a valid Flight 0: row.
-	paths := []string{"/", "/about", "/products", "/products/1", "/user"}
-	for _, p := range paths {
-		body := rsc(t, p)
-		if !strings.Contains(string(body), "0:") {
-			t.Errorf("page %s: missing Flight 0: row", p)
 		}
 	}
 }
