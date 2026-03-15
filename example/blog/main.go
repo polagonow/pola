@@ -6,77 +6,20 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
-	"path/filepath"
 	"time"
 
-	"gojsx/build"
-	"gojsx/runtime"
-	"gojsx/server"
-)
-
-const (
-	defaultPublicDir = "../../public"
-	defaultPublicURL = "/public"
+	// Blank imports register default implementations (esbuild, Goja, React HTML shell, disk assets).
+	_ "gojsx/bundler/esbuild"
+	"gojsx/framework"
+	"gojsx/framework/contract"
+	_ "gojsx/render"
+	_ "gojsx/server/assets/disk"
+	_ "gojsx/vm"
 )
 
 func main() {
-	appDir := "../../ui"
-
 	// ------------------------------------------------------------------
-	// 1. Build server + client bundles via esbuild
-	// ------------------------------------------------------------------
-	pages, err := build.DiscoverPages(appDir)
-	if err != nil {
-		log.Fatalf("discover pages: %v", err)
-	}
-	gc, err := build.DiscoverGlobalComponents(appDir)
-	if err != nil {
-		log.Fatalf("discover global components: %v", err)
-	}
-	clientComponents, err := build.DiscoverClientComponents(appDir)
-	if err != nil {
-		log.Fatalf("discover client components: %v", err)
-	}
-	seen := make(map[string]bool)
-	for _, p := range pages {
-		for _, seg := range p.Segments {
-			if seg.ErrorPath != "" && !seen[seg.ErrorPath] {
-				seen[seg.ErrorPath] = true
-				clientComponents = append(clientComponents, seg.ErrorPath)
-			}
-		}
-	}
-	if gc.ErrorPath != "" && !seen[gc.ErrorPath] {
-		seen[gc.ErrorPath] = true
-		clientComponents = append(clientComponents, gc.ErrorPath)
-	}
-
-	bundleResult, err := build.Bundle(build.BundlerConfig{
-		AppDir:             appDir,
-		OutDir:             defaultPublicDir + "/assets",
-		AssetsURLPath:      defaultPublicURL + "/assets",
-		ClientEntry:        filepath.Join(appDir, "_client.tsx"),
-		Pages:              pages,
-		ClientComponents:   clientComponents,
-		GlobalNotFoundPath: gc.NotFoundPath,
-		GlobalErrorPath:    gc.ErrorPath,
-		Dev:                true,
-	})
-	if err != nil {
-		log.Fatalf("⚠️  bundle warning: %v", err)
-	}
-
-	// ------------------------------------------------------------------
-	// 2. Parse client manifest
-	// ------------------------------------------------------------------
-	manifest, err := runtime.LoadManifest(bundleResult.Manifest)
-	if err != nil {
-		log.Fatalf("manifest: %v", err)
-	}
-
-	// ------------------------------------------------------------------
-	// 3. Wire Go → JS bridge
+	// 1. Wire Go → JS bridge (application-specific data access)
 	// ------------------------------------------------------------------
 	posts := []map[string]any{
 		{
@@ -138,8 +81,8 @@ func main() {
 		},
 	}
 
-	bridge := runtime.BridgeConfig{
-		Globals: map[string]runtime.GoFunc{
+	globalBridge := contract.BridgeConfig{
+		Globals: map[string]contract.GoFunc{
 			"fetchJSON": func(args []any) (any, error) {
 				if len(args) == 0 {
 					return nil, fmt.Errorf("fetchJSON requires a url argument")
@@ -164,7 +107,7 @@ func main() {
 				return key, nil
 			},
 		},
-		Context: map[string]runtime.GoFunc{
+		Context: map[string]contract.GoFunc{
 			"getPosts": func(_ []any) (any, error) {
 				time.Sleep(200 * time.Millisecond)
 				return posts, nil
@@ -247,89 +190,67 @@ func main() {
 		},
 	}
 
-	// ------------------------------------------------------------------
-	// 4. Boot VM pool
-	// ------------------------------------------------------------------
-	serverJS, err := os.ReadFile(bundleResult.ServerBundlePath)
-	if err != nil {
-		log.Fatalf("read server bundle: %v", err)
-	}
-	pool, err := runtime.NewVMPool(string(serverJS), bridge)
-	if err != nil {
-		log.Fatalf("vm pool: %v", err)
-	}
-
-	globalNotFoundExport := ""
-	if gc.NotFoundPath != "" {
-		globalNotFoundExport = "GlobalNotFound"
-	}
-	app := &server.App{
-		Pool:                 pool,
-		Renderer:             runtime.NewRenderer(pool, manifest),
-		PublicDir:            defaultPublicDir,
-		Manifest:             manifest,
-		ImportURLs:           bundleResult.ImportURLs,
-		ClientEntryScript:    bundleResult.ClientEntryOutput,
-		GlobalNotFoundExport: globalNotFoundExport,
-	}
-
-	// ------------------------------------------------------------------
-	// 5. Auto-register routes from discovered pages
-	// ------------------------------------------------------------------
-
 	// Per-route JSI bridges — each route only exposes the functions it needs.
-	// Routes not listed here (e.g. /about, /docs) receive a nil Bridge and
-	// fall back to the global bridge defined above.
-	postsBridge := &runtime.BridgeConfig{Context: map[string]runtime.GoFunc{
-		"getPosts":     bridge.Context["getPosts"],
-		"getPost":      bridge.Context["getPost"],
-		"getRevisions": bridge.Context["getRevisions"],
-		"getRevision":  bridge.Context["getRevision"],
-		"triggerError": bridge.Context["triggerError"],
+	postsBridge := &contract.BridgeConfig{Context: map[string]contract.GoFunc{
+		"getPosts":     globalBridge.Context["getPosts"],
+		"getPost":      globalBridge.Context["getPost"],
+		"getRevisions": globalBridge.Context["getRevisions"],
+		"getRevision":  globalBridge.Context["getRevision"],
+		"triggerError": globalBridge.Context["triggerError"],
 	}}
-	projectsBridge := &runtime.BridgeConfig{Context: map[string]runtime.GoFunc{
-		"getProjects":  bridge.Context["getProjects"],
-		"getProject":   bridge.Context["getProject"],
-		"triggerError": bridge.Context["triggerError"],
+	projectsBridge := &contract.BridgeConfig{Context: map[string]contract.GoFunc{
+		"getProjects":  globalBridge.Context["getProjects"],
+		"getProject":   globalBridge.Context["getProject"],
+		"triggerError": globalBridge.Context["triggerError"],
 	}}
-	profileBridge := &runtime.BridgeConfig{Context: map[string]runtime.GoFunc{
-		"getProfile":   bridge.Context["getProfile"],
-		"triggerError": bridge.Context["triggerError"],
+	profileBridge := &contract.BridgeConfig{Context: map[string]contract.GoFunc{
+		"getProfile":   globalBridge.Context["getProfile"],
+		"triggerError": globalBridge.Context["triggerError"],
 	}}
-	homeBridge := &runtime.BridgeConfig{Context: map[string]runtime.GoFunc{
-		"getPosts":     bridge.Context["getPosts"],
-		"getProjects":  bridge.Context["getProjects"],
-		"triggerError": bridge.Context["triggerError"],
+	homeBridge := &contract.BridgeConfig{Context: map[string]contract.GoFunc{
+		"getPosts":     globalBridge.Context["getPosts"],
+		"getProjects":  globalBridge.Context["getProjects"],
+		"triggerError": globalBridge.Context["triggerError"],
 	}}
 
-	routeBridges := map[string]*runtime.BridgeConfig{
-		"/":                               homeBridge,
-		"/posts":                          postsBridge,
-		"/posts/:slug":                    postsBridge,
-		"/posts/:slug/revisions":          postsBridge,
-		"/posts/:slug/revisions/:rev":     postsBridge,
-		"/projects":                       projectsBridge,
-		"/projects/:id":                   projectsBridge,
-		"/profile":                        profileBridge,
+	// ------------------------------------------------------------------
+	// 2. Build + wire the app via framework.Config
+	//    Discovery, bundling, VM pool, routing are all handled automatically.
+	// ------------------------------------------------------------------
+	cfg := &framework.Config{
+		AppDir:       "../../ui",
+		PublicDir:    "../../public",
+		Dev:          true,
+		GlobalBridge: globalBridge,
 	}
-
-	for _, p := range pages {
-		pattern := build.RoutePattern(appDir, p.PageComponentPath)
-		app.Routes = append(app.Routes, server.Route{
-			Pattern: pattern,
-			Export:  build.PageAlias(p),
-			Bridge:  routeBridges[pattern],
-		})
+	app, err := cfg.Build()
+	if err != nil {
+		log.Fatalf("build: %v", err)
 	}
 
 	// ------------------------------------------------------------------
-	// 6. HTTP handlers
+	// 3. Apply per-route bridge overrides
 	// ------------------------------------------------------------------
-	http.Handle(defaultPublicURL+"/", http.StripPrefix(defaultPublicURL+"/",
-		http.FileServer(http.Dir(defaultPublicDir))))
-	http.HandleFunc("/", app.HandleRoute)
+	routeBridges := map[string]*contract.BridgeConfig{
+		"/":                           homeBridge,
+		"/posts":                      postsBridge,
+		"/posts/:slug":                postsBridge,
+		"/posts/:slug/revisions":      postsBridge,
+		"/posts/:slug/revisions/:rev": postsBridge,
+		"/projects":                   projectsBridge,
+		"/projects/:id":               projectsBridge,
+		"/profile":                    profileBridge,
+	}
+	for i := range app.Artifacts().Routes {
+		if b := routeBridges[app.Artifacts().Routes[i].Pattern]; b != nil {
+			app.Artifacts().Routes[i].Bridge = b
+		}
+	}
 
+	// ------------------------------------------------------------------
+	// 4. Start server
+	// ------------------------------------------------------------------
 	addr := ":3000"
 	log.Printf("🚀 GoJSX running → http://localhost%s", addr)
-	log.Fatal(http.ListenAndServe(addr, nil))
+	log.Fatal(http.ListenAndServe(addr, app.Handler()))
 }

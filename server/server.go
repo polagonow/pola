@@ -10,8 +10,10 @@ import (
 	"strings"
 	"sync"
 
-	ghtml "gojsx/html"
-	"gojsx/runtime"
+	"gojsx/framework/contract"
+	ghtml "gojsx/render/react/shell"
+	renderreact "gojsx/render/react"
+	vmgoja "gojsx/vm/goja"
 )
 
 // SSRStreaming controls whether the HTML path streams RSC via a second
@@ -23,19 +25,15 @@ var SSRStreaming = os.Getenv("SSR_STREAMING") != "false"
 // Pattern supports dynamic segments ("/products/:id"), catch-all ("/shop/:...path"),
 // and optional catch-all ("/docs/:...slug?").
 // Export is the JS key in __pages__ (e.g. "Products").
-type Route struct {
-	Pattern string
-	Export  string
-	Bridge  *runtime.BridgeConfig // nil = use pool-level bridge
-}
+type Route = contract.Route
 
 // App is the top-level application.
 type App struct {
-	Pool                 *runtime.VMPool
-	Renderer             *runtime.Renderer
+	Pool                 *vmgoja.VMPool
+	Renderer             *renderreact.Renderer
 	Routes               []Route
 	PublicDir            string
-	Manifest             runtime.ClientManifest
+	Manifest             renderreact.ClientManifest
 	ImportURLs           map[string]string // moduleId → /public/chunk-HASH.js
 	ClientEntryScript    string            // /public/client-[hash].js
 	GlobalNotFoundExport string            // "GlobalNotFound" or ""
@@ -154,10 +152,10 @@ func (a *App) HandleRoute(w http.ResponseWriter, r *http.Request) {
 			if r.Header.Get("Content-Type") == "text/x-component" {
 				w.Header().Set("Content-Type", "text/x-component; charset=utf-8")
 				w.WriteHeader(http.StatusNotFound)
-				fw := runtime.NewFlightWriter(w)
+				fw := renderreact.NewFlightWriter(w)
 				vm := a.Pool.Acquire()
 				defer a.Pool.Release(vm)
-				if err := a.Renderer.Render(fw, vm, runtime.RenderOptions{
+				if err := a.Renderer.Render(fw, vm, renderreact.RenderOptions{
 					ExportName: a.GlobalNotFoundExport,
 					Props:      map[string]any{},
 				}); err != nil {
@@ -181,10 +179,10 @@ func (a *App) HandleRoute(w http.ResponseWriter, r *http.Request) {
 
 	if r.Header.Get("Content-Type") == "text/x-component" {
 		w.Header().Set("Content-Type", "text/x-component; charset=utf-8")
-		fw := runtime.NewFlightWriter(w)
+		fw := renderreact.NewFlightWriter(w)
 		vm := a.Pool.Acquire()
 		defer a.Pool.Release(vm)
-		if err := a.Renderer.Render(fw, vm, runtime.RenderOptions{
+		if err := a.Renderer.Render(fw, vm, renderreact.RenderOptions{
 			ExportName:     route.Export,
 			Props:          props,
 			RequestContext: RequestCtx(r),
@@ -205,10 +203,10 @@ func (a *App) HandleRoute(w http.ResponseWriter, r *http.Request) {
 
 	if !SSRStreaming {
 		var buf bytes.Buffer
-		bfw := runtime.NewFlightWriterBuffer(&buf)
+		bfw := renderreact.NewFlightWriterBuffer(&buf)
 		vm := a.Pool.Acquire()
 		defer a.Pool.Release(vm)
-		if err := a.Renderer.Render(bfw, vm, runtime.RenderOptions{
+		if err := a.Renderer.Render(bfw, vm, renderreact.RenderOptions{
 			ExportName:     route.Export,
 			Props:          props,
 			RequestContext: RequestCtx(r),

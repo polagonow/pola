@@ -6,13 +6,16 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
-	"gojsx/build"
-	"gojsx/runtime"
+	build "gojsx/bundler"
+	"gojsx/framework"
+	"gojsx/framework/contract"
+	renderreact "gojsx/render/react"
+	nextjs "gojsx/render/react/discovery/nextjs"
 	"gojsx/server"
+	vmgoja "gojsx/vm/goja"
 )
 
 var (
@@ -27,15 +30,15 @@ func init() {
 func newTestApp() (*server.App, error) {
 	appDir := "../ui"
 
-	pages, err := build.DiscoverPages(appDir)
+	pages, err := nextjs.DiscoverPages(appDir)
 	if err != nil {
 		return nil, fmt.Errorf("discover pages: %w", err)
 	}
-	gc, err := build.DiscoverGlobalComponents(appDir)
+	gc, err := nextjs.DiscoverGlobalComponents(appDir)
 	if err != nil {
 		return nil, fmt.Errorf("discover global components: %w", err)
 	}
-	clientComponents, err := build.DiscoverClientComponents(appDir)
+	clientComponents, err := nextjs.DiscoverClientComponents(appDir)
 	if err != nil {
 		return nil, fmt.Errorf("discover client components: %w", err)
 	}
@@ -72,15 +75,15 @@ func newTestApp() (*server.App, error) {
 		{"id": 1, "slug": "go-react-ssr", "title": "Building SSR with Go and React",
 			"excerpt": "How to run React Server Components inside a Go process using Goja.",
 			"author":  "Jane Doe", "date": "2024-01-15", "readTime": 5,
-			"tags":    []any{"go", "react", "ssr"}},
+			"tags": []any{"go", "react", "ssr"}},
 		{"id": 2, "slug": "rsc-deep-dive", "title": "React Server Components Deep Dive",
 			"excerpt": "Understanding the Flight wire protocol and how RSC trees serialize.",
 			"author":  "Jane Doe", "date": "2024-02-03", "readTime": 8,
-			"tags":    []any{"react", "rsc", "performance"}},
+			"tags": []any{"react", "rsc", "performance"}},
 		{"id": 3, "slug": "goja-vm-internals", "title": "Goja VM Internals",
 			"excerpt": "A tour through the event loop, promise scheduling, and Go↔JS bridging.",
 			"author":  "Jane Doe", "date": "2024-03-10", "readTime": 12,
-			"tags":    []any{"go", "javascript", "vm"}},
+			"tags": []any{"go", "javascript", "vm"}},
 	}
 	projects := []map[string]any{
 		{"id": "1", "title": "GoJSX", "description": "Go-powered React SSR framework.",
@@ -91,8 +94,8 @@ func newTestApp() (*server.App, error) {
 			"tech": []any{"Go", "React"}, "stars": 21, "status": "beta"},
 	}
 
-	bridge := runtime.BridgeConfig{
-		Context: map[string]runtime.GoFunc{
+	bridge := contract.BridgeConfig{
+		Context: map[string]contract.GoFunc{
 			"getPosts": func(_ []any) (any, error) { return posts, nil },
 			"getPost": func(args []any) (any, error) {
 				slug := ""
@@ -163,28 +166,34 @@ func newTestApp() (*server.App, error) {
 		},
 	}
 
-	bundleResult, err := build.Bundle(build.BundlerConfig{
+	gen := nextjs.ReactRSCEntryGenerator{}
+	entryContent, err := gen.Generate(framework.EntryGenConfig{
 		AppDir:             appDir,
-		OutDir:             "../public/assets",
-		ClientEntry:        "../ui/_client.tsx",
 		Pages:              pages,
-		ClientComponents:   clientComponents,
 		GlobalNotFoundPath: gc.NotFoundPath,
 		GlobalErrorPath:    gc.ErrorPath,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("entry generate: %w", err)
+	}
+
+	bundleResult, err := build.Bundle(build.BundlerConfig{
+		AppDir:                 appDir,
+		OutDir:                 "../public/assets",
+		ClientEntry:            "../ui/_client.tsx",
+		ClientComponents:       clientComponents,
+		ServerEntryContent:     entryContent,
+		ServerBundleConditions: gen.BundleConditions(),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("bundle: %w", err)
 	}
 
-	serverJS, err := os.ReadFile(bundleResult.ServerBundlePath)
-	if err != nil {
-		return nil, fmt.Errorf("read server bundle: %w", err)
-	}
-	pool, err := runtime.NewVMPool(string(serverJS), bridge)
+	pool, err := vmgoja.NewVMPool(string(bundleResult.ServerBundle), bridge)
 	if err != nil {
 		return nil, fmt.Errorf("vm pool: %w", err)
 	}
-	manifest, err := runtime.LoadManifest(bundleResult.Manifest)
+	manifest, err := renderreact.LoadManifest(bundleResult.Manifest)
 	if err != nil {
 		return nil, fmt.Errorf("manifest: %w", err)
 	}
@@ -195,15 +204,15 @@ func newTestApp() (*server.App, error) {
 	}
 	app := &server.App{
 		Pool:                 pool,
-		Renderer:             runtime.NewRenderer(pool, manifest),
+		Renderer:             renderreact.NewRenderer(pool, manifest),
 		ClientEntryScript:    bundleResult.ClientEntryOutput,
 		ImportURLs:           bundleResult.ImportURLs,
 		GlobalNotFoundExport: globalNotFoundExport,
 	}
 	for _, p := range pages {
 		app.Routes = append(app.Routes, server.Route{
-			Pattern: build.RoutePattern(appDir, p.PageComponentPath),
-			Export:  build.PageAlias(p),
+			Pattern: nextjs.RoutePattern(appDir, p.PageComponentPath),
+			Export:  nextjs.PageAlias(p),
 		})
 	}
 	return app, nil
