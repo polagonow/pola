@@ -116,14 +116,23 @@ func LayoutAlias(pagesDir, layoutPath string) string {
 	return b.String()
 }
 
-// collectLayoutChain walks from pagesDir down to pageDir and returns the
-// ordered list of layout.tsx paths (outermost first) that have a default export.
-func collectLayoutChain(pagesDir, pageDir string) []string {
+// PageSegment represents one directory level in the route hierarchy.
+// Both LayoutPath and ErrorPath are optional (empty string = absent).
+type PageSegment struct {
+	Dir        string // absolute path of this segment's directory
+	LayoutPath string // layout.tsx path, or "" if none
+	ErrorPath  string // error.tsx path, or "" if none
+}
+
+// collectSegments walks from pagesDir down to pageDir and returns one
+// PageSegment per directory level (outermost first) that has at least a
+// layout.tsx or error.tsx with a default export.
+func collectSegments(pagesDir, pageDir string) ([]PageSegment, error) {
 	absPagesDir, _ := filepath.Abs(pagesDir)
 	absPageDir, _ := filepath.Abs(pageDir)
 	rel, err := filepath.Rel(absPagesDir, absPageDir)
 	if err != nil {
-		return nil
+		return nil, err
 	}
 	current := absPagesDir
 	dirs := []string{current}
@@ -133,17 +142,30 @@ func collectLayoutChain(pagesDir, pageDir string) []string {
 			dirs = append(dirs, current)
 		}
 	}
-	var chain []string
+	var segments []PageSegment
 	for _, d := range dirs {
-		candidate := filepath.Join(d, "layout.tsx")
-		if _, statErr := os.Stat(candidate); statErr != nil {
-			continue
+		var seg PageSegment
+		seg.Dir = d
+		if candidate := filepath.Join(d, "layout.tsx"); fileExists(candidate) {
+			if ok, _ := hasDefaultExport(candidate); ok {
+				seg.LayoutPath = candidate
+			}
 		}
-		if ok, _ := hasDefaultExport(candidate); ok {
-			chain = append(chain, candidate)
+		if candidate := filepath.Join(d, "error.tsx"); fileExists(candidate) {
+			if ok, _ := hasDefaultExport(candidate); ok {
+				seg.ErrorPath = candidate
+			}
+		}
+		if seg.LayoutPath != "" || seg.ErrorPath != "" {
+			segments = append(segments, seg)
 		}
 	}
-	return chain
+	return segments, nil
+}
+
+func fileExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
 }
 
 // DiscoverPages walks appDir/pages/ and returns one PageEntry per page.tsx file.
@@ -171,11 +193,15 @@ func DiscoverPages(appDir string) ([]PageEntry, error) {
 		if !ok {
 			return fmt.Errorf("%s: missing \"export default function\"", path)
 		}
+		segs, segErr := collectSegments(pagesDir, filepath.Dir(path))
+		if segErr != nil {
+			return segErr
+		}
 		entry := PageEntry{
 			PageComponentPath: path,
-			LayoutChain:       collectLayoutChain(pagesDir, filepath.Dir(path)),
+			Segments:          segs,
 		}
-		entry.LoadingComponentPath, entry.ErrorComponentPath, entry.NotFoundComponentPath =
+		entry.LoadingComponentPath, entry.NotFoundComponentPath =
 			discoverCompanions(filepath.Dir(path))
 		pages = append(pages, entry)
 		return nil
@@ -184,13 +210,13 @@ func DiscoverPages(appDir string) ([]PageEntry, error) {
 }
 
 // discoverCompanions checks the given page directory for optional co-located
-// companion files (loading.tsx, error.tsx, not-found.tsx) that have a default
-// export. Returns the absolute path for each companion found, or "" if absent.
-// Layout files are handled separately via collectLayoutChain.
-func discoverCompanions(pageDir string) (loading, errFile, notFound string) {
-	for _, name := range []string{"loading.tsx", "error.tsx", "not-found.tsx"} {
+// companion files (loading.tsx, not-found.tsx) that have a default export.
+// Returns the absolute path for each companion found, or "" if absent.
+// Layout and error files are handled per-segment via collectSegments.
+func discoverCompanions(pageDir string) (loading, notFound string) {
+	for _, name := range []string{"loading.tsx", "not-found.tsx"} {
 		candidate := filepath.Join(pageDir, name)
-		if _, statErr := os.Stat(candidate); statErr != nil {
+		if !fileExists(candidate) {
 			continue
 		}
 		ok, _ := hasDefaultExport(candidate)
@@ -200,8 +226,6 @@ func discoverCompanions(pageDir string) (loading, errFile, notFound string) {
 		switch name {
 		case "loading.tsx":
 			loading = candidate
-		case "error.tsx":
-			errFile = candidate
 		case "not-found.tsx":
 			notFound = candidate
 		}
@@ -227,6 +251,38 @@ func hasDefaultExport(path string) (bool, error) {
 		}
 	}
 	return false, sc.Err()
+}
+
+// GlobalComponents holds the optional global-level components found at the
+// pages/ root (not tied to any route).
+type GlobalComponents struct {
+	// NotFoundPath is the path to global-not-found.tsx, or "" if absent.
+	NotFoundPath string
+	// ErrorPath is the path to global-error.tsx ("use client"), or "" if absent.
+	ErrorPath string
+}
+
+// DiscoverGlobalComponents checks appDir/pages/ for global-not-found.tsx and
+// global-error.tsx with a default export, returning their paths.
+func DiscoverGlobalComponents(appDir string) (GlobalComponents, error) {
+	pagesDir := filepath.Join(appDir, "pages")
+	var gc GlobalComponents
+	for _, item := range []struct {
+		name string
+		dest *string
+	}{
+		{"global-not-found.tsx", &gc.NotFoundPath},
+		{"global-error.tsx", &gc.ErrorPath},
+	} {
+		candidate := filepath.Join(pagesDir, item.name)
+		if !fileExists(candidate) {
+			continue
+		}
+		if ok, _ := hasDefaultExport(candidate); ok {
+			*item.dest = candidate
+		}
+	}
+	return gc, nil
 }
 
 // DiscoverClientComponents walks appDir/components/ recursively and returns

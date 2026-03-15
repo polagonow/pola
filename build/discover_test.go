@@ -120,27 +120,25 @@ func TestDiscoverPages_WithCompanions(t *testing.T) {
 		t.Fatalf("expected 1 page, got %d", len(pages))
 	}
 	p := pages[0]
-	// LayoutChain: only the co-located layout (no ancestor layouts in this temp tree).
-	if len(p.LayoutChain) != 1 {
-		t.Fatalf("expected LayoutChain length 1, got %d", len(p.LayoutChain))
+	// Segments: only the co-located segment (no ancestor dirs with layout/error in this temp tree).
+	if len(p.Segments) != 1 {
+		t.Fatalf("expected 1 segment, got %d", len(p.Segments))
 	}
-	if filepath.Base(p.LayoutChain[0]) != "layout.tsx" {
-		t.Errorf("unexpected LayoutChain[0]: %s", p.LayoutChain[0])
+	seg := p.Segments[0]
+	if filepath.Base(seg.LayoutPath) != "layout.tsx" {
+		t.Errorf("unexpected Segments[0].LayoutPath: %s", seg.LayoutPath)
+	}
+	if filepath.Base(seg.ErrorPath) != "error.tsx" {
+		t.Errorf("unexpected Segments[0].ErrorPath: %s", seg.ErrorPath)
 	}
 	if p.LoadingComponentPath == "" {
 		t.Error("expected LoadingComponentPath to be set")
-	}
-	if p.ErrorComponentPath == "" {
-		t.Error("expected ErrorComponentPath to be set")
 	}
 	if p.NotFoundComponentPath == "" {
 		t.Error("expected NotFoundComponentPath to be set")
 	}
 	if filepath.Base(p.LoadingComponentPath) != "loading.tsx" {
 		t.Errorf("unexpected LoadingComponentPath: %s", p.LoadingComponentPath)
-	}
-	if filepath.Base(p.ErrorComponentPath) != "error.tsx" {
-		t.Errorf("unexpected ErrorComponentPath: %s", p.ErrorComponentPath)
 	}
 	if filepath.Base(p.NotFoundComponentPath) != "not-found.tsx" {
 		t.Errorf("unexpected NotFoundComponentPath: %s", p.NotFoundComponentPath)
@@ -165,14 +163,14 @@ func TestDiscoverPages_PartialCompanions(t *testing.T) {
 		t.Fatalf("expected 1 page, got %d", len(pages))
 	}
 	p := pages[0]
-	if len(p.LayoutChain) != 1 {
-		t.Fatalf("expected LayoutChain length 1, got %d", len(p.LayoutChain))
+	if len(p.Segments) != 1 {
+		t.Fatalf("expected 1 segment, got %d", len(p.Segments))
+	}
+	if filepath.Base(p.Segments[0].LayoutPath) != "layout.tsx" {
+		t.Errorf("unexpected Segments[0].LayoutPath: %s", p.Segments[0].LayoutPath)
 	}
 	if p.LoadingComponentPath != "" {
 		t.Errorf("expected LoadingComponentPath to be empty, got %s", p.LoadingComponentPath)
-	}
-	if p.ErrorComponentPath != "" {
-		t.Errorf("expected ErrorComponentPath to be empty, got %s", p.ErrorComponentPath)
 	}
 	if p.NotFoundComponentPath != "" {
 		t.Errorf("expected NotFoundComponentPath to be empty, got %s", p.NotFoundComponentPath)
@@ -196,8 +194,8 @@ func TestDiscoverPages_CompanionWithoutDefaultExport(t *testing.T) {
 	if len(pages) != 1 {
 		t.Fatalf("expected 1 page, got %d", len(pages))
 	}
-	if len(pages[0].LayoutChain) != 0 {
-		t.Errorf("expected empty LayoutChain (no default export), got %v", pages[0].LayoutChain)
+	if len(pages[0].Segments) != 0 {
+		t.Errorf("expected empty Segments (no default export), got %v", pages[0].Segments)
 	}
 }
 
@@ -222,7 +220,7 @@ func TestLayoutAlias(t *testing.T) {
 	}
 }
 
-func TestCollectLayoutChain(t *testing.T) {
+func TestCollectSegments(t *testing.T) {
 	appDir := t.TempDir()
 	pagesDir := filepath.Join(appDir, "pages")
 	// Create directories with layout.tsx at each level.
@@ -242,7 +240,7 @@ func TestCollectLayoutChain(t *testing.T) {
 	cases := []struct {
 		pageDir  string
 		wantLen  int
-		wantDirs []string // expected filepath.Base of each layout's parent dir
+		wantDirs []string // expected filepath.Base of each segment's Dir
 	}{
 		{pagesDir, 1, []string{filepath.Base(pagesDir)}},
 		{filepath.Join(pagesDir, "about"), 2, []string{filepath.Base(pagesDir), "about"}},
@@ -251,21 +249,28 @@ func TestCollectLayoutChain(t *testing.T) {
 		{filepath.Join(pagesDir, "user"), 2, []string{filepath.Base(pagesDir), "user"}},
 	}
 	for _, tc := range cases {
-		chain := collectLayoutChain(pagesDir, tc.pageDir)
-		if len(chain) != tc.wantLen {
-			t.Errorf("pageDir=%s: chain length %d, want %d", tc.pageDir, len(chain), tc.wantLen)
+		segs, err := collectSegments(pagesDir, tc.pageDir)
+		if err != nil {
+			t.Errorf("pageDir=%s: collectSegments error: %v", tc.pageDir, err)
+			continue
+		}
+		if len(segs) != tc.wantLen {
+			t.Errorf("pageDir=%s: segments length %d, want %d", tc.pageDir, len(segs), tc.wantLen)
 			continue
 		}
 		for i, wantDir := range tc.wantDirs {
-			got := filepath.Base(filepath.Dir(chain[i]))
+			got := filepath.Base(segs[i].Dir)
 			if got != wantDir {
-				t.Errorf("pageDir=%s chain[%d] dir=%q, want %q", tc.pageDir, i, got, wantDir)
+				t.Errorf("pageDir=%s segs[%d].Dir base=%q, want %q", tc.pageDir, i, got, wantDir)
+			}
+			if segs[i].LayoutPath == "" {
+				t.Errorf("pageDir=%s segs[%d].LayoutPath should be set", tc.pageDir, i)
 			}
 		}
 	}
 }
 
-func TestCollectLayoutChain_MissingLayouts(t *testing.T) {
+func TestCollectSegments_MissingLayouts(t *testing.T) {
 	// Only the root and deepest level have layouts; middle level does not.
 	appDir := t.TempDir()
 	pagesDir := filepath.Join(appDir, "pages")
@@ -277,15 +282,53 @@ func TestCollectLayoutChain_MissingLayouts(t *testing.T) {
 	writeFile(t, pagesDir, "layout.tsx", "export default function L({c}: any){return c}\n")
 	writeFile(t, idDir, "layout.tsx", "export default function L({c}: any){return c}\n")
 
-	chain := collectLayoutChain(pagesDir, idDir)
-	if len(chain) != 2 {
-		t.Fatalf("expected 2 layouts (root + [id]), got %d: %v", len(chain), chain)
+	segs, err := collectSegments(pagesDir, idDir)
+	if err != nil {
+		t.Fatalf("collectSegments error: %v", err)
 	}
-	if filepath.Base(filepath.Dir(chain[0])) != filepath.Base(pagesDir) {
-		t.Errorf("chain[0] should be root layout, got %s", chain[0])
+	if len(segs) != 2 {
+		t.Fatalf("expected 2 segments (root + [id]), got %d: %v", len(segs), segs)
 	}
-	if filepath.Base(filepath.Dir(chain[1])) != "[id]" {
-		t.Errorf("chain[1] should be [id] layout, got %s", chain[1])
+	if filepath.Base(segs[0].Dir) != filepath.Base(pagesDir) {
+		t.Errorf("segs[0] should be root dir, got %s", segs[0].Dir)
+	}
+	if filepath.Base(segs[1].Dir) != "[id]" {
+		t.Errorf("segs[1] should be [id] dir, got %s", segs[1].Dir)
+	}
+}
+
+func TestCollectSegments_ErrorPaths(t *testing.T) {
+	// Root has layout only; products has both layout and error; [id] has error only.
+	appDir := t.TempDir()
+	pagesDir := filepath.Join(appDir, "pages")
+	productsDir := filepath.Join(pagesDir, "products")
+	idDir := filepath.Join(productsDir, "[id]")
+	for _, d := range []string{pagesDir, productsDir, idDir} {
+		if err := os.MkdirAll(d, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	writeFile(t, pagesDir, "layout.tsx", "export default function L({c}: any){return c}\n")
+	writeFile(t, productsDir, "layout.tsx", "export default function L({c}: any){return c}\n")
+	writeFile(t, productsDir, "error.tsx", "\"use client\";\nexport default function E() { return null; }\n")
+	writeFile(t, idDir, "error.tsx", "\"use client\";\nexport default function E() { return null; }\n")
+
+	segs, err := collectSegments(pagesDir, idDir)
+	if err != nil {
+		t.Fatalf("collectSegments error: %v", err)
+	}
+	// Expect 3 segments: root (layout), products (layout+error), [id] (error)
+	if len(segs) != 3 {
+		t.Fatalf("expected 3 segments, got %d: %v", len(segs), segs)
+	}
+	if segs[0].LayoutPath == "" || segs[0].ErrorPath != "" {
+		t.Errorf("segs[0]: want layout only, got layout=%q error=%q", segs[0].LayoutPath, segs[0].ErrorPath)
+	}
+	if segs[1].LayoutPath == "" || segs[1].ErrorPath == "" {
+		t.Errorf("segs[1]: want layout+error, got layout=%q error=%q", segs[1].LayoutPath, segs[1].ErrorPath)
+	}
+	if segs[2].LayoutPath != "" || segs[2].ErrorPath == "" {
+		t.Errorf("segs[2]: want error only, got layout=%q error=%q", segs[2].LayoutPath, segs[2].ErrorPath)
 	}
 }
 
@@ -316,6 +359,66 @@ func TestHasDefaultExport(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ── DiscoverGlobalComponents ────────────────────────────────────────────────
+
+func TestDiscoverGlobalComponents(t *testing.T) {
+	appDir := t.TempDir()
+	pagesDir := filepath.Join(appDir, "pages")
+	if err := os.MkdirAll(pagesDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Run("both present", func(t *testing.T) {
+		writeFile(t, pagesDir, "global-not-found.tsx", "export default function GlobalNotFound() { return null; }\n")
+		writeFile(t, pagesDir, "global-error.tsx", "'use client';\nexport default function GlobalError() { return null; }\n")
+
+		gc, err := DiscoverGlobalComponents(appDir)
+		if err != nil {
+			t.Fatalf("DiscoverGlobalComponents: %v", err)
+		}
+		if filepath.Base(gc.NotFoundPath) != "global-not-found.tsx" {
+			t.Errorf("NotFoundPath = %q, want global-not-found.tsx", gc.NotFoundPath)
+		}
+		if filepath.Base(gc.ErrorPath) != "global-error.tsx" {
+			t.Errorf("ErrorPath = %q, want global-error.tsx", gc.ErrorPath)
+		}
+	})
+
+	t.Run("neither present", func(t *testing.T) {
+		emptyDir := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(emptyDir, "pages"), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		gc, err := DiscoverGlobalComponents(emptyDir)
+		if err != nil {
+			t.Fatalf("DiscoverGlobalComponents: %v", err)
+		}
+		if gc.NotFoundPath != "" {
+			t.Errorf("expected empty NotFoundPath, got %q", gc.NotFoundPath)
+		}
+		if gc.ErrorPath != "" {
+			t.Errorf("expected empty ErrorPath, got %q", gc.ErrorPath)
+		}
+	})
+
+	t.Run("no default export ignored", func(t *testing.T) {
+		dir := t.TempDir()
+		pd := filepath.Join(dir, "pages")
+		if err := os.MkdirAll(pd, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, pd, "global-not-found.tsx", "export function GlobalNotFound() { return null; }\n")
+
+		gc, err := DiscoverGlobalComponents(dir)
+		if err != nil {
+			t.Fatalf("DiscoverGlobalComponents: %v", err)
+		}
+		if gc.NotFoundPath != "" {
+			t.Errorf("expected empty NotFoundPath (no default export), got %q", gc.NotFoundPath)
+		}
+	})
 }
 
 // ── DiscoverClientComponents ────────────────────────────────────────────────

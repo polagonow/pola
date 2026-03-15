@@ -59,15 +59,13 @@ type PageEntry struct {
 	// PageComponentPath is the absolute or cwd-relative path to the page.tsx file.
 	PageComponentPath string
 
-	// LayoutChain holds layout.tsx paths from the pages/ root (outermost) to the
-	// page's own directory (innermost). Empty if no ancestor has a layout.tsx.
-	LayoutChain []string
+	// Segments holds one entry per directory level from the pages/ root (outermost)
+	// to the page's own directory (innermost). Each segment may have a LayoutPath
+	// and/or ErrorPath. Empty if no ancestor has a layout.tsx or error.tsx.
+	Segments []PageSegment
 
 	// LoadingComponentPath is the path to the co-located loading.tsx, or "" if absent.
 	LoadingComponentPath string
-
-	// ErrorComponentPath is the path to the co-located error.tsx ("use client"), or "" if absent.
-	ErrorComponentPath string
 
 	// NotFoundComponentPath is the path to the co-located not-found.tsx (server component), or "" if absent.
 	NotFoundComponentPath string
@@ -104,6 +102,14 @@ type BundlerConfig struct {
 	// static file handler (e.g. "/public/assets"). No trailing slash.
 	// Defaults to "/public/assets" when empty.
 	AssetsURLPath string
+
+	// GlobalNotFoundPath is the path to app/pages/global-not-found.tsx (server component),
+	// or "" if absent. Rendered when no route matches (HTTP 404).
+	GlobalNotFoundPath string
+
+	// GlobalErrorPath is the path to app/pages/global-error.tsx ("use client"),
+	// or "" if absent. Wraps all pages as the outermost error boundary.
+	GlobalErrorPath string
 }
 
 // Bundle runs both esbuild passes and returns the combined result.
@@ -233,13 +239,16 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 	// Import layout files — deduplicated and in deterministic (page-walk) order.
 	// Each unique layout path is imported once with alias LayoutAlias(...)+"Layout".
 	absPagesDir := filepath.Join(absAppDir, "pages")
-	seen := make(map[string]bool)
+	seenLayout := make(map[string]bool)
 	var layoutPaths []string
 	for _, p := range cfg.Pages {
-		for _, lpath := range p.LayoutChain {
-			abs, _ := filepath.Abs(lpath)
-			if !seen[abs] {
-				seen[abs] = true
+		for _, seg := range p.Segments {
+			if seg.LayoutPath == "" {
+				continue
+			}
+			abs, _ := filepath.Abs(seg.LayoutPath)
+			if !seenLayout[abs] {
+				seenLayout[abs] = true
 				layoutPaths = append(layoutPaths, abs)
 			}
 		}
@@ -250,12 +259,59 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 		entry.WriteString(fmt.Sprintf("import %s from %q;\n", alias, "./"+filepath.ToSlash(rel)))
 	}
 
-	// Import co-located companions (loading, error, not-found) per page.
+	// Import the shared framework ErrorBoundary once if any segment has an error component
+	// or if a global error boundary is configured.
+	{
+		hasErrorPage := cfg.GlobalErrorPath != ""
+	outer:
+		for _, p := range cfg.Pages {
+			for _, seg := range p.Segments {
+				if seg.ErrorPath != "" {
+					hasErrorPage = true
+					break outer
+				}
+			}
+		}
+		if hasErrorPage {
+			entry.WriteString("import __FrameworkErrorBoundary__ from \"./components/ErrorBoundary\";\n")
+		}
+	}
+
+	// Import error components from segments — deduplicated.
+	seenError := make(map[string]bool)
+	for _, p := range cfg.Pages {
+		for _, seg := range p.Segments {
+			if seg.ErrorPath == "" {
+				continue
+			}
+			abs, _ := filepath.Abs(seg.ErrorPath)
+			if seenError[abs] {
+				continue
+			}
+			seenError[abs] = true
+			rel, _ := filepath.Rel(absAppDir, abs)
+			alias := LayoutAlias(absPagesDir, abs) + "Error"
+			entry.WriteString(fmt.Sprintf("import %s from %q;\n", alias, "./"+filepath.ToSlash(rel)))
+		}
+	}
+
+	// Import global components (global-error, global-not-found).
+	if cfg.GlobalErrorPath != "" {
+		abs, _ := filepath.Abs(cfg.GlobalErrorPath)
+		rel, _ := filepath.Rel(absAppDir, abs)
+		fmt.Fprintf(&entry, "import GlobalError from %q;\n", "./"+filepath.ToSlash(rel))
+	}
+	if cfg.GlobalNotFoundPath != "" {
+		abs, _ := filepath.Abs(cfg.GlobalNotFoundPath)
+		rel, _ := filepath.Rel(absAppDir, abs)
+		fmt.Fprintf(&entry, "import GlobalNotFound from %q;\n", "./"+filepath.ToSlash(rel))
+	}
+
+	// Import co-located companions (loading, not-found) per page.
 	for _, p := range cfg.Pages {
 		alias := PageAlias(p)
 		for _, companion := range []struct{ path, suffix string }{
 			{p.LoadingComponentPath, "Loading"},
-			{p.ErrorComponentPath, "Error"},
 			{p.NotFoundComponentPath, "NotFound"},
 		} {
 			if companion.path == "" {
@@ -270,12 +326,14 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 
 	// Generate per-page wrapper functions.
 	// Wrapping order (innermost → outermost):
-	//   Page (with notFound prop) → Suspense/Loading → Error → LayoutChain (innermost→outermost)
+	//   Page (with notFound prop) → Suspense/Loading → per segment (EB then Layout), innermost first → GlobalEB
+	pageHasCompanions := func(p PageEntry) bool {
+		return len(p.Segments) > 0 || p.LoadingComponentPath != "" || p.NotFoundComponentPath != ""
+	}
 	for _, p := range cfg.Pages {
 		alias := PageAlias(p)
-		hasCompanions := len(p.LayoutChain) > 0 || p.LoadingComponentPath != "" ||
-			p.ErrorComponentPath != "" || p.NotFoundComponentPath != ""
-		if !hasCompanions {
+		needsWrapper := pageHasCompanions(p) || cfg.GlobalErrorPath != ""
+		if !needsWrapper {
 			continue
 		}
 		// not-found is a server component passed as a prop, not a wrapper.
@@ -289,28 +347,42 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 				"React.createElement(React.Suspense,{fallback:React.createElement(%sLoading,null)},%s)",
 				alias, inner)
 		}
-		if p.ErrorComponentPath != "" {
-			inner = fmt.Sprintf("React.createElement(%sError,null,%s)", alias, inner)
+		// Wrap segments innermost-first: at each level apply EB (if ErrorPath) then Layout (if LayoutPath).
+		for i := len(p.Segments) - 1; i >= 0; i-- {
+			seg := p.Segments[i]
+			if seg.ErrorPath != "" {
+				abs, _ := filepath.Abs(seg.ErrorPath)
+				errAlias := LayoutAlias(absPagesDir, abs) + "Error"
+				inner = fmt.Sprintf(
+					"React.createElement(__FrameworkErrorBoundary__,{fallback:%s},%s)",
+					errAlias, inner)
+			}
+			if seg.LayoutPath != "" {
+				abs, _ := filepath.Abs(seg.LayoutPath)
+				layoutAlias := LayoutAlias(absPagesDir, abs) + "Layout"
+				inner = fmt.Sprintf("React.createElement(%s,null,%s)", layoutAlias, inner)
+			}
 		}
-		// Wrap with layouts innermost-first (LayoutChain is outermost-first).
-		for i := len(p.LayoutChain) - 1; i >= 0; i-- {
-			abs, _ := filepath.Abs(p.LayoutChain[i])
-			layoutAlias := LayoutAlias(absPagesDir, abs) + "Layout"
-			inner = fmt.Sprintf("React.createElement(%s,null,%s)", layoutAlias, inner)
+		// Wrap with global error boundary at the outermost level (above all layouts).
+		if cfg.GlobalErrorPath != "" {
+			inner = fmt.Sprintf(
+				"React.createElement(__FrameworkErrorBoundary__,{fallback:GlobalError},%s)", inner)
 		}
-		entry.WriteString(fmt.Sprintf("function __wrap_%s__(props: any){return %s;}\n", alias, inner))
+		fmt.Fprintf(&entry, "function __wrap_%s__(props: any){return %s;}\n", alias, inner)
 	}
 
 	entry.WriteString("const __pages__ = {\n")
 	for _, p := range cfg.Pages {
 		alias := PageAlias(p)
-		hasCompanions := len(p.LayoutChain) > 0 || p.LoadingComponentPath != "" ||
-			p.ErrorComponentPath != "" || p.NotFoundComponentPath != ""
-		if hasCompanions {
-			entry.WriteString(fmt.Sprintf("  %s: __wrap_%s__,\n", alias, alias))
+		needsWrapper := pageHasCompanions(p) || cfg.GlobalErrorPath != ""
+		if needsWrapper {
+			fmt.Fprintf(&entry, "  %s: __wrap_%s__,\n", alias, alias)
 		} else {
-			entry.WriteString(fmt.Sprintf("  %s,\n", alias))
+			fmt.Fprintf(&entry, "  %s,\n", alias)
 		}
+	}
+	if cfg.GlobalNotFoundPath != "" {
+		entry.WriteString("  GlobalNotFound,\n")
 	}
 	entry.WriteString("};\n")
 	entry.WriteString(`
@@ -357,8 +429,14 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 				if err != nil {
 					return api.OnLoadResult{}, nil
 				}
+				// A file is a client component if it is explicitly registered in
+				// clientSet OR if its content begins with the "use client" directive.
+				// Checking clientSet first handles files whose directive is preceded
+				// by comments (e.g. global-error.tsx).
+				_, inClientSet := clientSet[args.Path]
 				trimmed := strings.TrimSpace(string(contents))
-				if !strings.HasPrefix(trimmed, "'use client'") && !strings.HasPrefix(trimmed, `"use client"`) {
+				hasDirective := strings.HasPrefix(trimmed, "'use client'") || strings.HasPrefix(trimmed, `"use client"`)
+				if !inClientSet && !hasDirective {
 					// Not a client component — let esbuild handle normally.
 					return api.OnLoadResult{}, nil
 				}

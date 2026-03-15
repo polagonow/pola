@@ -32,22 +32,36 @@ func newTestApp() (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("discover pages: %w", err)
 	}
+	gc, err := build.DiscoverGlobalComponents(appDir)
+	if err != nil {
+		return nil, fmt.Errorf("discover global components: %w", err)
+	}
 	clientComponents, err := build.DiscoverClientComponents(appDir)
 	if err != nil {
 		return nil, fmt.Errorf("discover client components: %w", err)
 	}
+	seen := make(map[string]bool)
 	for _, p := range pages {
-		if p.ErrorComponentPath != "" {
-			clientComponents = append(clientComponents, p.ErrorComponentPath)
+		for _, seg := range p.Segments {
+			if seg.ErrorPath != "" && !seen[seg.ErrorPath] {
+				seen[seg.ErrorPath] = true
+				clientComponents = append(clientComponents, seg.ErrorPath)
+			}
 		}
+	}
+	if gc.ErrorPath != "" && !seen[gc.ErrorPath] {
+		seen[gc.ErrorPath] = true
+		clientComponents = append(clientComponents, gc.ErrorPath)
 	}
 
 	bundleResult, err := build.Bundle(build.BundlerConfig{
-		AppDir:           appDir,
-		OutDir:           "./public/assets",
-		ClientEntry:      "./app/_client.tsx",
-		Pages:            pages,
-		ClientComponents: clientComponents,
+		AppDir:             appDir,
+		OutDir:             "./public/assets",
+		ClientEntry:        "./app/_client.tsx",
+		Pages:              pages,
+		ClientComponents:   clientComponents,
+		GlobalNotFoundPath: gc.NotFoundPath,
+		GlobalErrorPath:    gc.ErrorPath,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("bundle: %w", err)
@@ -98,10 +112,16 @@ func newTestApp() (*App, error) {
 		return nil, fmt.Errorf("manifest: %w", err)
 	}
 
+	globalNotFoundExport := ""
+	if gc.NotFoundPath != "" {
+		globalNotFoundExport = "GlobalNotFound"
+	}
 	app := &App{
-		pool:              pool,
-		renderer:          runtime.NewRenderer(pool, manifest),
-		clientEntryScript: bundleResult.ClientEntryOutput,
+		pool:                 pool,
+		renderer:             runtime.NewRenderer(pool, manifest),
+		clientEntryScript:    bundleResult.ClientEntryOutput,
+		importURLs:           bundleResult.ImportURLs,
+		globalNotFoundExport: globalNotFoundExport,
 	}
 
 	// Auto-register routes from discovered pages — mirrors main()

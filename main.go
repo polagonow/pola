@@ -36,13 +36,14 @@ type Route struct {
 
 // App is the top-level application.
 type App struct {
-	pool              *runtime.VMPool
-	renderer          *runtime.Renderer
-	routes            []Route
-	publicDir         string
-	manifest          runtime.ClientManifest
-	importURLs        map[string]string // moduleId → /public/chunk-HASH.js
-	clientEntryScript string            // /public/client-[hash].js
+	pool                *runtime.VMPool
+	renderer            *runtime.Renderer
+	routes              []Route
+	publicDir           string
+	manifest            runtime.ClientManifest
+	importURLs          map[string]string // moduleId → /public/chunk-HASH.js
+	clientEntryScript   string            // /public/client-[hash].js
+	globalNotFoundExport string           // "GlobalNotFound" or ""
 }
 
 func main() {
@@ -55,23 +56,37 @@ func main() {
 	if err != nil {
 		log.Fatalf("discover pages: %v", err)
 	}
+	gc, err := build.DiscoverGlobalComponents(appDir)
+	if err != nil {
+		log.Fatalf("discover global components: %v", err)
+	}
 	clientComponents, err := build.DiscoverClientComponents(appDir)
 	if err != nil {
 		log.Fatalf("discover client components: %v", err)
 	}
+	seen := make(map[string]bool)
 	for _, p := range pages {
-		if p.ErrorComponentPath != "" {
-			clientComponents = append(clientComponents, p.ErrorComponentPath)
+		for _, seg := range p.Segments {
+			if seg.ErrorPath != "" && !seen[seg.ErrorPath] {
+				seen[seg.ErrorPath] = true
+				clientComponents = append(clientComponents, seg.ErrorPath)
+			}
 		}
+	}
+	if gc.ErrorPath != "" && !seen[gc.ErrorPath] {
+		seen[gc.ErrorPath] = true
+		clientComponents = append(clientComponents, gc.ErrorPath)
 	}
 
 	bundleResult, err := build.Bundle(build.BundlerConfig{
-		AppDir:           appDir,
-		OutDir:           defaultPublicDir + "/assets",
-		AssetsURLPath:    defaultPublicURL + "/assets",
-		ClientEntry:      filepath.Join(appDir, "_client.tsx"),
-		Pages:            pages,
-		ClientComponents: clientComponents,
+		AppDir:             appDir,
+		OutDir:             defaultPublicDir + "/assets",
+		AssetsURLPath:      defaultPublicURL + "/assets",
+		ClientEntry:        filepath.Join(appDir, "_client.tsx"),
+		Pages:              pages,
+		ClientComponents:   clientComponents,
+		GlobalNotFoundPath: gc.NotFoundPath,
+		GlobalErrorPath:    gc.ErrorPath,
 	})
 	if err != nil {
 		log.Fatalf("⚠️  bundle warning: %v", err)
@@ -171,13 +186,18 @@ func main() {
 		log.Fatalf("vm pool: %v", err)
 	}
 
+	globalNotFoundExport := ""
+	if gc.NotFoundPath != "" {
+		globalNotFoundExport = "GlobalNotFound"
+	}
 	app := &App{
-		pool:              pool,
-		renderer:          runtime.NewRenderer(pool, manifest),
-		publicDir:         defaultPublicDir,
-		manifest:          manifest,
-		importURLs:        bundleResult.ImportURLs,
-		clientEntryScript: bundleResult.ClientEntryOutput,
+		pool:                 pool,
+		renderer:             runtime.NewRenderer(pool, manifest),
+		publicDir:            defaultPublicDir,
+		manifest:             manifest,
+		importURLs:           bundleResult.ImportURLs,
+		clientEntryScript:    bundleResult.ClientEntryOutput,
+		globalNotFoundExport: globalNotFoundExport,
 	}
 
 	// ------------------------------------------------------------------
@@ -256,7 +276,30 @@ func buildPageProps(r *http.Request, params map[string]string) map[string]any {
 func (a *App) handleRoute(w http.ResponseWriter, r *http.Request) {
 	route, params := a.match(r.URL.Path)
 	if route == nil {
-		http.NotFound(w, r)
+		if a.globalNotFoundExport != "" {
+			if r.Header.Get("Content-Type") == "text/x-component" {
+				w.Header().Set("Content-Type", "text/x-component; charset=utf-8")
+				w.WriteHeader(http.StatusNotFound)
+				fw := runtime.NewFlightWriter(w)
+				vm := a.pool.Acquire()
+				defer a.pool.Release(vm)
+				if err := a.renderer.Render(fw, vm, runtime.RenderOptions{
+					ExportName: a.globalNotFoundExport,
+					Props:      map[string]any{},
+				}); err != nil {
+					log.Printf("rsc 404: %v", err)
+				}
+			} else {
+				w.Header().Set("Content-Type", "text/html; charset=utf-8")
+				w.WriteHeader(http.StatusNotFound)
+				fmt.Fprint(w, ghtml.Render(ghtml.Params{
+					ImportURLs:   a.importURLs,
+					ClientScript: a.clientEntryScript,
+				}))
+			}
+		} else {
+			http.NotFound(w, r)
+		}
 		return
 	}
 
