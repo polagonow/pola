@@ -197,7 +197,7 @@ go build -mod=vendor -o gojsx .
 Any `.tsx` file without `"use client"` is a Server Component. It runs inside the Goja VM on every request and has access to all bridged Go functions.
 
 ```tsx
-// app/pages/products.tsx
+// app/products.tsx
 // No "use client" → runs in Go's Goja VM
 
 export function ProductsPage({ category }: { category?: string }) {

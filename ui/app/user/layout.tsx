@@ -7,7 +7,7 @@ type LayoutProps = {
 export default function Layout({ children }: LayoutProps) {
   return (
     <div>
-      app/pages/user/layout.tsx
+      app/user/layout.tsx
       {children}
     </div>
   );

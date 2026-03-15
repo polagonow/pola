@@ -30,7 +30,9 @@ func PageAlias(p PageEntry) string {
 		if name == "app" || parent == dir {
 			break
 		}
-		segs = append([]string{name}, segs...)
+		if !isRouteGroup(name) {
+			segs = append([]string{name}, segs...)
+		}
 		dir = parent
 	}
 	if len(segs) == 0 {
@@ -57,11 +59,24 @@ func stripBrackets(s string) string {
 	return s
 }
 
+// isRouteGroup reports whether s is a route group segment (wrapped in parentheses).
+func isRouteGroup(s string) bool {
+	return len(s) >= 2 && s[0] == '(' && s[len(s)-1] == ')'
+}
+
+// stripParens removes surrounding parentheses from a route group name.
+func stripParens(s string) string {
+	if isRouteGroup(s) {
+		return s[1 : len(s)-1]
+	}
+	return s
+}
+
 // RoutePattern converts a page file path to a URL pattern.
 //
-//	app/pages/index/page.tsx         → "/"
-//	app/pages/products/page.tsx      → "/products"
-//	app/pages/products/[id]/page.tsx → "/products/:id"
+//	app/index/page.tsx         → "/"
+//	app/products/page.tsx      → "/products"
+//	app/products/[id]/page.tsx → "/products/:id"
 func RoutePattern(appDir, file string) string {
 	pagesDir := filepath.Join(appDir, "app")
 	rel, err := filepath.Rel(pagesDir, filepath.Dir(file))
@@ -70,7 +85,7 @@ func RoutePattern(appDir, file string) string {
 	}
 	var parts []string
 	for _, seg := range strings.Split(rel, string(filepath.Separator)) {
-		if seg == "." || seg == "index" {
+		if seg == "." || seg == "index" || isRouteGroup(seg) {
 			continue
 		}
 		if strings.HasPrefix(seg, "[") && strings.HasSuffix(seg, "]") {
@@ -111,7 +126,7 @@ func LayoutAlias(pagesDir, layoutPath string) string {
 	}
 	var b strings.Builder
 	for _, s := range segs {
-		b.WriteString(titleCase(stripBrackets(s)))
+		b.WriteString(titleCase(stripParens(stripBrackets(s))))
 	}
 	return b.String()
 }

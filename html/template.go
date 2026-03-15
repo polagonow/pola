@@ -41,6 +41,8 @@ const shellTemplate = `<!DOCTYPE html>
     <a href="/products">Products</a>
     <a href="/user?id=42">Profile</a>
     <a href="/about">About</a>
+    <a href="/docs">Docs</a>
+    <a href="/settings">Settings</a>
   </nav>
   <div id="root"></div>
 {{range .Scripts}}  <script>{{.}}</script>

@@ -71,7 +71,6 @@ type PageEntry struct {
 	NotFoundComponentPath string
 }
 
-
 // BundlerConfig controls both build passes.
 type BundlerConfig struct {
 	// AppDir is the root of the app/ directory (absolute or relative to cwd).
@@ -103,11 +102,11 @@ type BundlerConfig struct {
 	// Defaults to "/public/assets" when empty.
 	AssetsURLPath string
 
-	// GlobalNotFoundPath is the path to app/pages/global-not-found.tsx (server component),
+	// GlobalNotFoundPath is the path to app/global-not-found.tsx (server component),
 	// or "" if absent. Rendered when no route matches (HTTP 404).
 	GlobalNotFoundPath string
 
-	// GlobalErrorPath is the path to app/pages/global-error.tsx ("use client"),
+	// GlobalErrorPath is the path to app/global-error.tsx ("use client"),
 	// or "" if absent. Wraps all pages as the outermost error boundary.
 	GlobalErrorPath string
 }
@@ -170,7 +169,7 @@ func Bundle(cfg BundlerConfig) (*BundleResult, error) {
 	}
 
 	return &BundleResult{
-		ServerBundlePath: serverBundlePath,
+		ServerBundlePath:  serverBundlePath,
 		ClientFiles:       clientFiles,
 		ClientEntryOutput: clientEntryOutput,
 		Manifest:          manifestJSON,
