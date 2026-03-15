@@ -5,6 +5,9 @@ export default async function RevisionPage({
 }: {
   params: { slug: string; rev: string };
 }) {
+  if (__request__.query.includes('error')) await jsi.triggerError(
+    __request__.query.match(/error=([^&]*)/)?.[1] || 'Forced error'
+  );
   const [post, revision] = await Promise.all([
     jsi.getPost(params.slug),
     jsi.getRevision(params.slug, params.rev),

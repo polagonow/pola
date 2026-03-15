@@ -50,6 +50,9 @@ async function FeaturedProjects() {
 }
 
 export default async function HomePage() {
+  if (__request__.query.includes('error')) await jsi.triggerError(
+    __request__.query.match(/error=([^&]*)/)?.[1] || 'Forced error'
+  );
   return (
     <div>
       <div className="hero">

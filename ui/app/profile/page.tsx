@@ -2,6 +2,9 @@ import jsi from "@/jsi";
 
 // Demonstrates searchParams — pass ?id=... to look up a specific profile.
 export default async function ProfilePage({ searchParams }: { searchParams?: Record<string, string> }) {
+  if (__request__.query.includes('error')) await jsi.triggerError(
+    __request__.query.match(/error=([^&]*)/)?.[1] || 'Forced error'
+  );
   const profile = await jsi.getProfile(searchParams?.id);
   const initials = profile.name.split(" ").map((n: string) => n[0]).join("");
 

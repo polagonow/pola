@@ -1,6 +1,9 @@
 import jsi from "@/jsi";
 
 export default async function RevisionsPage({ params }: { params: { slug: string } }) {
+  if (__request__.query.includes('error')) await jsi.triggerError(
+    __request__.query.match(/error=([^&]*)/)?.[1] || 'Forced error'
+  );
   const [post, revisions] = await Promise.all([
     jsi.getPost(params.slug),
     jsi.getRevisions(params.slug),

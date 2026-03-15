@@ -8,7 +8,19 @@ declare const __JSI__: {
     getProfile: (id?: string) => Profile;
     getRevisions: (slug: string) => Revision[];
     getRevision: (slug: string, rev: string) => Revision;
+    triggerError: (message?: string) => Promise<never>;
 };
+
+// Per-request context injected by runtime/vm.go before each render.
+declare global {
+    const __request__: {
+        url: string;
+        path: string;
+        query: string;
+        method: string;
+        headers: Record<string, string>;
+    };
+}
 
 export declare function fetchJSON(url: string): unknown;
 

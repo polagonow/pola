@@ -1,6 +1,9 @@
 import jsi from "@/jsi";
 
 export default async function ProjectsPage() {
+  if (__request__.query.includes('error')) await jsi.triggerError(
+    __request__.query.match(/error=([^&]*)/)?.[1] || 'Forced error'
+  );
   const projects = await jsi.getProjects();
 
   return (

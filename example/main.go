@@ -184,7 +184,7 @@ func main() {
 			},
 			"getProjects": func(_ []any) (any, error) {
 				time.Sleep(200 * time.Millisecond)
-				return projects, errors.New("Just a roudom error")
+				return projects, nil
 			},
 			"getProject": func(args []any) (any, error) {
 				time.Sleep(150 * time.Millisecond)
@@ -234,6 +234,15 @@ func main() {
 					"github":  "janedoe",
 					"website": "https://janedoe.dev",
 				}, nil
+			},
+			"triggerError": func(args []any) (any, error) {
+				msg := "Forced error for testing"
+				if len(args) > 0 {
+					if s := fmt.Sprintf("%v", args[0]); s != "" {
+						msg = s
+					}
+				}
+				return nil, errors.New(msg)
 			},
 		},
 	}

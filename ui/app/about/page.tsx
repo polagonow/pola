@@ -1,6 +1,9 @@
-// Synchronous server component — no async/await, no data fetching.
-// Demonstrates that non-async RSC pages work alongside async/Suspense pages.
-export default function AboutPage() {
+import jsi from "@/jsi";
+
+export default async function AboutPage() {
+  if (__request__.query.includes('error')) await jsi.triggerError(
+    __request__.query.match(/error=([^&]*)/)?.[1] || 'Forced error'
+  );
   return (
     <div>
       <h1 style={{ fontSize: "1.8rem", fontWeight: 800, marginBottom: ".75rem" }}>About this site</h1>

@@ -1,3 +1,5 @@
+import jsi from "@/jsi";
+
 const DOCS: Record<string, Record<string, string>> = {
   "getting-started": {
     index: "Everything you need to get up and running with GoJSX.",
@@ -23,7 +25,10 @@ const SECTION_LABELS: Record<string, string> = {
   "api-reference": "API Reference",
 };
 
-export default function DocsPage({ params }: { params?: { slug?: string[] } }) {
+export default async function DocsPage({ params }: { params?: { slug?: string[] } }) {
+  if (__request__.query.includes('error')) await jsi.triggerError(
+    __request__.query.match(/error=([^&]*)/)?.[1] || 'Forced error'
+  );
   const slug = params?.slug;
 
   // /docs — index
