@@ -26,8 +26,9 @@ https://github.com/NVIDIA/gontainer?tab=readme-ov-file
 
 Make abstracts to decouple the code base, we can have different
 - bundlers
-- javascript engines / runtimes
-- etc
+- javascript vm module contains (vms for goja,v8go, quickjs) each vm with seperate polyfills that means
+- routing module
+- descovery module
 let's brake down code into managable modules
 
 

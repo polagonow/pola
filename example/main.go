@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -60,6 +61,7 @@ func main() {
 		ClientComponents:   clientComponents,
 		GlobalNotFoundPath: gc.NotFoundPath,
 		GlobalErrorPath:    gc.ErrorPath,
+		Dev:                true,
 	})
 	if err != nil {
 		log.Fatalf("⚠️  bundle warning: %v", err)
@@ -82,21 +84,21 @@ func main() {
 			"title":   "Building SSR with Go and React",
 			"excerpt": "How to run React Server Components inside a Go process using Goja.",
 			"author":  "Jane Doe", "date": "2024-01-15", "readTime": 5,
-			"tags":    []any{"go", "react", "ssr"},
+			"tags": []any{"go", "react", "ssr"},
 		},
 		{
 			"id": 2, "slug": "rsc-deep-dive",
 			"title":   "React Server Components Deep Dive",
 			"excerpt": "Understanding the Flight wire protocol and how RSC trees serialize.",
 			"author":  "Jane Doe", "date": "2024-02-03", "readTime": 8,
-			"tags":    []any{"react", "rsc", "performance"},
+			"tags": []any{"react", "rsc", "performance"},
 		},
 		{
 			"id": 3, "slug": "goja-vm-internals",
 			"title":   "Goja VM Internals",
 			"excerpt": "A tour through the event loop, promise scheduling, and Go↔JS bridging.",
 			"author":  "Jane Doe", "date": "2024-03-10", "readTime": 12,
-			"tags":    []any{"go", "javascript", "vm"},
+			"tags": []any{"go", "javascript", "vm"},
 		},
 	}
 
@@ -120,19 +122,19 @@ func main() {
 			"id": "1", "title": "GoJSX",
 			"description": "Go-powered React SSR framework with Flight protocol.",
 			"tech":        []any{"Go", "React", "TypeScript", "esbuild"},
-			"stars": 142, "status": "active",
+			"stars":       142, "status": "active",
 		},
 		{
 			"id": "2", "title": "GojaBridge",
 			"description": "Type-safe Go ↔ JS function bridge for Goja.",
 			"tech":        []any{"Go", "Goja"},
-			"stars": 38, "status": "stable",
+			"stars":       38, "status": "stable",
 		},
 		{
 			"id": "3", "title": "FlightDecode",
 			"description": "Pure-Go React Flight wire-format decoder.",
 			"tech":        []any{"Go", "React"},
-			"stars": 21, "status": "beta",
+			"stars":       21, "status": "beta",
 		},
 	}
 
@@ -182,7 +184,7 @@ func main() {
 			},
 			"getProjects": func(_ []any) (any, error) {
 				time.Sleep(200 * time.Millisecond)
-				return projects, nil
+				return projects, errors.New("Just a roudom error")
 			},
 			"getProject": func(args []any) (any, error) {
 				time.Sleep(150 * time.Millisecond)

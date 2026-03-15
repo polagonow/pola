@@ -1,11 +1,11 @@
 "use client"
 import { useEffect } from "react";
 
-export default function PostError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
+export default function RevisionsError({ error, reset }: { error: Error & { digest?: string }; reset: () => void }) {
   useEffect(() => { console.error(error); }, [error]);
   return (
     <div className="card" style={{ borderColor: "#fecaca" }}>
-      <strong style={{ color: "#dc2626" }}>Failed to load post</strong>
+      <strong style={{ color: "#dc2626" }}>Failed to load revisions</strong>
       <p style={{ color: "var(--muted)", fontSize: ".9rem", margin: ".5rem 0" }}>{error.digest ?? error.message}</p>
       <button className="btn btn-outline" onClick={reset}>Try again</button>
     </div>

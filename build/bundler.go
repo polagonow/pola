@@ -109,6 +109,10 @@ type BundlerConfig struct {
 	// GlobalErrorPath is the path to app/global-error.tsx ("use client"),
 	// or "" if absent. Wraps all pages as the outermost error boundary.
 	GlobalErrorPath string
+
+	// Dev enables development mode: real error messages are preserved in the
+	// RSC Flight stream and bundles are not minified.
+	Dev bool
 }
 
 // Bundle runs both esbuild passes and returns the combined result.
@@ -388,7 +392,13 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 (globalThis as any).__render__ = function(exportName: string, propsJSON: string): ReadableStream {
   const Page = (__pages__ as any)[exportName];
   if (!Page) throw new Error('__render__: unknown page "' + exportName + '". Known: ' + Object.keys(__pages__).join(", "));
-  return renderToReadableStream(React.createElement(Page, JSON.parse(propsJSON || "{}")), __CLIENT_MANIFEST__);
+  return renderToReadableStream(React.createElement(Page, JSON.parse(propsJSON || "{}")), __CLIENT_MANIFEST__, {
+    onError(error: unknown) {
+      // Return the real error message as the digest so error boundaries receive it
+      // via error.digest even in production mode.
+      return error instanceof Error ? error.message : String(error);
+    },
+  });
 };
 `)
 
@@ -499,6 +509,8 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 
 		// react-server → React resolves to its server-safe variant.
 		// browser → selects react-server-dom-webpack-server.browser.production.js
+		// Always production: the Goja VM is incompatible with React's development
+		// server bundle (which uses V8-specific APIs like Error.captureStackTrace).
 		Conditions: []string{"react-server", "browser", "module", "default"},
 		Define: map[string]string{
 			"process.env.NODE_ENV": `"production"`,
@@ -534,6 +546,13 @@ func buildClientBundle(cfg BundlerConfig, absDir string) (map[string][]byte, str
 	}
 	absAppDir, _ := filepath.Abs(cfg.AppDir)
 
+	clientNodeEnv := `"production"`
+	clientIsDev := "false"
+	if cfg.Dev {
+		clientNodeEnv = `"development"`
+		clientIsDev = "true"
+	}
+
 	r := api.Build(api.BuildOptions{
 		EntryPoints:       entries,
 		Bundle:            true,
@@ -546,16 +565,16 @@ func buildClientBundle(cfg BundlerConfig, absDir string) (map[string][]byte, str
 		AbsWorkingDir:     absDir,
 		Write:             false,
 		Sourcemap:         api.SourceMapNone,
-		MinifyWhitespace:  true,
-		MinifyIdentifiers: true,
-		MinifySyntax:      true,
+		MinifyWhitespace:  !cfg.Dev,
+		MinifyIdentifiers: !cfg.Dev,
+		MinifySyntax:      !cfg.Dev,
 		EntryNames:        "[name]-[hash]",
 		ChunkNames:        "chunks/[name]-[hash]",
 		Conditions:        []string{"browser", "import", "module", "default"},
 		Plugins:           []api.Plugin{newAtAliasPlugin(absAppDir)},
 		Define: map[string]string{
-			"process.env.NODE_ENV": `"production"`,
-			"__DEV__":              "false",
+			"process.env.NODE_ENV": clientNodeEnv,
+			"__DEV__":              clientIsDev,
 		},
 	})
 	if len(r.Errors) > 0 {
