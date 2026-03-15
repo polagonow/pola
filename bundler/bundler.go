@@ -355,22 +355,33 @@ func buildClientBundle(cfg BundlerConfig, absDir string) (map[string][]byte, str
 	if cfg.AssetsURLPath == "" {
 		cfg.AssetsURLPath = "/public/assets"
 	}
-	entries := []string{}
-	if cfg.ClientEntry != "" {
-		entries = append(entries, cfg.ClientEntry)
-	}
-	entries = append(entries, cfg.ClientComponents...)
-
-	entryBase := ""
-	if cfg.ClientEntry != "" {
-		entryBase = strings.TrimSuffix(filepath.Base(cfg.ClientEntry), filepath.Ext(cfg.ClientEntry))
-	}
-
 	absOutDir, err := filepath.Abs(cfg.OutDir)
 	if err != nil {
 		return nil, "", "", fmt.Errorf("bundler: abs outdir: %w", err)
 	}
 	absAppDir, _ := filepath.Abs(cfg.AppDir)
+
+	// Build the entry points list. When ClientEntry is a package specifier
+	// (e.g. "@gojsx/react-renderer/client"), generate a temporary _client.tsx
+	// in absAppDir that imports it so esbuild can resolve node_modules normally
+	// and the output is named _client-HASH.js as usual.
+	entries := []string{}
+	entryBase := ""
+	if cfg.ClientEntry != "" {
+		if isPackageSpecifier(cfg.ClientEntry) {
+			synthPath := filepath.Join(absAppDir, "_client.tsx")
+			content := fmt.Sprintf("import %q;\n", cfg.ClientEntry)
+			if werr := os.WriteFile(synthPath, []byte(content), 0o644); werr == nil {
+				defer os.Remove(synthPath)
+				entries = append(entries, synthPath)
+				entryBase = "_client"
+			}
+		} else {
+			entries = append(entries, cfg.ClientEntry)
+			entryBase = strings.TrimSuffix(filepath.Base(cfg.ClientEntry), filepath.Ext(cfg.ClientEntry))
+		}
+	}
+	entries = append(entries, cfg.ClientComponents...)
 
 	clientNodeEnv := `"production"`
 	clientIsDev := "false"
@@ -524,6 +535,12 @@ func BuildManifest(clientComponents []string, clientFiles map[string][]byte, app
 		m[id+"#default"] = entry
 	}
 	return m, importURLs, nil
+}
+
+// isPackageSpecifier reports whether s is a Node package specifier rather than
+// a file path. Package specifiers don't start with ".", "/" or a drive letter.
+func isPackageSpecifier(s string) bool {
+	return s != "" && !filepath.IsAbs(s) && !strings.HasPrefix(s, ".") && !strings.HasPrefix(s, "/")
 }
 
 // computeModuleID returns a stable module ID for a client component file.

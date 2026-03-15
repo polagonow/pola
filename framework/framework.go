@@ -26,6 +26,11 @@ type Config struct {
 	PublicDir string
 	Dev       bool
 
+	// ClientEntry is the browser bootstrap — a file path or a Node import
+	// specifier (e.g. "@gojsx/react-renderer/client"). If empty, the framework
+	// looks for AppDir/_client.tsx; if absent, it uses the registered default.
+	ClientEntry string
+
 	// Global Go→JS bridge (all routes fall back to this unless overridden per-route)
 	GlobalBridge contract.BridgeConfig
 
@@ -104,7 +109,7 @@ func (c *Config) Build() (*App, error) {
 		AppDir:                 c.AppDir,
 		OutDir:                 c.PublicDir + "/assets",
 		AssetsURLPath:          assetsURLPath,
-		ClientEntry:            c.AppDir + "/_client.tsx",
+		ClientEntry:            c.ClientEntry,
 		ClientComponents:       disc.ClientComponents,
 		Dev:                    c.Dev,
 		ServerEntryContent:     entryContent,
@@ -252,6 +257,13 @@ func (c *Config) fillDefaults() error {
 	if c.PublicDir == "" {
 		c.PublicDir = "public"
 	}
+	if c.ClientEntry == "" {
+		if _, err := os.Stat(filepath.Join(c.AppDir, "_client.tsx")); err == nil {
+			c.ClientEntry = filepath.Join(c.AppDir, "_client.tsx")
+		} else {
+			c.ClientEntry = defaultClientEntry
+		}
+	}
 
 	// We resolve these lazily via import paths to avoid import cycles.
 	// The concrete types are in the build, html, server, and runtime packages.
@@ -320,11 +332,12 @@ var (
 	defaultBundler         func() Bundler
 	defaultEntryGenerator  func() ServerEntryGenerator
 	defaultRouteBuilder    func() RouteBuilder
-	defaultStreamProtocol func() StreamProtocol
+	defaultStreamProtocol  func() StreamProtocol
 	defaultHTMLShell       func() HTMLShell
 	defaultAssetServer     func(dir string) AssetServer
 	defaultVMFactory       func(bundle []byte) (VMFactory, error)
 	defaultRendererFactory func(pool VMPool, protocol StreamProtocol, bridge contract.BridgeConfig) Renderer
+	defaultClientEntry     string
 )
 
 // RegisterDefaults is called by concrete packages (build, runtime, html, server)
@@ -357,6 +370,9 @@ func RegisterDefaults(d Defaults) {
 	if d.RendererFactory != nil {
 		defaultRendererFactory = d.RendererFactory
 	}
+	if d.ClientEntry != "" {
+		defaultClientEntry = d.ClientEntry
+	}
 }
 
 // Defaults is passed to RegisterDefaults by concrete packages.
@@ -365,11 +381,12 @@ type Defaults struct {
 	Bundler         func() Bundler
 	EntryGenerator  func() ServerEntryGenerator
 	RouteBuilder    func() RouteBuilder
-	StreamProtocol func() StreamProtocol
+	StreamProtocol  func() StreamProtocol
 	HTMLShell       func() HTMLShell
 	AssetServer     func(dir string) AssetServer
 	VMFactory       func(bundle []byte) (VMFactory, error)
 	RendererFactory func(pool VMPool, protocol StreamProtocol, bridge contract.BridgeConfig) Renderer
+	ClientEntry     string
 }
 
 // ── Internal Renderer ────────────────────────────────────────────────────────

@@ -180,7 +180,7 @@ func newTestApp() (*server.App, error) {
 	bundleResult, err := build.Bundle(build.BundlerConfig{
 		AppDir:                 appDir,
 		OutDir:                 "../public/assets",
-		ClientEntry:            "../ui/apps/blog/_client.tsx",
+		ClientEntry:            "@gojsx/react-renderer/client",
 		ClientComponents:       clientComponents,
 		ServerEntryContent:     entryContent,
 		ServerBundleConditions: gen.BundleConditions(),
