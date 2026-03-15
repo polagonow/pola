@@ -28,9 +28,14 @@ export default async function PostPage({ params }: { params: { slug: string } })
         </p>
       </div>
 
-      <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-        <LikeButton initialCount={42} />
-        <span style={{ fontSize: ".85rem", color: "var(--muted)" }}>Did you find this useful?</span>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+          <LikeButton initialCount={42} />
+          <span style={{ fontSize: ".85rem", color: "var(--muted)" }}>Did you find this useful?</span>
+        </div>
+        <a href={`/posts/${params.slug}/revisions`} style={{ fontSize: ".85rem", color: "var(--muted)" }}>
+          View revisions →
+        </a>
       </div>
     </div>
   );

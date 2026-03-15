@@ -100,6 +100,21 @@ func main() {
 		},
 	}
 
+	revisions := map[string][]map[string]any{
+		"go-react-ssr": {
+			{"rev": "v3", "date": "2024-01-15", "summary": "Published — added Suspense streaming section."},
+			{"rev": "v2", "date": "2024-01-10", "summary": "Draft — expanded esbuild two-pass explanation."},
+			{"rev": "v1", "date": "2024-01-05", "summary": "Initial draft — skeleton outline only."},
+		},
+		"rsc-deep-dive": {
+			{"rev": "v2", "date": "2024-02-03", "summary": "Published — Flight wire-format diagrams added."},
+			{"rev": "v1", "date": "2024-01-28", "summary": "Initial draft — protocol walkthrough."},
+		},
+		"goja-vm-internals": {
+			{"rev": "v1", "date": "2024-03-10", "summary": "Published — first and only revision."},
+		},
+	}
+
 	projects := []map[string]any{
 		{
 			"id": "1", "title": "GoJSX",
@@ -181,6 +196,31 @@ func main() {
 					}
 				}
 				return nil, fmt.Errorf("project %q not found", id)
+			},
+			"getRevisions": func(args []any) (any, error) {
+				slug := ""
+				if len(args) > 0 {
+					slug = fmt.Sprintf("%v", args[0])
+				}
+				if revs, ok := revisions[slug]; ok {
+					return revs, nil
+				}
+				return nil, fmt.Errorf("no revisions for post %q", slug)
+			},
+			"getRevision": func(args []any) (any, error) {
+				slug, rev := "", ""
+				if len(args) > 0 {
+					slug = fmt.Sprintf("%v", args[0])
+				}
+				if len(args) > 1 {
+					rev = fmt.Sprintf("%v", args[1])
+				}
+				for _, r := range revisions[slug] {
+					if r["rev"] == rev {
+						return r, nil
+					}
+				}
+				return nil, fmt.Errorf("revision %q not found for post %q", rev, slug)
 			},
 			"getProfile": func(_ []any) (any, error) {
 				return map[string]any{

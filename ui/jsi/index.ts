@@ -6,6 +6,8 @@ declare const __JSI__: {
     getProjects: () => Project[];
     getProject: (id: string) => Project;
     getProfile: (id?: string) => Profile;
+    getRevisions: (slug: string) => Revision[];
+    getRevision: (slug: string, rev: string) => Revision;
 };
 
 export declare function fetchJSON(url: string): unknown;
@@ -36,6 +38,12 @@ export interface Project {
     tech: string[];
     stars: number;
     status: 'active' | 'stable' | 'beta';
+}
+
+export interface Revision {
+    rev: string;
+    date: string;
+    summary: string;
 }
 
 export interface Profile {

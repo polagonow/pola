@@ -53,6 +53,21 @@ func newTestApp() (*server.App, error) {
 		clientComponents = append(clientComponents, gc.ErrorPath)
 	}
 
+	revisions := map[string][]map[string]any{
+		"go-react-ssr": {
+			{"rev": "v3", "date": "2024-01-15", "summary": "Published — added Suspense streaming section."},
+			{"rev": "v2", "date": "2024-01-10", "summary": "Draft — expanded esbuild two-pass explanation."},
+			{"rev": "v1", "date": "2024-01-05", "summary": "Initial draft — skeleton outline only."},
+		},
+		"rsc-deep-dive": {
+			{"rev": "v2", "date": "2024-02-03", "summary": "Published — Flight wire-format diagrams added."},
+			{"rev": "v1", "date": "2024-01-28", "summary": "Initial draft — protocol walkthrough."},
+		},
+		"goja-vm-internals": {
+			{"rev": "v1", "date": "2024-03-10", "summary": "Published — first and only revision."},
+		},
+	}
+
 	posts := []map[string]any{
 		{"id": 1, "slug": "go-react-ssr", "title": "Building SSR with Go and React",
 			"excerpt": "How to run React Server Components inside a Go process using Goja.",
@@ -103,6 +118,31 @@ func newTestApp() (*server.App, error) {
 					}
 				}
 				return nil, fmt.Errorf("project %q not found", id)
+			},
+			"getRevisions": func(args []any) (any, error) {
+				slug := ""
+				if len(args) > 0 {
+					slug = fmt.Sprintf("%v", args[0])
+				}
+				if revs, ok := revisions[slug]; ok {
+					return revs, nil
+				}
+				return nil, fmt.Errorf("no revisions for post %q", slug)
+			},
+			"getRevision": func(args []any) (any, error) {
+				slug, rev := "", ""
+				if len(args) > 0 {
+					slug = fmt.Sprintf("%v", args[0])
+				}
+				if len(args) > 1 {
+					rev = fmt.Sprintf("%v", args[1])
+				}
+				for _, r := range revisions[slug] {
+					if r["rev"] == rev {
+						return r, nil
+					}
+				}
+				return nil, fmt.Errorf("revision %q not found for post %q", rev, slug)
 			},
 			"getProfile": func(_ []any) (any, error) {
 				return map[string]any{
@@ -276,7 +316,8 @@ func TestRSC_ContentType(t *testing.T) {
 
 func TestRSC_HomePage(t *testing.T) {
 	body := rsc(t, "/")
-	for _, want := range []string{"DevBlog", "posts", "projects"} {
+	// "DevBlog" is split across a <span> in the JSX, so check the two halves separately.
+	for _, want := range []string{"Dev", "Blog", "Recent posts", "Projects"} {
 		if !flightContains(body, want) {
 			t.Errorf("HomePage Flight missing %q", want)
 		}
@@ -444,9 +485,11 @@ func TestFlightTree_Root(t *testing.T) {
 
 func TestFlightTree_HomePage_HasBranding(t *testing.T) {
 	body := rsc(t, "/")
-	tree := flightTree(t, body)
-	if !walkFlight(tree, "DevBlog") {
-		t.Error("HomePage tree missing 'DevBlog'")
+	// Async components land in later Flight rows, not row 0 — use raw body check.
+	for _, want := range []string{"Dev", "Blog", "Read posts"} {
+		if !flightContains(body, want) {
+			t.Errorf("HomePage Flight missing branding text %q", want)
+		}
 	}
 }
 
@@ -463,8 +506,39 @@ func TestRSC_BlogLayout_WrapsPostsPage(t *testing.T) {
 	}
 }
 
+func TestRSC_RevisionsPage(t *testing.T) {
+	body := rsc(t, "/posts/go-react-ssr/revisions")
+	for _, want := range []string{"v3", "v2", "v1", "Published", "Initial draft"} {
+		if !flightContains(body, want) {
+			t.Errorf("RevisionsPage missing %q", want)
+		}
+	}
+}
+
+func TestRSC_RevisionDetailPage(t *testing.T) {
+	body := rsc(t, "/posts/go-react-ssr/revisions/v2")
+	for _, want := range []string{"v2", "Building SSR with Go and React", "esbuild two-pass"} {
+		if !flightContains(body, want) {
+			t.Errorf("RevisionDetail missing %q", want)
+		}
+	}
+}
+
+func TestRSC_RevisionDetailPage_NotFound(t *testing.T) {
+	app := requireApp(t)
+	req := httptest.NewRequest("GET", "/posts/go-react-ssr/revisions/v99", nil)
+	req.Header.Set("Content-Type", "text/x-component")
+	w := httptest.NewRecorder()
+	app.HandleRoute(w, req)
+	body, _ := io.ReadAll(w.Result().Body)
+	if !strings.Contains(string(body), ":E{") && !strings.Contains(string(body), ":E\"") {
+		t.Errorf("expected Flight error row for missing revision, got: %s", string(body)[:min(len(string(body)), 200)])
+	}
+}
+
 func TestRSC_AllRoutesRender(t *testing.T) {
-	paths := []string{"/", "/posts", "/posts/go-react-ssr", "/projects", "/projects/1", "/about", "/profile"}
+	paths := []string{"/", "/posts", "/posts/go-react-ssr", "/projects", "/projects/1", "/about", "/profile",
+		"/posts/go-react-ssr/revisions", "/posts/go-react-ssr/revisions/v1"}
 	for _, p := range paths {
 		body := rsc(t, p)
 		if !strings.Contains(body, "0:") {
