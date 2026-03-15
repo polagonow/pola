@@ -536,9 +536,33 @@ func TestRSC_RevisionDetailPage_NotFound(t *testing.T) {
 	}
 }
 
+func TestRSC_DocsIndex(t *testing.T) {
+	body := rsc(t, "/docs")
+	for _, want := range []string{"Documentation", "Getting Started", "Core Concepts"} {
+		if !flightContains(body, want) {
+			t.Errorf("DocsIndex missing %q", want)
+		}
+	}
+}
+
+func TestRSC_DocsSection(t *testing.T) {
+	body := rsc(t, "/docs/getting-started")
+	if !flightContains(body, "getting-started") && !flightContains(body, "Getting Started") {
+		t.Error("DocsSection missing section name")
+	}
+}
+
+func TestRSC_DocsNestedPage(t *testing.T) {
+	body := rsc(t, "/docs/getting-started/installation")
+	if !flightContains(body, "installation") {
+		t.Error("DocsNestedPage missing 'installation'")
+	}
+}
+
 func TestRSC_AllRoutesRender(t *testing.T) {
 	paths := []string{"/", "/posts", "/posts/go-react-ssr", "/projects", "/projects/1", "/about", "/profile",
-		"/posts/go-react-ssr/revisions", "/posts/go-react-ssr/revisions/v1"}
+		"/posts/go-react-ssr/revisions", "/posts/go-react-ssr/revisions/v1",
+		"/docs", "/docs/getting-started", "/docs/getting-started/installation"}
 	for _, p := range paths {
 		body := rsc(t, p)
 		if !strings.Contains(body, "0:") {

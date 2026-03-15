@@ -470,6 +470,9 @@ func TestRoutePattern_RouteGroups(t *testing.T) {
 		{filepath.Join("(shop)", "products", "page.tsx"), "/products"},
 		{filepath.Join("(shop)", "products", "[id]", "page.tsx"), "/products/:id"},
 		{filepath.Join("(a)", "(b)", "docs", "page.tsx"), "/docs"},
+		// catch-all segments
+		{filepath.Join("shop", "[...path]", "page.tsx"), "/shop/:...path"},
+		{filepath.Join("docs", "[[...slug]]", "page.tsx"), "/docs/:...slug?"},
 	}
 	for _, tc := range cases {
 		file := filepath.Join(appDir, "app", tc.rel)
@@ -490,6 +493,37 @@ func TestPageAlias_RouteGroups(t *testing.T) {
 		{filepath.Join("(marketing)", "about", "page.tsx"), "About"},
 		{filepath.Join("(shop)", "products", "[id]", "page.tsx"), "ProductsId"},
 		{filepath.Join("(a)", "(b)", "docs", "page.tsx"), "Docs"},
+	}
+	for _, tc := range cases {
+		dir := filepath.Join(appDir, "app", filepath.Dir(tc.rel))
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, dir, "page.tsx", "export default function Page() { return null; }\n")
+	}
+	pages, err := DiscoverPages(appDir)
+	if err != nil {
+		t.Fatalf("DiscoverPages: %v", err)
+	}
+	aliases := make(map[string]bool)
+	for _, p := range pages {
+		aliases[PageAlias(p)] = true
+	}
+	for _, tc := range cases {
+		if !aliases[tc.want] {
+			t.Errorf("expected alias %q (for %q), got aliases: %v", tc.want, tc.rel, aliases)
+		}
+	}
+}
+
+func TestPageAlias_CatchAll(t *testing.T) {
+	appDir := t.TempDir()
+	cases := []struct {
+		rel  string
+		want string
+	}{
+		{filepath.Join("shop", "[...path]", "page.tsx"), "ShopPath"},
+		{filepath.Join("docs", "[[...slug]]", "page.tsx"), "DocsSlug"},
 	}
 	for _, tc := range cases {
 		dir := filepath.Join(appDir, "app", filepath.Dir(tc.rel))

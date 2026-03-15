@@ -6,7 +6,9 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"sort"
 	"strings"
+	"sync"
 
 	ghtml "gojsx/html"
 	"gojsx/runtime"
@@ -18,7 +20,8 @@ import (
 var SSRStreaming = os.Getenv("SSR_STREAMING") != "false"
 
 // Route maps a URL pattern to a Server Component export name.
-// Pattern supports dynamic segments: "/products/:id".
+// Pattern supports dynamic segments ("/products/:id"), catch-all ("/shop/:...path"),
+// and optional catch-all ("/docs/:...slug?").
 // Export is the JS key in __pages__ (e.g. "Products").
 type Route struct {
 	Pattern string
@@ -35,30 +38,86 @@ type App struct {
 	ImportURLs           map[string]string // moduleId → /public/chunk-HASH.js
 	ClientEntryScript    string            // /public/client-[hash].js
 	GlobalNotFoundExport string            // "GlobalNotFound" or ""
+
+	sortOnce sync.Once
+}
+
+// routeScore returns a specificity score for a pattern: higher = tried first.
+// Static segments score +1, single params score 0, catch-all -10, optional catch-all -20.
+func routeScore(pattern string) int {
+	score := 0
+	for _, seg := range strings.Split(pattern, "/") {
+		switch {
+		case strings.HasPrefix(seg, ":...") && strings.HasSuffix(seg, "?"):
+			score -= 20
+		case strings.HasPrefix(seg, ":..."):
+			score -= 10
+		case strings.HasPrefix(seg, ":"):
+			// dynamic single param: neutral
+		default:
+			score++
+		}
+	}
+	return score
 }
 
 // MatchPattern matches a URL path against a route pattern.
-// Dynamic segments (":name") capture into the returned map.
+// Supports:
+//   - Static segments: exact match
+//   - Dynamic segments (":name"): capture single segment as string
+//   - Catch-all (":...name"): capture one or more remaining segments as []string
+//   - Optional catch-all (":...name?"): capture zero or more remaining segments as []string
+//     (key is absent from params when zero segments are matched)
+//
 // Returns (params, true) on match, (nil, false) otherwise.
-func MatchPattern(pattern, path string) (map[string]string, bool) {
+func MatchPattern(pattern, path string) (map[string]any, bool) {
 	pp := strings.Split(pattern, "/")
 	rp := strings.Split(path, "/")
-	if len(pp) != len(rp) {
-		return nil, false
-	}
-	params := map[string]string{}
+	params := map[string]any{}
+
 	for i, seg := range pp {
+		if strings.HasPrefix(seg, ":...") {
+			// Catch-all or optional catch-all — must be last pattern segment.
+			optional := strings.HasSuffix(seg, "?")
+			name := seg[4:]
+			if optional {
+				name = name[:len(name)-1]
+			}
+			remaining := rp[i:]
+			if len(remaining) == 0 || (len(remaining) == 1 && remaining[0] == "") {
+				if !optional {
+					return nil, false
+				}
+				// optional with zero segments: omit key (JS sees undefined)
+				return params, true
+			}
+			params[name] = remaining
+			return params, true
+		}
+		if i >= len(rp) {
+			return nil, false
+		}
 		if strings.HasPrefix(seg, ":") {
 			params[seg[1:]] = rp[i]
 		} else if seg != rp[i] {
 			return nil, false
 		}
 	}
+	// For non-catch-all patterns, segment counts must match exactly.
+	if len(pp) != len(rp) {
+		return nil, false
+	}
 	return params, true
 }
 
 // Match returns the first route whose pattern matches path, plus captured params.
-func (a *App) Match(path string) (*Route, map[string]string) {
+// Routes are sorted by specificity on the first call (most specific first).
+func (a *App) Match(path string) (*Route, map[string]any) {
+	a.sortOnce.Do(func() {
+		sort.SliceStable(a.Routes, func(i, j int) bool {
+			return routeScore(a.Routes[i].Pattern) > routeScore(a.Routes[j].Pattern)
+		})
+	})
 	for i := range a.Routes {
 		if params, ok := MatchPattern(a.Routes[i].Pattern, path); ok {
 			return &a.Routes[i], params
@@ -70,7 +129,9 @@ func (a *App) Match(path string) (*Route, map[string]string) {
 // BuildPageProps constructs the standard PageProps passed to every page component:
 //
 //	{ params: { <path segments> }, searchParams: { <query string> } }
-func BuildPageProps(r *http.Request, params map[string]string) map[string]any {
+//
+// Param values are string for regular dynamic segments, []string for catch-all segments.
+func BuildPageProps(r *http.Request, params map[string]any) map[string]any {
 	searchParams := map[string]any{}
 	for k, vs := range r.URL.Query() {
 		if len(vs) == 1 {
@@ -79,18 +140,14 @@ func BuildPageProps(r *http.Request, params map[string]string) map[string]any {
 			searchParams[k] = vs
 		}
 	}
-	p := map[string]any{}
-	for k, v := range params {
-		p[k] = v
-	}
-	return map[string]any{"params": p, "searchParams": searchParams}
+	return map[string]any{"params": params, "searchParams": searchParams}
 }
 
 // HandleRoute serves all page routes. When the request carries
 // Content-Type: text/x-component it returns the RSC Flight stream;
 // otherwise it returns the HTML shell that bootstraps the client.
 func (a *App) HandleRoute(w http.ResponseWriter, r *http.Request) {
-	route, params := a.Match(r.URL.Path)
+	route, matchedParams := a.Match(r.URL.Path)
 	if route == nil {
 		if a.GlobalNotFoundExport != "" {
 			if r.Header.Get("Content-Type") == "text/x-component" {
@@ -119,7 +176,7 @@ func (a *App) HandleRoute(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	props := BuildPageProps(r, params)
+	props := BuildPageProps(r, matchedParams)
 
 	if r.Header.Get("Content-Type") == "text/x-component" {
 		w.Header().Set("Content-Type", "text/x-component; charset=utf-8")

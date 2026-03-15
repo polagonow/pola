@@ -130,6 +130,7 @@ const shellTemplate = `<!DOCTYPE html>
         <a href="/projects">Projects</a>
         <a href="/about">About</a>
         <a href="/profile">Profile</a>
+        <a href="/docs">Docs</a>
       </nav>
       <div class="actions">
         <div id="theme-toggle-root"></div>

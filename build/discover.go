@@ -53,6 +53,15 @@ func titleCase(s string) string {
 }
 
 func stripBrackets(s string) string {
+	// [[...slug]] → "slug"
+	if strings.HasPrefix(s, "[[...") && strings.HasSuffix(s, "]]") {
+		return s[5 : len(s)-2]
+	}
+	// [...slug] → "slug"
+	if strings.HasPrefix(s, "[...") && strings.HasSuffix(s, "]") {
+		return s[4 : len(s)-1]
+	}
+	// [slug] → "slug"
 	if strings.HasPrefix(s, "[") && strings.HasSuffix(s, "]") {
 		return s[1 : len(s)-1]
 	}
@@ -72,6 +81,16 @@ func stripParens(s string) string {
 	return s
 }
 
+// isCatchAll reports whether s is a required catch-all segment: [...name]
+func isCatchAll(s string) bool {
+	return strings.HasPrefix(s, "[...") && strings.HasSuffix(s, "]") && !strings.HasPrefix(s, "[[")
+}
+
+// isOptionalCatchAll reports whether s is an optional catch-all segment: [[...name]]
+func isOptionalCatchAll(s string) bool {
+	return strings.HasPrefix(s, "[[...") && strings.HasSuffix(s, "]]")
+}
+
 // RoutePattern converts a page file path to a URL pattern.
 //
 //	app/index/page.tsx         → "/"
@@ -87,6 +106,18 @@ func RoutePattern(appDir, file string) string {
 	for _, seg := range strings.Split(rel, string(filepath.Separator)) {
 		if seg == "." || seg == "index" || isRouteGroup(seg) {
 			continue
+		}
+		if isOptionalCatchAll(seg) {
+			// [[...name]] → :...name?  (must be last; consumes all remaining segments optionally)
+			name := seg[5 : len(seg)-2]
+			parts = append(parts, ":..."+name+"?")
+			break
+		}
+		if isCatchAll(seg) {
+			// [...name] → :...name  (must be last; consumes all remaining segments)
+			name := seg[4 : len(seg)-1]
+			parts = append(parts, ":..."+name)
+			break
 		}
 		if strings.HasPrefix(seg, "[") && strings.HasSuffix(seg, "]") {
 			parts = append(parts, ":"+seg[1:len(seg)-1])
