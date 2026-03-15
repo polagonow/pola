@@ -1,8 +1,8 @@
 .PHONY: run test test-e2e test-unit test-build lint build clean
 
-## run: start the dev server
+## run: start the dev server (runs from example/ so relative paths resolve correctly)
 run:
-	go run main.go
+	cd example && go run .
 
 ## build: compile the Go binary
 build:
@@ -18,7 +18,7 @@ test-unit:
 
 ## test-e2e: run end-to-end tests (builds bundles — slow)
 test-e2e:
-	go test -v -run 'Test' -timeout 120s .
+	go test -v -run 'Test' -timeout 120s ./tests/...
 
 ## test-build: run only build/discover tests
 test-build:

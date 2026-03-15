@@ -1,4 +1,4 @@
-package main
+package tests
 
 import (
 	"encoding/json"
@@ -12,12 +12,13 @@ import (
 
 	"gojsx/build"
 	"gojsx/runtime"
+	"gojsx/server"
 )
 
-// testApp builds the full app once and returns a configured *App for reuse.
+// testApp builds the full app once and returns a configured *server.App for reuse.
 // Building is expensive (esbuild + Goja VM init) so we share it across tests.
 var (
-	_testApp *App
+	_testApp *server.App
 	_testErr error
 )
 
@@ -25,8 +26,8 @@ func init() {
 	_testApp, _testErr = newTestApp()
 }
 
-func newTestApp() (*App, error) {
-	appDir := "./ui"
+func newTestApp() (*server.App, error) {
+	appDir := "../ui"
 
 	pages, err := build.DiscoverPages(appDir)
 	if err != nil {
@@ -55,11 +56,11 @@ func newTestApp() (*App, error) {
 	}
 
 	bundleResult, err := build.Bundle(build.BundlerConfig{
-		AppDir:             appDir,
-		OutDir:             "./public/assets",
-		ClientEntry:        "./ui/_client.tsx",
-		Pages:              pages,
-		ClientComponents:   clientComponents,
+		AppDir:           appDir,
+		OutDir:           "../public/assets",
+		ClientEntry:      "../ui/_client.tsx",
+		Pages:            pages,
+		ClientComponents: clientComponents,
 		GlobalNotFoundPath: gc.NotFoundPath,
 		GlobalErrorPath:    gc.ErrorPath,
 	})
@@ -116,17 +117,17 @@ func newTestApp() (*App, error) {
 	if gc.NotFoundPath != "" {
 		globalNotFoundExport = "GlobalNotFound"
 	}
-	app := &App{
-		pool:                 pool,
-		renderer:             runtime.NewRenderer(pool, manifest),
-		clientEntryScript:    bundleResult.ClientEntryOutput,
-		importURLs:           bundleResult.ImportURLs,
-		globalNotFoundExport: globalNotFoundExport,
+	app := &server.App{
+		Pool:                 pool,
+		Renderer:             runtime.NewRenderer(pool, manifest),
+		ClientEntryScript:    bundleResult.ClientEntryOutput,
+		ImportURLs:           bundleResult.ImportURLs,
+		GlobalNotFoundExport: globalNotFoundExport,
 	}
 
 	// Auto-register routes from discovered pages — mirrors main()
 	for _, p := range pages {
-		app.routes = append(app.routes, Route{
+		app.Routes = append(app.Routes, server.Route{
 			Pattern: build.RoutePattern(appDir, p.PageComponentPath),
 			Export:  build.PageAlias(p),
 		})
@@ -135,7 +136,7 @@ func newTestApp() (*App, error) {
 	return app, nil
 }
 
-func requireApp(t *testing.T) *App {
+func requireApp(t *testing.T) *server.App {
 	t.Helper()
 	if _testErr != nil {
 		t.Fatalf("app init failed: %v", _testErr)
@@ -150,7 +151,7 @@ func rsc(t *testing.T, path string) string {
 	req := httptest.NewRequest("GET", path, nil)
 	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
-	app.handleRoute(w, req)
+	app.HandleRoute(w, req)
 	resp := w.Result()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("RSC GET %s → %d", path, resp.StatusCode)
@@ -165,7 +166,7 @@ func page(t *testing.T, path string) string {
 	app := requireApp(t)
 	req := httptest.NewRequest("GET", path, nil)
 	w := httptest.NewRecorder()
-	app.handleRoute(w, req)
+	app.HandleRoute(w, req)
 	resp := w.Result()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET %s → %d", path, resp.StatusCode)
@@ -229,7 +230,7 @@ func TestHTMLShell_ContentType(t *testing.T) {
 	app := requireApp(t)
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
-	app.handleRoute(w, req)
+	app.HandleRoute(w, req)
 	ct := w.Result().Header.Get("Content-Type")
 	if !strings.Contains(ct, "text/html") {
 		t.Errorf("expected text/html, got %q", ct)
@@ -240,7 +241,7 @@ func TestHTMLShell_404(t *testing.T) {
 	app := requireApp(t)
 	req := httptest.NewRequest("GET", "/nonexistent", nil)
 	w := httptest.NewRecorder()
-	app.handleRoute(w, req)
+	app.HandleRoute(w, req)
 	if w.Result().StatusCode != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", w.Result().StatusCode)
 	}
@@ -253,7 +254,7 @@ func TestRSC_ContentType(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
-	app.handleRoute(w, req)
+	app.HandleRoute(w, req)
 	ct := w.Result().Header.Get("Content-Type")
 	if !strings.Contains(ct, "text/x-component") {
 		t.Errorf("expected text/x-component, got %q", ct)
@@ -312,7 +313,7 @@ func TestRSC_UserPage(t *testing.T) {
 	req := httptest.NewRequest("GET", "/user?id=42", nil)
 	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
-	app.handleRoute(w, req)
+	app.HandleRoute(w, req)
 	if w.Result().StatusCode != http.StatusOK {
 		t.Fatalf("RSC GET /user?id=42 → %d", w.Result().StatusCode)
 	}
@@ -329,7 +330,7 @@ func TestRSC_404(t *testing.T) {
 	req := httptest.NewRequest("GET", "/nonexistent", nil)
 	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
-	app.handleRoute(w, req)
+	app.HandleRoute(w, req)
 	if w.Result().StatusCode != http.StatusNotFound {
 		t.Errorf("expected 404 for unknown route, got %d", w.Result().StatusCode)
 	}
@@ -427,18 +428,18 @@ func TestFlightTree_UserPage_Structure(t *testing.T) {
 
 func TestClientBundle_Served(t *testing.T) {
 	app := requireApp(t)
-	if app.clientEntryScript == "" {
-		t.Fatal("clientEntryScript is empty — esbuild client pass failed")
+	if app.ClientEntryScript == "" {
+		t.Fatal("ClientEntryScript is empty — esbuild client pass failed")
 	}
-	if !strings.HasPrefix(app.clientEntryScript, "/public/") {
-		t.Errorf("clientEntryScript should start with /public/, got %q", app.clientEntryScript)
+	if !strings.HasPrefix(app.ClientEntryScript, "/public/") {
+		t.Errorf("ClientEntryScript should start with /public/, got %q", app.ClientEntryScript)
 	}
 }
 
 func TestClientBundle_FileExists(t *testing.T) {
 	app := requireApp(t)
-	rel := strings.TrimPrefix(app.clientEntryScript, "/public/")
-	path := "public/" + rel
+	rel := strings.TrimPrefix(app.ClientEntryScript, "/public/")
+	path := "../public/" + rel
 	info, err := os.Stat(path)
 	if err != nil {
 		t.Fatalf("client bundle file not found at %q: %v", path, err)
@@ -453,8 +454,8 @@ func TestClientBundle_FileExists(t *testing.T) {
 
 func TestClientBundle_NoWebpackRequire(t *testing.T) {
 	app := requireApp(t)
-	rel := strings.TrimPrefix(app.clientEntryScript, "/public/")
-	path := "public/" + rel
+	rel := strings.TrimPrefix(app.ClientEntryScript, "/public/")
+	path := "../public/" + rel
 	data, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatalf("read client bundle: %v", err)
@@ -476,7 +477,7 @@ func TestRSC_Concurrent(t *testing.T) {
 			req := httptest.NewRequest("GET", "/", nil)
 			req.Header.Set("Content-Type", "text/x-component")
 			w := httptest.NewRecorder()
-			app.handleRoute(w, req)
+			app.HandleRoute(w, req)
 			body, _ := io.ReadAll(w.Result().Body)
 			s := string(body)
 			if !strings.Contains(s, "0:") {
@@ -495,7 +496,6 @@ func TestRSC_Concurrent(t *testing.T) {
 }
 
 func TestRSC_ProductDetailPage(t *testing.T) {
-	app := requireApp(t)
 	body := rsc(t, "/products/1")
 	for _, want := range []string{"Widget Alpha", "29.99", "142"} {
 		if !flightContains(body, want) {
@@ -506,7 +506,6 @@ func TestRSC_ProductDetailPage(t *testing.T) {
 	if !flightContains(body, "/products") {
 		t.Errorf("product detail missing back link")
 	}
-	_ = app
 }
 
 func TestRSC_ProductDetailPage_NotFound(t *testing.T) {
@@ -514,7 +513,7 @@ func TestRSC_ProductDetailPage_NotFound(t *testing.T) {
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/products/999", nil)
 	req.Header.Set("Content-Type", "text/x-component")
-	app.handleRoute(w, req)
+	app.HandleRoute(w, req)
 	body, _ := io.ReadAll(w.Result().Body)
 	// React encodes thrown errors as a Flight error row: <id>:E{"digest":"..."}
 	// With Suspense/Error wrappers the error may appear in any chunk, not only 0:.
