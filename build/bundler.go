@@ -56,8 +56,21 @@ type BundleResult struct {
 // Every page must use `export default function` — the convention is enforced
 // by DiscoverPages at discovery time.
 type PageEntry struct {
-	// File is the absolute or cwd-relative path to the page.tsx file.
-	File string
+	// PageComponentPath is the absolute or cwd-relative path to the page.tsx file.
+	PageComponentPath string
+
+	// LayoutChain holds layout.tsx paths from the pages/ root (outermost) to the
+	// page's own directory (innermost). Empty if no ancestor has a layout.tsx.
+	LayoutChain []string
+
+	// LoadingComponentPath is the path to the co-located loading.tsx, or "" if absent.
+	LoadingComponentPath string
+
+	// ErrorComponentPath is the path to the co-located error.tsx ("use client"), or "" if absent.
+	ErrorComponentPath string
+
+	// NotFoundComponentPath is the path to the co-located not-found.tsx (server component), or "" if absent.
+	NotFoundComponentPath string
 }
 
 
@@ -207,7 +220,7 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 	entry.WriteString(`import React from "react";` + "\n")
 	entry.WriteString(`import { renderToReadableStream } from "react-server-dom-webpack/server.browser";` + "\n")
 	for _, p := range cfg.Pages {
-		absFile, _ := filepath.Abs(p.File)
+		absFile, _ := filepath.Abs(p.PageComponentPath)
 		// Import path relative to AppDir (the Stdin resolveDir).
 		rel, err := filepath.Rel(absAppDir, absFile)
 		if err != nil {
@@ -217,9 +230,87 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 		alias := PageAlias(p)
 		entry.WriteString(fmt.Sprintf("import %s from %q;\n", alias, importPath))
 	}
+	// Import layout files — deduplicated and in deterministic (page-walk) order.
+	// Each unique layout path is imported once with alias LayoutAlias(...)+"Layout".
+	absPagesDir := filepath.Join(absAppDir, "pages")
+	seen := make(map[string]bool)
+	var layoutPaths []string
+	for _, p := range cfg.Pages {
+		for _, lpath := range p.LayoutChain {
+			abs, _ := filepath.Abs(lpath)
+			if !seen[abs] {
+				seen[abs] = true
+				layoutPaths = append(layoutPaths, abs)
+			}
+		}
+	}
+	for _, abs := range layoutPaths {
+		rel, _ := filepath.Rel(absAppDir, abs)
+		alias := LayoutAlias(absPagesDir, abs) + "Layout"
+		entry.WriteString(fmt.Sprintf("import %s from %q;\n", alias, "./"+filepath.ToSlash(rel)))
+	}
+
+	// Import co-located companions (loading, error, not-found) per page.
+	for _, p := range cfg.Pages {
+		alias := PageAlias(p)
+		for _, companion := range []struct{ path, suffix string }{
+			{p.LoadingComponentPath, "Loading"},
+			{p.ErrorComponentPath, "Error"},
+			{p.NotFoundComponentPath, "NotFound"},
+		} {
+			if companion.path == "" {
+				continue
+			}
+			abs, _ := filepath.Abs(companion.path)
+			rel, _ := filepath.Rel(absAppDir, abs)
+			entry.WriteString(fmt.Sprintf("import %s%s from %q;\n",
+				alias, companion.suffix, "./"+filepath.ToSlash(rel)))
+		}
+	}
+
+	// Generate per-page wrapper functions.
+	// Wrapping order (innermost → outermost):
+	//   Page (with notFound prop) → Suspense/Loading → Error → LayoutChain (innermost→outermost)
+	for _, p := range cfg.Pages {
+		alias := PageAlias(p)
+		hasCompanions := len(p.LayoutChain) > 0 || p.LoadingComponentPath != "" ||
+			p.ErrorComponentPath != "" || p.NotFoundComponentPath != ""
+		if !hasCompanions {
+			continue
+		}
+		// not-found is a server component passed as a prop, not a wrapper.
+		pageProps := "props"
+		if p.NotFoundComponentPath != "" {
+			pageProps = fmt.Sprintf("{...props, notFound: %sNotFound}", alias)
+		}
+		inner := fmt.Sprintf("React.createElement(%s, %s)", alias, pageProps)
+		if p.LoadingComponentPath != "" {
+			inner = fmt.Sprintf(
+				"React.createElement(React.Suspense,{fallback:React.createElement(%sLoading,null)},%s)",
+				alias, inner)
+		}
+		if p.ErrorComponentPath != "" {
+			inner = fmt.Sprintf("React.createElement(%sError,null,%s)", alias, inner)
+		}
+		// Wrap with layouts innermost-first (LayoutChain is outermost-first).
+		for i := len(p.LayoutChain) - 1; i >= 0; i-- {
+			abs, _ := filepath.Abs(p.LayoutChain[i])
+			layoutAlias := LayoutAlias(absPagesDir, abs) + "Layout"
+			inner = fmt.Sprintf("React.createElement(%s,null,%s)", layoutAlias, inner)
+		}
+		entry.WriteString(fmt.Sprintf("function __wrap_%s__(props: any){return %s;}\n", alias, inner))
+	}
+
 	entry.WriteString("const __pages__ = {\n")
 	for _, p := range cfg.Pages {
-		entry.WriteString(fmt.Sprintf("  %s,\n", PageAlias(p)))
+		alias := PageAlias(p)
+		hasCompanions := len(p.LayoutChain) > 0 || p.LoadingComponentPath != "" ||
+			p.ErrorComponentPath != "" || p.NotFoundComponentPath != ""
+		if hasCompanions {
+			entry.WriteString(fmt.Sprintf("  %s: __wrap_%s__,\n", alias, alias))
+		} else {
+			entry.WriteString(fmt.Sprintf("  %s,\n", alias))
+		}
 	}
 	entry.WriteString("};\n")
 	entry.WriteString(`

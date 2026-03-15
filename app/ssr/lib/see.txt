@@ -1,0 +1,1 @@
+https://github.com/jantimon/nextjs-ssr-error-boundary-poc/tree/main

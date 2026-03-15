@@ -17,12 +17,12 @@ import (
 //	pages/products/page.tsx      → "Products"
 //	pages/products/[id]/page.tsx → "ProductsId"
 func PageAlias(p PageEntry) string {
-	base := strings.TrimSuffix(filepath.Base(p.File), filepath.Ext(p.File))
+	base := strings.TrimSuffix(filepath.Base(p.PageComponentPath), filepath.Ext(p.PageComponentPath))
 	if base != "page" {
 		return titleCase(base)
 	}
 	// Collect directory segments above the "pages" root.
-	dir := filepath.Dir(p.File)
+	dir := filepath.Dir(p.PageComponentPath)
 	var segs []string
 	for {
 		name := filepath.Base(dir)
@@ -82,6 +82,70 @@ func RoutePattern(appDir, file string) string {
 	return "/" + strings.Join(parts, "/")
 }
 
+// LayoutAlias returns the JS identifier prefix for a layout file.
+// It derives the name from the layout's directory position relative to pagesDir,
+// using the same capitalisation rules as PageAlias:
+//
+//	pages/layout.tsx               → "Index"
+//	pages/products/layout.tsx      → "Products"
+//	pages/products/[id]/layout.tsx → "ProductsId"
+func LayoutAlias(pagesDir, layoutPath string) string {
+	dir := filepath.Dir(layoutPath)
+	absPagesDir, _ := filepath.Abs(pagesDir)
+	var segs []string
+	for {
+		absDir, _ := filepath.Abs(dir)
+		if absDir == absPagesDir {
+			break
+		}
+		name := filepath.Base(dir)
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		segs = append([]string{name}, segs...)
+		dir = parent
+	}
+	if len(segs) == 0 {
+		return "Index"
+	}
+	var b strings.Builder
+	for _, s := range segs {
+		b.WriteString(titleCase(stripBrackets(s)))
+	}
+	return b.String()
+}
+
+// collectLayoutChain walks from pagesDir down to pageDir and returns the
+// ordered list of layout.tsx paths (outermost first) that have a default export.
+func collectLayoutChain(pagesDir, pageDir string) []string {
+	absPagesDir, _ := filepath.Abs(pagesDir)
+	absPageDir, _ := filepath.Abs(pageDir)
+	rel, err := filepath.Rel(absPagesDir, absPageDir)
+	if err != nil {
+		return nil
+	}
+	current := absPagesDir
+	dirs := []string{current}
+	if rel != "." {
+		for _, seg := range strings.Split(rel, string(filepath.Separator)) {
+			current = filepath.Join(current, seg)
+			dirs = append(dirs, current)
+		}
+	}
+	var chain []string
+	for _, d := range dirs {
+		candidate := filepath.Join(d, "layout.tsx")
+		if _, statErr := os.Stat(candidate); statErr != nil {
+			continue
+		}
+		if ok, _ := hasDefaultExport(candidate); ok {
+			chain = append(chain, candidate)
+		}
+	}
+	return chain
+}
+
 // DiscoverPages walks appDir/pages/ and returns one PageEntry per page.tsx file.
 //
 // Convention: each route lives in its own subdirectory with a page.tsx file
@@ -107,10 +171,42 @@ func DiscoverPages(appDir string) ([]PageEntry, error) {
 		if !ok {
 			return fmt.Errorf("%s: missing \"export default function\"", path)
 		}
-		pages = append(pages, PageEntry{File: path})
+		entry := PageEntry{
+			PageComponentPath: path,
+			LayoutChain:       collectLayoutChain(pagesDir, filepath.Dir(path)),
+		}
+		entry.LoadingComponentPath, entry.ErrorComponentPath, entry.NotFoundComponentPath =
+			discoverCompanions(filepath.Dir(path))
+		pages = append(pages, entry)
 		return nil
 	})
 	return pages, err
+}
+
+// discoverCompanions checks the given page directory for optional co-located
+// companion files (loading.tsx, error.tsx, not-found.tsx) that have a default
+// export. Returns the absolute path for each companion found, or "" if absent.
+// Layout files are handled separately via collectLayoutChain.
+func discoverCompanions(pageDir string) (loading, errFile, notFound string) {
+	for _, name := range []string{"loading.tsx", "error.tsx", "not-found.tsx"} {
+		candidate := filepath.Join(pageDir, name)
+		if _, statErr := os.Stat(candidate); statErr != nil {
+			continue
+		}
+		ok, _ := hasDefaultExport(candidate)
+		if !ok {
+			continue
+		}
+		switch name {
+		case "loading.tsx":
+			loading = candidate
+		case "error.tsx":
+			errFile = candidate
+		case "not-found.tsx":
+			notFound = candidate
+		}
+	}
+	return
 }
 
 // hasDefaultExport reports whether path contains an "export default function"
@@ -125,7 +221,8 @@ func hasDefaultExport(path string) (bool, error) {
 	for sc.Scan() {
 		line := strings.TrimSpace(sc.Text())
 		if strings.HasPrefix(line, "export default function") ||
-			strings.HasPrefix(line, "export default async function") {
+			strings.HasPrefix(line, "export default async function") ||
+			strings.HasPrefix(line, "export default class") {
 			return true, nil
 		}
 	}

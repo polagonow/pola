@@ -36,6 +36,11 @@ func newTestApp() (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("discover client components: %w", err)
 	}
+	for _, p := range pages {
+		if p.ErrorComponentPath != "" {
+			clientComponents = append(clientComponents, p.ErrorComponentPath)
+		}
+	}
 
 	bundleResult, err := build.Bundle(build.BundlerConfig{
 		AppDir:           appDir,
@@ -102,7 +107,7 @@ func newTestApp() (*App, error) {
 	// Auto-register routes from discovered pages — mirrors main()
 	for _, p := range pages {
 		app.routes = append(app.routes, Route{
-			Pattern: build.RoutePattern(appDir, p.File),
+			Pattern: build.RoutePattern(appDir, p.PageComponentPath),
 			Export:  build.PageAlias(p),
 		})
 	}
@@ -352,9 +357,8 @@ func TestFlightTree_IndexPage_Structure(t *testing.T) {
 	if arr[0] != "$" {
 		t.Errorf("expected '$' as first element, got %v", arr[0])
 	}
-	if arr[1] != "div" {
-		t.Errorf("expected 'div' as element type, got %v", arr[1])
-	}
+	// arr[1] is the element type — may be "div" (no layout) or a layout/error/suspense
+	// wrapper reference when companion files are present. Only the "$" marker is stable.
 }
 
 func TestFlightTree_IndexPage_HasHeading(t *testing.T) {
@@ -380,12 +384,22 @@ func TestFlightTree_ProductsPage_Structure(t *testing.T) {
 
 func TestFlightTree_UserPage_Structure(t *testing.T) {
 	body := rsc(t, "/user")
+	// Content may be in a deferred Suspense chunk; use full-body search.
+	// Structural assertions only on the 0: row.
 	tree := flightTree(t, body)
-	if !walkFlight(tree, "Jane Doe") {
-		t.Error("UserPage tree missing 'Jane Doe'")
+	arr, ok := tree.([]any)
+	if !ok || len(arr) < 2 {
+		t.Fatalf("expected array root, got %T: %v", tree, tree)
 	}
-	if !walkFlight(tree, "admin") {
-		t.Error("UserPage tree missing role 'admin'")
+	if arr[0] != "$" {
+		t.Errorf("expected '$' as first element, got %v", arr[0])
+	}
+	// Content assertions use full body (data may be in a resolved Suspense chunk).
+	if !flightContains(body, "Jane Doe") {
+		t.Error("UserPage Flight body missing 'Jane Doe'")
+	}
+	if !flightContains(body, "admin") {
+		t.Error("UserPage Flight body missing role 'admin'")
 	}
 }
 
@@ -482,8 +496,21 @@ func TestRSC_ProductDetailPage_NotFound(t *testing.T) {
 	req.Header.Set("Content-Type", "text/x-component")
 	app.handleRoute(w, req)
 	body, _ := io.ReadAll(w.Result().Body)
-	// React encodes thrown errors as a Flight error row: 0:E{"digest":"..."}
-	if !strings.Contains(string(body), "0:E") {
+	// React encodes thrown errors as a Flight error row: <id>:E{"digest":"..."}
+	// With Suspense/Error wrappers the error may appear in any chunk, not only 0:.
+	if !strings.Contains(string(body), ":E{") && !strings.Contains(string(body), ":E\"") {
 		t.Errorf("expected Flight error row for unknown product, got: %s", string(body)[:min(len(string(body)), 200)])
+	}
+}
+
+func TestRSC_NestedLayouts_AllPagesRender(t *testing.T) {
+	// Verifies that nested layout wrapping (root → segment → page) does not break
+	// any page and that each page returns a valid Flight 0: row.
+	paths := []string{"/", "/about", "/products", "/products/1", "/user"}
+	for _, p := range paths {
+		body := rsc(t, p)
+		if !strings.Contains(string(body), "0:") {
+			t.Errorf("page %s: missing Flight 0: row", p)
+		}
 	}
 }

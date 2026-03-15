@@ -59,6 +59,11 @@ func main() {
 	if err != nil {
 		log.Fatalf("discover client components: %v", err)
 	}
+	for _, p := range pages {
+		if p.ErrorComponentPath != "" {
+			clientComponents = append(clientComponents, p.ErrorComponentPath)
+		}
+	}
 
 	bundleResult, err := build.Bundle(build.BundlerConfig{
 		AppDir:           appDir,
@@ -124,6 +129,7 @@ func main() {
 				return productCatalog, nil
 			},
 			"getProduct": func(args []any) (any, error) {
+				time.Sleep(500 * time.Millisecond)
 				id := ""
 				if len(args) > 0 {
 					id = fmt.Sprintf("%v", args[0])
@@ -179,7 +185,7 @@ func main() {
 	// ------------------------------------------------------------------
 	for _, p := range pages {
 		app.routes = append(app.routes, Route{
-			Pattern: build.RoutePattern(appDir, p.File),
+			Pattern: build.RoutePattern(appDir, p.PageComponentPath),
 			Export:  build.PageAlias(p),
 		})
 	}

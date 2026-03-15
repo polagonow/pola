@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+// import { Suspense } from "react";
 import jsi from '@/jsi'
 
 function ProductCard({ product }: { product: { id: number; name: string; price: number; stock: number } }) {
@@ -12,7 +12,7 @@ function ProductCard({ product }: { product: { id: number; name: string; price: 
 }
 
 // Separate component that does the async work
-async function ProductList({ category }: { category?: string }) {
+export default async function ProductList({ category }: { category?: string }) {
   const products = await jsi.getProducts(); // suspends here
 
   return (
@@ -26,11 +26,11 @@ async function ProductList({ category }: { category?: string }) {
   );
 }
 
-// Parent wraps the async child in Suspense
-export default function ProductsPage({ searchParams }: { searchParams?: Record<string, string> }) {
-  return (
-    <Suspense fallback={<p>Loading Products...</p>}>
-      <ProductList category={searchParams?.category} /> {/* ← this can suspend */}
-    </Suspense>
-  );
-}
+// // Parent wraps the async child in Suspense
+// export default function ProductsPage({ searchParams }: { searchParams?: Record<string, string> }) {
+//   return (
+//     <Suspense fallback={<p>Loading Products...</p>}>
+//       <ProductList category={searchParams?.category} /> {/* ← this can suspend */}
+//     </Suspense>
+//   );
+// }

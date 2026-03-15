@@ -6,6 +6,7 @@
   "dependencies": {
     "react": "19.3.0-canary-5e9eedb5-20260312",
     "react-dom": "19.3.0-canary-5e9eedb5-20260312",
+    "react-error-boundary": "^6.1.1",
     "react-server-dom-esm": "npm:@kentcdodds/tmp-react-server-dom-esm@^19.0.1",
     "react-server-dom-webpack": "19.3.0-canary-5e9eedb5-20260312"
   },
