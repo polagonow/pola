@@ -151,6 +151,15 @@ func newTestApp() (*server.App, error) {
 					"github": "janedoe", "website": "https://janedoe.dev",
 				}, nil
 			},
+			"triggerError": func(args []any) (any, error) {
+				msg := "Forced error for testing"
+				if len(args) > 0 {
+					if s := fmt.Sprintf("%v", args[0]); s != "" {
+						msg = s
+					}
+				}
+				return nil, fmt.Errorf("%s", msg)
+			},
 		},
 	}
 
@@ -568,6 +577,61 @@ func TestRSC_AllRoutesRender(t *testing.T) {
 			t.Errorf("page %s: missing Flight 0: row", p)
 		}
 	}
+}
+
+// ─── Error boundary tests ──────────────────────────────────────────────────────
+
+// assertErrorBoundary checks that the Flight body contains an error row and that
+// the real error message was passed through as the digest via onError.
+func assertErrorBoundary(t *testing.T, body string) {
+	t.Helper()
+	hasErrorRow := strings.Contains(body, ":E{") || strings.Contains(body, ":E\"")
+	if !hasErrorRow {
+		t.Errorf("expected Flight error row (:E), got:\n%s", body[:min(len(body), 300)])
+	}
+	if !strings.Contains(body, "test-error") {
+		t.Errorf("expected digest 'test-error' in Flight body, got:\n%s", body[:min(len(body), 300)])
+	}
+}
+
+func TestErrorBoundary_Home(t *testing.T) {
+	assertErrorBoundary(t, rsc(t, "/?error=test-error"))
+}
+
+func TestErrorBoundary_Posts(t *testing.T) {
+	assertErrorBoundary(t, rsc(t, "/posts?error=test-error"))
+}
+
+func TestErrorBoundary_Projects(t *testing.T) {
+	assertErrorBoundary(t, rsc(t, "/projects?error=test-error"))
+}
+
+func TestErrorBoundary_ProjectDetail(t *testing.T) {
+	assertErrorBoundary(t, rsc(t, "/projects/1?error=test-error"))
+}
+
+func TestErrorBoundary_About(t *testing.T) {
+	assertErrorBoundary(t, rsc(t, "/about?error=test-error"))
+}
+
+func TestErrorBoundary_Profile(t *testing.T) {
+	assertErrorBoundary(t, rsc(t, "/profile?error=test-error"))
+}
+
+func TestErrorBoundary_PostDetail(t *testing.T) {
+	assertErrorBoundary(t, rsc(t, "/posts/go-react-ssr?error=test-error"))
+}
+
+func TestErrorBoundary_Revisions(t *testing.T) {
+	assertErrorBoundary(t, rsc(t, "/posts/go-react-ssr/revisions?error=test-error"))
+}
+
+func TestErrorBoundary_RevisionDetail(t *testing.T) {
+	assertErrorBoundary(t, rsc(t, "/posts/go-react-ssr/revisions/v1?error=test-error"))
+}
+
+func TestErrorBoundary_Docs(t *testing.T) {
+	assertErrorBoundary(t, rsc(t, "/docs?error=test-error"))
 }
 
 // ─── Client bundle tests ───────────────────────────────────────────────────────

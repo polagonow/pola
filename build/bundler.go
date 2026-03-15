@@ -130,12 +130,18 @@ func Bundle(cfg BundlerConfig) (*BundleResult, error) {
 	// Pass 1 — Client bundle (browser ESM)                                //
 	// Build first so we know output filenames before building the manifest //
 	// ------------------------------------------------------------------ //
-	clientFiles, clientEntryOutput, err := buildClientBundle(cfg, absDir)
+	clientFiles, clientEntryOutput, metafile, err := buildClientBundle(cfg, absDir)
 	if err != nil {
 		return nil, err
 	}
 
-	manifest, importURLs, err := buildManifest(cfg.ClientComponents, clientFiles, cfg.AppDir, cfg.AssetsURLPath)
+	absOutDir, err := filepath.Abs(cfg.OutDir)
+	if err != nil {
+		return nil, fmt.Errorf("bundler: abs outdir: %w", err)
+	}
+	inputChunkURLs := buildInputChunkURLs(metafile, absDir, absOutDir, cfg.AssetsURLPath)
+
+	manifest, importURLs, err := buildManifest(cfg.ClientComponents, clientFiles, cfg.AppDir, cfg.AssetsURLPath, inputChunkURLs)
 	if err != nil {
 		return nil, fmt.Errorf("bundler: manifest: %w", err)
 	}
@@ -153,10 +159,6 @@ func Bundle(cfg BundlerConfig) (*BundleResult, error) {
 		return nil, fmt.Errorf("bundler: manifest pass: %w", err)
 	}
 
-	absOutDir, err := filepath.Abs(cfg.OutDir)
-	if err != nil {
-		return nil, fmt.Errorf("bundler: abs outdir: %w", err)
-	}
 	serverEntry := cfg.ServerEntry
 	if serverEntry == "" {
 		serverEntry = filepath.Join(filepath.Dir(absOutDir), "_server.js")
@@ -525,7 +527,7 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 }
 
 // buildClientBundle compiles the browser-side entry + client components.
-func buildClientBundle(cfg BundlerConfig, absDir string) (map[string][]byte, string, error) {
+func buildClientBundle(cfg BundlerConfig, absDir string) (map[string][]byte, string, string, error) {
 	if cfg.AssetsURLPath == "" {
 		cfg.AssetsURLPath = "/public/assets"
 	}
@@ -542,7 +544,7 @@ func buildClientBundle(cfg BundlerConfig, absDir string) (map[string][]byte, str
 
 	absOutDir, err := filepath.Abs(cfg.OutDir)
 	if err != nil {
-		return nil, "", fmt.Errorf("bundler: abs outdir: %w", err)
+		return nil, "", "", fmt.Errorf("bundler: abs outdir: %w", err)
 	}
 	absAppDir, _ := filepath.Abs(cfg.AppDir)
 
@@ -572,13 +574,14 @@ func buildClientBundle(cfg BundlerConfig, absDir string) (map[string][]byte, str
 		ChunkNames:        "chunks/[name]-[hash]",
 		Conditions:        []string{"browser", "import", "module", "default"},
 		Plugins:           []api.Plugin{newAtAliasPlugin(absAppDir)},
+		Metafile:          true,
 		Define: map[string]string{
 			"process.env.NODE_ENV": clientNodeEnv,
 			"__DEV__":              clientIsDev,
 		},
 	})
 	if len(r.Errors) > 0 {
-		return nil, "", fmtErrors("client", r.Errors)
+		return nil, "", "", fmtErrors("client", r.Errors)
 	}
 
 	files := make(map[string][]byte)
@@ -596,7 +599,7 @@ func buildClientBundle(cfg BundlerConfig, absDir string) (map[string][]byte, str
 		_ = os.MkdirAll(filepath.Dir(f.Path), 0o755)
 		_ = os.WriteFile(f.Path, f.Contents, 0o644)
 	}
-	return files, entryOutput, nil
+	return files, entryOutput, r.Metafile, nil
 }
 
 // ------------------------------------------------------------------ //
@@ -610,6 +613,41 @@ type clientManifestEntry struct {
 	Async  bool     `json:"async"`
 }
 
+// buildInputChunkURLs parses an esbuild metafile JSON and returns a map from
+// absolute input file path → chunk URL, for every direct entry-point output.
+// This allows buildManifest to use exact mappings instead of filename heuristics,
+// which fail when multiple components share the same base name (e.g. error.tsx).
+func buildInputChunkURLs(metafile, absDir, absOutDir, assetsURLPath string) map[string]string {
+	if metafile == "" {
+		return nil
+	}
+	var meta struct {
+		Outputs map[string]struct {
+			EntryPoint string `json:"entryPoint"`
+		} `json:"outputs"`
+	}
+	if err := json.Unmarshal([]byte(metafile), &meta); err != nil {
+		return nil
+	}
+	if assetsURLPath == "" {
+		assetsURLPath = "/public/assets"
+	}
+	result := make(map[string]string)
+	for outPath, info := range meta.Outputs {
+		if info.EntryPoint == "" {
+			continue
+		}
+		absOut := filepath.Join(absDir, outPath)
+		relOut, err := filepath.Rel(absOutDir, absOut)
+		if err != nil {
+			continue
+		}
+		absInput := filepath.Join(absDir, info.EntryPoint)
+		result[absInput] = assetsURLPath + "/" + filepath.ToSlash(relOut)
+	}
+	return result
+}
+
 // buildManifest returns two things:
 //
 //  1. manifest — flat webpack-format map for __CLIENT_MANIFEST__ in the server
@@ -621,7 +659,7 @@ type clientManifestEntry struct {
 //
 //  2. importURLs — moduleId → real chunk URL, used by the HTML import map so
 //     the browser can resolve import("components/Counter") to the hashed file.
-func buildManifest(clientComponents []string, clientFiles map[string][]byte, appDir string, assetsURLPath string) (map[string]clientManifestEntry, map[string]string, error) {
+func buildManifest(clientComponents []string, clientFiles map[string][]byte, appDir string, assetsURLPath string, inputChunkURLs map[string]string) (map[string]clientManifestEntry, map[string]string, error) {
 	if assetsURLPath == "" {
 		assetsURLPath = "/public/assets"
 	}
@@ -640,12 +678,17 @@ func buildManifest(clientComponents []string, clientFiles map[string][]byte, app
 		base := strings.TrimSuffix(filepath.Base(src), filepath.Ext(src))
 
 		// Find the real chunk URL for the import map.
+		// Prefer the exact metafile-based mapping; fall back to filename heuristic.
 		chunkURL := assetsURLPath + "/main.js"
-		for out := range clientFiles {
-			b := filepath.Base(out)
-			if strings.HasPrefix(b, base+"-") || b == base+".js" {
-				chunkURL = assetsURLPath + "/" + out
-				break
+		if url, ok := inputChunkURLs[absSrc]; ok {
+			chunkURL = url
+		} else {
+			for out := range clientFiles {
+				b := filepath.Base(out)
+				if strings.HasPrefix(b, base+"-") || b == base+".js" {
+					chunkURL = assetsURLPath + "/" + out
+					break
+				}
 			}
 		}
 		importURLs[id] = chunkURL

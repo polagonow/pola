@@ -16,12 +16,12 @@ import (
 )
 
 const (
-	defaultPublicDir = "../public"
+	defaultPublicDir = "../../public"
 	defaultPublicURL = "/public"
 )
 
 func main() {
-	appDir := "../ui"
+	appDir := "../../ui"
 
 	// ------------------------------------------------------------------
 	// 1. Build server + client bundles via esbuild

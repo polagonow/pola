@@ -1,8 +1,8 @@
 .PHONY: run test test-e2e test-unit test-build lint build clean
 
-## run: start the dev server (runs from example/ so relative paths resolve correctly)
+## run: start the dev server (runs from example/example so relative paths resolve correctly)
 run:
-	cd example && go run .
+	cd example/blog && go run .
 
 ## build: compile the Go binary
 build:
