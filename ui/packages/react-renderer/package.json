@@ -1,0 +1,23 @@
+{
+  "name": "@gojsx/react-renderer",
+  "version": "0.0.1",
+  "private": true,
+  "description": "React client hydration and page types for GoJSX",
+  "exports": {
+    "./client": "./client.tsx",
+    "./types/page": "./types/page.ts",
+    "./components/ErrorBoundary": "./components/ErrorBoundary.tsx"
+  },
+  "peerDependencies": {
+    "react": "*",
+    "react-dom": "*"
+  },
+  "dependencies": {
+    "@gojsx/core": "workspace:*",
+    "react-server-dom-esm": "npm:@kentcdodds/tmp-react-server-dom-esm@^19.0.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3"
+  }
+}

@@ -1,17 +1,5 @@
 {
-  "name": "gojsx",
-  "version": "1.0.0",
-  "description": "Go SSR framework implementing the RSC Flight Protocol via Goja + esbuild",
+  "name": "gojsx-ui",
   "private": true,
-  "dependencies": {
-    "react": "19.3.0-canary-5e9eedb5-20260312",
-    "react-dom": "19.3.0-canary-5e9eedb5-20260312",
-    "react-error-boundary": "^6.1.1",
-    "react-server-dom-esm": "npm:@kentcdodds/tmp-react-server-dom-esm@^19.0.1",
-    "react-server-dom-webpack": "19.3.0-canary-5e9eedb5-20260312"
-  },
-  "devDependencies": {
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3"
-  }
+  "description": "Go SSR framework — React UI monorepo"
 }

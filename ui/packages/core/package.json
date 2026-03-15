@@ -1,0 +1,10 @@
+{
+  "name": "@gojsx/core",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Framework-level type declarations for GoJSX",
+  "exports": {
+    ".": "./jsi/index.ts",
+    "./jsi": "./jsi/index.ts"
+  }
+}

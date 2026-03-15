@@ -53,7 +53,6 @@ type EntryGenConfig struct {
 	ManifestJSON       string // injected as a JS define value
 }
 
-
 // RouteBuilder converts a discovered PageEntry into a Route (URL pattern +
 // JS export name). Implementations encode the routing convention.
 type RouteBuilder interface {

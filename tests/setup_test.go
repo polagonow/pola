@@ -28,7 +28,7 @@ func init() {
 }
 
 func newTestApp() (*server.App, error) {
-	appDir := "../ui"
+	appDir := "../ui/apps/blog"
 
 	pages, err := nextjs.DiscoverPages(appDir)
 	if err != nil {
@@ -180,7 +180,7 @@ func newTestApp() (*server.App, error) {
 	bundleResult, err := build.Bundle(build.BundlerConfig{
 		AppDir:                 appDir,
 		OutDir:                 "../public/assets",
-		ClientEntry:            "../ui/_client.tsx",
+		ClientEntry:            "../ui/apps/blog/_client.tsx",
 		ClientComponents:       clientComponents,
 		ServerEntryContent:     entryContent,
 		ServerBundleConditions: gen.BundleConditions(),

@@ -112,6 +112,25 @@ func Bundle(cfg BundlerConfig) (*BundleResult, error) {
 	}
 
 	// ------------------------------------------------------------------ //
+	// Probe — auto-discover "use client" files from the server entry     //
+	// Handles framework packages (@gojsx/react-renderer) and any        //
+	// third-party library with a "use client" directive automatically.   //
+	// ------------------------------------------------------------------ //
+	if probed := probeServerEntryClientFiles(cfg, absDir); len(probed) > 0 {
+		seen := make(map[string]bool, len(cfg.ClientComponents))
+		for _, c := range cfg.ClientComponents {
+			abs, _ := filepath.Abs(c)
+			seen[abs] = true
+		}
+		for _, p := range probed {
+			if !seen[p] {
+				cfg.ClientComponents = append(cfg.ClientComponents, p)
+				seen[p] = true
+			}
+		}
+	}
+
+	// ------------------------------------------------------------------ //
 	// Pass 1 — Client bundle (browser ESM)                                //
 	// Build first so we know output filenames before building the manifest //
 	// ------------------------------------------------------------------ //
@@ -228,14 +247,7 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 		if err != nil {
 			abs = src
 		}
-		// moduleId matches the manifest key: path relative to absAppDir, no extension.
-		rel, err := filepath.Rel(absAppDir, abs)
-		if err != nil {
-			rel = filepath.Base(src)
-		}
-		moduleId := strings.TrimSuffix(rel, filepath.Ext(rel))
-		moduleId = strings.ReplaceAll(moduleId, string(filepath.Separator), "/")
-		clientSet[abs] = moduleId
+		clientSet[abs] = computeModuleID(absAppDir, abs)
 	}
 
 	// useClientPlugin intercepts "use client" files during the server pass and
@@ -270,15 +282,10 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 				}
 
 				// Compute moduleId: prefer the pre-registered value from clientSet
-				// (guarantees manifest alignment), fall back to deriving from appDir.
+				// (guarantees manifest alignment), fall back to computeModuleID.
 				moduleId, ok := clientSet[args.Path]
 				if !ok {
-					rel, relErr := filepath.Rel(absAppDir, args.Path)
-					if relErr != nil {
-						rel = filepath.Base(args.Path)
-					}
-					moduleId = strings.TrimSuffix(rel, filepath.Ext(rel))
-					moduleId = strings.ReplaceAll(moduleId, string(filepath.Separator), "/")
+					moduleId = computeModuleID(absAppDir, args.Path)
 				}
 
 				// Emit the synthetic server-side stub:
@@ -292,8 +299,9 @@ func buildPagesBundle(cfg BundlerConfig, absDir string, manifestDefineJSON strin
 					moduleId,
 				)
 				return api.OnLoadResult{
-					Contents: &stub,
-					Loader:   api.LoaderJS,
+					Contents:   &stub,
+					Loader:     api.LoaderJS,
+					ResolveDir: absAppDir,
 				}, nil
 			})
 		},
@@ -371,6 +379,8 @@ func buildClientBundle(cfg BundlerConfig, absDir string) (map[string][]byte, str
 		clientIsDev = "true"
 	}
 
+	clientConditions := []string{"browser", "import", "module", "default"}
+
 	r := api.Build(api.BuildOptions{
 		EntryPoints:       entries,
 		Bundle:            true,
@@ -388,8 +398,8 @@ func buildClientBundle(cfg BundlerConfig, absDir string) (map[string][]byte, str
 		MinifySyntax:      !cfg.Dev,
 		EntryNames:        "[name]-[hash]",
 		ChunkNames:        "chunks/[name]-[hash]",
-		Conditions:        []string{"browser", "import", "module", "default"},
-		Plugins:           []api.Plugin{newAtAliasPlugin(absAppDir)},
+		Conditions:        clientConditions,
+		Plugins:           []api.Plugin{newAtAliasPlugin(absAppDir), newAutoDedupePlugin(absAppDir)},
 		Metafile:          true,
 		Define: map[string]string{
 			"process.env.NODE_ENV": clientNodeEnv,
@@ -486,12 +496,7 @@ func BuildManifest(clientComponents []string, clientFiles map[string][]byte, app
 
 	for _, src := range clientComponents {
 		absSrc, _ := filepath.Abs(src)
-		rel, err := filepath.Rel(absAppDir, absSrc)
-		if err != nil {
-			rel = filepath.Base(src)
-		}
-		id := strings.TrimSuffix(rel, filepath.Ext(rel))
-		id = strings.ReplaceAll(id, string(filepath.Separator), "/")
+		id := computeModuleID(absAppDir, absSrc)
 		base := strings.TrimSuffix(filepath.Base(src), filepath.Ext(src))
 
 		// Find the real chunk URL for the import map.
@@ -519,6 +524,103 @@ func BuildManifest(clientComponents []string, clientFiles map[string][]byte, app
 		m[id+"#default"] = entry
 	}
 	return m, importURLs, nil
+}
+
+// computeModuleID returns a stable module ID for a client component file.
+// Files inside node_modules get a package-path id (e.g. "@gojsx/react-renderer/components/ErrorBoundary").
+// App files get a relative path id (e.g. "components/ThemeToggle").
+func computeModuleID(absAppDir, absPath string) string {
+	if idx := strings.LastIndex(absPath, "/node_modules/"); idx != -1 {
+		id := absPath[idx+len("/node_modules/"):]
+		return filepath.ToSlash(strings.TrimSuffix(id, filepath.Ext(id)))
+	}
+	rel, err := filepath.Rel(absAppDir, absPath)
+	if err != nil {
+		return filepath.Base(absPath)
+	}
+	return strings.ReplaceAll(strings.TrimSuffix(rel, filepath.Ext(rel)), string(filepath.Separator), "/")
+}
+
+// probeServerEntryClientFiles runs the server entry through esbuild with Write:false
+// and an OnLoad plugin that intercepts any "use client" file, records its absolute
+// path, and returns an empty stub so esbuild does not recurse into it.
+// This auto-discovers all framework and third-party "use client" files without
+// any manual declaration.
+func probeServerEntryClientFiles(cfg BundlerConfig, absDir string) []string {
+	if cfg.ServerEntryContent == "" {
+		return nil
+	}
+	absAppDir, _ := filepath.Abs(cfg.AppDir)
+	var collected []string
+	probePlugin := api.Plugin{
+		Name: "probe-use-client",
+		Setup: func(build api.PluginBuild) {
+			build.OnLoad(api.OnLoadOptions{Filter: `\.(tsx|ts|jsx|js)$`}, func(args api.OnLoadArgs) (api.OnLoadResult, error) {
+				contents, err := os.ReadFile(args.Path)
+				if err != nil {
+					return api.OnLoadResult{}, nil
+				}
+				trimmed := strings.TrimSpace(string(contents))
+				if !strings.HasPrefix(trimmed, `"use client"`) && !strings.HasPrefix(trimmed, `'use client'`) {
+					return api.OnLoadResult{}, nil
+				}
+				collected = append(collected, args.Path)
+				empty := ""
+				return api.OnLoadResult{Contents: &empty, Loader: api.LoaderJS}, nil
+			})
+		},
+	}
+	defines := map[string]string{
+		"process.env.NODE_ENV": `"production"`,
+		"__DEV__":              "false",
+		"__CLIENT_MANIFEST__":  "{}",
+	}
+	api.Build(api.BuildOptions{
+		Stdin:         &api.StdinOptions{Contents: cfg.ServerEntryContent, ResolveDir: absAppDir, Loader: api.LoaderTSX, Sourcefile: "<probe>"},
+		Bundle:        true,
+		Write:         false,
+		Outfile:       "_probe.js",
+		Format:        api.FormatCommonJS,
+		Platform:      api.PlatformBrowser,
+		AbsWorkingDir: absDir,
+		Conditions:    cfg.ServerBundleConditions,
+		External:      cfg.External,
+		Define:        defines,
+		Plugins:       []api.Plugin{newAtAliasPlugin(absAppDir), probePlugin},
+	})
+	return collected
+}
+
+// newAutoDedupePlugin returns an esbuild plugin that automatically deduplicates
+// any bare package import that originates from inside a nested node_modules
+// directory by re-resolving it from the app root. This prevents multiple copies
+// of singleton packages (React, MobX, Zustand, etc.) when a workspace package
+// accidentally lists a singleton as a regular dependency instead of a peerDependency.
+//
+// Only redirects when the root already has the package — never forces an
+// incompatible version, so nested-only packages are left untouched.
+func newAutoDedupePlugin(absAppDir string) api.Plugin {
+	return api.Plugin{
+		Name: "auto-dedupe",
+		Setup: func(build api.PluginBuild) {
+			build.OnResolve(api.OnResolveOptions{Filter: `^[^./]`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
+				// Only intercept imports from within a nested node_modules directory.
+				if !strings.Contains(filepath.ToSlash(args.ResolveDir), "/node_modules/") {
+					return api.OnResolveResult{}, nil
+				}
+				// Try resolving from the app root.
+				result := build.Resolve(args.Path, api.ResolveOptions{
+					ResolveDir: absAppDir,
+					Kind:       args.Kind,
+				})
+				if len(result.Errors) == 0 && result.Path != "" {
+					return api.OnResolveResult{Path: result.Path}, nil
+				}
+				// Root doesn't have it — let esbuild use the nested copy.
+				return api.OnResolveResult{}, nil
+			})
+		},
+	}
 }
 
 func fmtErrors(pass string, errs []api.Message) error {

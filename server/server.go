@@ -11,8 +11,8 @@ import (
 	"sync"
 
 	"gojsx/framework/contract"
-	ghtml "gojsx/render/react/shell"
 	renderreact "gojsx/render/react"
+	ghtml "gojsx/render/react/shell"
 	vmgoja "gojsx/vm/goja"
 )
 

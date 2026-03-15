@@ -73,7 +73,7 @@ outer:
 		}
 	}
 	if hasErrorPage {
-		entry.WriteString("import __FrameworkErrorBoundary__ from \"./components/ErrorBoundary\";\n")
+		entry.WriteString("import __FrameworkErrorBoundary__ from \"@gojsx/react-renderer/components/ErrorBoundary\";\n")
 	}
 
 	seenError := make(map[string]bool)
