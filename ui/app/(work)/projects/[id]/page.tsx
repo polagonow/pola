@@ -1,9 +1,7 @@
-import jsi from "@/jsi";
+import jsi from "../jsi";
 
-export default async function ProjectPage({ params }: { params: { id: string } }) {
-  if (__request__.query.includes('error')) await jsi.triggerError(
-    __request__.query.match(/error=([^&]*)/)?.[1] || 'Forced error'
-  );
+export default async function ProjectPage({ params, searchParams }: { params: { id: string }, searchParams?: Record<string, string> }) {
+  if (searchParams?.error !== undefined) await jsi.triggerError(searchParams.error || undefined);
   const p = await jsi.getProject(params.id);
 
   return (

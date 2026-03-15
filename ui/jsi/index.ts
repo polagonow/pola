@@ -1,15 +1,17 @@
 
-// Go bridge / runtime globals (injected by runtime/vm.go)
-declare const __JSI__: {
-    getPosts: () => Post[];
-    getPost: (slug: string) => Post;
-    getProjects: () => Project[];
-    getProject: (id: string) => Project;
-    getProfile: (id?: string) => Profile;
-    getRevisions: (slug: string) => Revision[];
-    getRevision: (slug: string, rev: string) => Revision;
-    triggerError: (message?: string) => Promise<never>;
-};
+declare global {
+    // Go bridge / runtime globals (injected per-render by runtime/vm.go)
+    const __JSI__: {
+        getPosts: () => Promise<Post[]>;
+        getPost: (slug: string) => Promise<Post>;
+        getProjects: () => Promise<Project[]>;
+        getProject: (id: string) => Promise<Project>;
+        getProfile: (id?: string) => Promise<Profile>;
+        getRevisions: (slug: string) => Promise<Revision[]>;
+        getRevision: (slug: string, rev: string) => Promise<Revision>;
+        triggerError: (message?: string) => Promise<never>;
+    };
+}
 
 // Per-request context injected by runtime/vm.go before each render.
 declare global {
@@ -68,4 +70,4 @@ export interface Profile {
     website: string;
 }
 
-export default { ...__JSI__ }
+export default __JSI__

@@ -15,6 +15,7 @@ type RenderOptions struct {
 	ExportName     string
 	Props          map[string]any
 	RequestContext map[string]any
+	Bridge         *BridgeConfig // nil = use pool's global bridge
 }
 
 // Renderer drives server renders using the Goja VM pool.
@@ -37,6 +38,13 @@ func NewRenderer(pool *VMPool, manifest ClientManifest) *Renderer {
 func (r *Renderer) Render(fw *FlightWriter, vm *VM, opts RenderOptions) error {
 	if err := vm.SetRequestContext(opts.RequestContext); err != nil {
 		return fmt.Errorf("render: set context: %w", err)
+	}
+	jsi := r.pool.bridge.Context
+	if opts.Bridge != nil {
+		jsi = opts.Bridge.Context
+	}
+	if err := vm.SetJSI(jsi); err != nil {
+		return fmt.Errorf("render: set jsi: %w", err)
 	}
 	propsJSON, err := json.Marshal(opts.Props)
 	if err != nil {

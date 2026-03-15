@@ -1,10 +1,8 @@
-import jsi from "@/jsi";
+import jsi from "../jsi";
 import LikeButton from "@/components/LikeButton";
 
-export default async function PostPage({ params }: { params: { slug: string } }) {
-  if (__request__.query.includes('error')) await jsi.triggerError(
-    __request__.query.match(/error=([^&]*)/)?.[1] || 'Forced error'
-  );
+export default async function PostPage({ params, searchParams }: { params: { slug: string }, searchParams?: Record<string, string> }) {
+  if (searchParams?.error !== undefined) await jsi.triggerError(searchParams.error || undefined);
   const post = await jsi.getPost(params.slug);
 
   return (

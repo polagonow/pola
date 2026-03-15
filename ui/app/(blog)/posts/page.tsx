@@ -1,9 +1,7 @@
-import jsi from "@/jsi";
+import jsi from "./jsi";
 
 export default async function PostsPage({ searchParams }: { searchParams?: Record<string, string> }) {
-  if (__request__.query.includes('error')) await jsi.triggerError(
-    __request__.query.match(/error=([^&]*)/)?.[1] || 'Forced error'
-  );
+  if (searchParams?.error !== undefined) await jsi.triggerError(searchParams.error || undefined);
   const posts = await jsi.getPosts();
   const tag = searchParams?.tag;
   const filtered = tag ? posts.filter(p => p.tags.includes(tag)) : posts;

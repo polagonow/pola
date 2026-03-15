@@ -276,10 +276,49 @@ func main() {
 	// ------------------------------------------------------------------
 	// 5. Auto-register routes from discovered pages
 	// ------------------------------------------------------------------
+
+	// Per-route JSI bridges — each route only exposes the functions it needs.
+	// Routes not listed here (e.g. /about, /docs) receive a nil Bridge and
+	// fall back to the global bridge defined above.
+	postsBridge := &runtime.BridgeConfig{Context: map[string]runtime.GoFunc{
+		"getPosts":     bridge.Context["getPosts"],
+		"getPost":      bridge.Context["getPost"],
+		"getRevisions": bridge.Context["getRevisions"],
+		"getRevision":  bridge.Context["getRevision"],
+		"triggerError": bridge.Context["triggerError"],
+	}}
+	projectsBridge := &runtime.BridgeConfig{Context: map[string]runtime.GoFunc{
+		"getProjects":  bridge.Context["getProjects"],
+		"getProject":   bridge.Context["getProject"],
+		"triggerError": bridge.Context["triggerError"],
+	}}
+	profileBridge := &runtime.BridgeConfig{Context: map[string]runtime.GoFunc{
+		"getProfile":   bridge.Context["getProfile"],
+		"triggerError": bridge.Context["triggerError"],
+	}}
+	homeBridge := &runtime.BridgeConfig{Context: map[string]runtime.GoFunc{
+		"getPosts":     bridge.Context["getPosts"],
+		"getProjects":  bridge.Context["getProjects"],
+		"triggerError": bridge.Context["triggerError"],
+	}}
+
+	routeBridges := map[string]*runtime.BridgeConfig{
+		"/":                               homeBridge,
+		"/posts":                          postsBridge,
+		"/posts/:slug":                    postsBridge,
+		"/posts/:slug/revisions":          postsBridge,
+		"/posts/:slug/revisions/:rev":     postsBridge,
+		"/projects":                       projectsBridge,
+		"/projects/:id":                   projectsBridge,
+		"/profile":                        profileBridge,
+	}
+
 	for _, p := range pages {
+		pattern := build.RoutePattern(appDir, p.PageComponentPath)
 		app.Routes = append(app.Routes, server.Route{
-			Pattern: build.RoutePattern(appDir, p.PageComponentPath),
+			Pattern: pattern,
 			Export:  build.PageAlias(p),
+			Bridge:  routeBridges[pattern],
 		})
 	}
 

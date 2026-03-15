@@ -26,6 +26,7 @@ var SSRStreaming = os.Getenv("SSR_STREAMING") != "false"
 type Route struct {
 	Pattern string
 	Export  string
+	Bridge  *runtime.BridgeConfig // nil = use pool-level bridge
 }
 
 // App is the top-level application.
@@ -187,6 +188,7 @@ func (a *App) HandleRoute(w http.ResponseWriter, r *http.Request) {
 			ExportName:     route.Export,
 			Props:          props,
 			RequestContext: RequestCtx(r),
+			Bridge:         route.Bridge,
 		}); err != nil {
 			fmt.Printf("rsc %s: %v\n", r.URL.Path, err)
 			fmt.Fprintf(w, `<div class="rsc-err">%s</div>`, err.Error())
@@ -210,6 +212,7 @@ func (a *App) HandleRoute(w http.ResponseWriter, r *http.Request) {
 			ExportName:     route.Export,
 			Props:          props,
 			RequestContext: RequestCtx(r),
+			Bridge:         route.Bridge,
 		}); err != nil {
 			fmt.Printf("html render %s: %v\n", r.URL.Path, err)
 		}

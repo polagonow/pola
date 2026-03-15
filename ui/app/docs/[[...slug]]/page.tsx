@@ -25,10 +25,8 @@ const SECTION_LABELS: Record<string, string> = {
   "api-reference": "API Reference",
 };
 
-export default async function DocsPage({ params }: { params?: { slug?: string[] } }) {
-  if (__request__.query.includes('error')) await jsi.triggerError(
-    __request__.query.match(/error=([^&]*)/)?.[1] || 'Forced error'
-  );
+export default async function DocsPage({ params, searchParams }: { params?: { slug?: string[] }, searchParams?: Record<string, string> }) {
+  if (searchParams?.error !== undefined) await jsi.triggerError(searchParams.error || undefined);
   const slug = params?.slug;
 
   // /docs — index

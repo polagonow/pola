@@ -1,13 +1,13 @@
-import jsi from "@/jsi";
+import jsi from "../../../jsi";
 
 export default async function RevisionPage({
   params,
+  searchParams,
 }: {
   params: { slug: string; rev: string };
+  searchParams?: Record<string, string>;
 }) {
-  if (__request__.query.includes('error')) await jsi.triggerError(
-    __request__.query.match(/error=([^&]*)/)?.[1] || 'Forced error'
-  );
+  if (searchParams?.error !== undefined) await jsi.triggerError(searchParams.error || undefined);
   const [post, revision] = await Promise.all([
     jsi.getPost(params.slug),
     jsi.getRevision(params.slug, params.rev),

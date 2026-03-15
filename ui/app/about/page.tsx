@@ -1,9 +1,7 @@
 import jsi from "@/jsi";
 
-export default async function AboutPage() {
-  if (__request__.query.includes('error')) await jsi.triggerError(
-    __request__.query.match(/error=([^&]*)/)?.[1] || 'Forced error'
-  );
+export default async function AboutPage({ searchParams }: { searchParams?: Record<string, string> }) {
+  if (searchParams?.error !== undefined) await jsi.triggerError(searchParams.error || undefined);
   return (
     <div>
       <h1 style={{ fontSize: "1.8rem", fontWeight: 800, marginBottom: ".75rem" }}>About this site</h1>

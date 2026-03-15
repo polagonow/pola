@@ -45,7 +45,8 @@ type BridgeConfig struct {
 // All Goja operations run on the caller's goroutine via loop.Run.
 type VM struct {
 	loop *eventloop.EventLoop
-	rt   *goja.Runtime // captured during init; valid for VM lifetime
+	rt   *goja.Runtime  // captured during init; valid for VM lifetime
+	jsi  *goja.Object   // the persistent __JSI__ object; mutated per-render
 }
 
 // run executes fn synchronously on the event loop, drains all pending
@@ -56,6 +57,38 @@ func (vm *VM) run(fn func(rt *goja.Runtime) error) error {
 		runErr = fn(rt)
 	})
 	return runErr
+}
+
+// SetJSI swaps the functions on the persistent __JSI__ object for this render.
+// The object itself is never replaced — module exports hold a live reference to
+// it so mutations are visible to all cached import bindings.
+func (vm *VM) SetJSI(funcs map[string]GoFunc) error {
+	return vm.run(func(rt *goja.Runtime) error {
+		// Clear previous render's functions.
+		for _, key := range vm.jsi.Keys() {
+			vm.jsi.Delete(key) //nolint:errcheck
+		}
+		// Install this render's functions as async Promise-returning bridges.
+		for name, fn := range funcs {
+			fn := fn
+			vm.jsi.Set(name, func(c goja.FunctionCall) goja.Value { //nolint:errcheck
+				args := exportArgs(c.Arguments)
+				p, resolve, reject := rt.NewPromise()
+				go func() {
+					result, err := fn(args)
+					vm.loop.RunOnLoop(func(rt *goja.Runtime) {
+						if err != nil {
+							reject(rt.ToValue(err.Error()))
+						} else {
+							resolve(rt.ToValue(result))
+						}
+					})
+				}()
+				return rt.ToValue(p)
+			})
+		}
+		return nil
+	})
 }
 
 // SetRequestContext injects per-request data as __request__ in the VM.
@@ -125,6 +158,9 @@ func (p *VMPool) Release(vm *VM) {
 	_ = vm.run(func(rt *goja.Runtime) error {
 		rt.Set("__request__", goja.Undefined())
 		rt.Set("__gojsx_stream__", goja.Undefined())
+		for _, key := range vm.jsi.Keys() {
+			vm.jsi.Delete(key) //nolint:errcheck
+		}
 		return nil
 	})
 	p.pool.Put(vm)
@@ -137,7 +173,9 @@ func newVM(prog *goja.Program, bridge BridgeConfig) (*VM, error) {
 
 	vm := &VM{loop: loop}
 	err := vm.run(func(rt *goja.Runtime) error {
-		vm.rt = rt // capture for use in async bridge closures
+		vm.rt = rt  // capture for use in async bridge closures
+		vm.jsi = rt.NewObject()
+		rt.Set("__JSI__", vm.jsi) // persistent object; mutated per-render by SetJSI
 
 		// ── Basic globals ─────────────────────────────────────────────
 		rt.Set("global", rt.GlobalObject())
@@ -175,40 +213,6 @@ func newVM(prog *goja.Program, bridge BridgeConfig) (*VM, error) {
 				return rt.ToValue(result)
 			})
 		}
-
-		// Context functions run in Go goroutines and return Promises so that
-		// async server components (async function Foo() { await __JSI__.getFoo() })
-		// can suspend correctly. The poll loop's repeated setTimeout(0) calls
-		// keep the event loop alive while the goroutine works; when the work
-		// completes, loop.RunOnLoop resolves the Promise on the event loop
-		// goroutine, React continues rendering, and the stream emits the
-		// resolved content.
-		jsi := rt.NewObject()
-		for name, fn := range bridge.Context {
-			name, fn := name, fn
-			jsi.Set(name, func(c goja.FunctionCall) goja.Value {
-				// Export args to plain Go values NOW, on the event loop goroutine.
-				// The goroutine must never access goja.Value internals — goja's
-				// backing memory may be reused after this function returns.
-				args := exportArgs(c.Arguments)
-
-				p, resolve, reject := rt.NewPromise()
-
-				go func() {
-					result, err := fn(args)
-					vm.loop.RunOnLoop(func(rt *goja.Runtime) {
-						if err != nil {
-							reject(rt.ToValue(err.Error()))
-						} else {
-							resolve(rt.ToValue(result))
-						}
-					})
-				}()
-
-				return rt.ToValue(p)
-			})
-		}
-		rt.Set("__JSI__", jsi)
 
 		// ── Web API polyfills (native Go) ─────────────────────────────
 		polyfill.Enable(rt)

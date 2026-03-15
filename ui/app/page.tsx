@@ -1,4 +1,4 @@
-import jsi from "@/jsi";
+import jsi from "./jsi";
 
 function Tag({ label }: { label: string }) {
   return <span className="tag">{label}</span>;
@@ -49,10 +49,8 @@ async function FeaturedProjects() {
   );
 }
 
-export default async function HomePage() {
-  if (__request__.query.includes('error')) await jsi.triggerError(
-    __request__.query.match(/error=([^&]*)/)?.[1] || 'Forced error'
-  );
+export default async function HomePage({ searchParams }: { searchParams?: Record<string, string> }) {
+  if (searchParams?.error !== undefined) await jsi.triggerError(searchParams.error || undefined);
   return (
     <div>
       <div className="hero">
