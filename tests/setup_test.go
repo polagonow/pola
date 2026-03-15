@@ -9,7 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	build "gojsx/bundler"
+	"gojsx/bundler"
+	esbuildpkg "gojsx/bundler/esbuild"
 	"gojsx/framework"
 	"gojsx/framework/contract"
 	renderreact "gojsx/render/react"
@@ -177,7 +178,7 @@ func newTestApp() (*server.App, error) {
 		return nil, fmt.Errorf("entry generate: %w", err)
 	}
 
-	bundleResult, err := build.Bundle(build.BundlerConfig{
+	bundleResult, err := esbuildpkg.Bundle(bundler.BundlerConfig{
 		AppDir:                 appDir,
 		OutDir:                 "../public/assets",
 		ClientEntry:            "@gojsx/react-renderer/client",
