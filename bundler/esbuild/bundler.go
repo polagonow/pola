@@ -217,41 +217,25 @@ func buildPagesBundle(cfg structs.BundlerConfig, absDir string, manifestDefineJS
 	}
 
 	// useClientPlugin intercepts "use client" files during the server pass and
-	// replaces them with a synthetic proxy stub.
+	// replaces them with a synthetic proxy stub — avoiding bundling client
+	// component code into the server build.
 	//
-	// Why OnLoad (not OnResolve): TypeScript imports omit file extensions
-	// (e.g. `import Counter from "./Counter"`). OnResolve sees the raw import
-	// specifier before extension resolution, so a filter like `\.(tsx|ts)$`
-	// would never match. OnLoad fires after esbuild has fully resolved the path
-	// (args.Path is always the absolute path with extension), so the filter works
-	// correctly and we can read the real file to detect the directive.
+	// Client files are known upfront: the probe pass already traversed the full
+	// import tree and populated clientSet before this build starts. OnLoad fires
+	// after esbuild resolves each import to an absolute path, so args.Path is
+	// always the full path and the clientSet lookup is O(1) — no file reads needed.
+	//
+	// Why OnLoad (not OnResolve): TypeScript omits extensions in import specifiers
+	// (`import Counter from "./Counter"`), so an OnResolve extension filter would
+	// never match. OnLoad sees the resolved absolute path with extension.
 	useClientPlugin := api.Plugin{
 		Name: "resolve-client-imports",
 		Setup: func(build api.PluginBuild) {
 			build.OnLoad(api.OnLoadOptions{Filter: `\.(tsx|ts|jsx|js)$`}, func(args api.OnLoadArgs) (api.OnLoadResult, error) {
-				// Read the file to check for the 'use client' directive,
-				// mirroring how the JS plugin calls readFile on each resolved import.
-				contents, err := os.ReadFile(args.Path)
-				if err != nil {
-					return api.OnLoadResult{}, nil
-				}
-				// A file is a client component if it is explicitly registered in
-				// clientSet OR if its content begins with the "use client" directive.
-				// Checking clientSet first handles files whose directive is preceded
-				// by comments (e.g. global-error.tsx).
-				_, inClientSet := clientSet[args.Path]
-				trimmed := strings.TrimSpace(string(contents))
-				hasDirective := strings.HasPrefix(trimmed, "'use client'") || strings.HasPrefix(trimmed, `"use client"`)
-				if !inClientSet && !hasDirective {
-					// Not a client component — let esbuild handle normally.
-					return api.OnLoadResult{}, nil
-				}
-
-				// Compute moduleId: prefer the pre-registered value from clientSet
-				// (guarantees manifest alignment), fall back to ComputeModuleID.
 				moduleId, ok := clientSet[args.Path]
 				if !ok {
-					moduleId = manifest.ComputeModuleID(absAppDir, args.Path)
+					// Not a known client component — let esbuild handle normally.
+					return api.OnLoadResult{}, nil
 				}
 
 				// Emit the synthetic server-side stub:
