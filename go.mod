@@ -9,6 +9,7 @@ require (
 )
 
 require (
+	github.com/buke/quickjs-go v0.6.11 // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect

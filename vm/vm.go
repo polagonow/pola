@@ -4,6 +4,7 @@ package vm
 
 import (
 	_ "gojsx/vm/goja"
+	// _ "gojsx/vm/quickjsgo"
 	// _ "gojsx/vm/v8go"
 	// _ "gojsx/vm/sobek"
 )
