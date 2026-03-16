@@ -1,0 +1,95 @@
+package sobek
+
+import (
+	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
+	sobeklib "github.com/grafana/sobek"
+	"gojsx/framework"
+)
+
+// RenderSession holds the JS callables for a single render.
+type RenderSession struct {
+	PullStreamFn sobeklib.Callable
+	DecoderObj   *sobeklib.Object
+	DecodeFn     sobeklib.Callable
+	Stream       sobeklib.Value
+}
+
+// StartRender looks up __render__ and __pullStream__, instantiates a TextDecoder,
+// and calls __render__ to obtain the RSC Flight ReadableStream.
+func StartRender(vm *VM, exportName, propsJSON string) (*RenderSession, error) {
+	var sess RenderSession
+	err := vm.run(func(rt *sobeklib.Runtime) error {
+		renderFn, ok := sobeklib.AssertFunction(rt.Get("__render__"))
+		if !ok {
+			return fmt.Errorf("__render__ is not a function")
+		}
+		sess.PullStreamFn, ok = sobeklib.AssertFunction(rt.Get("__pullStream__"))
+		if !ok {
+			return fmt.Errorf("__pullStream__ is not a function")
+		}
+
+		decoderCtor, ok := sobeklib.AssertConstructor(rt.Get("TextDecoder"))
+		if !ok {
+			return fmt.Errorf("TextDecoder is not a constructor")
+		}
+		var err error
+		sess.DecoderObj, err = decoderCtor(rt.NewObject())
+		if err != nil {
+			return err
+		}
+		sess.DecodeFn, ok = sobeklib.AssertFunction(sess.DecoderObj.Get("decode"))
+		if !ok {
+			return fmt.Errorf("TextDecoder.decode is not a function")
+		}
+
+		sess.Stream, err = renderFn(sobeklib.Undefined(), rt.ToValue(exportName), rt.ToValue(propsJSON))
+		return err
+	})
+	return &sess, err
+}
+
+// DrainStream polls sess until the stream is done, writing decoded chunks to w.
+func DrainStream(vm *VM, w framework.StreamWriter, sess *RenderSession) (wroteAny bool, err error) {
+	for {
+		var done, noChunks bool
+		if err := vm.run(func(rt *sobeklib.Runtime) error {
+			r, err := sess.PullStreamFn(sobeklib.Undefined(), sess.Stream)
+			if err != nil {
+				return err
+			}
+			rObj := r.ToObject(rt)
+			chunksArr := rObj.Get("chunks").ToObject(rt)
+			chunksLen := int(chunksArr.Get("length").ToInteger())
+			if chunksLen > 0 {
+				var sb strings.Builder
+				for i := range chunksLen {
+					decoded, err := sess.DecodeFn(sess.DecoderObj, chunksArr.Get(strconv.Itoa(i)))
+					if err != nil {
+						return err
+					}
+					sb.WriteString(decoded.String())
+				}
+				w.WriteRaw([]byte(sb.String())) //nolint:errcheck
+				w.Flush()
+				wroteAny = true
+			} else {
+				noChunks = true
+			}
+			done = rObj.Get("done").ToBoolean()
+			return nil
+		}); err != nil {
+			return wroteAny, err
+		}
+		if done {
+			break
+		}
+		if noChunks {
+			time.Sleep(5 * time.Millisecond)
+		}
+	}
+	return wroteAny, nil
+}

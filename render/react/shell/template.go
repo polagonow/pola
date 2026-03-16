@@ -120,7 +120,9 @@ const shellTemplate = `<!DOCTYPE html>
 </head>
 <body>
   <div id="root"></div>
-{{range .Scripts}}  <script>{{.}}</script>
-{{end}}  <script type="module" src="{{.ClientScript}}"></script>
+  {{range .Scripts}}
+    <script>{{.}}</script>
+  {{end}}
+  <script type="module" src="{{.ClientScript}}"></script>
 </body>
 </html>`
