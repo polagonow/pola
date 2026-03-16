@@ -166,7 +166,7 @@ func (c *Config) Build() (*App, error) {
 func (a *App) Artifacts() *BuildArtifacts { return &a.artifacts }
 
 // Handler returns an http.Handler for the entire application.
-// Static assets are served under PublicDir; all other paths go to HandleRoute.
+// Static assets are served under PublicDir; all other paths go to ServeHTTP.
 func (a *App) Handler() http.Handler {
 	mux := http.NewServeMux()
 	pubURLName := "public"
@@ -175,12 +175,12 @@ func (a *App) Handler() http.Handler {
 	}
 	publicPrefix := "/" + pubURLName + "/"
 	mux.Handle(publicPrefix, a.assets.Handler(publicPrefix))
-	mux.HandleFunc("/", a.HandleRoute)
+	mux.HandleFunc("/", a.ServeHTTP)
 	return mux
 }
 
-// HandleRoute is the low-level http.HandlerFunc for all page routes.
-func (a *App) HandleRoute(w http.ResponseWriter, r *http.Request) {
+// ServeHTTP is the low-level http.HandlerFunc for all page routes.
+func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	route, params := a.router.Match(r.URL.Path)
 
 	htmlParams := contract.ShellParams{
@@ -477,16 +477,17 @@ func (r *priorityRouter) Match(path string) (*contract.Route, map[string]any) {
 		sortRoutes(r.routes)
 	})
 	for i := range r.routes {
-		if params, ok := matchPattern(r.routes[i].Pattern, path); ok {
+		if params, ok := MatchPattern(r.routes[i].Pattern, path); ok {
 			return &r.routes[i], params
 		}
 	}
 	return nil, nil
 }
 
-// matchPattern and sortRoutes are duplicated from server to keep framework
-// self-contained (avoids importing server, which would create a cycle).
-func matchPattern(pattern, path string) (map[string]any, bool) {
+// MatchPattern matches a URL path against a route pattern.
+// Supports static segments, dynamic segments (":name"), catch-all (":...name"),
+// and optional catch-all (":...name?").
+func MatchPattern(pattern, path string) (map[string]any, bool) {
 	pp := splitPath(pattern)
 	rp := splitPath(path)
 	params := map[string]any{}
@@ -604,4 +605,3 @@ func requestCtx(r *http.Request) map[string]any {
 		"headers": headers,
 	}
 }
-

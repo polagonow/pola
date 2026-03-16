@@ -9,18 +9,19 @@ import (
 	"strings"
 	"testing"
 
-	esbuildpkg "gojsx/bundler/esbuild"
-	"gojsx/bundler/structs"
 	"gojsx/framework"
 	"gojsx/framework/contract"
-	renderreact "gojsx/render/react"
-	nextjs "gojsx/render/react/discovery/nextjs"
-	"gojsx/server"
-	vmgoja "gojsx/vm/goja"
+
+	_ "gojsx/bundler/esbuild"
+	_ "gojsx/framework/assets/disk"
+	_ "gojsx/render/react"
+	_ "gojsx/render/react/discovery/nextjs"
+	_ "gojsx/render/react/shell"
+	_ "gojsx/vm/goja"
 )
 
 var (
-	_testApp *server.App
+	_testApp *framework.App
 	_testErr error
 )
 
@@ -28,35 +29,7 @@ func init() {
 	_testApp, _testErr = newTestApp()
 }
 
-func newTestApp() (*server.App, error) {
-	appDir := "../ui/apps/blog"
-
-	pages, err := nextjs.DiscoverPages(appDir)
-	if err != nil {
-		return nil, fmt.Errorf("discover pages: %w", err)
-	}
-	gc, err := nextjs.DiscoverGlobalComponents(appDir)
-	if err != nil {
-		return nil, fmt.Errorf("discover global components: %w", err)
-	}
-	clientComponents, err := nextjs.DiscoverClientComponents(appDir)
-	if err != nil {
-		return nil, fmt.Errorf("discover client components: %w", err)
-	}
-	seen := make(map[string]bool)
-	for _, p := range pages {
-		for _, seg := range p.Segments {
-			if seg.ErrorPath != "" && !seen[seg.ErrorPath] {
-				seen[seg.ErrorPath] = true
-				clientComponents = append(clientComponents, seg.ErrorPath)
-			}
-		}
-	}
-	if gc.ErrorPath != "" && !seen[gc.ErrorPath] {
-		seen[gc.ErrorPath] = true
-		clientComponents = append(clientComponents, gc.ErrorPath)
-	}
-
+func newTestApp() (*framework.App, error) {
 	revisions := map[string][]map[string]any{
 		"go-react-ssr": {
 			{"rev": "v3", "date": "2024-01-15", "summary": "Published — added Suspense streaming section."},
@@ -167,59 +140,13 @@ func newTestApp() (*server.App, error) {
 		},
 	}
 
-	gen := nextjs.ReactRSCEntryGenerator{}
-	entryContent, err := gen.Generate(framework.EntryGenConfig{
-		AppDir:             appDir,
-		Pages:              pages,
-		GlobalNotFoundPath: gc.NotFoundPath,
-		GlobalErrorPath:    gc.ErrorPath,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("entry generate: %w", err)
-	}
-
-	bundleResult, err := esbuildpkg.Bundle(structs.BundlerConfig{
-		AppDir:                 appDir,
-		OutDir:                 "../ui/apps/blog/public/assets",
-		ClientEntry:            "@gojsx/react/client",
-		ClientComponents:       clientComponents,
-		ServerEntryContent:     entryContent,
-		ServerBundleConditions: gen.BundleConditions(),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("bundle: %w", err)
-	}
-
-	pool, err := vmgoja.NewVMPool(string(bundleResult.ServerBundle), bridge)
-	if err != nil {
-		return nil, fmt.Errorf("vm pool: %w", err)
-	}
-	manifest, err := renderreact.LoadManifest(bundleResult.Manifest)
-	if err != nil {
-		return nil, fmt.Errorf("manifest: %w", err)
-	}
-
-	globalNotFoundExport := ""
-	if gc.NotFoundPath != "" {
-		globalNotFoundExport = "GlobalNotFound"
-	}
-	app := &server.App{
-		Pool:                 pool,
-		Renderer:             renderreact.NewRenderer(pool, manifest),
-		ClientEntryScript:    bundleResult.ClientEntryOutput,
-		ImportURLs:           bundleResult.ImportURLs,
-		GlobalNotFoundExport: globalNotFoundExport,
-	}
-	for _, p := range pages {
-		app.Routes = append(app.Routes, server.Route{
-			Pattern: nextjs.RoutePattern(appDir, p.PageComponentPath),
-			Export:  nextjs.PageAlias(p),
-		})
-	}
-	return app, nil
+	return (&framework.Config{
+		AppDir:       "../ui/apps/blog",
+		GlobalBridge: bridge,
+	}).Build()
 }
 
-func requireApp(t *testing.T) *server.App {
+func requireApp(t *testing.T) *framework.App {
 	t.Helper()
 	if _testErr != nil {
 		t.Fatalf("app init failed: %v", _testErr)
@@ -234,7 +161,7 @@ func rsc(t *testing.T, path string) string {
 	req := httptest.NewRequest("GET", path, nil)
 	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
-	app.HandleRoute(w, req)
+	app.ServeHTTP(w, req)
 	resp := w.Result()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("RSC GET %s → %d", path, resp.StatusCode)
@@ -249,7 +176,7 @@ func page(t *testing.T, path string) string {
 	app := requireApp(t)
 	req := httptest.NewRequest("GET", path, nil)
 	w := httptest.NewRecorder()
-	app.HandleRoute(w, req)
+	app.ServeHTTP(w, req)
 	resp := w.Result()
 	if resp.StatusCode != http.StatusOK {
 		t.Fatalf("GET %s → %d", path, resp.StatusCode)

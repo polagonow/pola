@@ -8,17 +8,17 @@ import (
 
 func TestClientBundle_Served(t *testing.T) {
 	app := requireApp(t)
-	if app.ClientEntryScript == "" {
+	if app.Artifacts().Output.ClientEntryURL == "" {
 		t.Fatal("ClientEntryScript is empty")
 	}
-	if !strings.HasPrefix(app.ClientEntryScript, "/public/") {
-		t.Errorf("ClientEntryScript should start with /public/, got %q", app.ClientEntryScript)
+	if !strings.HasPrefix(app.Artifacts().Output.ClientEntryURL, "/public/") {
+		t.Errorf("ClientEntryScript should start with /public/, got %q", app.Artifacts().Output.ClientEntryURL)
 	}
 }
 
 func TestClientBundle_FileExists(t *testing.T) {
 	app := requireApp(t)
-	rel := strings.TrimPrefix(app.ClientEntryScript, "/public/")
+	rel := strings.TrimPrefix(app.Artifacts().Output.ClientEntryURL, "/public/")
 	path := "../ui/apps/blog/public/" + rel
 	info, err := os.Stat(path)
 	if err != nil {
@@ -31,7 +31,7 @@ func TestClientBundle_FileExists(t *testing.T) {
 
 func TestClientBundle_NoWebpackRequire(t *testing.T) {
 	app := requireApp(t)
-	rel := strings.TrimPrefix(app.ClientEntryScript, "/public/")
+	rel := strings.TrimPrefix(app.Artifacts().Output.ClientEntryURL, "/public/")
 	data, err := os.ReadFile("../ui/apps/blog/public/" + rel)
 	if err != nil {
 		t.Fatalf("read client bundle: %v", err)

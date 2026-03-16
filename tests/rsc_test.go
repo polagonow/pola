@@ -13,7 +13,7 @@ func TestRSC_ContentType(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
-	app.HandleRoute(w, req)
+	app.ServeHTTP(w, req)
 	ct := w.Result().Header.Get("Content-Type")
 	if !strings.Contains(ct, "text/x-component") {
 		t.Errorf("expected text/x-component, got %q", ct)
@@ -25,7 +25,7 @@ func TestRSC_404(t *testing.T) {
 	req := httptest.NewRequest("GET", "/nonexistent", nil)
 	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
-	app.HandleRoute(w, req)
+	app.ServeHTTP(w, req)
 	if w.Result().StatusCode != http.StatusNotFound {
 		t.Errorf("expected 404 for unknown route, got %d", w.Result().StatusCode)
 	}
@@ -80,7 +80,7 @@ func TestRSC_PostsPage_TagFilter(t *testing.T) {
 	req := httptest.NewRequest("GET", "/posts?tag=go", nil)
 	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
-	app.HandleRoute(w, req)
+	app.ServeHTTP(w, req)
 	if w.Result().StatusCode != http.StatusOK {
 		t.Fatalf("RSC GET /posts?tag=go → %d", w.Result().StatusCode)
 	}
@@ -104,7 +104,7 @@ func TestRSC_PostDetailPage_NotFound(t *testing.T) {
 	req := httptest.NewRequest("GET", "/posts/nonexistent-slug", nil)
 	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
-	app.HandleRoute(w, req)
+	app.ServeHTTP(w, req)
 	body, _ := io.ReadAll(w.Result().Body)
 	if !strings.Contains(string(body), ":E{") && !strings.Contains(string(body), ":E\"") {
 		t.Errorf("expected Flight error row for missing post, got: %s", string(body)[:min(len(string(body)), 200)])
@@ -136,7 +136,7 @@ func TestRSC_RevisionDetailPage_NotFound(t *testing.T) {
 	req := httptest.NewRequest("GET", "/posts/go-react-ssr/revisions/v99", nil)
 	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
-	app.HandleRoute(w, req)
+	app.ServeHTTP(w, req)
 	body, _ := io.ReadAll(w.Result().Body)
 	if !strings.Contains(string(body), ":E{") && !strings.Contains(string(body), ":E\"") {
 		t.Errorf("expected Flight error row for missing revision, got: %s", string(body)[:min(len(string(body)), 200)])
@@ -168,7 +168,7 @@ func TestRSC_ProjectDetailPage_NotFound(t *testing.T) {
 	req := httptest.NewRequest("GET", "/projects/999", nil)
 	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
-	app.HandleRoute(w, req)
+	app.ServeHTTP(w, req)
 	body, _ := io.ReadAll(w.Result().Body)
 	if !strings.Contains(string(body), ":E{") && !strings.Contains(string(body), ":E\"") {
 		t.Errorf("expected Flight error row for missing project, got: %s", string(body)[:min(len(string(body)), 200)])
@@ -202,7 +202,7 @@ func TestRSC_ProfilePage_SearchParams(t *testing.T) {
 	req := httptest.NewRequest("GET", "/profile?id=1", nil)
 	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
-	app.HandleRoute(w, req)
+	app.ServeHTTP(w, req)
 	body, _ := io.ReadAll(w.Result().Body)
 	if !flightContains(string(body), "Jane Doe") {
 		t.Error("ProfilePage with searchParams missing 'Jane Doe'")

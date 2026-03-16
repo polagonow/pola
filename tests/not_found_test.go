@@ -16,7 +16,7 @@ func rsc404(t *testing.T, path string) (int, string) {
 	req := httptest.NewRequest("GET", path, nil)
 	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
-	app.HandleRoute(w, req)
+	app.ServeHTTP(w, req)
 	body, _ := io.ReadAll(w.Result().Body)
 	return w.Result().StatusCode, string(body)
 }
@@ -48,7 +48,7 @@ func TestGlobalNotFound_RSC_ContentType(t *testing.T) {
 	req := httptest.NewRequest("GET", "/nonexistent-route", nil)
 	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
-	app.HandleRoute(w, req)
+	app.ServeHTTP(w, req)
 	ct := w.Result().Header.Get("Content-Type")
 	if !strings.Contains(ct, "text/x-component") {
 		t.Errorf("expected text/x-component for RSC 404, got %q", ct)
@@ -75,7 +75,7 @@ func TestGlobalNotFound_HTML_Returns404(t *testing.T) {
 	app := requireApp(t)
 	req := httptest.NewRequest("GET", "/nonexistent-route", nil)
 	w := httptest.NewRecorder()
-	app.HandleRoute(w, req)
+	app.ServeHTTP(w, req)
 	if w.Result().StatusCode != http.StatusNotFound {
 		t.Errorf("expected HTTP 404 for unknown HTML route, got %d", w.Result().StatusCode)
 	}
@@ -85,7 +85,7 @@ func TestGlobalNotFound_HTML_IsClientShell(t *testing.T) {
 	app := requireApp(t)
 	req := httptest.NewRequest("GET", "/nonexistent-route", nil)
 	w := httptest.NewRecorder()
-	app.HandleRoute(w, req)
+	app.ServeHTTP(w, req)
 	body, _ := io.ReadAll(w.Result().Body)
 	// The HTML 404 response is the standard client shell (not a raw error page).
 	// The browser bootstraps and makes a subsequent RSC request to fetch the

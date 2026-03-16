@@ -25,7 +25,7 @@ func TestHTMLShell_ContentType(t *testing.T) {
 	app := requireApp(t)
 	req := httptest.NewRequest("GET", "/", nil)
 	w := httptest.NewRecorder()
-	app.HandleRoute(w, req)
+	app.ServeHTTP(w, req)
 	ct := w.Result().Header.Get("Content-Type")
 	if !strings.Contains(ct, "text/html") {
 		t.Errorf("expected text/html, got %q", ct)
@@ -36,7 +36,7 @@ func TestHTMLShell_404(t *testing.T) {
 	app := requireApp(t)
 	req := httptest.NewRequest("GET", "/nonexistent", nil)
 	w := httptest.NewRecorder()
-	app.HandleRoute(w, req)
+	app.ServeHTTP(w, req)
 	if w.Result().StatusCode != http.StatusNotFound {
 		t.Errorf("expected 404, got %d", w.Result().StatusCode)
 	}

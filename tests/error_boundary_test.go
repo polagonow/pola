@@ -79,7 +79,7 @@ func TestErrorBoundary_Docs(t *testing.T) {
 // by the browser as the outermost error boundary fallback.
 func TestGlobalError_InImportURLs(t *testing.T) {
 	app := requireApp(t)
-	if _, ok := app.ImportURLs["app/global-error"]; !ok {
+	if _, ok := app.Artifacts().Output.ImportURLs["app/global-error"]; !ok {
 		t.Error("global-error module missing from ImportURLs")
 	}
 }
@@ -118,7 +118,7 @@ func TestImportURLs_ErrorModulesAreUnique(t *testing.T) {
 	}
 	seen := make(map[string]string) // chunkURL → moduleID
 	for _, id := range errorModules {
-		url, ok := app.ImportURLs[id]
+		url, ok := app.Artifacts().Output.ImportURLs[id]
 		if !ok {
 			t.Errorf("module %q missing from importURLs", id)
 			continue

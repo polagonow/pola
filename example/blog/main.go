@@ -11,9 +11,9 @@ import (
 	// Blank imports register default implementations (esbuild, Goja, React HTML shell, disk assets).
 	_ "gojsx/bundler"
 	"gojsx/framework"
+	_ "gojsx/framework/assets/disk"
 	"gojsx/framework/contract"
 	_ "gojsx/render"
-	_ "gojsx/server/assets/disk"
 	_ "gojsx/vm"
 )
 
@@ -218,8 +218,8 @@ func main() {
 	//    Discovery, bundling, VM pool, routing are all handled automatically.
 	// ------------------------------------------------------------------
 	cfg := &framework.Config{
-		AppDir: "../../ui/apps/blog",
-		Dev:    true,
+		AppDir:       "../../ui/apps/blog",
+		Dev:          true,
 		GlobalBridge: globalBridge,
 	}
 	app, err := cfg.Build()

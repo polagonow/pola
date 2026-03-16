@@ -17,7 +17,7 @@ func TestRSC_Concurrent(t *testing.T) {
 			req := httptest.NewRequest("GET", "/posts", nil)
 			req.Header.Set("Content-Type", "text/x-component")
 			w := httptest.NewRecorder()
-			app.HandleRoute(w, req)
+			app.ServeHTTP(w, req)
 			body, _ := io.ReadAll(w.Result().Body)
 			if !strings.Contains(string(body), "0:") {
 				results <- fmt.Errorf("bad output: %s", string(body)[:min(len(string(body)), 100)])
