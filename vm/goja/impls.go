@@ -37,6 +37,15 @@ func (vm *VM) CallRenderFunction(exportName, propsJSON string) (framework.Stream
 	return &GojaStreamHandle{Sess: sess}, nil
 }
 
+// DrainStream implements the streamDrainable interface used by RSCFlightProtocol.
+func (vm *VM) DrainStream(handle framework.StreamHandle, w framework.StreamWriter) (bool, error) {
+	gojaHandle, ok := handle.(*GojaStreamHandle)
+	if !ok {
+		return false, fmt.Errorf("goja DrainStream: expected *GojaStreamHandle, got %T", handle)
+	}
+	return DrainStream(vm, w, gojaHandle.Sess)
+}
+
 // ClearState implements framework.VM.
 func (vm *VM) ClearState() error {
 	return vm.run(func(rt *gojalib.Runtime) error {

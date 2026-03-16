@@ -17,8 +17,9 @@ package polyfill
 import (
 	"fmt"
 
-	"github.com/dop251/goja"
 	"gojsx/framework"
+
+	"github.com/dop251/goja"
 
 	"gojsx/vm/goja/polyfill/abortcontroller"
 	"gojsx/vm/goja/polyfill/messagechannel"
@@ -31,12 +32,18 @@ import (
 // Enable installs all polyfills onto rt as globals.
 // Must be called before rt.RunProgram(serverBundle).
 func Enable(rt *goja.Runtime) {
-	microtask.Enable(rt)       // foundation: must run first
-	textencoding.Enable(rt)    // standalone
-	messagechannel.Enable(rt)  // depends on __microtaskQueue__
-	readablestream.Enable(rt)  // depends on __drainMicrotasks__
-	webpackrequire.Enable(rt)  // standalone
-	abortcontroller.Enable(rt) // standalone
+	polyfills := []func(*goja.Runtime){
+		microtask.Enable,       // foundation: must run first
+		textencoding.Enable,    // standalone
+		messagechannel.Enable,  // depends on __microtaskQueue__
+		readablestream.Enable,  // depends on __drainMicrotasks__
+		webpackrequire.Enable,  // standalone
+		abortcontroller.Enable, // standalone
+	}
+
+	for _, enable := range polyfills {
+		enable(rt)
+	}
 }
 
 // GojaVMInitContext implements framework.VMInitContext for Goja runtimes.
