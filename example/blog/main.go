@@ -9,7 +9,7 @@ import (
 	"time"
 
 	// Blank imports register default implementations (esbuild, Goja, React HTML shell, disk assets).
-	_ "gojsx/bundler/esbuild"
+	_ "gojsx/bundler"
 	"gojsx/framework"
 	"gojsx/framework/contract"
 	_ "gojsx/render"

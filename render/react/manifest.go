@@ -1,7 +1,7 @@
 package react
 
 import (
-	build "gojsx/bundler"
+	"gojsx/bundler/manifest"
 	"gojsx/framework/contract"
 )
 
@@ -21,18 +21,18 @@ func (e *WebpackManifestEncoder) Encode(
 	appDir, assetsURLPath string,
 	inputChunkURLs map[string]string,
 ) (contract.ClientManifest, map[string]string, error) {
-	m, importURLs, err := build.BuildManifest(clientComponents, clientFiles, appDir, assetsURLPath, inputChunkURLs)
+	m, importURLs, err := manifest.Build(clientComponents, clientFiles, appDir, assetsURLPath, inputChunkURLs)
 	if err != nil {
 		return nil, nil, err
 	}
-	manifest := make(contract.ClientManifest, len(m))
+	result := make(contract.ClientManifest, len(m))
 	for k, v := range m {
-		manifest[k] = contract.ClientRef{
+		result[k] = contract.ClientRef{
 			ID:     v.ID,
 			Name:   v.Name,
 			Chunks: v.Chunks,
 			Async:  v.Async,
 		}
 	}
-	return manifest, importURLs, nil
+	return result, importURLs, nil
 }
