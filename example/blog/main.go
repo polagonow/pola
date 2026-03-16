@@ -218,9 +218,8 @@ func main() {
 	//    Discovery, bundling, VM pool, routing are all handled automatically.
 	// ------------------------------------------------------------------
 	cfg := &framework.Config{
-		AppDir:       "../../ui/apps/blog",
-		PublicDir:    "../../public",
-		Dev:          true,
+		AppDir: "../../ui/apps/blog",
+		Dev:    true,
 		GlobalBridge: globalBridge,
 	}
 	app, err := cfg.Build()

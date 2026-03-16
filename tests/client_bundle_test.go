@@ -19,7 +19,7 @@ func TestClientBundle_Served(t *testing.T) {
 func TestClientBundle_FileExists(t *testing.T) {
 	app := requireApp(t)
 	rel := strings.TrimPrefix(app.ClientEntryScript, "/public/")
-	path := "../public/" + rel
+	path := "../ui/apps/blog/public/" + rel
 	info, err := os.Stat(path)
 	if err != nil {
 		t.Fatalf("client bundle not found at %q: %v", path, err)
@@ -32,7 +32,7 @@ func TestClientBundle_FileExists(t *testing.T) {
 func TestClientBundle_NoWebpackRequire(t *testing.T) {
 	app := requireApp(t)
 	rel := strings.TrimPrefix(app.ClientEntryScript, "/public/")
-	data, err := os.ReadFile("../public/" + rel)
+	data, err := os.ReadFile("../ui/apps/blog/public/" + rel)
 	if err != nil {
 		t.Fatalf("read client bundle: %v", err)
 	}

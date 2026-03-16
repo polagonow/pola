@@ -7,6 +7,7 @@ const shellTemplate = `<!DOCTYPE html>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>DevBlog</title>
+  <link rel="icon" href="/public/favicon.ico">
   <style>
     :root{
       --bg:#fff;--fg:#111;--muted:#6b7280;--border:#e5e7eb;

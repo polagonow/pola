@@ -255,7 +255,7 @@ func (c *Config) fillDefaults() error {
 		return fmt.Errorf("framework: Config.AppDir must be set")
 	}
 	if c.PublicDir == "" {
-		c.PublicDir = "public"
+		c.PublicDir = filepath.Join(c.AppDir, "public")
 	}
 	if c.ClientEntry == "" {
 		if _, err := os.Stat(filepath.Join(c.AppDir, "_client.tsx")); err == nil {

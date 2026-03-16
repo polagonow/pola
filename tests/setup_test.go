@@ -180,7 +180,7 @@ func newTestApp() (*server.App, error) {
 
 	bundleResult, err := esbuildpkg.Bundle(structs.BundlerConfig{
 		AppDir:                 appDir,
-		OutDir:                 "../public/assets",
+		OutDir:                 "../ui/apps/blog/public/assets",
 		ClientEntry:            "@gojsx/react-renderer/client",
 		ClientComponents:       clientComponents,
 		ServerEntryContent:     entryContent,
