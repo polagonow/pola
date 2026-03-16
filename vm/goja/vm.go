@@ -10,10 +10,11 @@ import (
 	"fmt"
 	"sync"
 
-	gojalib "github.com/dop251/goja"
-	"github.com/dop251/goja_nodejs/eventloop"
 	"gojsx/framework/contract"
 	polyfill "gojsx/vm/goja/polyfill"
+
+	gojalib "github.com/dop251/goja"
+	"github.com/dop251/goja_nodejs/eventloop"
 )
 
 // VM wraps a goja EventLoop with the pre-loaded server bundle.
@@ -63,13 +64,13 @@ func (vm *VM) SetJSI(funcs map[string]contract.GoFunc) error {
 	})
 }
 
-// SetRequestContext injects per-request data as __request__ in the VM.
+// SetRequestContext injects per-request data as __REQUEST__ in the VM.
 func (vm *VM) SetRequestContext(ctx map[string]any) error {
 	if ctx == nil {
 		ctx = map[string]any{}
 	}
 	return vm.run(func(rt *gojalib.Runtime) error {
-		rt.Set("__request__", rt.ToValue(ctx))
+		rt.Set("__REQUEST__", rt.ToValue(ctx))
 		return nil
 	})
 }
@@ -128,7 +129,7 @@ func (p *VMPool) Acquire() *VM {
 // Release clears per-request state and returns the VM to the pool.
 func (p *VMPool) Release(vm *VM) {
 	_ = vm.run(func(rt *gojalib.Runtime) error {
-		rt.Set("__request__", gojalib.Undefined())
+		rt.Set("__REQUEST__", gojalib.Undefined())
 		rt.Set("__gojsx_stream__", gojalib.Undefined())
 		for _, key := range vm.jsi.Keys() {
 			vm.jsi.Delete(key) //nolint:errcheck
