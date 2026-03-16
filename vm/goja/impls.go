@@ -3,11 +3,12 @@ package goja
 import (
 	"fmt"
 
-	gojalib "github.com/dop251/goja"
-	"github.com/dop251/goja_nodejs/eventloop"
 	"gojsx/framework"
 	"gojsx/framework/contract"
 	polyfill "gojsx/vm/goja/polyfill"
+
+	gojalib "github.com/dop251/goja"
+	"github.com/dop251/goja_nodejs/eventloop"
 )
 
 // ── GojaStreamHandle ──────────────────────────────────────────────────────────
@@ -39,7 +40,7 @@ func (vm *VM) CallRenderFunction(exportName, propsJSON string) (framework.Stream
 // ClearState implements framework.VM.
 func (vm *VM) ClearState() error {
 	return vm.run(func(rt *gojalib.Runtime) error {
-		rt.Set("__request__", gojalib.Undefined())
+		rt.Set("__REQUEST__", gojalib.Undefined())
 		rt.Set("__gojsx_stream__", gojalib.Undefined())
 		for _, key := range vm.jsi.Keys() {
 			vm.jsi.Delete(key) //nolint:errcheck
