@@ -1,11 +1,15 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
 	// Blank imports register default implementations (esbuild, Goja, React HTML shell, disk assets).
@@ -250,6 +254,23 @@ func main() {
 	// 4. Start server
 	// ------------------------------------------------------------------
 	addr := ":3000"
-	log.Printf("🚀 GoJSX running → http://localhost%s", addr)
-	log.Fatal(http.ListenAndServe(addr, app.Handler()))
+	srv := &http.Server{Addr: addr, Handler: app.Handler()}
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		log.Printf("🚀 GoJSX running → http://localhost%s", addr)
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			log.Fatalf("listen: %v", err)
+		}
+	}()
+
+	<-quit
+	log.Println("shutting down...")
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := srv.Shutdown(ctx); err != nil {
+		log.Fatal("forced shutdown:", err)
+	}
 }
