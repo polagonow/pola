@@ -204,6 +204,9 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		} else {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.WriteHeader(http.StatusNotFound)
+			if a.cfg.Dev {
+				htmlParams.Scripts = append(htmlParams.Scripts, DevScript)
+			}
 			fmt.Fprint(w, a.shell.Render(htmlParams))
 		}
 		return
@@ -228,6 +231,10 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 
+	if a.cfg.Dev {
+		htmlParams.Scripts = append(htmlParams.Scripts, DevScript)
+	}
+
 	if !a.streaming {
 		var buf bytes.Buffer
 		bsw := &bufStreamWriter{buf: &buf}
@@ -245,6 +252,10 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	fmt.Fprint(w, a.shell.Render(htmlParams))
 }
+
+// DevScript is an inline script injected into HTML responses when Dev is true.
+// Set by hotreload.New() — lives there to keep all hot-reload code in one place.
+var DevScript string
 
 // ── Internal helpers ─────────────────────────────────────────────────────────
 

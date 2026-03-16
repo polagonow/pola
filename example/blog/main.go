@@ -17,6 +17,7 @@ import (
 	"gojsx/framework"
 	_ "gojsx/framework/assets/disk"
 	"gojsx/framework/contract"
+	"gojsx/framework/hotreload"
 	_ "gojsx/render"
 	_ "gojsx/vm"
 )
@@ -254,7 +255,26 @@ func main() {
 	// 4. Start server
 	// ------------------------------------------------------------------
 	addr := ":3000"
-	srv := &http.Server{Addr: addr, Handler: app.Handler()}
+
+	var handler http.Handler
+	if cfg.Dev {
+		reloader, err := hotreload.New(cfg, app, func(a *framework.App) {
+			for i := range a.Artifacts().Routes {
+				if b := routeBridges[a.Artifacts().Routes[i].Pattern]; b != nil {
+					a.Artifacts().Routes[i].Bridge = b
+				}
+			}
+		})
+		if err != nil {
+			log.Fatalf("hotreload: %v", err)
+		}
+		defer reloader.Close()
+		handler = reloader.Handler()
+	} else {
+		handler = app.Handler()
+	}
+
+	srv := &http.Server{Addr: addr, Handler: handler}
 
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, os.Interrupt, syscall.SIGTERM)
@@ -268,7 +288,7 @@ func main() {
 
 	<-quit
 	log.Println("shutting down...")
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 	if err := srv.Shutdown(ctx); err != nil {
 		log.Fatal("forced shutdown:", err)

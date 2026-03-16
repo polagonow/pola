@@ -48,7 +48,7 @@ declare global {
 }
 
 // Per-request context injected by the Go VM before each render.
-export declare const __request__: {
+export declare const __REQUEST__: {
   url: string;
   path: string;
   query: string;

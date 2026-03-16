@@ -36,7 +36,7 @@ Go net/http
   │
   ├─ matches Route → PropsFunc(r) builds props map
   ├─ acquires VM from VMPool
-  ├─ injects __request__ context into the VM
+  ├─ injects __REQUEST__ context into the VM
   │
   ▼  Renderer.Render()
 Goja VM
@@ -95,7 +95,7 @@ esbuild runs two separate builds at startup:
 
 ### The VM pool
 
-Goja VMs are expensive to create (they re-run the full program). The `VMPool` pre-warms VMs using `sync.Pool` so each request pays only the cost of calling one function, not re-parsing the bundle. After each request, per-request globals (`__request__`, `__renderResult__`) are deleted and the VM is returned to the pool.
+Goja VMs are expensive to create (they re-run the full program). The `VMPool` pre-warms VMs using `sync.Pool` so each request pays only the cost of calling one function, not re-parsing the bundle. After each request, per-request globals (`__REQUEST__`, `__renderResult__`) are deleted and the VM is returned to the pool.
 
 ---
 
@@ -202,7 +202,7 @@ Any `.tsx` file without `"use client"` is a Server Component. It runs inside the
 
 export function ProductsPage({ category }: { category?: string }) {
   const products = ctx.getProducts()           // Go function
-  const user     = ctx.getUser(__request__.query.userId)  // per-request context
+  const user     = ctx.getUser(__REQUEST__.query.userId)  // per-request context
 
   return (
     <div className="page">
@@ -267,7 +267,7 @@ Inside any Server Component, these are available as:
 ```tsx
 const data   = fetchJSON("https://api.example.com/data")  // global
 const products = ctx.getProducts()                          // ctx object
-const user     = ctx.getUser(__request__.query.id)          // with args
+const user     = ctx.getUser(__REQUEST__.query.id)          // with args
 ```
 
 ### Registering routes
@@ -290,14 +290,14 @@ app.Register(Route{
 
 ### Per-request context
 
-Every render injects a `__request__` global into the VM:
+Every render injects a `__REQUEST__` global into the VM:
 
 ```tsx
 // Available in any Server Component without any import
-const userId = __request__.query.id     // URL query params
-const path   = __request__.path         // /products
-const method = __request__.method       // GET
-const auth   = __request__.headers["Authorization"]
+const userId = __REQUEST__.query.id     // URL query params
+const path   = __REQUEST__.path         // /products
+const method = __REQUEST__.method       // GET
+const auth   = __REQUEST__.headers["Authorization"]
 ```
 
 ### Suspense and streaming

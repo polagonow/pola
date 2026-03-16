@@ -313,13 +313,15 @@ func buildClientBundle(cfg structs.BundlerConfig, absDir string) (map[string][]b
 
 	// Build the entry points list. When ClientEntry is a package specifier
 	// (e.g. "@gojsx/react/Client"), generate a temporary _client.tsx
-	// in absAppDir that imports it so esbuild can resolve node_modules normally
-	// and the output is named _client-HASH.js as usual.
+	// in the output directory's parent (public/) so it is never inside the
+	// app source tree. This prevents hot-reload watchers from triggering a
+	// rebuild on its CREATE/REMOVE events. esbuild still resolves node_modules
+	// correctly because it walks up the directory tree from the file's location.
 	entries := []string{}
 	entryBase := ""
 	if cfg.ClientEntry != "" {
 		if isPackageSpecifier(cfg.ClientEntry) {
-			synthPath := filepath.Join(absAppDir, "_client.tsx")
+			synthPath := filepath.Join(filepath.Dir(absOutDir), "_client.tsx")
 			content := fmt.Sprintf("import %q;\n", cfg.ClientEntry)
 			if werr := os.WriteFile(synthPath, []byte(content), 0o644); werr == nil {
 				defer os.Remove(synthPath)
