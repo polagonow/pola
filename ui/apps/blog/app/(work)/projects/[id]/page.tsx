@@ -1,8 +1,8 @@
-import jsi from "../jsi";
+import JSI from "@gojsx/jsi";
 
 export default async function ProjectPage({ params, searchParams }: { params: { id: string }, searchParams?: Record<string, string> }) {
-  if (searchParams?.error !== undefined) await jsi.triggerError(searchParams.error || undefined);
-  const p = await jsi.getProject(params.id);
+  if (searchParams?.error !== undefined) await JSI.triggerError(searchParams.error || undefined);
+  const p = await JSI.getProject(params.id);
 
   return (
     <div>

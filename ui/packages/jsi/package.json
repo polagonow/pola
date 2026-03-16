@@ -1,0 +1,9 @@
+{
+  "name": "@gojsx/jsi",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Type definitions and runtime bridge for the GoJSX JS interface (auto-managed by the framework)",
+  "exports": {
+    ".": "./index.ts"
+  }
+}

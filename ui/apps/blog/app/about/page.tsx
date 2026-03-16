@@ -1,7 +1,7 @@
-import jsi from "@/jsi";
+import JSI from "@gojsx/jsi";
 
 export default async function AboutPage({ searchParams }: { searchParams?: Record<string, string> }) {
-  if (searchParams?.error !== undefined) await jsi.triggerError(searchParams.error || undefined);
+  if (searchParams?.error !== undefined) await JSI.triggerError(searchParams.error || undefined);
   return (
     <div>
       <h1 style={{ fontSize: "1.8rem", fontWeight: 800, marginBottom: ".75rem" }}>About this site</h1>

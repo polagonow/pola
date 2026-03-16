@@ -1,4 +1,4 @@
-import jsi from "../../../jsi";
+import JSI from "@gojsx/jsi";
 
 export default async function RevisionPage({
   params,
@@ -7,10 +7,10 @@ export default async function RevisionPage({
   params: { slug: string; rev: string };
   searchParams?: Record<string, string>;
 }) {
-  if (searchParams?.error !== undefined) await jsi.triggerError(searchParams.error || undefined);
+  if (searchParams?.error !== undefined) await JSI.triggerError(searchParams.error || undefined);
   const [post, revision] = await Promise.all([
-    jsi.getPost(params.slug),
-    jsi.getRevision(params.slug, params.rev),
+    JSI.getPost(params.slug),
+    JSI.getRevision(params.slug, params.rev),
   ]);
 
   return (

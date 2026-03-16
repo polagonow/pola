@@ -1,9 +1,9 @@
-import jsi from "../jsi";
+import JSI from "@gojsx/jsi";
 import LikeButton from "@/components/LikeButton";
 
 export default async function PostPage({ params, searchParams }: { params: { slug: string }, searchParams?: Record<string, string> }) {
-  if (searchParams?.error !== undefined) await jsi.triggerError(searchParams.error || undefined);
-  const post = await jsi.getPost(params.slug);
+  if (searchParams?.error !== undefined) await JSI.triggerError(searchParams.error || undefined);
+  const post = await JSI.getPost(params.slug);
 
   return (
     <div>

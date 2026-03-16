@@ -13,6 +13,9 @@ importers:
       '@gojsx/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@gojsx/jsi':
+        specifier: workspace:*
+        version: link:../../packages/jsi
       '@gojsx/react-renderer':
         specifier: workspace:*
         version: link:../../packages/react-renderer
@@ -37,6 +40,8 @@ importers:
         version: 19.2.3(@types/react@19.2.14)
 
   packages/core: {}
+
+  packages/jsi: {}
 
   packages/react-renderer:
     dependencies:

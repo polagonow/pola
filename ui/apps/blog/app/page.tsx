@@ -1,11 +1,11 @@
-import jsi from "./jsi";
+import JSI from "@gojsx/jsi";
 
 function Tag({ label }: { label: string }) {
   return <span className="tag">{label}</span>;
 }
 
 async function FeaturedPosts() {
-  const posts = await jsi.getPosts();
+  const posts = await JSI.getPosts();
   return (
     <div className="card-grid">
       {posts.slice(0, 2).map(post => (
@@ -28,7 +28,7 @@ async function FeaturedPosts() {
 }
 
 async function FeaturedProjects() {
-  const projects = await jsi.getProjects();
+  const projects = await JSI.getProjects();
   return (
     <div className="grid-2">
       {projects.slice(0, 2).map(p => (
@@ -50,7 +50,7 @@ async function FeaturedProjects() {
 }
 
 export default async function HomePage({ searchParams }: { searchParams?: Record<string, string> }) {
-  if (searchParams?.error !== undefined) await jsi.triggerError(searchParams.error || undefined);
+  if (searchParams?.error !== undefined) await JSI.triggerError(searchParams.error || undefined);
   return (
     <div>
       <div className="hero">

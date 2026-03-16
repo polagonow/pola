@@ -1,4 +1,4 @@
-import jsi from "@/jsi";
+import JSI from "@gojsx/jsi";
 
 const DOCS: Record<string, Record<string, string>> = {
   "getting-started": {
@@ -26,7 +26,7 @@ const SECTION_LABELS: Record<string, string> = {
 };
 
 export default async function DocsPage({ params, searchParams }: { params?: { slug?: string[] }, searchParams?: Record<string, string> }) {
-  if (searchParams?.error !== undefined) await jsi.triggerError(searchParams.error || undefined);
+  if (searchParams?.error !== undefined) await JSI.triggerError(searchParams.error || undefined);
   const slug = params?.slug;
 
   // /docs — index

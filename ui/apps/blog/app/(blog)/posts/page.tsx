@@ -1,8 +1,8 @@
-import jsi from "./jsi";
+import JSI from "@gojsx/jsi";
 
 export default async function PostsPage({ searchParams }: { searchParams?: Record<string, string> }) {
-  if (searchParams?.error !== undefined) await jsi.triggerError(searchParams.error || undefined);
-  const posts = await jsi.getPosts();
+  if (searchParams?.error !== undefined) await JSI.triggerError(searchParams.error || undefined);
+  const posts = await JSI.getPosts();
   const tag = searchParams?.tag;
   const filtered = tag ? posts.filter(p => p.tags.includes(tag)) : posts;
 
