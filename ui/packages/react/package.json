@@ -4,9 +4,9 @@
   "private": true,
   "description": "React client hydration and page types for GoJSX",
   "exports": {
-    "./client": "./client.tsx",
+    "./Client": "./components/Client.tsx",
     "./types/page": "./types/page.ts",
-    "./components/ErrorBoundary": "./components/ErrorBoundary.tsx"
+    "./ErrorBoundary": "./components/ErrorBoundary.tsx"
   },
   "peerDependencies": {
     "react": "*",

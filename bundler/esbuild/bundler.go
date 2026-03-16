@@ -312,7 +312,7 @@ func buildClientBundle(cfg structs.BundlerConfig, absDir string) (map[string][]b
 	absAppDir, _ := filepath.Abs(cfg.AppDir)
 
 	// Build the entry points list. When ClientEntry is a package specifier
-	// (e.g. "@gojsx/react/client"), generate a temporary _client.tsx
+	// (e.g. "@gojsx/react/Client"), generate a temporary _client.tsx
 	// in absAppDir that imports it so esbuild can resolve node_modules normally
 	// and the output is named _client-HASH.js as usual.
 	entries := []string{}
