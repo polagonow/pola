@@ -4,9 +4,8 @@
   "private": true,
   "description": "GoJSX example blog application",
   "dependencies": {
-    "@gojsx/core": "workspace:*",
     "@gojsx/jsi": "workspace:*",
-    "@gojsx/react-renderer": "workspace:*",
+    "@gojsx/react": "workspace:*",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-server-dom-esm": "npm:@kentcdodds/tmp-react-server-dom-esm@^19.0.1",

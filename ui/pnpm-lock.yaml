@@ -10,15 +10,12 @@ importers:
 
   apps/blog:
     dependencies:
-      '@gojsx/core':
-        specifier: workspace:*
-        version: link:../../packages/core
       '@gojsx/jsi':
         specifier: workspace:*
         version: link:../../packages/jsi
-      '@gojsx/react-renderer':
+      '@gojsx/react':
         specifier: workspace:*
-        version: link:../../packages/react-renderer
+        version: link:../../packages/react
       react:
         specifier: 19.2.4
         version: 19.2.4
@@ -39,15 +36,10 @@ importers:
         specifier: ^19.2.3
         version: 19.2.3(@types/react@19.2.14)
 
-  packages/core: {}
-
   packages/jsi: {}
 
-  packages/react-renderer:
+  packages/react:
     dependencies:
-      '@gojsx/core':
-        specifier: workspace:*
-        version: link:../core
       react:
         specifier: '*'
         version: 19.2.4

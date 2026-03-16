@@ -47,4 +47,21 @@ declare global {
   };
 }
 
+// Per-request context injected by the Go VM before each render.
+export declare const __request__: {
+  url: string;
+  path: string;
+  query: string;
+  method: string;
+  headers: Record<string, string>;
+};
+
+// Client manifest injected as a JS define by the bundler.
+export declare const __CLIENT_MANIFEST__: Record<string, {
+  id: string;
+  name: string;
+  chunks: string[];
+  async: boolean;
+}>;
+
 export default __JSI__;

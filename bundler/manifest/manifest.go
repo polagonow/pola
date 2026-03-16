@@ -67,7 +67,7 @@ func Build(clientComponents []string, clientFiles map[string][]byte, appDir stri
 }
 
 // ComputeModuleID returns a stable module ID for a client component file.
-// Files inside node_modules get a package-path id (e.g. "@gojsx/react-renderer/components/ErrorBoundary").
+// Files inside node_modules get a package-path id (e.g. "@gojsx/react/components/ErrorBoundary").
 // App files get a relative path id (e.g. "components/ThemeToggle").
 func ComputeModuleID(absAppDir, absPath string) string {
 	if idx := strings.LastIndex(absPath, "/node_modules/"); idx != -1 {

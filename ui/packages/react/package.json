@@ -1,5 +1,5 @@
 {
-  "name": "@gojsx/react-renderer",
+  "name": "@gojsx/react",
   "version": "0.0.1",
   "private": true,
   "description": "React client hydration and page types for GoJSX",
@@ -13,7 +13,6 @@
     "react-dom": "*"
   },
   "dependencies": {
-    "@gojsx/core": "workspace:*",
     "react-server-dom-esm": "npm:@kentcdodds/tmp-react-server-dom-esm@^19.0.1"
   },
   "devDependencies": {

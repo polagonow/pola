@@ -79,7 +79,7 @@ func Bundle(cfg structs.BundlerConfig) (*structs.BundleResult, error) {
 
 	// ------------------------------------------------------------------ //
 	// Probe — auto-discover "use client" files from the server entry     //
-	// Handles framework packages (@gojsx/react-renderer) and any        //
+	// Handles framework packages (@gojsx/react) and any        //
 	// third-party library with a "use client" directive automatically.   //
 	// ------------------------------------------------------------------ //
 	if probed := probeServerEntryClientFiles(cfg, absDir); len(probed) > 0 {
@@ -328,7 +328,7 @@ func buildClientBundle(cfg structs.BundlerConfig, absDir string) (map[string][]b
 	absAppDir, _ := filepath.Abs(cfg.AppDir)
 
 	// Build the entry points list. When ClientEntry is a package specifier
-	// (e.g. "@gojsx/react-renderer/client"), generate a temporary _client.tsx
+	// (e.g. "@gojsx/react/client"), generate a temporary _client.tsx
 	// in absAppDir that imports it so esbuild can resolve node_modules normally
 	// and the output is named _client-HASH.js as usual.
 	entries := []string{}

@@ -27,7 +27,7 @@ type Config struct {
 	Dev       bool
 
 	// ClientEntry is the browser bootstrap — a file path or a Node import
-	// specifier (e.g. "@gojsx/react-renderer/client"). If empty, the framework
+	// specifier (e.g. "@gojsx/react/client"). If empty, the framework
 	// looks for AppDir/_client.tsx; if absent, it uses the registered default.
 	ClientEntry string
 
