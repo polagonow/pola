@@ -68,15 +68,34 @@ func Build(clientComponents []string, clientFiles map[string][]byte, appDir stri
 
 // ComputeModuleID returns a stable module ID for a client component file.
 // Files inside node_modules get a package-path id (e.g. "@gojsx/react/ErrorBoundary").
-// App files get a relative path id (e.g. "components/ThemeToggle").
+// App files get a path id relative to the nearest ancestor of absAppDir that
+// contains absPath without a leading "../" (e.g. "components/ThemeToggle" for
+// files inside the app dir, "packages/react/components/ErrorBoundary" for
+// monorepo sibling packages). This avoids "../"-prefixed ids, which break the
+// HTML importmap when the document URL is at a different depth than the
+// client bundle's URL.
 func ComputeModuleID(absAppDir, absPath string) string {
 	if idx := strings.LastIndex(absPath, "/node_modules/"); idx != -1 {
 		id := absPath[idx+len("/node_modules/"):]
 		return filepath.ToSlash(strings.TrimSuffix(id, filepath.Ext(id)))
 	}
-	rel, err := filepath.Rel(absAppDir, absPath)
-	if err != nil {
-		return filepath.Base(absPath)
+	// Walk up from absAppDir until we find an ancestor that contains absPath
+	// (i.e. filepath.Rel produces a path without a leading "..").
+	dir := absAppDir
+	for {
+		rel, err := filepath.Rel(dir, absPath)
+		if err != nil {
+			break
+		}
+		relSlash := strings.ReplaceAll(strings.TrimSuffix(rel, filepath.Ext(rel)), string(filepath.Separator), "/")
+		if !strings.HasPrefix(relSlash, "../") {
+			return relSlash
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break // reached filesystem root
+		}
+		dir = parent
 	}
-	return strings.ReplaceAll(strings.TrimSuffix(rel, filepath.Ext(rel)), string(filepath.Separator), "/")
+	return filepath.Base(absPath)
 }
