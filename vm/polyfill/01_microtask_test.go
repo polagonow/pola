@@ -57,16 +57,3 @@ func TestDrainMicrotasksSwallowsErrors(t *testing.T) {
 		}
 	})
 }
-
-func TestMicrotaskQueueIsArray(t *testing.T) {
-	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
-		if err := f.Eval(`
-			var len = __microtaskQueue__.length;
-			__microtaskQueue__.push(function() {});
-			if (__microtaskQueue__.length !== len + 1) throw new Error("push failed");
-			__drainMicrotasks__();
-		`); err != nil {
-			t.Fatal(err)
-		}
-	})
-}

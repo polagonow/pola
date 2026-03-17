@@ -1,14 +1,18 @@
-FOLLOW UP ON POLYFILLS
-
-let polyfill tests be close to what they are testing,
-for example /Users/paul/projects/go-react-ssr-v2/vm/polyfill/01_microtask.js should have /Users/paul/projects/go-react-ssr-v2/vm/polyfill/01_microtask_test.go to follow domain driven develpment
-
-if they have any drivers, configs to share, let it it be in them root ./test folder
-
-DOW WE REally need __microtaskQueue__?
 =========================================================================
+currently e2e tests are coupled to testing only esbuild bundler and react render
+this leaves out future bunders and renders, how can we structure our framework, or tests to make thise posible to test. 
+
+I also want small binarys that means if user puts tags orly taged mudules 
+should be bundled in binary see (/Users/paul/projects/go-react-ssr-v2/magefile.go)
+=======================================
 
 
+PLEASE WORK ON MAKING THE HTML SHELL MORE DYNICMIC, WE WILL In future support html builder!
+/Users/admin/Projects/go-react-ssr-v2/render/react/shell/template.go
+
+
+CRITCAL
+each file go file we have should have a _test.go files to have it's unit test, add them tests
 
 
 SCAN AND SEE IF CODE FOLLOWS effective go guideline
@@ -31,12 +35,6 @@ for render (eg React), for vm,cache,etc and will introduce for css also to allow
 CRITICAL
 ADD SUPPORT FOR CSS
 
-
-CRITICAL,
-check all polyfill.
-make sure they are all native! to direct javascript stubs
-
-
 # Remove  errcheck, let's log the error but not to silience it!
 //nolint:errcheck
 
@@ -49,6 +47,3 @@ https://trivy.dev/docs/latest/getting-started/
 
 SETUP magefile
 https://magefile.org/zeroinstall/
-
-PLEASE WORK ON MAKING THE SHELL MORE DYNICMIC!
-/Users/admin/Projects/go-react-ssr-v2/render/react/shell/template.go
