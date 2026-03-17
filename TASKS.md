@@ -1,17 +1,15 @@
-LOOKING AT
-========================================
-/Users/admin/Projects/go-react-ssr-v2/vm/qjs
-and /Users/admin/Projects/go-react-ssr-v2/vm/moderncquickjs and /Users/admin/Projects/go-react-ssr-v2/vm/v8go etc,
-some polyfills are duplicates,
-we could just create a folder with
-there files should be templates and embed fs not to defined them on heap
-./vm/polyfill/* them here each follows aur unifined interiface! thise will eliminate per vm polyfills and makes them easy to maintain
-========================================
-
 FOLLOW UP ON POLYFILLS
-DOW WE REally need __microtaskQueue__?
 
-ADD Away to run tests along side different vms, render engines, bundlers. for now all tests are react based, but we will support other render engines so create room for that, 
+let polyfill tests be close to what they are testing,
+for example /Users/paul/projects/go-react-ssr-v2/vm/polyfill/01_microtask.js should have /Users/paul/projects/go-react-ssr-v2/vm/polyfill/01_microtask_test.go to follow domain driven develpment
+
+if they have any drivers, configs to share, let it it be in them root ./test folder
+
+DOW WE REally need __microtaskQueue__?
+=========================================================================
+
+
+
 
 SCAN AND SEE IF CODE FOLLOWS effective go guideline
 https://go.dev/doc/effective_go

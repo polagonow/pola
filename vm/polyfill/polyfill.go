@@ -10,6 +10,7 @@
 //	04_readablestream.js   — ReadableStream / __pullStream__  (needs 01)
 //	05_webpackrequire.js   — __webpack_require__ stubs
 //	06_abortcontroller.js  — AbortSignal / AbortController
+//	07_promise.js          — Promise (pure-JS, routed through queueMicrotask)
 package polyfill
 
 import (

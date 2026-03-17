@@ -228,7 +228,7 @@ func main() {
 	//    Discovery, bundling, VM pool, routing are all handled automatically.
 	// ------------------------------------------------------------------
 	cfg := &framework.Config{
-		AppDir:       "../../ui/apps/blog",
+		AppDir:       "../../ui/apps/blog-e2e",
 		Dev:          true,
 		GlobalBridge: globalBridge,
 	}

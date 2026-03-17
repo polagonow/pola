@@ -33,7 +33,7 @@ test-unit:
 
 ## test-e2e: run end-to-end tests across all VMs (builds bundles — slow)
 test-e2e:
-	go test -v -timeout 600s ./tests/e2etest/...
+	go test -v -timeout 600s ./test/e2e/...
 
 ## test-build: run only build/discover tests
 test-build:
