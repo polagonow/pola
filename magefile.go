@@ -22,8 +22,8 @@ var jsVM = envOr("JS_VM", "gojs")
 // jsBundler selects the JavaScript bundler: esbuild (default)
 var jsBundler = envOr("JS_BUNDLER", "esbuild")
 
-// jsRenderer selects the renderer: react.js (default) or client
-var jsRenderer = envOr("JS_RENDERER", "react.js")
+// jsRenderer selects the renderer: react (default)
+var jsRenderer = envOr("JS_RENDERER", "react")
 
 // embedAssets controls whether to embed UI assets in the Go binary (default: "1")
 var embedAssets = envOr("EMBED_ASSETS", "1")

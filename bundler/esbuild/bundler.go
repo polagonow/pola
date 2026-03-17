@@ -36,6 +36,9 @@ import (
 // ServerEntryContent) and delegates to Bundle.
 type Bundler struct{}
 
+// NewBundler returns a new esbuild Bundler.
+func NewBundler() *Bundler { return &Bundler{} }
+
 // Bundle runs both esbuild passes and returns the combined output.
 func (b *Bundler) Bundle(input contract.BundleInput) (contract.BundleOutput, error) {
 	cfg := structs.BundlerConfig{

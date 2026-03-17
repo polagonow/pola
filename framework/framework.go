@@ -40,11 +40,17 @@ type Config struct {
 	EntryGenerator ServerEntryGenerator
 	RouteBuilder   RouteBuilder
 
-	// Runtime (nil = built-in Goja defaults)
+	// Runtime (nil = built-in defaults)
 	// NewVM overrides the globally registered VM factory for this Config.
 	// Signature: func(serverBundle []byte) (VMFactory, error)
 	// If nil, the globally registered default (e.g. Goja via _ "gojsx/vm/goja") is used.
-	NewVM           func(serverBundle []byte) (VMFactory, error)
+	NewVM func(serverBundle []byte) (VMFactory, error)
+
+	// RendererFactory overrides the globally registered renderer for this Config.
+	// Signature: func(pool VMPool, protocol StreamProtocol, bridge contract.BridgeConfig) Renderer
+	// If nil, the globally registered default (e.g. React via _ "gojsx/render/react") is used.
+	RendererFactory func(pool VMPool, protocol StreamProtocol, bridge contract.BridgeConfig) Renderer
+
 	StreamProtocol StreamProtocol
 
 	// HTTP layer (nil = built-in defaults)
@@ -142,7 +148,7 @@ func (c *Config) Build() (*App, error) {
 	}
 
 	// ── 5. Renderer ───────────────────────────────────────────────────────
-	renderer := newFrameworkRenderer(pool, c.StreamProtocol, c.GlobalBridge)
+	renderer := c.newRenderer(pool, c.StreamProtocol, c.GlobalBridge)
 
 	// ── 6. Wire HTTP layer ────────────────────────────────────────────────
 	app := &App{
@@ -337,6 +343,15 @@ func (c *Config) newVMFactory(serverBundle []byte) (VMFactory, error) {
 		return nil, fmt.Errorf("framework: no default VMFactory registered; import gojsx/vm/goja")
 	}
 	return defaultVMFactory(serverBundle)
+}
+
+// newRenderer creates a Renderer from either the per-Config override
+// (RendererFactory) or the globally registered default.
+func (c *Config) newRenderer(pool VMPool, protocol StreamProtocol, bridge contract.BridgeConfig) Renderer {
+	if c.RendererFactory != nil {
+		return c.RendererFactory(pool, protocol, bridge)
+	}
+	return newFrameworkRenderer(pool, protocol, bridge)
 }
 
 // ── Default registry ─────────────────────────────────────────────────────────

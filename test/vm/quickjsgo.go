@@ -6,7 +6,10 @@ import (
 
 	quickjs "github.com/buke/quickjs-go"
 
+	esbuild "gojsx/bundler/esbuild"
 	"gojsx/framework"
+	"gojsx/framework/contract"
+	react "gojsx/render/react"
 	"gojsx/test/fixture"
 	quickjsgovm "gojsx/vm/quickjsgo"
 	quickjsgopolyfill "gojsx/vm/quickjsgo/polyfill"
@@ -33,9 +36,13 @@ func (f *quickjsgoFixture) GetApp(t *testing.T) *framework.App {
 	t.Helper()
 	f.once.Do(func() {
 		f.app, f.err = (&framework.Config{
-			AppDir:       fixture.AppDir,
-			GlobalBridge: fixture.SharedBridge(),
-			NewVM:        func(b []byte) (framework.VMFactory, error) { return quickjsgovm.NewQuickJSVMFactory(b) },
+			AppDir:          fixture.AppDir,
+			GlobalBridge:    fixture.SharedBridge(),
+			NewVM:           func(b []byte) (framework.VMFactory, error) { return quickjsgovm.NewQuickJSVMFactory(b) },
+			Bundler:         esbuild.NewBundler(),
+			RendererFactory: func(pool framework.VMPool, protocol framework.StreamProtocol, bridge contract.BridgeConfig) framework.Renderer {
+				return react.NewVMRenderer(pool, protocol, bridge)
+			},
 		}).Build()
 	})
 	if f.err != nil {

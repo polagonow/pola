@@ -1,3 +1,5 @@
+//go:build react
+
 package render
 
 import (

@@ -6,7 +6,10 @@ import (
 
 	qjslib "github.com/fastschema/qjs"
 
+	esbuild "gojsx/bundler/esbuild"
 	"gojsx/framework"
+	"gojsx/framework/contract"
+	react "gojsx/render/react"
 	"gojsx/test/fixture"
 	qjsvm "gojsx/vm/qjs"
 	qjspolyfill "gojsx/vm/qjs/polyfill"
@@ -33,9 +36,13 @@ func (f *qjsFixture) GetApp(t *testing.T) *framework.App {
 	t.Helper()
 	f.once.Do(func() {
 		f.app, f.err = (&framework.Config{
-			AppDir:       fixture.AppDir,
-			GlobalBridge: fixture.SharedBridge(),
-			NewVM:        func(b []byte) (framework.VMFactory, error) { return qjsvm.NewFastSchemaQJSVMFactory(b) },
+			AppDir:          fixture.AppDir,
+			GlobalBridge:    fixture.SharedBridge(),
+			NewVM:           func(b []byte) (framework.VMFactory, error) { return qjsvm.NewFastSchemaQJSVMFactory(b) },
+			Bundler:         esbuild.NewBundler(),
+			RendererFactory: func(pool framework.VMPool, protocol framework.StreamProtocol, bridge contract.BridgeConfig) framework.Renderer {
+				return react.NewVMRenderer(pool, protocol, bridge)
+			},
 		}).Build()
 	})
 	if f.err != nil {

@@ -5,7 +5,7 @@ JS_VM ?= gojs
 JS_BUNDLER ?= esbuild
 
 # JS_RENDERER selects the renderer: react.js (default) or client
-JS_RENDERER ?= react.js
+JS_RENDERER ?= react
 
 # EMBED_ASSETS controls whether to embed UI assets in the Go binary (default: 1)
 EMBED_ASSETS ?= 1
@@ -17,11 +17,11 @@ CGO_ENABLED ?= 1
 
 ## run: start the dev server (runs from example/example so relative paths resolve correctly)
 run:
-	cd example/blog && CGO_ENABLED=1 go run -tags "v8go esbuild react.js" .
+	cd example/blog && CGO_ENABLED=1 go run -tags "v8go esbuild react" .
 
 ## build: compile the Go binary
 build:
-	CGO_ENABLED=1 go build -tags "embed v8go esbuild react.js" -ldflags="-s -w" -o bin/gojsx ./...
+	CGO_ENABLED=1 go build -tags "embed v8go esbuild react" -ldflags="-s -w" -o bin/gojsx ./...
 
 ## test: run all tests
 test:
