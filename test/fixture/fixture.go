@@ -23,6 +23,14 @@ import (
 	"gojsx/framework/contract"
 )
 
+// PolyfillFixture is a polyfill-enabled JS execution context for one VM.
+type PolyfillFixture interface {
+	// Enable installs all polyfills into the context.
+	Enable() error
+	// Eval executes src and returns an error if JS throws.
+	Eval(src string) error
+}
+
 // AppFixture is a lazily-built, fully-wired application for one VM×renderer×bundler combination.
 type AppFixture interface {
 	// Name returns a composite identifier, e.g. "goja:react:esbuild".
@@ -35,6 +43,9 @@ type AppFixture interface {
 	Bundler() string
 	// GetApp returns the built *framework.App, constructing it lazily on first call.
 	GetApp(t *testing.T) *framework.App
+	// NewPolyfill returns a fresh, polyfill-enabled JS context for this VM.
+	// The context lifetime is scoped to t.
+	NewPolyfill(t *testing.T) PolyfillFixture
 }
 
 // AppDir is the path to the test application, relative to the e2e package root.
@@ -70,6 +81,22 @@ func ForEachReactApp(t *testing.T, fn func(*testing.T, AppFixture)) {
 		}
 		fn(t, f)
 	})
+}
+
+// ForEachVM runs fn in a sub-test for every registered VM, providing a fresh
+// polyfill-enabled PolyfillFixture. The fixture lifetime is scoped to the sub-test.
+func ForEachVM(t *testing.T, fn func(t *testing.T, f PolyfillFixture)) {
+	t.Helper()
+	for _, fix := range fixtureList {
+		fix := fix
+		t.Run(fix.VMName(), func(t *testing.T) {
+			f := fix.NewPolyfill(t)
+			if err := f.Enable(); err != nil {
+				t.Fatal(err)
+			}
+			fn(t, f)
+		})
+	}
 }
 
 // ── HTTP helpers ──────────────────────────────────────────────────────────────

@@ -7,11 +7,12 @@ package polyfill_test
 import (
 	"testing"
 
-	polyfilltest "gojsx/test/polyfill"
+	fixture "gojsx/test/fixture"
+	_ "gojsx/test/vm"
 )
 
 func TestPromiseResolveThen(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var result = null;
 			Promise.resolve(42).then(function(v) { result = v; });
@@ -25,7 +26,7 @@ func TestPromiseResolveThen(t *testing.T) {
 }
 
 func TestPromiseRejectCatch(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var reason = null;
 			Promise.reject("oops")["catch"](function(r) { reason = r; });
@@ -39,7 +40,7 @@ func TestPromiseRejectCatch(t *testing.T) {
 }
 
 func TestPromiseChaining(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var out = [];
 			Promise.resolve(1)
@@ -60,7 +61,7 @@ func TestPromiseChaining(t *testing.T) {
 }
 
 func TestPromiseAll(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var results = null;
 			Promise.all([Promise.resolve(1), Promise.resolve(2), Promise.resolve(3)])
@@ -78,7 +79,7 @@ func TestPromiseAll(t *testing.T) {
 }
 
 func TestPromiseAllSettled(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var results = null;
 			Promise.allSettled([Promise.resolve("ok"), Promise.reject("fail")])
@@ -100,7 +101,7 @@ func TestPromiseAllSettled(t *testing.T) {
 }
 
 func TestPromiseRace(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var winner = null;
 			Promise.race([Promise.resolve("first"), Promise.resolve("second")])
@@ -115,7 +116,7 @@ func TestPromiseRace(t *testing.T) {
 }
 
 func TestPromiseAny(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var result = null;
 			Promise.any([Promise.reject("no"), Promise.resolve("yes")])
@@ -131,7 +132,7 @@ func TestPromiseAny(t *testing.T) {
 }
 
 func TestPromiseFinally(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var ran = false;
 			Promise.resolve("x")["finally"](function() { ran = true; });
@@ -146,7 +147,7 @@ func TestPromiseFinally(t *testing.T) {
 }
 
 func TestPromiseConstructorThrows(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var caught = null;
 			new Promise(function() { throw new Error("executor boom"); })

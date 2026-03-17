@@ -20,5 +20,5 @@ func (r *runner) RunScript(src, name string) error {
 
 // Enable installs all polyfills into vm.
 func Enable(vm *mquickjs.VM) error {
-	return polyfill.LoadAll(&runner{vm})
+	return polyfill.Load(&runner{vm})
 }

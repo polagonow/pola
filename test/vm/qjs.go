@@ -1,4 +1,4 @@
-package fixtures
+package vm
 
 import (
 	"sync"
@@ -7,36 +7,34 @@ import (
 	qjslib "github.com/fastschema/qjs"
 
 	"gojsx/framework"
-	e2efixture "gojsx/test/e2e/fixture"
-	polyfilltest "gojsx/test/polyfill"
+	"gojsx/test/fixture"
 	qjsvm "gojsx/vm/qjs"
 	qjspolyfill "gojsx/vm/qjs/polyfill"
 )
 
 func init() {
-	e2efixture.Register(&qjsAppFixture{})
-	polyfilltest.Register(&newQjsPolyfillFixture{})
+	fixture.Register(&qjsFixture{})
 }
 
 // ── e2e ──────────────────────────────────────────────────────────────────────
 
-type qjsAppFixture struct {
+type qjsFixture struct {
 	once sync.Once
 	app  *framework.App
 	err  error
 }
 
-func (f *qjsAppFixture) Name()     string { return "qjs:react:esbuild" }
-func (f *qjsAppFixture) VMName()   string { return "qjs" }
-func (f *qjsAppFixture) Renderer() string { return "react" }
-func (f *qjsAppFixture) Bundler()  string { return "esbuild" }
+func (f *qjsFixture) Name() string     { return "qjs:react:esbuild" }
+func (f *qjsFixture) VMName() string   { return "qjs" }
+func (f *qjsFixture) Renderer() string { return "react" }
+func (f *qjsFixture) Bundler() string  { return "esbuild" }
 
-func (f *qjsAppFixture) GetApp(t *testing.T) *framework.App {
+func (f *qjsFixture) GetApp(t *testing.T) *framework.App {
 	t.Helper()
 	f.once.Do(func() {
 		f.app, f.err = (&framework.Config{
-			AppDir:       e2efixture.AppDir,
-			GlobalBridge: e2efixture.SharedBridge(),
+			AppDir:       fixture.AppDir,
+			GlobalBridge: fixture.SharedBridge(),
 			NewVM:        func(b []byte) (framework.VMFactory, error) { return qjsvm.NewFastSchemaQJSVMFactory(b) },
 		}).Build()
 	})
@@ -48,23 +46,19 @@ func (f *qjsAppFixture) GetApp(t *testing.T) *framework.App {
 
 // ── polyfill ─────────────────────────────────────────────────────────────────
 
-type newQjsPolyfillFixture struct {
-	ctx *qjslib.Context
-}
-
-func (f *newQjsPolyfillFixture) Name() string { return "qjs" }
-
-func (f *newQjsPolyfillFixture) New(t *testing.T) polyfilltest.Fixture {
+func (f *qjsFixture) NewPolyfill(t *testing.T) fixture.PolyfillFixture {
 	rt, err := qjslib.New()
 	if err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(rt.Close)
-	return &newQjsPolyfillFixture{ctx: rt.Context()}
+	return &qjsPolyfillFixture{ctx: rt.Context()}
 }
 
-func (f *newQjsPolyfillFixture) Enable() error { return qjspolyfill.Enable(f.ctx) }
-func (f *newQjsPolyfillFixture) Eval(src string) error {
+type qjsPolyfillFixture struct{ ctx *qjslib.Context }
+
+func (f *qjsPolyfillFixture) Enable() error { return qjspolyfill.Enable(f.ctx) }
+func (f *qjsPolyfillFixture) Eval(src string) error {
 	val, err := f.ctx.Eval("test.js", qjslib.Code(src))
 	if val != nil {
 		val.Free()

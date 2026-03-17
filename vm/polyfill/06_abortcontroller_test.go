@@ -3,11 +3,12 @@ package polyfill_test
 import (
 	"testing"
 
-	polyfilltest "gojsx/test/polyfill"
+	"gojsx/test/fixture"
+	_ "gojsx/test/vm"
 )
 
 func TestAbortControllerAbortFiresListeners(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var ctrl = new AbortController();
 			var fired = null;
@@ -21,7 +22,7 @@ func TestAbortControllerAbortFiresListeners(t *testing.T) {
 }
 
 func TestAbortControllerAbortIdempotent(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var ctrl = new AbortController();
 			var count = 0;
@@ -36,7 +37,7 @@ func TestAbortControllerAbortIdempotent(t *testing.T) {
 }
 
 func TestAbortControllerCustomReason(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var ctrl = new AbortController();
 			ctrl.abort("my-reason");
@@ -48,7 +49,7 @@ func TestAbortControllerCustomReason(t *testing.T) {
 }
 
 func TestAbortControllerDefaultReason(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var ctrl = new AbortController();
 			ctrl.abort();
@@ -60,7 +61,7 @@ func TestAbortControllerDefaultReason(t *testing.T) {
 }
 
 func TestAbortSignalRemoveEventListener(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var ctrl = new AbortController();
 			var removed = 0;
@@ -76,7 +77,7 @@ func TestAbortSignalRemoveEventListener(t *testing.T) {
 }
 
 func TestAbortSignalThrowIfAborted(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var ctrl = new AbortController();
 			var threw = false;
@@ -93,7 +94,7 @@ func TestAbortSignalThrowIfAborted(t *testing.T) {
 }
 
 func TestAbortSignalIgnoresNonAbortEvents(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var ctrl = new AbortController();
 			var clicked = false;
@@ -107,7 +108,7 @@ func TestAbortSignalIgnoresNonAbortEvents(t *testing.T) {
 }
 
 func TestAbortSignalMultipleListeners(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var ctrl = new AbortController();
 			var f1 = false, f2 = false;

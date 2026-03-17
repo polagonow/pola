@@ -3,11 +3,12 @@ package polyfill_test
 import (
 	"testing"
 
-	polyfilltest "gojsx/test/polyfill"
+	"gojsx/test/fixture"
+	_ "gojsx/test/vm"
 )
 
 func TestTextEncoderEncodeASCII(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var enc = new TextEncoder();
 			var buf = enc.encode("hello");
@@ -19,7 +20,7 @@ func TestTextEncoderEncodeASCII(t *testing.T) {
 }
 
 func TestTextEncoderEncodeUTF8MultiByte(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var enc = new TextEncoder();
 			var buf = enc.encode("€");
@@ -32,7 +33,7 @@ func TestTextEncoderEncodeUTF8MultiByte(t *testing.T) {
 }
 
 func TestTextEncoderEncoding(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var enc = new TextEncoder();
 			if (enc.encoding !== "utf-8") throw new Error("expected utf-8, got " + enc.encoding);
@@ -43,7 +44,7 @@ func TestTextEncoderEncoding(t *testing.T) {
 }
 
 func TestTextDecoderDecodeBytes(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var dec = new TextDecoder();
 			var bytes = new Uint8Array([104,101,108,108,111]);
@@ -56,7 +57,7 @@ func TestTextDecoderDecodeBytes(t *testing.T) {
 }
 
 func TestTextDecoderDecodeUndefined(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var dec = new TextDecoder();
 			if (dec.decode(undefined) !== "") throw new Error("undefined should decode to empty");
@@ -68,7 +69,7 @@ func TestTextDecoderDecodeUndefined(t *testing.T) {
 }
 
 func TestTextEncodeDecodeRoundtrip(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var enc = new TextEncoder();
 			var dec = new TextDecoder();
@@ -83,7 +84,7 @@ func TestTextEncodeDecodeRoundtrip(t *testing.T) {
 }
 
 func TestTextEncoderEncodeInto(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var enc = new TextEncoder();
 			var dest = new Uint8Array(10);

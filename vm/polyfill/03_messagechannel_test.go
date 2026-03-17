@@ -3,11 +3,12 @@ package polyfill_test
 import (
 	"testing"
 
-	polyfilltest "gojsx/test/polyfill"
+	"gojsx/test/fixture"
+	_ "gojsx/test/vm"
 )
 
 func TestMessageChannelPostMessage(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var ch = new MessageChannel();
 			var received = null;
@@ -22,7 +23,7 @@ func TestMessageChannelPostMessage(t *testing.T) {
 }
 
 func TestMessageChannelBidirectional(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var ch = new MessageChannel();
 			var r1 = null, r2 = null;
@@ -39,7 +40,7 @@ func TestMessageChannelBidirectional(t *testing.T) {
 }
 
 func TestMessageChannelNoHandlerNoError(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var ch = new MessageChannel();
 			ch.port2.postMessage("no handler");
@@ -51,7 +52,7 @@ func TestMessageChannelNoHandlerNoError(t *testing.T) {
 }
 
 func TestMessageChannelObjectData(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var ch = new MessageChannel();
 			var obj = null;

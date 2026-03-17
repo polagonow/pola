@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"gojsx/test/e2e/fixture"
+	"gojsx/test/fixture"
 )
 
 // RunClientBundleTests verifies that the client-side JS bundle is built, served,

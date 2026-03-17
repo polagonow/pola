@@ -3,11 +3,12 @@ package polyfill_test
 import (
 	"testing"
 
-	polyfilltest "gojsx/test/polyfill"
+	"gojsx/test/fixture"
+	_ "gojsx/test/vm"
 )
 
 func TestReadableStreamEnqueueClose(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var chunks = [];
 			var s = new ReadableStream({
@@ -34,7 +35,7 @@ func TestReadableStreamEnqueueClose(t *testing.T) {
 }
 
 func TestReadableStreamErrorCloses(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var s = new ReadableStream({
 				start: function(ctrl) { ctrl.error(new Error("boom")); }
@@ -48,7 +49,7 @@ func TestReadableStreamErrorCloses(t *testing.T) {
 }
 
 func TestReadableStreamStartCalledOnce(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var calls = 0;
 			var s = new ReadableStream({
@@ -64,7 +65,7 @@ func TestReadableStreamStartCalledOnce(t *testing.T) {
 }
 
 func TestReadableStreamPullCalled(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var pullCount = 0;
 			var s = new ReadableStream({
@@ -79,7 +80,7 @@ func TestReadableStreamPullCalled(t *testing.T) {
 }
 
 func TestReadableStreamDesiredSize(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var s = new ReadableStream({});
 			if (s._controller.desiredSize !== 1) throw new Error("expected desiredSize 1");
@@ -92,7 +93,7 @@ func TestReadableStreamDesiredSize(t *testing.T) {
 }
 
 func TestReadableStreamByobRequestNull(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var s = new ReadableStream({});
 			if (s._controller.byobRequest !== null) throw new Error("byobRequest should be null");

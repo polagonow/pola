@@ -3,11 +3,12 @@ package polyfill_test
 import (
 	"testing"
 
-	polyfilltest "gojsx/test/polyfill"
+	"gojsx/test/fixture"
+	_ "gojsx/test/vm"
 )
 
 func TestQueueMicrotask(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var order = [];
 			queueMicrotask(function() { order.push(1); });
@@ -21,7 +22,7 @@ func TestQueueMicrotask(t *testing.T) {
 }
 
 func TestDrainMicrotasksEmpty(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`__drainMicrotasks__();`); err != nil {
 			t.Fatal(err)
 		}
@@ -29,7 +30,7 @@ func TestDrainMicrotasksEmpty(t *testing.T) {
 }
 
 func TestDrainMicrotasksSafety(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var count = 0;
 			for (var i = 0; i < 10000; i++) {
@@ -44,7 +45,7 @@ func TestDrainMicrotasksSafety(t *testing.T) {
 }
 
 func TestDrainMicrotasksSwallowsErrors(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var ran = false;
 			queueMicrotask(function() { throw new Error("boom"); });
@@ -58,7 +59,7 @@ func TestDrainMicrotasksSwallowsErrors(t *testing.T) {
 }
 
 func TestMicrotaskQueueIsArray(t *testing.T) {
-	polyfilltest.ForEachVM(t, func(t *testing.T, f polyfilltest.Fixture) {
+	fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
 		if err := f.Eval(`
 			var len = __microtaskQueue__.length;
 			__microtaskQueue__.push(function() {});

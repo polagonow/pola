@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"gojsx/test/e2e/fixture"
+	"gojsx/test/fixture"
 )
 
 // RunConcurrentRenderingTests verifies that the server handles multiple

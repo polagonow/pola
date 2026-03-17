@@ -3,7 +3,7 @@ package suite
 import (
 	"testing"
 
-	"gojsx/test/e2e/fixture"
+	"gojsx/test/fixture"
 )
 
 // RunFlightProtocolTests verifies structural invariants of the React Flight wire format.

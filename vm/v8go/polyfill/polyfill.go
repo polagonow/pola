@@ -21,5 +21,5 @@ func (r *runner) RunScript(src, name string) error {
 // Enable installs all polyfills into ctx.
 // Must be called after basic globals are set and before the bundle runs.
 func Enable(ctx *v8.Context) error {
-	return polyfill.LoadAll(&runner{ctx})
+	return polyfill.Load(&runner{ctx})
 }

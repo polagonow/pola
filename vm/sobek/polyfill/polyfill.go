@@ -21,5 +21,5 @@ func (r *runner) RunScript(src, name string) error {
 // Enable installs all polyfills onto rt as globals.
 // Must be called before rt.RunProgram(serverBundle).
 func Enable(rt *sobeklib.Runtime) error {
-	return polyfill.LoadAll(&runner{rt})
+	return polyfill.Load(&runner{rt})
 }

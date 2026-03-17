@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"gojsx/test/e2e/fixture"
+	"gojsx/test/fixture"
 )
 
 // RunHTMLShellTests verifies the HTML document shell returned for any route.

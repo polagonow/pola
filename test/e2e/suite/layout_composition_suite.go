@@ -3,7 +3,7 @@ package suite
 import (
 	"testing"
 
-	"gojsx/test/e2e/fixture"
+	"gojsx/test/fixture"
 )
 
 // RunLayoutCompositionTests verifies that layouts wrap their descendant pages

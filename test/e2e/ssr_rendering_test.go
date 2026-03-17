@@ -12,7 +12,7 @@ import (
 	"testing"
 
 	// Import fixtures to trigger init() registration of all VM fixtures.
-	_ "gojsx/test/fixtures"
+	_ "gojsx/test/vm"
 	"gojsx/test/e2e/suite"
 )
 

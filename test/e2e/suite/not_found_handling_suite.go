@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"gojsx/test/e2e/fixture"
+	"gojsx/test/fixture"
 )
 
 // assertNotFoundError verifies that a Flight body contains an error row and
