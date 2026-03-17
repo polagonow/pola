@@ -1,18 +1,17 @@
 package hotreload
 
 import (
-	"bytes"
 	"fmt"
 	"io/fs"
 	"net/http"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"github.com/gorilla/websocket"
 	"gojsx/framework"
 	"gojsx/framework/pubsub"
 )
@@ -24,7 +23,7 @@ type liveApp struct {
 }
 
 // HotReloader watches the app directory for source file changes, rebuilds,
-// and notifies browsers via SSE using a pubsub bus.
+// and notifies browsers via WebSocket using a pubsub bus.
 type HotReloader struct {
 	cfg       *framework.Config
 	postBuild func(*framework.App)
@@ -37,21 +36,25 @@ type HotReloader struct {
 	building  atomic.Bool
 }
 
-// ClientScript is the browser-side SSE listener that triggers a page reload
-// when the dev server rebuilds. Assigned to framework.DevScript by New().
-const ClientScript = `(function(){var e=new EventSource("/__dev__/hot");` +
-	`e.addEventListener("reload",function(){location.reload()});` +
-	`e.addEventListener("error",function(ev){console.warn("[gojsx] build error:",ev.data)});` +
-	`e.onerror=function(){setTimeout(function(){location.reload()},2000)};` +
+// ClientScript is the browser-side WebSocket listener that triggers a page
+// reload when the dev server rebuilds. Assigned to framework.DevScript by New().
+const ClientScript = `(function(){` +
+	`function connect(){` +
+	`var ws=new WebSocket("ws://"+location.host+"/__dev__/hot");` +
+	`ws.onmessage=function(e){if(e.data==="reload")location.reload()};` +
+	`ws.onclose=function(){setTimeout(connect,2000)};` +
+	`}connect();` +
 	`})();`
+
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool { return true },
+}
 
 // New creates a HotReloader watching cfg.AppDir for source changes.
 // initial is the already-built App; postBuild (optional) is called after each
 // successful rebuild to re-apply per-route overrides.
 func New(cfg *framework.Config, initial *framework.App, postBuild func(*framework.App)) (*HotReloader, error) {
 	framework.DevScript = ClientScript
-	// Resolve to absolute so filepath.Rel works correctly against
-	// the absolute paths fsnotify reports on macOS (FSEvents).
 	absAppDir, err := filepath.Abs(cfg.AppDir)
 	if err != nil {
 		return nil, fmt.Errorf("hotreload: abs app dir: %w", err)
@@ -82,13 +85,13 @@ func New(cfg *framework.Config, initial *framework.App, postBuild func(*framewor
 	return h, nil
 }
 
-// Handler returns an http.Handler that serves SSE at /__dev__/hot
+// Handler returns an http.Handler that serves WebSocket at /__dev__/hot
 // and delegates all other requests to the current live App.
 func (h *HotReloader) Handler() http.Handler {
-	sseServer := &sseServer{ps: h.bus}
+	ws := &wsServer{ps: h.bus}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/__dev__/hot" {
-			sseServer.ServeHTTP(w, r)
+			ws.ServeHTTP(w, r)
 			return
 		}
 		h.current.Load().handler.ServeHTTP(w, r)
@@ -140,7 +143,7 @@ func (h *HotReloader) scheduleRebuild() {
 }
 
 // rebuild runs a full build and, on success, swaps in the new App and
-// publishes an "update" event so all connected browsers reload.
+// publishes a "reload" message so all connected browsers reload.
 func (h *HotReloader) rebuild() {
 	if !h.building.CompareAndSwap(false, true) {
 		return
@@ -151,7 +154,6 @@ func (h *HotReloader) rebuild() {
 	newApp, err := h.cfg.Build()
 	if err != nil {
 		fmt.Printf("[hotreload] build error: %v\n", err)
-		h.bus.Publish("error", []byte(err.Error()))
 		return
 	}
 
@@ -162,7 +164,7 @@ func (h *HotReloader) rebuild() {
 	live := &liveApp{app: newApp, handler: newApp.Handler()}
 	h.current.Store(live)
 	fmt.Println("[hotreload] rebuild complete")
-	h.bus.Publish("update", []byte(`{"reload":true}`))
+	h.bus.Publish("update", []byte("reload"))
 }
 
 // watchDir adds all source subdirectories of absDir to the watcher,
@@ -184,8 +186,7 @@ func watchDir(w *fsnotify.Watcher, absDir string) error {
 }
 
 // isSourceFile returns true when path is a frontend source file that should
-// trigger a rebuild. Uses absolute paths so filepath.Rel is reliable on macOS
-// where fsnotify (FSEvents) reports absolute paths regardless of how dirs were added.
+// trigger a rebuild.
 func isSourceFile(absAppDir, path string) bool {
 	switch strings.ToLower(filepath.Ext(path)) {
 	case ".tsx", ".ts", ".jsx", ".js", ".css":
@@ -204,24 +205,18 @@ func isSourceFile(absAppDir, path string) bool {
 	return true
 }
 
-// ── SSE server ────────────────────────────────────────────────────────────────
+// ── WebSocket server ──────────────────────────────────────────────────────────
 
-type sseServer struct {
+type wsServer struct {
 	ps pubsub.Subscriber
 }
 
-func (s *sseServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	flusher, ok := w.(http.Flusher)
-	if !ok {
-		http.Error(w, "hot: response writer is not a flusher", http.StatusInternalServerError)
+func (s *wsServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
 		return
 	}
-	headers := w.Header()
-	headers.Add("Content-Type", "text/event-stream")
-	headers.Add("Cache-Control", "no-cache")
-	headers.Add("Connection", "keep-alive")
-	headers.Add("Access-Control-Allow-Origin", "*")
-	flusher.Flush()
+	defer conn.Close()
 
 	sub := s.ps.Subscribe("update")
 	defer sub.Close()
@@ -234,37 +229,9 @@ func (s *sseServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if !ok {
 				return
 			}
-			w.Write(sseEvent{Type: "reload", Data: data}.format().Bytes()) //nolint:errcheck
-			flusher.Flush()
+			if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
+				return
+			}
 		}
 	}
-}
-
-// sseEvent is a server-sent event.
-// https://html.spec.whatwg.org/multipage/server-sent-events.html
-type sseEvent struct {
-	ID    string
-	Type  string
-	Data  []byte
-	Retry int
-}
-
-func (e sseEvent) format() *bytes.Buffer {
-	b := new(bytes.Buffer)
-	if e.ID != "" {
-		fmt.Fprintf(b, "id: %s\n", e.ID)
-	}
-	if e.Type != "" {
-		fmt.Fprintf(b, "event: %s\n", e.Type)
-	}
-	if len(e.Data) > 0 {
-		b.WriteString("data: ")
-		b.Write(e.Data)
-		b.WriteByte('\n')
-	}
-	if e.Retry > 0 {
-		fmt.Fprintf(b, "retry: %s\n", strconv.Itoa(e.Retry))
-	}
-	b.WriteByte('\n')
-	return b
 }
