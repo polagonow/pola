@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"gojsx/framework/contract"
+	"gojsx/vm/eventloop"
 	"gojsx/vm/v8go/polyfill"
 	"gojsx/vm/v8go/polyfill/console"
 	"gojsx/vm/v8go/polyfill/globals"
@@ -18,7 +19,7 @@ import (
 type V8VM struct {
 	iso     *v8.Isolate
 	ctx     *v8.Context
-	loop    *eventLoop
+	loop    *eventloop.EventLoop
 	bridge  contract.BridgeConfig
 	jsiKeys []string // keys currently set on __JSI__; cleared in ClearState
 }
@@ -63,14 +64,14 @@ func (p *V8VMPool) Release(vm *V8VM) {
 // newV8VM creates a fresh isolate, installs globals + polyfills, and runs the bundle.
 func newV8VM(source string, bridge contract.BridgeConfig) (*V8VM, error) {
 	iso := v8.NewIsolate()
-	loop := newEventLoop()
+	loop := eventloop.New(true)
 	vm := &V8VM{iso: iso, loop: loop, bridge: bridge}
 
 	var initErr error
 	loop.RunSync(func() {
 		ctx := v8.NewContext(iso)
 		vm.ctx = ctx
-		loop.setCheckpoint(ctx.PerformMicrotaskCheckpoint)
+		loop.SetCheckpoint(ctx.PerformMicrotaskCheckpoint)
 		global := ctx.Global()
 
 		// Self-referential globals.

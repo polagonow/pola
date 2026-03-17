@@ -31,6 +31,7 @@ import (
 
 	"gojsx/framework"
 	"gojsx/framework/contract"
+	"gojsx/vm/eventloop"
 	"gojsx/vm/moderncquickjs/polyfill"
 )
 
@@ -81,7 +82,7 @@ const jsiWrapperJS = `__JSI__[%s] = function() {
 // VM holds a modernc.org/quickjs VM. All JS operations are serialised via the event loop.
 type VM struct {
 	inner         *mquickjs.VM
-	loop          *eventLoop
+	loop          *eventloop.EventLoop
 	globalFuncs   map[string]contract.GoFunc
 	perReqFuncs   map[string]contract.GoFunc
 	currentWriter framework.StreamWriter
@@ -157,7 +158,7 @@ func evalOrErr(inner *mquickjs.VM, src string) error {
 // All operations including VM creation run on the event loop goroutine so that
 // modernc.org/quickjs sees a consistent goroutine for every JS call.
 func newVM(src string, bridge contract.BridgeConfig) (*VM, error) {
-	loop := newEventLoop()
+	loop := eventloop.New(false)
 
 	var vm *VM
 	var initErr error
@@ -306,7 +307,7 @@ void 0;`, string(nameJSON), string(nameJSON))
 		// ── Wire checkpoint ───────────────────────────────────────────
 		// After every event-loop task: drain native JS jobs (async/await)
 		// then drain our custom microtask queue.
-		loop.setCheckpoint(func() {
+		loop.SetCheckpoint(func() {
 			drainNativeJobs(vm.inner)
 			evalOrErr(vm.inner, "__drainMicrotasks__();") //nolint:errcheck
 		})

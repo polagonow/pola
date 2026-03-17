@@ -11,15 +11,20 @@ import (
 	"sync"
 
 	"gojsx/framework/contract"
+	"gojsx/vm/eventloop"
 	"gojsx/vm/sobek/polyfill"
 
 	sobeklib "github.com/grafana/sobek"
 )
 
+// drainProg is a pre-compiled no-op that triggers Sobek's internal Promise
+// microtask queue to drain. Called as a checkpoint after every loop task.
+var drainProg, _ = sobeklib.Compile("drain.js", "0", false)
+
 // VM wraps a Sobek runtime with a goroutine-serialised event loop.
 type VM struct {
 	rt     *sobeklib.Runtime
-	loop   *eventLoop
+	loop   *eventloop.EventLoop
 	jsi    *sobeklib.Object
 	bridge contract.BridgeConfig
 }
@@ -67,14 +72,14 @@ func (p *VMPool) Bridge() contract.BridgeConfig { return p.bridge }
 
 // newVM creates a fresh event loop + runtime, installs globals/polyfills, runs the bundle.
 func newVM(prog *sobeklib.Program, bridge contract.BridgeConfig) (*VM, error) {
-	loop := newEventLoop()
+	loop := eventloop.New(false)
 	vm := &VM{loop: loop, bridge: bridge}
 
 	var initErr error
 	loop.RunSync(func() {
 		rt := sobeklib.New()
 		vm.rt = rt
-		loop.setRuntime(rt)
+		loop.SetCheckpoint(func() { rt.RunProgram(drainProg) }) //nolint:errcheck
 
 		// Self-referential globals.
 		rt.Set("global", rt.GlobalObject())     //nolint:errcheck
