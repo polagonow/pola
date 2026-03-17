@@ -1,45 +1,43 @@
 // Package polyfill provides Web API polyfills for the modernc.org/quickjs VM.
 //
-// Installation order matters:
-//
-//	microtask       — must run first (provides queueMicrotask / __drainMicrotasks__)
-//	promise         — replaces native Promise; depends on queueMicrotask
-//	textencoding    — standalone
-//	messagechannel  — depends on queueMicrotask
-//	readablestream  — depends on __drainMicrotasks__
-//	webpackrequire  — standalone
-//	abortcontroller — standalone
+// In addition to the shared polyfills, promise.js replaces the native Promise
+// with a queueMicrotask-backed implementation. modernc.org/quickjs exposes no
+// JS_ExecutePendingJob API, so native Promise continuations would never fire.
 package polyfill
 
 import (
+	"embed"
+	"fmt"
+	"io/fs"
+
 	mquickjs "modernc.org/quickjs"
 
-	"gojsx/vm/moderncquickjs/polyfill/abortcontroller"
-	"gojsx/vm/moderncquickjs/polyfill/messagechannel"
-	"gojsx/vm/moderncquickjs/polyfill/microtask"
-	"gojsx/vm/moderncquickjs/polyfill/promise"
-	"gojsx/vm/moderncquickjs/polyfill/readablestream"
-	"gojsx/vm/moderncquickjs/polyfill/textencoding"
-	"gojsx/vm/moderncquickjs/polyfill/webpackrequire"
+	"gojsx/vm/polyfill"
 )
+
+//go:embed promise.js
+var extraFiles embed.FS
+
+type runner struct{ vm *mquickjs.VM }
+
+func (r *runner) RunScript(src, name string) error {
+	if _, err := r.vm.Eval(src, mquickjs.EvalGlobal); err != nil {
+		return fmt.Errorf("polyfill %s: %w", name, err)
+	}
+	return nil
+}
 
 // Enable installs all polyfills into vm.
 // Must be called after basic globals are set and before the bundle runs.
 func Enable(vm *mquickjs.VM) error {
-	polyfills := []func(*mquickjs.VM) error{
-		microtask.Enable,
-		promise.Enable,
-		textencoding.Enable,
-		messagechannel.Enable,
-		readablestream.Enable,
-		webpackrequire.Enable,
-		abortcontroller.Enable,
+	r := &runner{vm}
+	if err := polyfill.LoadAll(r); err != nil {
+		return err
 	}
-
-	for _, enable := range polyfills {
-		if err := enable(vm); err != nil {
-			return err
-		}
+	// Load promise.js after microtask so queueMicrotask is already defined.
+	data, err := fs.ReadFile(extraFiles, "promise.js")
+	if err != nil {
+		return fmt.Errorf("polyfill promise.js: %w", err)
 	}
-	return nil
+	return r.RunScript(string(data), "promise.js")
 }

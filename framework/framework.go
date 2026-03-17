@@ -41,6 +41,10 @@ type Config struct {
 	RouteBuilder   RouteBuilder
 
 	// Runtime (nil = built-in Goja defaults)
+	// NewVM overrides the globally registered VM factory for this Config.
+	// Signature: func(serverBundle []byte) (VMFactory, error)
+	// If nil, the globally registered default (e.g. Goja via _ "gojsx/vm/goja") is used.
+	NewVM           func(serverBundle []byte) (VMFactory, error)
 	StreamProtocol StreamProtocol
 
 	// HTTP layer (nil = built-in defaults)
@@ -322,9 +326,13 @@ func (c *Config) fillDefaults() error {
 	return nil
 }
 
-// newVMFactory creates a VMFactory from the registered implementation.
-// Uses a function variable so framework.go doesn't directly import vm/goja.
+// newVMFactory creates a VMFactory from either the per-Config override (NewVM)
+// or the globally registered default. Uses a function variable so framework.go
+// doesn't directly import vm/goja or any other VM package.
 func (c *Config) newVMFactory(serverBundle []byte) (VMFactory, error) {
+	if c.NewVM != nil {
+		return c.NewVM(serverBundle)
+	}
 	if defaultVMFactory == nil {
 		return nil, fmt.Errorf("framework: no default VMFactory registered; import gojsx/vm/goja")
 	}

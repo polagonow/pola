@@ -117,7 +117,10 @@ func newVM(prog *sobeklib.Program, bridge contract.BridgeConfig) (*VM, error) {
 		}
 
 		// Polyfills.
-		polyfill.Enable(rt)
+		if err := polyfill.Enable(rt); err != nil {
+			initErr = fmt.Errorf("sobek: polyfill: %w", err)
+			return
+		}
 
 		// Run the server bundle.
 		if _, err := rt.RunProgram(prog); err != nil {

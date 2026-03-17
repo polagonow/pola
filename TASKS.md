@@ -8,10 +8,13 @@ there files should be templates and embed fs not to defined them on heap
 ./vm/polyfill/* them here each follows aur unifined interiface! thise will eliminate per vm polyfills and makes them easy to maintain
 ========================================
 
+FOLLOW UP ON POLYFILLS
+DOW WE REally need __microtaskQueue__?
+
+ADD Away to run tests along side different vms, render engines, bundlers. for now all tests are react based, but we will support other render engines so create room for that, 
+
 SCAN AND SEE IF CODE FOLLOWS effective go guideline
 https://go.dev/doc/effective_go
-
-
 
 
 Add logger, there is no predefined logger

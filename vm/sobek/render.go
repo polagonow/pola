@@ -33,15 +33,11 @@ func StartRender(vm *VM, exportName, propsJSON string) (*RenderSession, error) {
 			return fmt.Errorf("__pullStream__ is not a function")
 		}
 
-		decoderCtor, ok := sobeklib.AssertConstructor(rt.Get("TextDecoder"))
-		if !ok {
-			return fmt.Errorf("TextDecoder is not a constructor")
-		}
-		var err error
-		sess.DecoderObj, err = decoderCtor(rt.NewObject())
+		decoderVal, err := rt.RunString("new TextDecoder()")
 		if err != nil {
-			return err
+			return fmt.Errorf("TextDecoder instantiation failed: %w", err)
 		}
+		sess.DecoderObj = decoderVal.ToObject(rt)
 		sess.DecodeFn, ok = sobeklib.AssertFunction(sess.DecoderObj.Get("decode"))
 		if !ok {
 			return fmt.Errorf("TextDecoder.decode is not a function")

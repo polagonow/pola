@@ -1,42 +1,29 @@
 // Package polyfill provides Web API polyfills for the qjs VM.
-//
-// Installation order matters:
-//
-//	microtask       — must run first (provides queueMicrotask / __drainMicrotasks__)
-//	textencoding    — standalone
-//	messagechannel  — depends on queueMicrotask
-//	readablestream  — depends on __drainMicrotasks__
-//	webpackrequire  — standalone
-//	abortcontroller — standalone
 package polyfill
 
 import (
+	"fmt"
+
 	qjs "github.com/fastschema/qjs"
 
-	"gojsx/vm/qjs/polyfill/abortcontroller"
-	"gojsx/vm/qjs/polyfill/messagechannel"
-	"gojsx/vm/qjs/polyfill/microtask"
-	"gojsx/vm/qjs/polyfill/readablestream"
-	"gojsx/vm/qjs/polyfill/textencoding"
-	"gojsx/vm/qjs/polyfill/webpackrequire"
+	"gojsx/vm/polyfill"
 )
+
+type runner struct{ ctx *qjs.Context }
+
+func (r *runner) RunScript(src, name string) error {
+	val, err := r.ctx.Eval(name, qjs.Code(src))
+	if val != nil {
+		val.Free()
+	}
+	if err != nil {
+		return fmt.Errorf("polyfill %s: %w", name, err)
+	}
+	return nil
+}
 
 // Enable installs all polyfills into ctx.
 // Must be called after basic globals are set and before the bundle runs.
 func Enable(ctx *qjs.Context) error {
-	polyfills := []func(*qjs.Context) error{
-		microtask.Enable,
-		textencoding.Enable,
-		messagechannel.Enable,
-		readablestream.Enable,
-		webpackrequire.Enable,
-		abortcontroller.Enable,
-	}
-
-	for _, enable := range polyfills {
-		if err := enable(ctx); err != nil {
-			return err
-		}
-	}
-	return nil
+	return polyfill.LoadAll(&runner{ctx})
 }

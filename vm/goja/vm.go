@@ -177,7 +177,9 @@ func newVM(prog *gojalib.Program, bridge contract.BridgeConfig) (*VM, error) {
 			})
 		}
 
-		polyfill.Enable(rt)
+		if err := polyfill.Enable(rt); err != nil {
+			return fmt.Errorf("vm: polyfill: %w", err)
+		}
 
 		if _, err := rt.RunProgram(prog); err != nil {
 			return fmt.Errorf("vm: run program: %w", err)
