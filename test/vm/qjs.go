@@ -1,59 +1,25 @@
 package vm
 
 import (
-	"sync"
 	"testing"
 
 	qjslib "github.com/fastschema/qjs"
 
-	esbuild "gojsx/bundler/esbuild"
 	"gojsx/framework"
-	"gojsx/framework/contract"
-	react "gojsx/render/react"
 	"gojsx/test/fixture"
 	qjsvm "gojsx/vm/qjs"
 	qjspolyfill "gojsx/vm/qjs/polyfill"
 )
 
-func init() {
-	fixture.Register(&qjsFixture{})
+func init() { fixture.RegisterVM(&qjsVMFixture{}) }
+
+type qjsVMFixture struct{}
+
+func (f *qjsVMFixture) VMName() string { return "qjs" }
+func (f *qjsVMFixture) VMFactory() func([]byte) (framework.VMFactory, error) {
+	return func(b []byte) (framework.VMFactory, error) { return qjsvm.NewFastSchemaQJSVMFactory(b) }
 }
-
-// ── e2e ──────────────────────────────────────────────────────────────────────
-
-type qjsFixture struct {
-	once sync.Once
-	app  *framework.App
-	err  error
-}
-
-func (f *qjsFixture) Name() string     { return "qjs:react:esbuild" }
-func (f *qjsFixture) VMName() string   { return "qjs" }
-func (f *qjsFixture) Renderer() string { return "react" }
-func (f *qjsFixture) Bundler() string  { return "esbuild" }
-
-func (f *qjsFixture) GetApp(t *testing.T) *framework.App {
-	t.Helper()
-	f.once.Do(func() {
-		f.app, f.err = (&framework.Config{
-			AppDir:          fixture.AppDir,
-			GlobalBridge:    fixture.SharedBridge(),
-			NewVM:           func(b []byte) (framework.VMFactory, error) { return qjsvm.NewFastSchemaQJSVMFactory(b) },
-			Bundler:         esbuild.NewBundler(),
-			RendererFactory: func(pool framework.VMPool, protocol framework.StreamProtocol, bridge contract.BridgeConfig) framework.Renderer {
-				return react.NewVMRenderer(pool, protocol, bridge)
-			},
-		}).Build()
-	})
-	if f.err != nil {
-		t.Fatalf("%s: build failed: %v", f.Name(), f.err)
-	}
-	return f.app
-}
-
-// ── polyfill ─────────────────────────────────────────────────────────────────
-
-func (f *qjsFixture) NewPolyfill(t *testing.T) fixture.PolyfillFixture {
+func (f *qjsVMFixture) NewPolyfill(t *testing.T) fixture.PolyfillFixture {
 	rt, err := qjslib.New()
 	if err != nil {
 		t.Fatal(err)

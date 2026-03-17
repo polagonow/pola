@@ -1,15 +1,9 @@
-// Package fixtures registers every VM for both the e2e and polyfill test
-// suites. Importing this package (blank or otherwise) is all that is needed
-// to make ForEachApp / ForEachVM aware of all VMs.
+// Package vm registers every VM engine for the e2e and polyfill test suites.
+// Importing this package (blank or otherwise) triggers each VM's init() and
+// calls fixture.RegisterVM for each engine.
 //
-// To add a new VM: create <vmname>.go in this package, call
-// fixture.Register from init(), and done.
+// To add a new VM: create <vmname>.go in this package, implement VMFixture,
+// and call fixture.RegisterVM from init().
 package vm
 
-import (
-	_ "gojsx/bundler/esbuild"
-	_ "gojsx/framework/assets/disk"
-	_ "gojsx/render/react"
-	_ "gojsx/render/react/discovery/nextjs"
-	_ "gojsx/render/react/shell"
-)
+import _ "gojsx/framework/assets/disk"

@@ -126,7 +126,8 @@ gojsx/
 │   └── main.go
 │
 ├── tests/               End-to-end test suite
-├── Makefile
+├── mage.go              Zero-install mage bootstrap (go run mage.go <target>)
+├── magefile.go          Build targets (mage)
 ├── .golangci.yml        golangci-lint configuration
 ├── lefthook.yml         Git hooks (pre-commit lint, pre-push test, commit-msg)
 └── go.mod               Go 1.24, module: gojsx
@@ -148,7 +149,7 @@ gojsx/
 git clone <repo>
 cd go-react-ssr-v2
 
-make run        # cd example/blog && go run .
+go run mage.go run
 # open http://localhost:3000
 ```
 
@@ -157,7 +158,7 @@ The server discovers pages, runs esbuild, boots the VM pool, and starts serving 
 ### Build a binary
 
 ```bash
-make build      # go build -o bin/gojsx ./...
+go run mage.go build
 ./bin/gojsx
 ```
 
@@ -429,17 +430,30 @@ The `<h1>` streams to the browser immediately. The `<ul>` streams as a second Fl
 
 ## Development tooling
 
-### Makefile
+### Tasks (mage — zero install)
+
+No `mage` binary needed. All targets run via `go run mage.go <target>`:
 
 ```bash
-make run           # Start dev server (example/blog)
-make build         # Compile binary → bin/gojsx
-make test          # Run all tests
-make test-unit     # Fast unit tests only
-make test-e2e      # Full e2e suite (120s timeout)
-make lint          # Run golangci-lint
-make install-hooks # Install git hooks via lefthook
-make clean         # Remove bin/ and public/assets/
+go run mage.go run             # Start dev server (example/blog)
+go run mage.go build           # Compile binary → bin/gojsx
+go run mage.go test            # Run all tests
+go run mage.go testUnit        # Fast unit tests only
+go run mage.go testE2E         # Full e2e suite (120s timeout)
+go run mage.go testBuild       # Build/discover tests only
+go run mage.go lint            # Run golangci-lint + eslint
+go run mage.go uiLint          # ESLint across the UI monorepo
+go run mage.go uiFormat        # Format UI files with prettier
+go run mage.go uiFormatCheck   # Check UI formatting (no write)
+go run mage.go installHooks    # Install git hooks via lefthook
+go run mage.go clean           # Remove bin/ and public/assets/
+go run mage.go -l              # List all targets
+```
+
+Environment variables can be set as usual before the command:
+
+```bash
+JS_VM=v8go CGO_ENABLED=1 go run mage.go run
 ```
 
 ### Linting
@@ -448,7 +462,7 @@ golangci-lint is configured in [.golangci.yml](.golangci.yml). Active linters: `
 
 ```bash
 brew install golangci-lint
-make lint
+go run mage.go lint
 ```
 
 ### Git hooks (lefthook)
@@ -463,7 +477,7 @@ make lint
 
 ```bash
 brew install lefthook
-make install-hooks
+go run mage.go installHooks
 ```
 
 ---

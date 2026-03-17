@@ -1,12 +1,14 @@
-// Package fixture provides the AppFixture interface and VM-specific
-// implementations for the e2e test suite.
+// Package fixture provides the test fixture interfaces and cross-product
+// registration for e2e and polyfill test suites.
 //
-// Each VM×renderer×bundler combination registers itself via its file's init().
-// Tests call ForEachApp or ForEachReactApp to run assertions against every
-// registered fixture in a table-driven sub-test.
+// There are two independent registries:
+//   - VM implementations: registered with RegisterVM (one file per engine)
+//   - Bundler+renderer combos: registered with RegisterBundlerRenderer (one file per combo)
 //
-// To add a new VM: create <vmname>_fixture.go, implement AppFixture, and call
-// Register() from init(). The test files require no changes.
+// ForEachApp automatically runs every VM × every bundler+renderer combo.
+// To add a new VM: create a file in test/vm/, implement VMFixture, call RegisterVM.
+// To add a new bundler+renderer pair: create a file in test/combo/, implement
+// BundlerRendererFixture, call RegisterBundlerRenderer. No other files need changing.
 package fixture
 
 import (
@@ -17,11 +19,14 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"gojsx/framework"
 	"gojsx/framework/contract"
 )
+
+// ── Interfaces ────────────────────────────────────────────────────────────────
 
 // PolyfillFixture is a polyfill-enabled JS execution context for one VM.
 type PolyfillFixture interface {
@@ -31,7 +36,32 @@ type PolyfillFixture interface {
 	Eval(src string) error
 }
 
+// VMFixture provides the VM-specific half of an e2e fixture.
+// Register implementations with RegisterVM from an init() function.
+type VMFixture interface {
+	// VMName returns the JS engine identifier, e.g. "goja".
+	VMName() string
+	// VMFactory returns the constructor used to create a VMFactory from a bundle.
+	VMFactory() func([]byte) (framework.VMFactory, error)
+	// NewPolyfill returns a fresh polyfill-enabled context scoped to t.
+	NewPolyfill(t *testing.T) PolyfillFixture
+}
+
+// BundlerRendererFixture provides one bundler+renderer combination.
+// Register combinations with RegisterBundlerRenderer from an init() function.
+type BundlerRendererFixture interface {
+	// BundlerName returns the bundler identifier, e.g. "esbuild".
+	BundlerName() string
+	// RendererName returns the renderer identifier, e.g. "react".
+	RendererName() string
+	// NewBundler returns a fresh Bundler instance.
+	NewBundler() framework.Bundler
+	// NewRendererFactory returns the RendererFactory used by framework.Config.
+	NewRendererFactory() func(framework.VMPool, framework.StreamProtocol, contract.BridgeConfig) framework.Renderer
+}
+
 // AppFixture is a lazily-built, fully-wired application for one VM×renderer×bundler combination.
+// Implementations are generated automatically from the VM × combo cross-product.
 type AppFixture interface {
 	// Name returns a composite identifier, e.g. "goja:react:esbuild".
 	Name() string
@@ -44,35 +74,96 @@ type AppFixture interface {
 	// GetApp returns the built *framework.App, constructing it lazily on first call.
 	GetApp(t *testing.T) *framework.App
 	// NewPolyfill returns a fresh, polyfill-enabled JS context for this VM.
-	// The context lifetime is scoped to t.
 	NewPolyfill(t *testing.T) PolyfillFixture
 }
+
+// ── Registries ────────────────────────────────────────────────────────────────
+
+var (
+	vmList    []VMFixture
+	comboList []BundlerRendererFixture
+
+	compositeMu    sync.Mutex
+	compositeCache = map[string]*compositeFixture{}
+)
+
+// RegisterVM is called by VM driver files' init().
+func RegisterVM(v VMFixture) { vmList = append(vmList, v) }
+
+// RegisterBundlerRenderer is called by bundler+renderer combo files' init().
+func RegisterBundlerRenderer(c BundlerRendererFixture) { comboList = append(comboList, c) }
+
+// ── compositeFixture ──────────────────────────────────────────────────────────
+
+// compositeFixture is a lazily-built AppFixture for one VM × bundler+renderer pair.
+type compositeFixture struct {
+	vm    VMFixture
+	combo BundlerRendererFixture
+	once  sync.Once
+	app   *framework.App
+	err   error
+}
+
+func (f *compositeFixture) Name() string {
+	return f.vm.VMName() + ":" + f.combo.RendererName() + ":" + f.combo.BundlerName()
+}
+func (f *compositeFixture) VMName() string   { return f.vm.VMName() }
+func (f *compositeFixture) Renderer() string { return f.combo.RendererName() }
+func (f *compositeFixture) Bundler() string  { return f.combo.BundlerName() }
+
+func (f *compositeFixture) GetApp(t *testing.T) *framework.App {
+	t.Helper()
+	f.once.Do(func() {
+		f.app, f.err = (&framework.Config{
+			AppDir:          AppDir,
+			GlobalBridge:    SharedBridge(),
+			NewVM:           f.vm.VMFactory(),
+			Bundler:         f.combo.NewBundler(),
+			RendererFactory: f.combo.NewRendererFactory(),
+		}).Build()
+	})
+	if f.err != nil {
+		t.Fatalf("%s: build failed: %v", f.Name(), f.err)
+	}
+	return f.app
+}
+
+func (f *compositeFixture) NewPolyfill(t *testing.T) PolyfillFixture { return f.vm.NewPolyfill(t) }
+
+// allFixtures returns the VM × combo cross-product, caching composites so the
+// same instance (and its sync.Once) is reused across test functions.
+func allFixtures() []AppFixture {
+	compositeMu.Lock()
+	defer compositeMu.Unlock()
+
+	var result []AppFixture
+	for _, vm := range vmList {
+		for _, combo := range comboList {
+			key := vm.VMName() + ":" + combo.RendererName() + ":" + combo.BundlerName()
+			if _, ok := compositeCache[key]; !ok {
+				compositeCache[key] = &compositeFixture{vm: vm, combo: combo}
+			}
+			result = append(result, compositeCache[key])
+		}
+	}
+	return result
+}
+
+// ── Public iteration helpers ──────────────────────────────────────────────────
 
 // AppDir is the path to the test application, relative to the e2e package root.
 const AppDir = "../../ui/apps/blog-e2e"
 
-var fixtureList []AppFixture
-
-// Register is called by each driver file's init().
-func Register(f AppFixture) {
-	fixtureList = append(fixtureList, f)
-}
-
-// Fixtures returns all registered AppFixtures.
-func Fixtures() []AppFixture { return fixtureList }
-
-// ForEachApp runs fn as a sub-test for every registered fixture.
+// ForEachApp runs fn as a sub-test for every registered VM × bundler+renderer fixture.
 func ForEachApp(t *testing.T, fn func(*testing.T, AppFixture)) {
 	t.Helper()
-	for _, f := range fixtureList {
+	for _, f := range allFixtures() {
 		f := f
-		t.Run(f.Name(), func(t *testing.T) {
-			fn(t, f)
-		})
+		t.Run(f.Name(), func(t *testing.T) { fn(t, f) })
 	}
 }
 
-// ForEachReactApp is like ForEachApp but skips fixtures whose renderer is not "react".
+// ForEachReactApp is like ForEachApp but skips non-React renderer fixtures.
 func ForEachReactApp(t *testing.T, fn func(*testing.T, AppFixture)) {
 	t.Helper()
 	ForEachApp(t, func(t *testing.T, f AppFixture) {
@@ -83,18 +174,23 @@ func ForEachReactApp(t *testing.T, fn func(*testing.T, AppFixture)) {
 	})
 }
 
-// ForEachVM runs fn in a sub-test for every registered VM, providing a fresh
-// polyfill-enabled PolyfillFixture. The fixture lifetime is scoped to the sub-test.
+// ForEachVM runs fn in a sub-test for each registered VM (one sub-test per VM,
+// deduplicated across combos), providing a fresh polyfill-enabled PolyfillFixture.
 func ForEachVM(t *testing.T, fn func(t *testing.T, f PolyfillFixture)) {
 	t.Helper()
-	for _, fix := range fixtureList {
-		fix := fix
-		t.Run(fix.VMName(), func(t *testing.T) {
-			f := fix.NewPolyfill(t)
-			if err := f.Enable(); err != nil {
+	seen := map[string]bool{}
+	for _, f := range allFixtures() {
+		if seen[f.VMName()] {
+			continue
+		}
+		seen[f.VMName()] = true
+		f := f
+		t.Run(f.VMName(), func(t *testing.T) {
+			pf := f.NewPolyfill(t)
+			if err := pf.Enable(); err != nil {
 				t.Fatal(err)
 			}
-			fn(t, f)
+			fn(t, pf)
 		})
 	}
 }

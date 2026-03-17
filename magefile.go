@@ -60,6 +60,7 @@ func Run() error {
 	return sh.RunWithV(
 		map[string]string{"CGO_ENABLED": cgoEnabled},
 		"go", "run",
+		"-C", "example/blog",
 		"-tags", runtimeTags(),
 		".",
 	)
@@ -94,7 +95,7 @@ func TestUnit() error {
 
 // TestE2E runs end-to-end tests (builds bundles — slow).
 func TestE2E() error {
-	return sh.RunV("go", "test", "-v", "-run", "Test", "-timeout", "120s", "./tests/...")
+	return sh.RunV("go", "test", "-v", "-run", "Test", "-timeout", "120s", "./test/...")
 }
 
 // TestBuild runs only build/discover tests.

@@ -11,7 +11,8 @@ package e2e
 import (
 	"testing"
 
-	// Import fixtures to trigger init() registration of all VM fixtures.
+	// Import to register all VM engines and bundler+renderer combos.
+	_ "gojsx/test/combo"
 	_ "gojsx/test/vm"
 	"gojsx/test/e2e/suite"
 )
