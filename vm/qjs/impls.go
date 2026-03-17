@@ -66,7 +66,6 @@ func (vm *VM) SetBridgeFunctions(funcs map[string]contract.GoFunc) error {
 		defer jsi.Free()
 
 		for name, fn := range funcs {
-			name, fn := name, fn
 			jsFn := vm.ctx.Function(func(this *qjs.This) (*qjs.Value, error) {
 				goArgs := exportArgs(this.Args())
 
@@ -124,7 +123,7 @@ func (vm *VM) DrainStream(handle framework.StreamHandle, w framework.StreamWrite
 func (vm *VM) ClearState() error {
 	vm.run(func() {
 		_, _ = vm.ctx.Eval("clear_state.js", qjs.Code(
-			"__REQUEST__ = undefined; __gojsx_stream__ = undefined; __outputChunk__ = undefined; Object.keys(__JSI__).forEach(function(k) { delete __JSI__[k]; });",
+			"__REQUEST__ = undefined; __gojsx_stream__ = undefined; __outputChunk__ = undefined; Object.keys(__JSI__).forEach(function(k) { delete __JSI__[k]; });", //nolint:lll
 		))
 	})
 	return nil

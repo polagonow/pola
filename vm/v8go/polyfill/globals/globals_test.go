@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	v8 "rogchap.com/v8go"
+
 	"gojsx/vm/v8go/polyfill/globals"
 )
 
@@ -22,7 +23,7 @@ func TestProcessEnv(t *testing.T) {
 
 	_, err := ctx.RunScript(`
 		if (typeof process !== "object") throw new Error("process should be an object");
-		if (process.env.NODE_ENV !== "production") throw new Error("expected NODE_ENV=production, got: " + process.env.NODE_ENV);
+		if (process.env.NODE_ENV !== "production") throw new Error("expected NODE_ENV=production, got: " + process.env.NODE_ENV); //nolint:lll
 	`, "test.js")
 	if err != nil {
 		t.Fatal(err)

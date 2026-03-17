@@ -12,7 +12,7 @@ import (
 func Enable(rt *goja.Runtime) {
 	portProto := rt.NewObject()
 
-	portProto.Set("postMessage", func(call goja.FunctionCall) goja.Value {
+	portProto.Set("postMessage", func(call goja.FunctionCall) goja.Value { //nolint:errcheck
 		this := call.This.ToObject(rt)
 		data := call.Argument(0)
 		partner := this.Get("_partner")
@@ -30,7 +30,7 @@ func Enable(rt *goja.Runtime) {
 			onmessage := partnerObj.Get("onmessage")
 			if callable, ok := goja.AssertFunction(onmessage); ok {
 				evt := rt.NewObject()
-				evt.Set("data", data)
+				evt.Set("data", data)     //nolint:errcheck
 				callable(partnerObj, evt) //nolint:errcheck
 			}
 			return goja.Undefined()
@@ -39,26 +39,26 @@ func Enable(rt *goja.Runtime) {
 		return goja.Undefined()
 	})
 
-	portProto.Set("close", func(call goja.FunctionCall) goja.Value {
+	portProto.Set("close", func(call goja.FunctionCall) goja.Value { //nolint:errcheck
 		return goja.Undefined()
 	})
 
 	mcCtor := rt.ToValue(func(call goja.ConstructorCall) *goja.Object {
 		port1 := rt.NewObject()
 		port1.SetPrototype(portProto)
-		port1.Set("onmessage", goja.Null())
+		port1.Set("onmessage", goja.Null()) //nolint:errcheck
 
 		port2 := rt.NewObject()
 		port2.SetPrototype(portProto)
-		port2.Set("onmessage", goja.Null())
+		port2.Set("onmessage", goja.Null()) //nolint:errcheck
 
-		port1.Set("_partner", port2)
-		port2.Set("_partner", port1)
+		port1.Set("_partner", port2) //nolint:errcheck
+		port2.Set("_partner", port1) //nolint:errcheck
 
-		call.This.Set("port1", port1)
-		call.This.Set("port2", port2)
+		call.This.Set("port1", port1) //nolint:errcheck
+		call.This.Set("port2", port2) //nolint:errcheck
 		return nil
 	}).(*goja.Object)
 
-	rt.Set("MessageChannel", mcCtor)
+	rt.Set("MessageChannel", mcCtor) //nolint:errcheck
 }

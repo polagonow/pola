@@ -92,11 +92,16 @@ func main() {
 				if len(args) == 0 {
 					return nil, fmt.Errorf("fetchJSON requires a url argument")
 				}
-				resp, err := http.Get(fmt.Sprintf("%v", args[0])) //nolint:gosec
+				req, err := http.NewRequestWithContext( //nolint:gosec
+					context.Background(), http.MethodGet, fmt.Sprintf("%v", args[0]), nil)
 				if err != nil {
 					return nil, err
 				}
-				defer resp.Body.Close()
+				resp, err := http.DefaultClient.Do(req)
+				if err != nil {
+					return nil, err
+				}
+				defer func() { _ = resp.Body.Close() }()
 				var v any
 				return v, json.NewDecoder(resp.Body).Decode(&v)
 			},
@@ -268,7 +273,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("hotreload: %v", err)
 		}
-		defer reloader.Close()
+		defer func() { _ = reloader.Close() }()
 		handler = reloader.Handler()
 	} else {
 		handler = app.Handler()

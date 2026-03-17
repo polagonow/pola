@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	quickjs "github.com/buke/quickjs-go"
+
 	"gojsx/vm/quickjsgo/polyfill/webpackrequire"
 )
 

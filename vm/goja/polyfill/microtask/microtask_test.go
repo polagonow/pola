@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/dop251/goja"
+
 	"gojsx/vm/goja/polyfill/microtask"
 )
 

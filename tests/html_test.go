@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -23,7 +24,7 @@ func TestHTMLShell_HasClientEntryScript(t *testing.T) {
 
 func TestHTMLShell_ContentType(t *testing.T) {
 	app := requireApp(t)
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
 	ct := w.Result().Header.Get("Content-Type")
@@ -34,7 +35,7 @@ func TestHTMLShell_ContentType(t *testing.T) {
 
 func TestHTMLShell_404(t *testing.T) {
 	app := requireApp(t)
-	req := httptest.NewRequest("GET", "/nonexistent", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/nonexistent", nil)
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
 	if w.Result().StatusCode != http.StatusNotFound {

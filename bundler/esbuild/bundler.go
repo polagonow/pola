@@ -31,13 +31,13 @@ import (
 	"gojsx/framework/contract"
 )
 
-// EsbuildBundler implements framework.Bundler using the two-pass esbuild
+// Bundler implements framework.Bundler using the two-pass esbuild
 // pipeline. It accepts a contract.BundleInput (with pre-generated
 // ServerEntryContent) and delegates to Bundle.
-type EsbuildBundler struct{}
+type Bundler struct{}
 
 // Bundle runs both esbuild passes and returns the combined output.
-func (b *EsbuildBundler) Bundle(input contract.BundleInput) (contract.BundleOutput, error) {
+func (b *Bundler) Bundle(input contract.BundleInput) (contract.BundleOutput, error) {
 	cfg := structs.BundlerConfig{
 		AppDir:                 input.AppDir,
 		OutDir:                 input.OutDir,
@@ -111,11 +111,12 @@ func Bundle(cfg structs.BundlerConfig) (*structs.BundleResult, error) {
 	}
 	inputChunkURLs := BuildInputChunkURLs(metafile, absDir, absOutDir, cfg.AssetsURLPath)
 
-	manifest, importURLs, err := manifest.Build(cfg.ClientComponents, clientFiles, cfg.AppDir, cfg.AssetsURLPath, inputChunkURLs)
+	mfst, importURLs, err := manifest.Build( //nolint:lll
+		cfg.ClientComponents, clientFiles, cfg.AppDir, cfg.AssetsURLPath, inputChunkURLs)
 	if err != nil {
 		return nil, fmt.Errorf("bundler: manifest: %w", err)
 	}
-	manifestJSON, _ := json.MarshalIndent(manifest, "", "  ")
+	manifestJSON, _ := json.MarshalIndent(mfst, "", "  ")
 	_ = os.WriteFile(filepath.Join(cfg.OutDir, "manifest.json"), manifestJSON, 0o644)
 
 	// ------------------------------------------------------------------ //
@@ -124,7 +125,7 @@ func Bundle(cfg structs.BundlerConfig) (*structs.BundleResult, error) {
 	// RSC Flight wire format from renderToReadableStream().               //
 	// __webpack_require__ is stubbed in polyfills.js.                     //
 	// ------------------------------------------------------------------ //
-	manifestDefine, err := json.Marshal(manifest)
+	manifestDefine, err := json.Marshal(mfst)
 	if err != nil {
 		return nil, fmt.Errorf("bundler: manifest pass: %w", err)
 	}
@@ -195,7 +196,9 @@ func newAtAliasPlugin(absAppDir string) api.Plugin {
 // it only emits a ClientReference that the Flight encoder serialises as an
 // I: row. The browser receives that row, imports the real chunk, and renders
 // the component with full React state.
-func buildPagesBundle(cfg structs.BundlerConfig, absDir string, manifestDefineJSON string, serverOutFile string) (string, error) {
+func buildPagesBundle(
+	cfg structs.BundlerConfig, absDir string, manifestDefineJSON string, serverOutFile string,
+) (string, error) {
 	if cfg.ServerEntryContent == "" {
 		return "", nil
 	}
@@ -324,7 +327,7 @@ func buildClientBundle(cfg structs.BundlerConfig, absDir string) (map[string][]b
 			synthPath := filepath.Join(filepath.Dir(absOutDir), "_client.tsx")
 			content := fmt.Sprintf("import %q;\n", cfg.ClientEntry)
 			if werr := os.WriteFile(synthPath, []byte(content), 0o644); werr == nil {
-				defer os.Remove(synthPath)
+				defer func() { _ = os.Remove(synthPath) }()
 				entries = append(entries, synthPath)
 				entryBase = "_client"
 			}
@@ -461,7 +464,10 @@ func probeServerEntryClientFiles(cfg structs.BundlerConfig, absDir string) []str
 		"__CLIENT_MANIFEST__":  "{}",
 	}
 	api.Build(api.BuildOptions{
-		Stdin:         &api.StdinOptions{Contents: cfg.ServerEntryContent, ResolveDir: absAppDir, Loader: api.LoaderTSX, Sourcefile: "<probe>"},
+		Stdin: &api.StdinOptions{
+			Contents: cfg.ServerEntryContent, ResolveDir: absAppDir,
+			Loader: api.LoaderTSX, Sourcefile: "<probe>",
+		},
 		Bundle:        true,
 		Write:         false,
 		Outfile:       "_probe.js",

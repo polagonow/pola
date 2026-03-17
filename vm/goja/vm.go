@@ -43,7 +43,6 @@ func (vm *VM) SetJSI(funcs map[string]contract.GoFunc) error {
 			vm.jsi.Delete(key) //nolint:errcheck
 		}
 		for name, fn := range funcs {
-			fn := fn
 			vm.jsi.Set(name, func(c gojalib.FunctionCall) gojalib.Value { //nolint:errcheck
 				args := exportArgs(c.Arguments)
 				p, resolve, reject := rt.NewPromise()
@@ -51,9 +50,9 @@ func (vm *VM) SetJSI(funcs map[string]contract.GoFunc) error {
 					result, err := fn(args)
 					vm.loop.RunOnLoop(func(rt *gojalib.Runtime) {
 						if err != nil {
-							reject(rt.ToValue(err.Error()))
+							_ = reject(rt.ToValue(err.Error()))
 						} else {
-							resolve(rt.ToValue(result))
+							_ = resolve(rt.ToValue(result))
 						}
 					})
 				}()
@@ -70,7 +69,7 @@ func (vm *VM) SetRequestContext(ctx map[string]any) error {
 		ctx = map[string]any{}
 	}
 	return vm.run(func(rt *gojalib.Runtime) error {
-		rt.Set("__REQUEST__", rt.ToValue(ctx))
+		rt.Set("__REQUEST__", rt.ToValue(ctx)) //nolint:errcheck
 		return nil
 	})
 }
@@ -91,20 +90,20 @@ func (vm *VM) CallExport(name string, args ...gojalib.Value) (gojalib.Value, err
 }
 
 // VMPool manages a pool of pre-warmed VMs.
-type VMPool struct {
+type vmPool struct {
 	pool   sync.Pool
 	bridge contract.BridgeConfig
 	prog   *gojalib.Program
 }
 
 // NewVMPool compiles the server bundle once and creates a pool of VMs.
-func NewVMPool(serverBundle string, bridge contract.BridgeConfig) (*VMPool, error) {
+func newVMPool(serverBundle string, bridge contract.BridgeConfig) (*vmPool, error) {
 	prog, err := gojalib.Compile("bundle.js", serverBundle, false)
 	if err != nil {
 		return nil, fmt.Errorf("vm: compile: %w", err)
 	}
 
-	p := &VMPool{bridge: bridge, prog: prog}
+	p := &vmPool{bridge: bridge, prog: prog}
 	p.pool = sync.Pool{
 		New: func() any {
 			vm, err := newVM(prog, bridge)
@@ -122,15 +121,15 @@ func NewVMPool(serverBundle string, bridge contract.BridgeConfig) (*VMPool, erro
 }
 
 // Acquire returns a VM from the pool.
-func (p *VMPool) Acquire() *VM {
+func (p *vmPool) Acquire() *VM {
 	return p.pool.Get().(*VM)
 }
 
 // Release clears per-request state and returns the VM to the pool.
-func (p *VMPool) Release(vm *VM) {
+func (p *vmPool) Release(vm *VM) {
 	_ = vm.run(func(rt *gojalib.Runtime) error {
-		rt.Set("__REQUEST__", gojalib.Undefined())
-		rt.Set("__gojsx_stream__", gojalib.Undefined())
+		rt.Set("__REQUEST__", gojalib.Undefined())      //nolint:errcheck
+		rt.Set("__gojsx_stream__", gojalib.Undefined()) //nolint:errcheck
 		for _, key := range vm.jsi.Keys() {
 			vm.jsi.Delete(key) //nolint:errcheck
 		}
@@ -140,7 +139,7 @@ func (p *VMPool) Release(vm *VM) {
 }
 
 // Bridge returns the bridge config this pool was created with.
-func (p *VMPool) Bridge() contract.BridgeConfig {
+func (p *vmPool) Bridge() contract.BridgeConfig {
 	return p.bridge
 }
 
@@ -152,26 +151,24 @@ func newVM(prog *gojalib.Program, bridge contract.BridgeConfig) (*VM, error) {
 	err := vm.run(func(rt *gojalib.Runtime) error {
 		vm.rt = rt
 		vm.jsi = rt.NewObject()
-		rt.Set("__JSI__", vm.jsi)
-
-		rt.Set("global", rt.GlobalObject())
-		rt.Set("globalThis", rt.GlobalObject())
-		rt.Set("console", map[string]any{
-			"log":   func(c gojalib.FunctionCall) gojalib.Value { return logConsole(rt, "LOG", c) },
-			"warn":  func(c gojalib.FunctionCall) gojalib.Value { return logConsole(rt, "WARN", c) },
-			"error": func(c gojalib.FunctionCall) gojalib.Value { return logConsole(rt, "ERR", c) },
-			"info":  func(c gojalib.FunctionCall) gojalib.Value { return logConsole(rt, "INFO", c) },
+		rt.Set("__JSI__", vm.jsi)               //nolint:errcheck
+		rt.Set("global", rt.GlobalObject())     //nolint:errcheck
+		rt.Set("globalThis", rt.GlobalObject()) //nolint:errcheck
+		rt.Set("console", map[string]any{       //nolint:errcheck
+			"log":   func(c gojalib.FunctionCall) gojalib.Value { return logConsole("LOG", c) },
+			"warn":  func(c gojalib.FunctionCall) gojalib.Value { return logConsole("WARN", c) },
+			"error": func(c gojalib.FunctionCall) gojalib.Value { return logConsole("ERR", c) },
+			"info":  func(c gojalib.FunctionCall) gojalib.Value { return logConsole("INFO", c) },
 		})
-		rt.Set("process", map[string]any{
+		rt.Set("process", map[string]any{ //nolint:errcheck
 			"env": map[string]any{"NODE_ENV": "production"},
 		})
-		rt.Set("performance", map[string]any{
+		rt.Set("performance", map[string]any{ //nolint:errcheck
 			"now": func(c gojalib.FunctionCall) gojalib.Value { return rt.ToValue(0) },
 		})
 
 		for name, fn := range bridge.Globals {
-			name, fn := name, fn
-			rt.Set(name, func(c gojalib.FunctionCall) gojalib.Value {
+			rt.Set(name, func(c gojalib.FunctionCall) gojalib.Value { //nolint:errcheck
 				result, err := fn(exportArgs(c.Arguments))
 				if err != nil {
 					panic(rt.ToValue(err.Error()))
@@ -201,7 +198,7 @@ func exportArgs(vals []gojalib.Value) []interface{} {
 	return out
 }
 
-func logConsole(rt *gojalib.Runtime, level string, c gojalib.FunctionCall) gojalib.Value {
+func logConsole(level string, c gojalib.FunctionCall) gojalib.Value {
 	args := make([]string, len(c.Arguments))
 	for i, a := range c.Arguments {
 		args[i] = a.String()

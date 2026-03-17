@@ -9,7 +9,9 @@ type State = { error: Error | null };
 
 export default class ErrorBoundary extends React.Component<Props, State> {
   state: State = { error: null };
-  static getDerivedStateFromError(error: Error): State { return { error }; }
+  static getDerivedStateFromError(error: Error): State {
+    return { error };
+  }
   render() {
     if (this.state.error) {
       const reset = () => this.setState({ error: null });

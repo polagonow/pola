@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"net/http/httptest"
@@ -14,7 +15,7 @@ func TestRSC_Concurrent(t *testing.T) {
 	results := make(chan error, n)
 	for range n {
 		go func() {
-			req := httptest.NewRequest("GET", "/posts", nil)
+			req := httptest.NewRequestWithContext(context.Background(), "GET", "/posts", nil)
 			req.Header.Set("Content-Type", "text/x-component")
 			w := httptest.NewRecorder()
 			app.ServeHTTP(w, req)

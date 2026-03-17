@@ -21,33 +21,33 @@ func Enable(rt *goja.Runtime) {
 	rsCtor := rt.ToValue(func(call goja.ConstructorCall) *goja.Object {
 		controller := rt.NewObject()
 		controller.SetPrototype(controllerProto)
-		controller.Set("_chunks", rt.NewArray())
-		controller.Set("_closed", rt.ToValue(false))
-		controller.Set("_error", goja.Null())
+		controller.Set("_chunks", rt.NewArray())     //nolint:errcheck
+		controller.Set("_closed", rt.ToValue(false)) //nolint:errcheck
+		controller.Set("_error", goja.Null())        //nolint:errcheck
 
 		src := call.Argument(0)
 		if goja.IsUndefined(src) || goja.IsNull(src) {
 			src = rt.NewObject()
 		}
-		call.This.Set("_controller", controller)
-		call.This.Set("_src", src)
-		call.This.Set("_started", rt.ToValue(false))
+		call.This.Set("_controller", controller)     //nolint:errcheck
+		call.This.Set("_src", src)                   //nolint:errcheck
+		call.This.Set("_started", rt.ToValue(false)) //nolint:errcheck
 		call.This.SetPrototype(streamProto)
 		return nil
 	}).(*goja.Object)
-	rt.Set("ReadableStream", rsCtor)
+	rt.Set("ReadableStream", rsCtor) //nolint:errcheck
 
 	// __pullStream__ — global function, interface is locked (called by render.go).
-	rt.Set("__pullStream__", func(call goja.FunctionCall) goja.Value {
+	rt.Set("__pullStream__", func(call goja.FunctionCall) goja.Value { //nolint:errcheck
 		s := call.Argument(0).ToObject(rt)
 
-		callMethod(rt, s, "_start")
+		callMethod(s, "_start")
 
 		if drain, ok := goja.AssertFunction(rt.Get("__drainMicrotasks__")); ok {
 			drain(goja.Undefined()) //nolint:errcheck
 		}
 
-		callMethod(rt, s, "_pull")
+		callMethod(s, "_pull")
 
 		if drain, ok := goja.AssertFunction(rt.Get("__drainMicrotasks__")); ok {
 			drain(goja.Undefined()) //nolint:errcheck
@@ -62,8 +62,8 @@ func Enable(rt *goja.Runtime) {
 		chunksLen := chunks.ToObject(rt).Get("length").ToInteger()
 
 		result := rt.NewObject()
-		result.Set("chunks", chunks)
-		result.Set("done", rt.ToValue(closed && chunksLen == 0))
+		result.Set("chunks", chunks)                             //nolint:errcheck
+		result.Set("done", rt.ToValue(closed && chunksLen == 0)) //nolint:errcheck
 		return result
 	})
 }
@@ -71,7 +71,7 @@ func Enable(rt *goja.Runtime) {
 func buildControllerProto(rt *goja.Runtime) *goja.Object {
 	proto := rt.NewObject()
 
-	proto.Set("enqueue", func(call goja.FunctionCall) goja.Value {
+	proto.Set("enqueue", func(call goja.FunctionCall) goja.Value { //nolint:errcheck
 		this := call.This.ToObject(rt)
 		if this.Get("_closed").ToBoolean() {
 			return goja.Undefined()
@@ -82,25 +82,25 @@ func buildControllerProto(rt *goja.Runtime) *goja.Object {
 		return goja.Undefined()
 	})
 
-	proto.Set("close", func(call goja.FunctionCall) goja.Value {
-		call.This.ToObject(rt).Set("_closed", rt.ToValue(true))
+	proto.Set("close", func(call goja.FunctionCall) goja.Value { //nolint:errcheck
+		call.This.ToObject(rt).Set("_closed", rt.ToValue(true)) //nolint:errcheck
 		return goja.Undefined()
 	})
 
-	proto.Set("error", func(call goja.FunctionCall) goja.Value {
+	proto.Set("error", func(call goja.FunctionCall) goja.Value { //nolint:errcheck
 		this := call.This.ToObject(rt)
-		this.Set("_error", call.Argument(0))
-		this.Set("_closed", rt.ToValue(true))
+		this.Set("_error", call.Argument(0))  //nolint:errcheck
+		this.Set("_closed", rt.ToValue(true)) //nolint:errcheck
 		return goja.Undefined()
 	})
 
-	proto.DefineAccessorProperty("byobRequest",
+	proto.DefineAccessorProperty("byobRequest", //nolint:errcheck
 		rt.ToValue(func(call goja.FunctionCall) goja.Value { return goja.Null() }),
 		goja.Undefined(),
 		goja.FLAG_FALSE, goja.FLAG_TRUE,
 	)
 
-	proto.DefineAccessorProperty("desiredSize",
+	proto.DefineAccessorProperty("desiredSize", //nolint:errcheck
 		rt.ToValue(func(call goja.FunctionCall) goja.Value {
 			this := call.This.ToObject(rt)
 			if this.Get("_closed").ToBoolean() {
@@ -118,12 +118,12 @@ func buildControllerProto(rt *goja.Runtime) *goja.Object {
 func buildStreamProto(rt *goja.Runtime) *goja.Object {
 	proto := rt.NewObject()
 
-	proto.Set("_start", func(call goja.FunctionCall) goja.Value {
+	proto.Set("_start", func(call goja.FunctionCall) goja.Value { //nolint:errcheck
 		this := call.This.ToObject(rt)
 		if this.Get("_started").ToBoolean() {
 			return goja.Undefined()
 		}
-		this.Set("_started", rt.ToValue(true))
+		this.Set("_started", rt.ToValue(true)) //nolint:errcheck
 		src := this.Get("_src").ToObject(rt)
 		if startFn, ok := goja.AssertFunction(src.Get("start")); ok {
 			startFn(src, this.Get("_controller")) //nolint:errcheck
@@ -131,7 +131,7 @@ func buildStreamProto(rt *goja.Runtime) *goja.Object {
 		return goja.Undefined()
 	})
 
-	proto.Set("_pull", func(call goja.FunctionCall) goja.Value {
+	proto.Set("_pull", func(call goja.FunctionCall) goja.Value { //nolint:errcheck
 		this := call.This.ToObject(rt)
 		src := this.Get("_src").ToObject(rt)
 		if pullFn, ok := goja.AssertFunction(src.Get("pull")); ok {
@@ -143,7 +143,7 @@ func buildStreamProto(rt *goja.Runtime) *goja.Object {
 	return proto
 }
 
-func callMethod(rt *goja.Runtime, obj *goja.Object, name string) {
+func callMethod(obj *goja.Object, name string) {
 	fn, ok := goja.AssertFunction(obj.Get(name))
 	if !ok {
 		return

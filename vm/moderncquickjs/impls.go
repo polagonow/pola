@@ -73,10 +73,7 @@ func (vm *VM) SetBridgeFunctions(funcs map[string]contract.GoFunc) error {
 
 // CallRenderFunction implements framework.VM.
 func (vm *VM) CallRenderFunction(exportName, propsJSON string) (framework.StreamHandle, error) {
-	sess, err := startRender(vm, exportName, propsJSON)
-	if err != nil {
-		return &StreamHandle{}, err
-	}
+	sess := startRender(vm, exportName, propsJSON)
 	return &StreamHandle{Sess: sess}, nil
 }
 
@@ -107,41 +104,37 @@ func (vm *VM) ClearState() error {
 	return nil
 }
 
-// ── ModerncQuickJSVMPool ──────────────────────────────────────────────────────
+// ── VMPool ──────────────────────────────────────────────────────
 
-// ModerncQuickJSVMPool wraps *VMPool and implements framework.VMPool.
-type ModerncQuickJSVMPool struct {
-	inner *VMPool
+// VMPool wraps the internal pool and implements framework.VMPool.
+type VMPool struct {
+	inner *vmPool
 }
 
-// NewModerncQuickJSVMPool creates a framework.VMPool backed by a pre-warmed pool.
-func NewModerncQuickJSVMPool(serverBundle string, bridge contract.BridgeConfig) (*ModerncQuickJSVMPool, error) {
-	inner, err := NewVMPool(serverBundle, bridge)
-	if err != nil {
-		return nil, err
-	}
-	return &ModerncQuickJSVMPool{inner: inner}, nil
+// NewVMPool creates a framework.VMPool backed by a pre-warmed pool.
+func NewVMPool(serverBundle string, bridge contract.BridgeConfig) (*VMPool, error) {
+	return &VMPool{inner: newVMPool(serverBundle, bridge)}, nil
 }
 
 // Acquire implements framework.VMPool.
-func (p *ModerncQuickJSVMPool) Acquire() framework.VM { return p.inner.Acquire() }
+func (p *VMPool) Acquire() framework.VM { return p.inner.Acquire() }
 
 // Release implements framework.VMPool.
-func (p *ModerncQuickJSVMPool) Release(vm framework.VM) { p.inner.Release(vm.(*VM)) }
+func (p *VMPool) Release(vm framework.VM) { p.inner.Release(vm.(*VM)) }
 
-// ── ModerncQuickJSVMFactory ───────────────────────────────────────────────────
+// ── VMFactory ───────────────────────────────────────────────────
 
-// ModerncQuickJSVMFactory implements framework.VMFactory for modernc.org/quickjs.
-type ModerncQuickJSVMFactory struct {
+// VMFactory implements framework.VMFactory for modernc.org/quickjs.
+type VMFactory struct {
 	src string
 }
 
-// NewModerncQuickJSVMFactory stores serverBundle and returns a factory.
-func NewModerncQuickJSVMFactory(serverBundle []byte) (*ModerncQuickJSVMFactory, error) {
-	return &ModerncQuickJSVMFactory{src: string(serverBundle)}, nil
+// NewVMFactory stores serverBundle and returns a factory.
+func NewVMFactory(serverBundle []byte) (*VMFactory, error) {
+	return &VMFactory{src: string(serverBundle)}, nil
 }
 
 // New implements framework.VMFactory.
-func (f *ModerncQuickJSVMFactory) New(bridge contract.BridgeConfig) (framework.VM, error) {
+func (f *VMFactory) New(bridge contract.BridgeConfig) (framework.VM, error) {
 	return newVM(f.src, bridge)
 }

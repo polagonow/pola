@@ -57,7 +57,6 @@ func (vm *V8VM) SetBridgeFunctions(funcs map[string]contract.GoFunc) error {
 		jsiObj := jsiVal.Object()
 
 		for name, fn := range funcs {
-			name, fn := name, fn
 			ft := v8.NewFunctionTemplate(vm.iso, func(info *v8.FunctionCallbackInfo) *v8.Value {
 				args := exportV8Args(info.Args())
 				resolver, err := v8.NewPromiseResolver(info.Context())
@@ -106,7 +105,8 @@ func (vm *V8VM) ClearState() error {
 			vm.ctx.RunScript(fmt.Sprintf("delete __JSI__[%q];", key), "jsi_clear.js") //nolint:errcheck
 		}
 		vm.jsiKeys = vm.jsiKeys[:0]
-		vm.ctx.RunScript("globalThis.__REQUEST__ = undefined; globalThis.__gojsx_stream__ = undefined;", "clear.js") //nolint:errcheck
+		vm.ctx.RunScript( //nolint:errcheck
+			"globalThis.__REQUEST__ = undefined; globalThis.__gojsx_stream__ = undefined;", "clear.js")
 		return nil
 	})
 }

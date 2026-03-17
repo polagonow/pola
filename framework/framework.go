@@ -124,10 +124,7 @@ func (c *Config) Build() (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("framework: vm factory: %w", err)
 	}
-	pool, err := newFactoryPool(factory, c.GlobalBridge)
-	if err != nil {
-		return nil, fmt.Errorf("framework: vm pool: %w", err)
-	}
+	pool := newFactoryPool(factory, c.GlobalBridge)
 
 	// ── 4. Build routes ───────────────────────────────────────────────────
 	router := &priorityRouter{}
@@ -207,7 +204,7 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if a.cfg.Dev {
 				htmlParams.Scripts = append(htmlParams.Scripts, DevScript)
 			}
-			fmt.Fprint(w, a.shell.Render(htmlParams))
+			fmt.Fprint(w, a.shell.Render(htmlParams)) //nolint:errcheck
 		}
 		return
 	}
@@ -224,7 +221,7 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			Bridge:         route.Bridge,
 		}); err != nil {
 			fmt.Printf("rsc %s: %v\n", r.URL.Path, err)
-			fmt.Fprintf(w, `<div class="rsc-err">%s</div>`, err.Error())
+			fmt.Fprintf(w, `<div class="rsc-err">%s</div>`, err.Error()) //nolint:errcheck
 		}
 		return
 	}
@@ -250,7 +247,7 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		htmlParams.Scripts = append(htmlParams.Scripts, "self.__flight_data="+string(flightJSON))
 	}
 
-	fmt.Fprint(w, a.shell.Render(htmlParams))
+	fmt.Fprint(w, a.shell.Render(htmlParams)) //nolint:errcheck
 }
 
 // DevScript is an inline script injected into HTML responses when Dev is true.
@@ -415,7 +412,9 @@ type inlineRenderer struct {
 	bridge   contract.BridgeConfig
 }
 
-func (r *inlineRenderer) Render(_ context.Context, w StreamWriter, opts contract.RenderOpts) error { //nolint:staticcheck
+func (r *inlineRenderer) Render( //nolint:staticcheck
+	_ context.Context, w StreamWriter, opts contract.RenderOpts,
+) error {
 	vm := r.pool.Acquire()
 	defer r.pool.Release(vm)
 
@@ -448,7 +447,7 @@ type factoryPool struct {
 	pool    sync.Pool
 }
 
-func newFactoryPool(factory VMFactory, bridge contract.BridgeConfig) (*factoryPool, error) {
+func newFactoryPool(factory VMFactory, bridge contract.BridgeConfig) *factoryPool {
 	p := &factoryPool{factory: factory, bridge: bridge}
 	p.pool = sync.Pool{
 		New: func() any {
@@ -462,7 +461,7 @@ func newFactoryPool(factory VMFactory, bridge contract.BridgeConfig) (*factoryPo
 	// Eagerly create one VM to catch startup errors immediately.
 	vm := p.pool.New()
 	p.pool.Put(vm)
-	return p, nil
+	return p
 }
 
 func (p *factoryPool) Acquire() VM { return p.pool.Get().(VM) }

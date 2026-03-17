@@ -28,8 +28,8 @@ func Enable(rt *sobeklib.Runtime) {
 			onmessage := partnerObj.Get("onmessage")
 			if callable, ok := sobeklib.AssertFunction(onmessage); ok {
 				evt := rt.NewObject()
-				evt.Set("data", data)           //nolint:errcheck
-				callable(partnerObj, evt)        //nolint:errcheck
+				evt.Set("data", data)     //nolint:errcheck
+				callable(partnerObj, evt) //nolint:errcheck
 			}
 			return sobeklib.Undefined()
 		})
@@ -43,11 +43,11 @@ func Enable(rt *sobeklib.Runtime) {
 
 	mcCtor := rt.ToValue(func(call sobeklib.ConstructorCall) *sobeklib.Object {
 		port1 := rt.NewObject()
-		port1.SetPrototype(portProto)      //nolint:errcheck
+		port1.SetPrototype(portProto)           //nolint:errcheck
 		port1.Set("onmessage", sobeklib.Null()) //nolint:errcheck
 
 		port2 := rt.NewObject()
-		port2.SetPrototype(portProto)      //nolint:errcheck
+		port2.SetPrototype(portProto)           //nolint:errcheck
 		port2.Set("onmessage", sobeklib.Null()) //nolint:errcheck
 
 		port1.Set("_partner", port2) //nolint:errcheck

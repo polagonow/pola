@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	sobeklib "github.com/grafana/sobek"
+
 	"gojsx/vm/sobek/polyfill/webpackrequire"
 )
 

@@ -93,7 +93,6 @@ func newV8VM(source string, bridge contract.BridgeConfig) (*V8VM, error) {
 
 		// Global bridge functions (synchronous).
 		for name, fn := range bridge.Globals {
-			name, fn := name, fn
 			ft := v8.NewFunctionTemplate(iso, func(info *v8.FunctionCallbackInfo) *v8.Value {
 				args := exportV8Args(info.Args())
 				result, err := fn(args)

@@ -16,7 +16,7 @@ func Enable(rt *goja.Runtime) {
 func enableEncoder(rt *goja.Runtime) {
 	proto := rt.NewObject()
 
-	proto.Set("encode", func(call goja.FunctionCall) goja.Value {
+	proto.Set("encode", func(call goja.FunctionCall) goja.Value { //nolint:errcheck
 		s := call.Argument(0).String()
 		data := []byte(s) // Go string is always UTF-8
 		ab := rt.NewArrayBuffer(data)
@@ -31,7 +31,7 @@ func enableEncoder(rt *goja.Runtime) {
 		return obj
 	})
 
-	proto.Set("encodeInto", func(call goja.FunctionCall) goja.Value {
+	proto.Set("encodeInto", func(call goja.FunctionCall) goja.Value { //nolint:errcheck
 		s := call.Argument(0).String()
 		dest := call.Argument(1).ToObject(rt)
 		data := []byte(s)
@@ -41,27 +41,27 @@ func enableEncoder(rt *goja.Runtime) {
 			written = destLen
 		}
 		for i := int64(0); i < written; i++ {
-			dest.Set(strconv.FormatInt(i, 10), rt.ToValue(data[i]))
+			dest.Set(strconv.FormatInt(i, 10), rt.ToValue(data[i])) //nolint:errcheck
 		}
 		result := rt.NewObject()
-		result.Set("read", rt.ToValue(int64(len([]rune(s)))))
-		result.Set("written", rt.ToValue(written))
+		result.Set("read", rt.ToValue(int64(len([]rune(s))))) //nolint:errcheck
+		result.Set("written", rt.ToValue(written))            //nolint:errcheck
 		return result
 	})
 
 	ctor := rt.ToValue(func(call goja.ConstructorCall) *goja.Object {
-		call.This.Set("encoding", "utf-8")
+		call.This.Set("encoding", "utf-8") //nolint:errcheck
 		call.This.SetPrototype(proto)
 		return nil
 	}).(*goja.Object)
-	ctor.Set("prototype", proto)
-	rt.Set("TextEncoder", ctor)
+	ctor.Set("prototype", proto) //nolint:errcheck
+	rt.Set("TextEncoder", ctor)  //nolint:errcheck
 }
 
 func enableDecoder(rt *goja.Runtime) {
 	proto := rt.NewObject()
 
-	proto.Set("decode", func(call goja.FunctionCall) goja.Value {
+	proto.Set("decode", func(call goja.FunctionCall) goja.Value { //nolint:errcheck
 		arg := call.Argument(0)
 		if goja.IsUndefined(arg) || goja.IsNull(arg) {
 			return rt.ToValue("")
@@ -86,13 +86,13 @@ func enableDecoder(rt *goja.Runtime) {
 	ctor := rt.ToValue(func(call goja.ConstructorCall) *goja.Object {
 		enc := call.Argument(0)
 		if goja.IsUndefined(enc) {
-			call.This.Set("encoding", "utf-8")
+			call.This.Set("encoding", "utf-8") //nolint:errcheck
 		} else {
-			call.This.Set("encoding", enc.String())
+			call.This.Set("encoding", enc.String()) //nolint:errcheck
 		}
 		call.This.SetPrototype(proto)
 		return nil
 	}).(*goja.Object)
-	ctor.Set("prototype", proto)
-	rt.Set("TextDecoder", ctor)
+	ctor.Set("prototype", proto) //nolint:errcheck
+	rt.Set("TextDecoder", ctor)  //nolint:errcheck
 }

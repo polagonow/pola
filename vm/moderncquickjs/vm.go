@@ -25,8 +25,8 @@ import (
 	"sync"
 	"unsafe"
 
-	lib "modernc.org/libquickjs"
 	libc "modernc.org/libc"
+	lib "modernc.org/libquickjs"
 	mquickjs "modernc.org/quickjs"
 
 	"gojsx/framework"
@@ -105,14 +105,14 @@ type vmRuntimeLayout struct {
 // event loop goroutine.
 func drainNativeJobs(vm *mquickjs.VM) {
 	vmPtr := unsafe.Pointer(vm)
-	runtimePtr := *(*uintptr)(unsafe.Add(vmPtr, 48)) // runtime field at offset 48
-	rt := (*vmRuntimeLayout)(unsafe.Pointer(runtimePtr))
+	runtimePtr := *(*uintptr)(unsafe.Add(vmPtr, 48))     // runtime field at offset 48
+	rt := (*vmRuntimeLayout)(unsafe.Pointer(runtimePtr)) //nolint:govet
 	for lib.XJS_ExecutePendingJob(rt.tls, rt.cRuntime, 0) > 0 {
 	}
 }
 
 // VMPool manages a pool of pre-warmed VMs.
-type VMPool struct {
+type vmPool struct {
 	pool   sync.Pool
 	bridge contract.BridgeConfig
 	src    string
@@ -120,8 +120,8 @@ type VMPool struct {
 
 // NewVMPool creates a pool backed by server bundle + bridge config.
 // One VM is eagerly created to surface startup errors immediately.
-func NewVMPool(serverBundle string, bridge contract.BridgeConfig) (*VMPool, error) {
-	p := &VMPool{bridge: bridge, src: serverBundle}
+func newVMPool(serverBundle string, bridge contract.BridgeConfig) *vmPool {
+	p := &vmPool{bridge: bridge, src: serverBundle}
 	p.pool = sync.Pool{
 		New: func() any {
 			vm, err := newVM(serverBundle, bridge)
@@ -133,20 +133,20 @@ func NewVMPool(serverBundle string, bridge contract.BridgeConfig) (*VMPool, erro
 	}
 	vm := p.pool.New()
 	p.pool.Put(vm)
-	return p, nil
+	return p
 }
 
 // Acquire returns a VM from the pool.
-func (p *VMPool) Acquire() *VM { return p.pool.Get().(*VM) }
+func (p *vmPool) Acquire() *VM { return p.pool.Get().(*VM) }
 
 // Release clears per-request state and returns the VM to the pool.
-func (p *VMPool) Release(vm *VM) {
+func (p *vmPool) Release(vm *VM) {
 	_ = vm.ClearState()
 	p.pool.Put(vm)
 }
 
 // Bridge returns the bridge config this pool was created with.
-func (p *VMPool) Bridge() contract.BridgeConfig { return p.bridge }
+func (p *vmPool) Bridge() contract.BridgeConfig { return p.bridge }
 
 // evalOrErr evaluates src and returns any JS exception as a Go error.
 func evalOrErr(inner *mquickjs.VM, src string) error {
@@ -315,7 +315,7 @@ void 0;`, string(nameJSON), string(nameJSON))
 
 	if initErr != nil {
 		if vm != nil {
-			loop.RunSync(func() { vm.inner.Close() })
+			loop.RunSync(func() { _ = vm.inner.Close() })
 		}
 		loop.Stop()
 		return nil, initErr

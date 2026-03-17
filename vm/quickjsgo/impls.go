@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	quickjs "github.com/buke/quickjs-go"
+
 	"gojsx/framework"
 	"gojsx/framework/contract"
 )
@@ -51,8 +52,7 @@ func (vm *VM) SetBridgeFunctions(funcs map[string]contract.GoFunc) error {
 
 		// Install new bridge functions.
 		for name, fn := range funcs {
-			name, fn := name, fn
-			bridgeFn := vm.ctx.NewFunction(func(qCtx *quickjs.Context, this *quickjs.Value, args []*quickjs.Value) *quickjs.Value {
+			bridgeFn := vm.ctx.NewFunction(func(qCtx *quickjs.Context, this *quickjs.Value, args []*quickjs.Value) *quickjs.Value { //nolint:lll
 				goArgs := exportArgs(args)
 
 				// Save resolve/reject for the goroutine.
@@ -114,7 +114,7 @@ func (vm *VM) DrainStream(handle framework.StreamHandle, w framework.StreamWrite
 func (vm *VM) ClearState() error {
 	vm.run(func() {
 		clearRet := vm.ctx.Eval(
-			"__REQUEST__ = undefined; __gojsx_stream__ = undefined; __outputChunk__ = undefined; Object.keys(__JSI__).forEach(function(k) { delete __JSI__[k]; });",
+			"__REQUEST__ = undefined; __gojsx_stream__ = undefined; __outputChunk__ = undefined; Object.keys(__JSI__).forEach(function(k) { delete __JSI__[k]; });", //nolint:lll
 			quickjs.EvalFileName("clear_state.js"),
 		)
 		clearRet.Free()

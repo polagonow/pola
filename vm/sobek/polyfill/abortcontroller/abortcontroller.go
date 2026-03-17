@@ -19,10 +19,10 @@ func Enable(rt *sobeklib.Runtime) {
 	signalProto := buildSignalProto(rt)
 
 	signalCtor := rt.ToValue(func(call sobeklib.ConstructorCall) *sobeklib.Object {
-		call.This.Set("aborted", false)                //nolint:errcheck
-		call.This.Set("reason", sobeklib.Undefined())  //nolint:errcheck
-		call.This.Set("_listeners", rt.NewArray())     //nolint:errcheck
-		call.This.SetPrototype(signalProto)             //nolint:errcheck
+		call.This.Set("aborted", false)               //nolint:errcheck
+		call.This.Set("reason", sobeklib.Undefined()) //nolint:errcheck
+		call.This.Set("_listeners", rt.NewArray())    //nolint:errcheck
+		call.This.SetPrototype(signalProto)           //nolint:errcheck
 		return nil
 	}).(*sobeklib.Object)
 	signalCtor.Set("prototype", signalProto) //nolint:errcheck
@@ -56,13 +56,13 @@ func Enable(rt *sobeklib.Runtime) {
 		listeners := signal.Get("_listeners").ToObject(rt)
 		length := listeners.Get("length").ToInteger()
 		evt := rt.NewObject()
-		evt.Set("type", "abort")   //nolint:errcheck
-		evt.Set("target", signal)  //nolint:errcheck
+		evt.Set("type", "abort")  //nolint:errcheck
+		evt.Set("target", signal) //nolint:errcheck
 		for i := int64(0); i < length; i++ {
 			fn := listeners.Get(strconv.FormatInt(i, 10))
 			if callable, ok := sobeklib.AssertFunction(fn); ok {
 				func() {
-					defer func() { recover() }()
+					defer func() { _ = recover() }()
 					callable(sobeklib.Undefined(), evt) //nolint:errcheck
 				}()
 			}
@@ -79,8 +79,8 @@ func Enable(rt *sobeklib.Runtime) {
 		if err != nil {
 			panic(rt.NewTypeError("AbortController: failed to create signal: %v", err))
 		}
-		call.This.Set("signal", sig)     //nolint:errcheck
-		call.This.SetPrototype(acProto)  //nolint:errcheck
+		call.This.Set("signal", sig)    //nolint:errcheck
+		call.This.SetPrototype(acProto) //nolint:errcheck
 		return nil
 	}).(*sobeklib.Object)
 	acCtor.Set("prototype", acProto)  //nolint:errcheck

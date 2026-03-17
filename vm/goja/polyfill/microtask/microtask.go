@@ -19,11 +19,11 @@ import (
 // Must be called before message_channel and readable_stream.
 func Enable(rt *goja.Runtime) {
 	queue := rt.NewArray()
-	rt.Set("__microtaskQueue__", queue)
+	rt.Set("__microtaskQueue__", queue) //nolint:errcheck
 
 	pushFn, _ := goja.AssertFunction(queue.Get("push"))
 
-	rt.Set("queueMicrotask", func(call goja.FunctionCall) goja.Value {
+	rt.Set("queueMicrotask", func(call goja.FunctionCall) goja.Value { //nolint:errcheck
 		fn := call.Argument(0)
 		pushFn(queue, fn) //nolint:errcheck
 		return goja.Undefined()
@@ -31,7 +31,7 @@ func Enable(rt *goja.Runtime) {
 
 	spliceFn, _ := goja.AssertFunction(queue.Get("splice"))
 
-	rt.Set("__drainMicrotasks__", func(call goja.FunctionCall) goja.Value {
+	rt.Set("__drainMicrotasks__", func(call goja.FunctionCall) goja.Value { //nolint:errcheck
 		safety := 0
 		for queue.Get("length").ToInteger() > 0 && safety < 5000 {
 			safety++
@@ -45,8 +45,8 @@ func Enable(rt *goja.Runtime) {
 				fn := batch.Get(strconv.FormatInt(i, 10))
 				if callable, ok := goja.AssertFunction(fn); ok {
 					func() {
-						defer func() { recover() }() //nolint:errcheck — swallow, matching JS try/catch
-						callable(goja.Undefined())    //nolint:errcheck
+						defer func() { _ = recover() }()
+						callable(goja.Undefined()) //nolint:errcheck
 					}()
 				}
 			}

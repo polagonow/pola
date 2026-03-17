@@ -30,7 +30,7 @@ type VM struct {
 }
 
 // VMPool manages a pool of pre-warmed VMs.
-type VMPool struct {
+type vmPool struct {
 	pool   sync.Pool
 	bridge contract.BridgeConfig
 	prog   *sobeklib.Program
@@ -38,12 +38,12 @@ type VMPool struct {
 
 // NewVMPool compiles the server bundle once and returns a pool.
 // One VM is eagerly created to surface startup errors immediately.
-func NewVMPool(serverBundle string, bridge contract.BridgeConfig) (*VMPool, error) {
+func newVMPool(serverBundle string, bridge contract.BridgeConfig) (*vmPool, error) {
 	prog, err := sobeklib.Compile("bundle.js", serverBundle, false)
 	if err != nil {
 		return nil, fmt.Errorf("sobek: compile: %w", err)
 	}
-	p := &VMPool{bridge: bridge, prog: prog}
+	p := &vmPool{bridge: bridge, prog: prog}
 	p.pool = sync.Pool{
 		New: func() any {
 			vm, err := newVM(prog, bridge)
@@ -59,16 +59,16 @@ func NewVMPool(serverBundle string, bridge contract.BridgeConfig) (*VMPool, erro
 }
 
 // Acquire returns a VM from the pool.
-func (p *VMPool) Acquire() *VM { return p.pool.Get().(*VM) }
+func (p *vmPool) Acquire() *VM { return p.pool.Get().(*VM) }
 
 // Release clears per-request state and returns the VM to the pool.
-func (p *VMPool) Release(vm *VM) {
+func (p *vmPool) Release(vm *VM) {
 	_ = vm.ClearState()
 	p.pool.Put(vm)
 }
 
 // Bridge returns the bridge config this pool was created with.
-func (p *VMPool) Bridge() contract.BridgeConfig { return p.bridge }
+func (p *vmPool) Bridge() contract.BridgeConfig { return p.bridge }
 
 // newVM creates a fresh event loop + runtime, installs globals/polyfills, runs the bundle.
 func newVM(prog *sobeklib.Program, bridge contract.BridgeConfig) (*VM, error) {
@@ -87,10 +87,10 @@ func newVM(prog *sobeklib.Program, bridge contract.BridgeConfig) (*VM, error) {
 
 		// Console.
 		rt.Set("console", map[string]any{ //nolint:errcheck
-			"log":   func(c sobeklib.FunctionCall) sobeklib.Value { return logConsole(rt, "LOG", c) },
-			"warn":  func(c sobeklib.FunctionCall) sobeklib.Value { return logConsole(rt, "WARN", c) },
-			"error": func(c sobeklib.FunctionCall) sobeklib.Value { return logConsole(rt, "ERR", c) },
-			"info":  func(c sobeklib.FunctionCall) sobeklib.Value { return logConsole(rt, "INFO", c) },
+			"log":   func(c sobeklib.FunctionCall) sobeklib.Value { return logConsole("LOG", c) },
+			"warn":  func(c sobeklib.FunctionCall) sobeklib.Value { return logConsole("WARN", c) },
+			"error": func(c sobeklib.FunctionCall) sobeklib.Value { return logConsole("ERR", c) },
+			"info":  func(c sobeklib.FunctionCall) sobeklib.Value { return logConsole("INFO", c) },
 		})
 
 		// process + performance.
@@ -107,7 +107,6 @@ func newVM(prog *sobeklib.Program, bridge contract.BridgeConfig) (*VM, error) {
 
 		// Global bridge functions (synchronous).
 		for name, fn := range bridge.Globals {
-			name, fn := name, fn
 			rt.Set(name, func(c sobeklib.FunctionCall) sobeklib.Value { //nolint:errcheck
 				result, err := fn(exportArgs(c.Arguments))
 				if err != nil {
@@ -150,7 +149,7 @@ func exportArgs(vals []sobeklib.Value) []interface{} {
 	return out
 }
 
-func logConsole(rt *sobeklib.Runtime, level string, c sobeklib.FunctionCall) sobeklib.Value {
+func logConsole(level string, c sobeklib.FunctionCall) sobeklib.Value {
 	args := make([]string, len(c.Arguments))
 	for i, a := range c.Arguments {
 		args[i] = a.String()

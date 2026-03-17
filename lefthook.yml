@@ -1,0 +1,38 @@
+pre-commit:
+  parallel: true
+  commands:
+    lint:
+      glob: "**/*.go"
+      root: "ui"
+      run: golangci-lint run ./...
+    ui-lint:
+      root: "ui"
+      glob: "ui/**/*.{ts,tsx}"
+      run: pnpm exec eslint {staged_files}
+    ui-format-check:
+      root: "ui"
+      glob: "ui/**/*.{ts,tsx,json}"
+      run: pnpm exec prettier --check {staged_files}
+
+pre-push:
+  commands:
+    test:
+      run: go test -timeout 60s ./...
+
+# Commit message hook - validate commit messages
+commit-msg:
+  commands:
+    validate-commit-message:
+      run: |
+        commit_msg=$(cat {1})
+        if ! echo "$commit_msg" | grep -qE "^(feat|fix|docs|style|refactor|perf|test|chore|ci|build|revert)(\(.+\))?: .{1,}"; then
+          echo "❌ Invalid commit message format!"
+          echo ""
+          echo "Commit message should follow the format:"
+          echo "  <type>(<scope>): <subject>"
+          echo ""
+          echo "Types: feat, fix, docs, style, refactor, perf, test, chore, ci, build, revert"
+          echo ""
+          echo "Example: feat(auth): add login functionality"
+          exit 1
+        fi

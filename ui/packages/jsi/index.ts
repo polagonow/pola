@@ -57,11 +57,14 @@ export declare const __REQUEST__: {
 };
 
 // Client manifest injected as a JS define by the bundler.
-export declare const __CLIENT_MANIFEST__: Record<string, {
-  id: string;
-  name: string;
-  chunks: string[];
-  async: boolean;
-}>;
+export declare const __CLIENT_MANIFEST__: Record<
+  string,
+  {
+    id: string;
+    name: string;
+    chunks: string[];
+    async: boolean;
+  }
+>;
 
 export default __JSI__;

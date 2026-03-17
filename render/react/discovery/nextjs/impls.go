@@ -243,7 +243,7 @@ func hasDefaultExport(path string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
 		line := strings.TrimSpace(sc.Text())
@@ -319,7 +319,7 @@ func hasUseClient(path string) (bool, error) {
 	if err != nil {
 		return false, err
 	}
-	defer f.Close()
+	defer func() { _ = f.Close() }()
 	sc := bufio.NewScanner(f)
 	for sc.Scan() {
 		line := strings.TrimSpace(sc.Text())
@@ -332,14 +332,14 @@ func hasUseClient(path string) (bool, error) {
 	return false, nil
 }
 
-// ── NextJSDiscoverer ──────────────────────────────────────────────────────────
+// ── Discoverer ──────────────────────────────────────────────────────────
 
-// NextJSDiscoverer implements framework.Discoverer using Next.js-style
+// Discoverer implements framework.Discoverer using Next.js-style
 // file conventions.
-type NextJSDiscoverer struct{}
+type Discoverer struct{}
 
 // Discover walks appDir and returns all pages, client components, and global companions.
-func (d *NextJSDiscoverer) Discover(appDir string) (contract.DiscoveryResult, error) {
+func (d *Discoverer) Discover(appDir string) (contract.DiscoveryResult, error) {
 	pages, err := DiscoverPages(appDir)
 	if err != nil {
 		return contract.DiscoveryResult{}, err
@@ -377,14 +377,14 @@ func (d *NextJSDiscoverer) Discover(appDir string) (contract.DiscoveryResult, er
 	}, nil
 }
 
-// ── NextJSRouteBuilder ────────────────────────────────────────────────────────
+// ── RouteBuilder ────────────────────────────────────────────────────────
 
-// NextJSRouteBuilder implements framework.RouteBuilder using Next.js-style
+// RouteBuilder implements framework.RouteBuilder using Next.js-style
 // routing conventions.
-type NextJSRouteBuilder struct{}
+type RouteBuilder struct{}
 
 // Build converts a PageEntry into a Route with pattern and export name.
-func (rb *NextJSRouteBuilder) Build(appDir string, page contract.PageEntry) contract.Route {
+func (rb *RouteBuilder) Build(appDir string, page contract.PageEntry) contract.Route {
 	return contract.Route{
 		Pattern: RoutePattern(appDir, page.PageComponentPath),
 		Export:  PageAlias(page),

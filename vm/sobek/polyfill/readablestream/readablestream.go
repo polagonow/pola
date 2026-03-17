@@ -18,19 +18,19 @@ func Enable(rt *sobeklib.Runtime) {
 
 	rsCtor := rt.ToValue(func(call sobeklib.ConstructorCall) *sobeklib.Object {
 		controller := rt.NewObject()
-		controller.SetPrototype(controllerProto)        //nolint:errcheck
-		controller.Set("_chunks", rt.NewArray())        //nolint:errcheck
-		controller.Set("_closed", rt.ToValue(false))    //nolint:errcheck
-		controller.Set("_error", sobeklib.Null())       //nolint:errcheck
+		controller.SetPrototype(controllerProto)     //nolint:errcheck
+		controller.Set("_chunks", rt.NewArray())     //nolint:errcheck
+		controller.Set("_closed", rt.ToValue(false)) //nolint:errcheck
+		controller.Set("_error", sobeklib.Null())    //nolint:errcheck
 
 		src := call.Argument(0)
 		if sobeklib.IsUndefined(src) || sobeklib.IsNull(src) {
 			src = rt.NewObject()
 		}
-		call.This.Set("_controller", controller)        //nolint:errcheck
-		call.This.Set("_src", src)                      //nolint:errcheck
-		call.This.Set("_started", rt.ToValue(false))    //nolint:errcheck
-		call.This.SetPrototype(streamProto)              //nolint:errcheck
+		call.This.Set("_controller", controller)     //nolint:errcheck
+		call.This.Set("_src", src)                   //nolint:errcheck
+		call.This.Set("_started", rt.ToValue(false)) //nolint:errcheck
+		call.This.SetPrototype(streamProto)          //nolint:errcheck
 		return nil
 	}).(*sobeklib.Object)
 	rt.Set("ReadableStream", rsCtor) //nolint:errcheck
@@ -38,13 +38,13 @@ func Enable(rt *sobeklib.Runtime) {
 	rt.Set("__pullStream__", func(call sobeklib.FunctionCall) sobeklib.Value { //nolint:errcheck
 		s := call.Argument(0).ToObject(rt)
 
-		callMethod(rt, s, "_start")
+		callMethod(s, "_start")
 
 		if drain, ok := sobeklib.AssertFunction(rt.Get("__drainMicrotasks__")); ok {
 			drain(sobeklib.Undefined()) //nolint:errcheck
 		}
 
-		callMethod(rt, s, "_pull")
+		callMethod(s, "_pull")
 
 		if drain, ok := sobeklib.AssertFunction(rt.Get("__drainMicrotasks__")); ok {
 			drain(sobeklib.Undefined()) //nolint:errcheck
@@ -59,8 +59,8 @@ func Enable(rt *sobeklib.Runtime) {
 		chunksLen := chunks.ToObject(rt).Get("length").ToInteger()
 
 		result := rt.NewObject()
-		result.Set("chunks", chunks)                                     //nolint:errcheck
-		result.Set("done", rt.ToValue(closed && chunksLen == 0))         //nolint:errcheck
+		result.Set("chunks", chunks)                             //nolint:errcheck
+		result.Set("done", rt.ToValue(closed && chunksLen == 0)) //nolint:errcheck
 		return result
 	})
 }
@@ -86,18 +86,18 @@ func buildControllerProto(rt *sobeklib.Runtime) *sobeklib.Object {
 
 	proto.Set("error", func(call sobeklib.FunctionCall) sobeklib.Value { //nolint:errcheck
 		this := call.This.ToObject(rt)
-		this.Set("_error", call.Argument(0))     //nolint:errcheck
-		this.Set("_closed", rt.ToValue(true))    //nolint:errcheck
+		this.Set("_error", call.Argument(0))  //nolint:errcheck
+		this.Set("_closed", rt.ToValue(true)) //nolint:errcheck
 		return sobeklib.Undefined()
 	})
 
-	proto.DefineAccessorProperty("byobRequest",
+	proto.DefineAccessorProperty("byobRequest", //nolint:errcheck
 		rt.ToValue(func(call sobeklib.FunctionCall) sobeklib.Value { return sobeklib.Null() }),
 		sobeklib.Undefined(),
 		sobeklib.FLAG_FALSE, sobeklib.FLAG_TRUE,
-	) //nolint:errcheck
+	)
 
-	proto.DefineAccessorProperty("desiredSize",
+	proto.DefineAccessorProperty("desiredSize", //nolint:errcheck
 		rt.ToValue(func(call sobeklib.FunctionCall) sobeklib.Value {
 			this := call.This.ToObject(rt)
 			if this.Get("_closed").ToBoolean() {
@@ -107,7 +107,7 @@ func buildControllerProto(rt *sobeklib.Runtime) *sobeklib.Object {
 		}),
 		sobeklib.Undefined(),
 		sobeklib.FLAG_FALSE, sobeklib.FLAG_TRUE,
-	) //nolint:errcheck
+	)
 
 	return proto
 }
@@ -140,7 +140,7 @@ func buildStreamProto(rt *sobeklib.Runtime) *sobeklib.Object {
 	return proto
 }
 
-func callMethod(rt *sobeklib.Runtime, obj *sobeklib.Object, name string) {
+func callMethod(obj *sobeklib.Object, name string) {
 	fn, ok := sobeklib.AssertFunction(obj.Get(name))
 	if !ok {
 		return

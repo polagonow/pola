@@ -44,8 +44,8 @@ func enableEncoder(rt *sobeklib.Runtime) {
 			dest.Set(strconv.FormatInt(i, 10), rt.ToValue(data[i])) //nolint:errcheck
 		}
 		result := rt.NewObject()
-		result.Set("read", rt.ToValue(int64(len([]rune(s)))))    //nolint:errcheck
-		result.Set("written", rt.ToValue(written))               //nolint:errcheck
+		result.Set("read", rt.ToValue(int64(len([]rune(s))))) //nolint:errcheck
+		result.Set("written", rt.ToValue(written))            //nolint:errcheck
 		return result
 	})
 

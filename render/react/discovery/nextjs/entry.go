@@ -23,7 +23,7 @@ func (g *ReactRSCEntryGenerator) ServerGlobalName() string { return "__render__"
 
 // Generate produces the in-memory server-entry TypeScript source from the
 // discovered page list.
-func (g *ReactRSCEntryGenerator) Generate(cfg framework.EntryGenConfig) (string, error) {
+func (g *ReactRSCEntryGenerator) Generate(cfg framework.EntryGenConfig) (string, error) { //nolint:gocyclo
 	absAppDir, _ := filepath.Abs(cfg.AppDir)
 	absPagesDir := filepath.Join(absAppDir, "app")
 
@@ -178,7 +178,7 @@ outer:
 	entry.WriteString(`
 (globalThis as any).__render__ = function(exportName: string, propsJSON: string): ReadableStream {
   const Page = (__pages__ as any)[exportName];
-  if (!Page) throw new Error('__render__: unknown page "' + exportName + '". Known: ' + Object.keys(__pages__).join(", "));
+  if (!Page) throw new Error('__render__: unknown page: ' + exportName);
   return renderToReadableStream(React.createElement(Page, JSON.parse(propsJSON || "{}")), __CLIENT_MANIFEST__, {
     onError(error: unknown) {
       return error instanceof Error ? error.message : String(error);

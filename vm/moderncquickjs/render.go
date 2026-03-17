@@ -18,8 +18,8 @@ type RenderSession struct {
 }
 
 // startRender stores the render parameters.
-func startRender(_ *VM, exportName, propsJSON string) (*RenderSession, error) {
-	return &RenderSession{ExportName: exportName, PropsJSON: propsJSON}, nil
+func startRender(_ *VM, exportName, propsJSON string) *RenderSession {
+	return &RenderSession{ExportName: exportName, PropsJSON: propsJSON}
 }
 
 // DrainStream drives the React Flight render loop from Go, matching the

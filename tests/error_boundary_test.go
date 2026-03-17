@@ -59,11 +59,15 @@ func TestErrorBoundary_PostDetail(t *testing.T) {
 }
 
 func TestErrorBoundary_Revisions(t *testing.T) {
-	assertCorrectErrorBoundary(t, rsc(t, "/posts/go-react-ssr/revisions?error=test-error"), `"app/(blog)/posts/[slug]/revisions/error"`)
+	assertCorrectErrorBoundary(t,
+		rsc(t, "/posts/go-react-ssr/revisions?error=test-error"),
+		`"app/(blog)/posts/[slug]/revisions/error"`)
 }
 
 func TestErrorBoundary_RevisionDetail(t *testing.T) {
-	assertCorrectErrorBoundary(t, rsc(t, "/posts/go-react-ssr/revisions/v1?error=test-error"), `"app/(blog)/posts/[slug]/revisions/[rev]/error"`)
+	assertCorrectErrorBoundary(t,
+		rsc(t, "/posts/go-react-ssr/revisions/v1?error=test-error"),
+		`"app/(blog)/posts/[slug]/revisions/[rev]/error"`)
 }
 
 func TestErrorBoundary_Docs(t *testing.T) {

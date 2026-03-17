@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	quickjs "github.com/buke/quickjs-go"
+
 	"gojsx/vm/quickjsgo/polyfill/microtask"
 	"gojsx/vm/quickjsgo/polyfill/readablestream"
 )
@@ -151,7 +152,7 @@ func TestReadableStreamDesiredSize(t *testing.T) {
 			start: function(controller) {
 				if (controller.desiredSize !== 1) throw new Error("expected desiredSize=1, got " + controller.desiredSize);
 				controller.close();
-				if (controller.desiredSize !== 0) throw new Error("expected desiredSize=0 after close, got " + controller.desiredSize);
+				if (controller.desiredSize !== 0) throw new Error("expected desiredSize=0 after close, got " + controller.desiredSize); //nolint:lll
 			}
 		});
 		__pullStream__(stream);

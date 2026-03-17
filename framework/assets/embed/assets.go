@@ -9,18 +9,18 @@ import (
 	"net/http"
 )
 
-// EmbedAssetServer implements framework.AssetServer backed by an embedded FS.
-type EmbedAssetServer struct {
+// AssetServer implements framework.AssetServer backed by an embedded FS.
+type AssetServer struct {
 	fsys fs.FS
 }
 
-// NewEmbedAssetServer creates an AssetServer backed by the given fs.FS.
-func NewEmbedAssetServer(fsys fs.FS) *EmbedAssetServer {
-	return &EmbedAssetServer{fsys: fsys}
+// NewAssetServer creates an AssetServer backed by the given fs.FS.
+func NewAssetServer(fsys fs.FS) *AssetServer {
+	return &AssetServer{fsys: fsys}
 }
 
 // Handler returns an http.Handler that strips prefix and serves from the
 // embedded FS.
-func (a *EmbedAssetServer) Handler(prefix string) http.Handler {
+func (a *AssetServer) Handler(prefix string) http.Handler {
 	return http.StripPrefix(prefix, http.FileServer(http.FS(a.fsys)))
 }

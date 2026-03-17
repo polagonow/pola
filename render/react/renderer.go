@@ -19,7 +19,9 @@ type VMRenderer struct {
 }
 
 // NewVMRenderer creates a Renderer backed by pool and protocol.
-func NewVMRenderer(pool framework.VMPool, protocol framework.StreamProtocol, globalBridge contract.BridgeConfig) *VMRenderer {
+func NewVMRenderer(
+	pool framework.VMPool, protocol framework.StreamProtocol, globalBridge contract.BridgeConfig,
+) *VMRenderer {
 	return &VMRenderer{pool: pool, protocol: protocol, globalBridge: globalBridge}
 }
 

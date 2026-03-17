@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -10,7 +11,7 @@ import (
 
 func TestRSC_ContentType(t *testing.T) {
 	app := requireApp(t)
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -22,7 +23,7 @@ func TestRSC_ContentType(t *testing.T) {
 
 func TestRSC_404(t *testing.T) {
 	app := requireApp(t)
-	req := httptest.NewRequest("GET", "/nonexistent", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/nonexistent", nil)
 	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -77,7 +78,7 @@ func TestRSC_PostsPage(t *testing.T) {
 
 func TestRSC_PostsPage_TagFilter(t *testing.T) {
 	app := requireApp(t)
-	req := httptest.NewRequest("GET", "/posts?tag=go", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/posts?tag=go", nil)
 	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -101,7 +102,7 @@ func TestRSC_PostDetailPage(t *testing.T) {
 
 func TestRSC_PostDetailPage_NotFound(t *testing.T) {
 	app := requireApp(t)
-	req := httptest.NewRequest("GET", "/posts/nonexistent-slug", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/posts/nonexistent-slug", nil)
 	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -133,7 +134,7 @@ func TestRSC_RevisionDetailPage(t *testing.T) {
 
 func TestRSC_RevisionDetailPage_NotFound(t *testing.T) {
 	app := requireApp(t)
-	req := httptest.NewRequest("GET", "/posts/go-react-ssr/revisions/v99", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/posts/go-react-ssr/revisions/v99", nil)
 	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -165,7 +166,7 @@ func TestRSC_ProjectDetailPage(t *testing.T) {
 
 func TestRSC_ProjectDetailPage_NotFound(t *testing.T) {
 	app := requireApp(t)
-	req := httptest.NewRequest("GET", "/projects/999", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/projects/999", nil)
 	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -199,7 +200,7 @@ func TestRSC_ProfilePage(t *testing.T) {
 
 func TestRSC_ProfilePage_SearchParams(t *testing.T) {
 	app := requireApp(t)
-	req := httptest.NewRequest("GET", "/profile?id=1", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/profile?id=1", nil)
 	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)

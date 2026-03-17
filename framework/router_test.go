@@ -48,7 +48,8 @@ func TestMatchPattern_CatchAll(t *testing.T) {
 		}
 		if tc.wantVal == nil {
 			if _, exists := params[tc.wantKey]; exists {
-				t.Errorf("MatchPattern(%q, %q): expected key %q absent, got %v", tc.pattern, tc.path, tc.wantKey, params[tc.wantKey])
+				t.Errorf("MatchPattern(%q, %q): expected key %q absent, got %v",
+					tc.pattern, tc.path, tc.wantKey, params[tc.wantKey])
 			}
 			continue
 		}

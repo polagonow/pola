@@ -109,7 +109,9 @@ func TestDiscoverPages_WithCompanions(t *testing.T) {
 	writeFile(t, dir, "page.tsx", "export default function Page() { return null; }\n")
 	writeFile(t, dir, "layout.tsx", "export default function Layout({children}: any) { return children; }\n")
 	writeFile(t, dir, "loading.tsx", "export default function Loading() { return null; }\n")
-	writeFile(t, dir, "error.tsx", "\"use client\";\nimport React from \"react\";\nexport default class E extends React.Component<any,any> { render() { return null; } }\n")
+	writeFile(t, dir, "error.tsx",
+		"\"use client\";\nimport React from \"react\";\n"+
+			"export default class E extends React.Component<any,any> { render() { return null; } }\n")
 	writeFile(t, dir, "not-found.tsx", "export default function NotFound() { return null; }\n")
 
 	pages, err := DiscoverPages(appDir)

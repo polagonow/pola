@@ -62,7 +62,6 @@ func (s *SuspenseScheduler) FlushAll() {
 	var wg sync.WaitGroup
 
 	for _, b := range s.boundaries {
-		b := b
 		wg.Add(1)
 		go func() {
 			defer wg.Done()

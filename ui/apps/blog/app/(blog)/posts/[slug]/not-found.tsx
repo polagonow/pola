@@ -6,7 +6,9 @@ export default function PostNotFound() {
       <p style={{ color: "var(--muted)", marginBottom: "1rem" }}>
         This post may have been moved or deleted.
       </p>
-      <a href="/posts" className="btn btn-outline">Browse all posts</a>
+      <a href="/posts" className="btn btn-outline">
+        Browse all posts
+      </a>
     </div>
   );
 }

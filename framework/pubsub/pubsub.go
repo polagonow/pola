@@ -2,30 +2,36 @@ package pubsub
 
 import "sync"
 
+// Publisher can publish data to named topics.
 type Publisher interface {
 	Publish(topic string, data []byte)
 }
 
+// Subscriber can subscribe to named topics.
 type Subscriber interface {
 	Subscribe(topics ...string) Subscription
 }
 
+// Client combines Publisher and Subscriber.
 type Client interface {
 	Publisher
 	Subscriber
 }
 
+// Subscription is a handle returned by Subscribe.
 type Subscription interface {
 	Wait() <-chan []byte
 	Close()
 }
 
+// New returns an in-memory Client backed by Memory.
 func New() *Memory {
 	return &Memory{
 		topics: map[string]map[int]chan []byte{},
 	}
 }
 
+// Memory is an in-process pub/sub bus.
 type Memory struct {
 	mu     sync.RWMutex
 	topics map[string]map[int]chan []byte
@@ -35,6 +41,7 @@ type Memory struct {
 var _ Publisher = (*Memory)(nil)
 var _ Subscriber = (*Memory)(nil)
 
+// Publish broadcasts data to all current subscribers of topic.
 func (m *Memory) Publish(topic string, data []byte) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -46,6 +53,7 @@ func (m *Memory) Publish(topic string, data []byte) {
 	}
 }
 
+// Subscribe registers the caller for one or more topics.
 func (m *Memory) Subscribe(topics ...string) Subscription {
 	ch := make(chan []byte, 1)
 	m.mu.Lock()
@@ -82,4 +90,4 @@ type subscription struct {
 }
 
 func (s *subscription) Wait() <-chan []byte { return s.ch }
-func (s *subscription) Close()             { s.closer() }
+func (s *subscription) Close()              { s.closer() }

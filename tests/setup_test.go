@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -158,7 +159,7 @@ func requireApp(t *testing.T) *framework.App {
 func rsc(t *testing.T, path string) string {
 	t.Helper()
 	app := requireApp(t)
-	req := httptest.NewRequest("GET", path, nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", path, nil)
 	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -174,7 +175,7 @@ func rsc(t *testing.T, path string) string {
 func page(t *testing.T, path string) string {
 	t.Helper()
 	app := requireApp(t)
-	req := httptest.NewRequest("GET", path, nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", path, nil)
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
 	resp := w.Result()

@@ -1,6 +1,7 @@
 package tests
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -13,7 +14,7 @@ import (
 func rsc404(t *testing.T, path string) (int, string) {
 	t.Helper()
 	app := requireApp(t)
-	req := httptest.NewRequest("GET", path, nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", path, nil)
 	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -45,7 +46,7 @@ func TestGlobalNotFound_RSC_Returns404(t *testing.T) {
 
 func TestGlobalNotFound_RSC_ContentType(t *testing.T) {
 	app := requireApp(t)
-	req := httptest.NewRequest("GET", "/nonexistent-route", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/nonexistent-route", nil)
 	req.Header.Set("Content-Type", "text/x-component")
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
@@ -73,7 +74,7 @@ func TestGlobalNotFound_RSC_Content(t *testing.T) {
 
 func TestGlobalNotFound_HTML_Returns404(t *testing.T) {
 	app := requireApp(t)
-	req := httptest.NewRequest("GET", "/nonexistent-route", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/nonexistent-route", nil)
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
 	if w.Result().StatusCode != http.StatusNotFound {
@@ -83,7 +84,7 @@ func TestGlobalNotFound_HTML_Returns404(t *testing.T) {
 
 func TestGlobalNotFound_HTML_IsClientShell(t *testing.T) {
 	app := requireApp(t)
-	req := httptest.NewRequest("GET", "/nonexistent-route", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/nonexistent-route", nil)
 	w := httptest.NewRecorder()
 	app.ServeHTTP(w, req)
 	body, _ := io.ReadAll(w.Result().Body)

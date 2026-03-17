@@ -7,7 +7,8 @@ export default async function RevisionPage({
   params: { slug: string; rev: string };
   searchParams?: Record<string, string>;
 }) {
-  if (searchParams?.error !== undefined) await JSI.triggerError(searchParams.error || undefined);
+  if (searchParams?.error !== undefined)
+    await JSI.triggerError(searchParams.error || undefined);
   const [post, revision] = await Promise.all([
     JSI.getPost(params.slug),
     JSI.getRevision(params.slug, params.rev),
@@ -26,13 +27,22 @@ export default async function RevisionPage({
       </div>
 
       <div className="card" style={{ marginBottom: "1.5rem" }}>
-        <p style={{ fontWeight: 600, marginBottom: ".35rem", fontSize: ".9rem", color: "var(--muted)" }}>
+        <p
+          style={{
+            fontWeight: 600,
+            marginBottom: ".35rem",
+            fontSize: ".9rem",
+            color: "var(--muted)",
+          }}
+        >
           Change summary
         </p>
         <p>{revision.summary}</p>
       </div>
 
-      <a href={`/posts/${params.slug}`} className="back-link">← Back to post</a>
+      <a href={`/posts/${params.slug}`} className="back-link">
+        ← Back to post
+      </a>
     </div>
   );
 }

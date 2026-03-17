@@ -10,7 +10,7 @@ import (
 func buildSignalProto(rt *goja.Runtime) *goja.Object {
 	proto := rt.NewObject()
 
-	proto.Set("addEventListener", func(call goja.FunctionCall) goja.Value {
+	proto.Set("addEventListener", func(call goja.FunctionCall) goja.Value { //nolint:errcheck
 		if call.Argument(0).String() != "abort" {
 			return goja.Undefined()
 		}
@@ -22,7 +22,7 @@ func buildSignalProto(rt *goja.Runtime) *goja.Object {
 		return goja.Undefined()
 	})
 
-	proto.Set("removeEventListener", func(call goja.FunctionCall) goja.Value {
+	proto.Set("removeEventListener", func(call goja.FunctionCall) goja.Value { //nolint:errcheck
 		if call.Argument(0).String() != "abort" {
 			return goja.Undefined()
 		}
@@ -39,11 +39,11 @@ func buildSignalProto(rt *goja.Runtime) *goja.Object {
 				pushFn(newArr, item) //nolint:errcheck
 			}
 		}
-		this.Set("_listeners", newArr)
+		this.Set("_listeners", newArr) //nolint:errcheck
 		return goja.Undefined()
 	})
 
-	proto.Set("throwIfAborted", func(call goja.FunctionCall) goja.Value {
+	proto.Set("throwIfAborted", func(call goja.FunctionCall) goja.Value { //nolint:errcheck
 		this := call.This.ToObject(rt)
 		if this.Get("aborted").ToBoolean() {
 			panic(rt.ToValue(this.Get("reason")))

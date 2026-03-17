@@ -12,6 +12,7 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/gorilla/websocket"
+
 	"gojsx/framework"
 	"gojsx/framework/pubsub"
 )
@@ -77,7 +78,7 @@ func New(cfg *framework.Config, initial *framework.App, postBuild func(*framewor
 	h.current.Store(live)
 
 	if err := watchDir(w, absAppDir); err != nil {
-		w.Close()
+		_ = w.Close()
 		return nil, fmt.Errorf("hotreload: watch: %w", err)
 	}
 
@@ -216,7 +217,7 @@ func (s *wsServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	defer conn.Close()
+	defer func() { _ = conn.Close() }()
 
 	sub := s.ps.Subscribe("update")
 	defer sub.Close()

@@ -19,24 +19,24 @@ func Enable(rt *goja.Runtime) {
 	signalProto := buildSignalProto(rt)
 
 	signalCtor := rt.ToValue(func(call goja.ConstructorCall) *goja.Object {
-		call.This.Set("aborted", false)
-		call.This.Set("reason", goja.Undefined())
-		call.This.Set("_listeners", rt.NewArray())
+		call.This.Set("aborted", false)            //nolint:errcheck
+		call.This.Set("reason", goja.Undefined())  //nolint:errcheck
+		call.This.Set("_listeners", rt.NewArray()) //nolint:errcheck
 		call.This.SetPrototype(signalProto)
 		return nil
 	}).(*goja.Object)
-	signalCtor.Set("prototype", signalProto)
-	rt.Set("AbortSignal", signalCtor)
+	signalCtor.Set("prototype", signalProto) //nolint:errcheck
+	rt.Set("AbortSignal", signalCtor)        //nolint:errcheck
 
 	acProto := rt.NewObject()
 
-	acProto.Set("abort", func(call goja.FunctionCall) goja.Value {
+	acProto.Set("abort", func(call goja.FunctionCall) goja.Value { //nolint:errcheck
 		this := call.This.ToObject(rt)
 		signal := this.Get("signal").ToObject(rt)
 		if signal.Get("aborted").ToBoolean() {
 			return goja.Undefined()
 		}
-		signal.Set("aborted", true)
+		signal.Set("aborted", true) //nolint:errcheck
 
 		reason := call.Argument(0)
 		if goja.IsUndefined(reason) {
@@ -51,18 +51,18 @@ func Enable(rt *goja.Runtime) {
 				reason = rt.ToValue("AbortError")
 			}
 		}
-		signal.Set("reason", reason)
+		signal.Set("reason", reason) //nolint:errcheck
 
 		listeners := signal.Get("_listeners").ToObject(rt)
 		length := listeners.Get("length").ToInteger()
 		evt := rt.NewObject()
-		evt.Set("type", "abort")
-		evt.Set("target", signal)
+		evt.Set("type", "abort")  //nolint:errcheck
+		evt.Set("target", signal) //nolint:errcheck
 		for i := int64(0); i < length; i++ {
 			fn := listeners.Get(strconv.FormatInt(i, 10))
 			if callable, ok := goja.AssertFunction(fn); ok {
 				func() {
-					defer func() { recover() }()
+					defer func() { _ = recover() }()
 					callable(goja.Undefined(), evt) //nolint:errcheck
 				}()
 			}
@@ -79,10 +79,10 @@ func Enable(rt *goja.Runtime) {
 		if err != nil {
 			panic(rt.NewTypeError("AbortController: failed to create signal: %v", err))
 		}
-		call.This.Set("signal", sig)
+		call.This.Set("signal", sig) //nolint:errcheck
 		call.This.SetPrototype(acProto)
 		return nil
 	}).(*goja.Object)
-	acCtor.Set("prototype", acProto)
-	rt.Set("AbortController", acCtor)
+	acCtor.Set("prototype", acProto)  //nolint:errcheck
+	rt.Set("AbortController", acCtor) //nolint:errcheck
 }

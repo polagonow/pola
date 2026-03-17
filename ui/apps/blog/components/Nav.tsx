@@ -1,4 +1,4 @@
-"use client"
+"use client";
 import NavLink from "./NavLink";
 
 const LINKS = [
@@ -16,7 +16,7 @@ export default function Nav() {
         <NavLink
           key={href}
           href={href}
-          className={({ isActive }) => isActive ? "nav-active" : ""}
+          className={({ isActive }) => (isActive ? "nav-active" : "")}
         >
           {label}
         </NavLink>

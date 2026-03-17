@@ -61,13 +61,6 @@ func (vm *VM) run(fn func()) {
 	fn()
 }
 
-// close releases the context and runtime.
-func (vm *VM) close() {
-	vm.mu.Lock()
-	defer vm.mu.Unlock()
-	vm.rt.Close()
-}
-
 // VMPool manages a pool of pre-warmed VMs.
 type VMPool struct {
 	pool   sync.Pool
@@ -172,7 +165,6 @@ globalThis.performance = { now: function() { return 0; } };
 
 		// Global bridge functions (synchronous).
 		for name, fn := range bridge.Globals {
-			name, fn := name, fn
 			ctx.SetFunc(name, func(this *qjs.This) (*qjs.Value, error) {
 				goArgs := exportArgs(this.Args())
 				result, err := fn(goArgs)

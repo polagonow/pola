@@ -6,7 +6,9 @@ export default function ProjectNotFound() {
       <p style={{ color: "var(--muted)", marginBottom: "1rem" }}>
         This project doesn't exist or has been removed.
       </p>
-      <a href="/projects" className="btn btn-outline">Browse all projects</a>
+      <a href="/projects" className="btn btn-outline">
+        Browse all projects
+      </a>
     </div>
   );
 }

@@ -15,6 +15,7 @@ import (
 // Each line on the wire looks like:   <id>:<type><data>\n
 type ChunkType string
 
+// Flight chunk type constants for the RSC wire protocol.
 const (
 	ChunkJSON     ChunkType = "J" // serialised React element tree
 	ChunkModule   ChunkType = "I" // client component reference (module)
@@ -92,10 +93,10 @@ func (fw *FlightWriter) WriteSuspensePlaceholder(id int, fallback any) error {
 // by looking up the manifest that esbuild produced at build time.
 type ClientRef = contract.ClientRef
 
-// ReactNode is the Go-side representation of a React virtual DOM node.
+// Node is the Go-side representation of a React virtual DOM node.
 // Server Components render these; they are then JSON-encoded into the
 // Flight payload that React's client runtime reconciles against the DOM.
-type ReactNode struct {
+type Node struct {
 	Type  any            `json:"type"` // string tag or ClientRef
 	Key   *string        `json:"key,omitempty"`
 	Ref   *string        `json:"ref,omitempty"`

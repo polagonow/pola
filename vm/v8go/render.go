@@ -65,7 +65,7 @@ func DrainStream(vm *V8VM, w framework.StreamWriter, _ *V8RenderSession) (wroteA
 						continue
 					}
 					// Decode Uint8Array bytes. Each chunk is a Uint8Array produced by
-				// React Flight's TextEncoder.encode(); read byte-by-byte via Object.GetIdx.
+					// React Flight's TextEncoder.encode(); read byte-by-byte via Object.GetIdx.
 					if chunkVal.IsUint8Array() {
 						sb.Write(readUint8Array(chunkVal.Object()))
 					} else {

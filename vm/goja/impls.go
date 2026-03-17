@@ -11,15 +11,15 @@ import (
 	"github.com/dop251/goja_nodejs/eventloop"
 )
 
-// ── GojaStreamHandle ──────────────────────────────────────────────────────────
+// ── StreamHandle ──────────────────────────────────────────────────────────
 
-// GojaStreamHandle implements framework.StreamHandle for Goja-rendered streams.
-type GojaStreamHandle struct {
+// StreamHandle implements framework.StreamHandle for Goja-rendered streams.
+type StreamHandle struct {
 	Sess *RenderSession
 }
 
 // IsNil reports whether the handle holds a valid render session.
-func (h *GojaStreamHandle) IsNil() bool { return h.Sess == nil }
+func (h *StreamHandle) IsNil() bool { return h.Sess == nil }
 
 // ── framework.VM implementation on *VM ───────────────────────────────────────
 
@@ -32,16 +32,16 @@ func (vm *VM) SetBridgeFunctions(funcs map[string]contract.GoFunc) error {
 func (vm *VM) CallRenderFunction(exportName, propsJSON string) (framework.StreamHandle, error) {
 	sess, err := StartRender(vm, exportName, propsJSON)
 	if err != nil {
-		return &GojaStreamHandle{}, err
+		return &StreamHandle{}, err
 	}
-	return &GojaStreamHandle{Sess: sess}, nil
+	return &StreamHandle{Sess: sess}, nil
 }
 
 // DrainStream implements the streamDrainable interface used by RSCFlightProtocol.
 func (vm *VM) DrainStream(handle framework.StreamHandle, w framework.StreamWriter) (bool, error) {
-	gojaHandle, ok := handle.(*GojaStreamHandle)
+	gojaHandle, ok := handle.(*StreamHandle)
 	if !ok {
-		return false, fmt.Errorf("goja DrainStream: expected *GojaStreamHandle, got %T", handle)
+		return false, fmt.Errorf("goja DrainStream: expected *StreamHandle, got %T", handle)
 	}
 	return DrainStream(vm, w, gojaHandle.Sess)
 }
@@ -49,8 +49,8 @@ func (vm *VM) DrainStream(handle framework.StreamHandle, w framework.StreamWrite
 // ClearState implements framework.VM.
 func (vm *VM) ClearState() error {
 	return vm.run(func(rt *gojalib.Runtime) error {
-		rt.Set("__REQUEST__", gojalib.Undefined())
-		rt.Set("__gojsx_stream__", gojalib.Undefined())
+		rt.Set("__REQUEST__", gojalib.Undefined())      //nolint:errcheck
+		rt.Set("__gojsx_stream__", gojalib.Undefined()) //nolint:errcheck
 		for _, key := range vm.jsi.Keys() {
 			vm.jsi.Delete(key) //nolint:errcheck
 		}
@@ -58,74 +58,75 @@ func (vm *VM) ClearState() error {
 	})
 }
 
-// ── GojaVMPool ────────────────────────────────────────────────────────────────
+// ── VMPool ────────────────────────────────────────────────────────────────
 
-// GojaVMPool wraps *VMPool and implements framework.VMPool.
-type GojaVMPool struct {
-	inner *VMPool
+// VMPool wraps the internal pool and implements framework.VMPool.
+type VMPool struct {
+	inner *vmPool
 }
 
-// NewGojaVMPool creates a framework.VMPool backed by a pre-warmed Goja pool.
-func NewGojaVMPool(serverBundle string, bridge contract.BridgeConfig) (*GojaVMPool, error) {
-	inner, err := NewVMPool(serverBundle, bridge)
+// NewVMPool creates a framework.VMPool backed by a pre-warmed Goja pool.
+func NewVMPool(serverBundle string, bridge contract.BridgeConfig) (*VMPool, error) {
+	inner, err := newVMPool(serverBundle, bridge)
 	if err != nil {
 		return nil, err
 	}
-	return &GojaVMPool{inner: inner}, nil
+	return &VMPool{inner: inner}, nil
 }
 
 // Acquire implements framework.VMPool.
-func (p *GojaVMPool) Acquire() framework.VM { return p.inner.Acquire() }
+func (p *VMPool) Acquire() framework.VM { return p.inner.Acquire() }
 
 // Release implements framework.VMPool.
-func (p *GojaVMPool) Release(vm framework.VM) { p.inner.Release(vm.(*VM)) }
+func (p *VMPool) Release(vm framework.VM) { p.inner.Release(vm.(*VM)) }
 
-// ── GojaVMFactory ─────────────────────────────────────────────────────────────
+// Bridge returns the bridge config this pool was created with.
+func (p *VMPool) Bridge() contract.BridgeConfig { return p.inner.Bridge() }
 
-// GojaVMFactory implements framework.VMFactory for Goja.
-type GojaVMFactory struct {
+// ── VMFactory ─────────────────────────────────────────────────────────────
+
+// VMFactory implements framework.VMFactory for Goja.
+type VMFactory struct {
 	prog      *gojalib.Program
 	polyfills framework.PolyfillRegistry
 }
 
-// NewGojaVMFactory compiles serverBundle and returns a factory ready to create VMs.
+// NewVMFactory compiles serverBundle and returns a factory ready to create VMs.
 // Polyfills are managed internally using the default GojaPolyfillRegistry.
-func NewGojaVMFactory(serverBundle []byte) (*GojaVMFactory, error) {
+func NewVMFactory(serverBundle []byte) (*VMFactory, error) {
 	prog, err := gojalib.Compile("bundle.js", string(serverBundle), false)
 	if err != nil {
 		return nil, fmt.Errorf("goja factory: compile: %w", err)
 	}
-	return &GojaVMFactory{prog: prog, polyfills: &polyfill.GojaPolyfillRegistry{}}, nil
+	return &VMFactory{prog: prog, polyfills: &polyfill.GojaPolyfillRegistry{}}, nil
 }
 
 // New implements framework.VMFactory.
-func (f *GojaVMFactory) New(bridge contract.BridgeConfig) (framework.VM, error) {
+func (f *VMFactory) New(bridge contract.BridgeConfig) (framework.VM, error) {
 	loop := eventloop.NewEventLoop(eventloop.EnableConsole(false))
 
 	vm := &VM{loop: loop, bridge: bridge}
 	err := vm.run(func(rt *gojalib.Runtime) error {
 		vm.rt = rt
 		vm.jsi = rt.NewObject()
-		rt.Set("__JSI__", vm.jsi)
-
-		rt.Set("global", rt.GlobalObject())
-		rt.Set("globalThis", rt.GlobalObject())
-		rt.Set("console", map[string]any{
-			"log":   func(c gojalib.FunctionCall) gojalib.Value { return logConsole(rt, "LOG", c) },
-			"warn":  func(c gojalib.FunctionCall) gojalib.Value { return logConsole(rt, "WARN", c) },
-			"error": func(c gojalib.FunctionCall) gojalib.Value { return logConsole(rt, "ERR", c) },
-			"info":  func(c gojalib.FunctionCall) gojalib.Value { return logConsole(rt, "INFO", c) },
+		rt.Set("__JSI__", vm.jsi)               //nolint:errcheck
+		rt.Set("global", rt.GlobalObject())     //nolint:errcheck
+		rt.Set("globalThis", rt.GlobalObject()) //nolint:errcheck
+		rt.Set("console", map[string]any{       //nolint:errcheck
+			"log":   func(c gojalib.FunctionCall) gojalib.Value { return logConsole("LOG", c) },
+			"warn":  func(c gojalib.FunctionCall) gojalib.Value { return logConsole("WARN", c) },
+			"error": func(c gojalib.FunctionCall) gojalib.Value { return logConsole("ERR", c) },
+			"info":  func(c gojalib.FunctionCall) gojalib.Value { return logConsole("INFO", c) },
 		})
-		rt.Set("process", map[string]any{
+		rt.Set("process", map[string]any{ //nolint:errcheck
 			"env": map[string]any{"NODE_ENV": "production"},
 		})
-		rt.Set("performance", map[string]any{
+		rt.Set("performance", map[string]any{ //nolint:errcheck
 			"now": func(c gojalib.FunctionCall) gojalib.Value { return rt.ToValue(0) },
 		})
 
 		for name, fn := range bridge.Globals {
-			name, fn := name, fn
-			rt.Set(name, func(c gojalib.FunctionCall) gojalib.Value {
+			rt.Set(name, func(c gojalib.FunctionCall) gojalib.Value { //nolint:errcheck
 				result, err := fn(exportArgs(c.Arguments))
 				if err != nil {
 					panic(rt.ToValue(err.Error()))

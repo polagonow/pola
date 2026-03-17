@@ -26,7 +26,10 @@ type Entry struct {
 //
 //  2. importURLs — moduleId → real chunk URL, used by the HTML import map so
 //     the browser can resolve import("components/Counter") to the hashed file.
-func Build(clientComponents []string, clientFiles map[string][]byte, appDir string, assetsURLPath string, inputChunkURLs map[string]string) (map[string]Entry, map[string]string, error) {
+func Build(
+	clientComponents []string, clientFiles map[string][]byte,
+	appDir string, assetsURLPath string, inputChunkURLs map[string]string,
+) (map[string]Entry, map[string]string, error) {
 	if assetsURLPath == "" {
 		assetsURLPath = "/public/assets"
 	}

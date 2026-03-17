@@ -24,7 +24,7 @@ func Enable(rt *sobeklib.Runtime) {
 		// Return a thenable that is already "fulfilled: null" so
 		// requireAsyncModule() in the Flight encoder short-circuits.
 		p := rt.NewObject()
-		p.Set("status", "fulfilled") //nolint:errcheck
+		p.Set("status", "fulfilled")    //nolint:errcheck
 		p.Set("value", sobeklib.Null()) //nolint:errcheck
 		return p
 	}).(*sobeklib.Object)

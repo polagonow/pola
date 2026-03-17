@@ -9,15 +9,15 @@ import (
 	sobeklib "github.com/grafana/sobek"
 )
 
-// ── SobekStreamHandle ─────────────────────────────────────────────────────────
+// ── StreamHandle ─────────────────────────────────────────────────────────
 
-// SobekStreamHandle implements framework.StreamHandle for Sobek-rendered streams.
-type SobekStreamHandle struct {
+// StreamHandle implements framework.StreamHandle for Sobek-rendered streams.
+type StreamHandle struct {
 	Sess *RenderSession
 }
 
 // IsNil reports whether the handle holds a valid render session.
-func (h *SobekStreamHandle) IsNil() bool { return h.Sess == nil }
+func (h *StreamHandle) IsNil() bool { return h.Sess == nil }
 
 // ── framework.VM implementation on *VM ───────────────────────────────────────
 
@@ -38,7 +38,6 @@ func (vm *VM) SetBridgeFunctions(funcs map[string]contract.GoFunc) error {
 			vm.jsi.Delete(key) //nolint:errcheck
 		}
 		for name, fn := range funcs {
-			fn := fn
 			vm.jsi.Set(name, func(c sobeklib.FunctionCall) sobeklib.Value { //nolint:errcheck
 				args := exportArgs(c.Arguments)
 				p, resolve, reject := rt.NewPromise()
@@ -63,16 +62,16 @@ func (vm *VM) SetBridgeFunctions(funcs map[string]contract.GoFunc) error {
 func (vm *VM) CallRenderFunction(exportName, propsJSON string) (framework.StreamHandle, error) {
 	sess, err := StartRender(vm, exportName, propsJSON)
 	if err != nil {
-		return &SobekStreamHandle{}, err
+		return &StreamHandle{}, err
 	}
-	return &SobekStreamHandle{Sess: sess}, nil
+	return &StreamHandle{Sess: sess}, nil
 }
 
 // DrainStream implements the streamDrainable interface used by RSCFlightProtocol.
 func (vm *VM) DrainStream(handle framework.StreamHandle, w framework.StreamWriter) (bool, error) {
-	sobekHandle, ok := handle.(*SobekStreamHandle)
+	sobekHandle, ok := handle.(*StreamHandle)
 	if !ok {
-		return false, fmt.Errorf("sobek DrainStream: expected *SobekStreamHandle, got %T", handle)
+		return false, fmt.Errorf("sobek DrainStream: expected *StreamHandle, got %T", handle)
 	}
 	return DrainStream(vm, w, sobekHandle.Sess)
 }
@@ -80,8 +79,8 @@ func (vm *VM) DrainStream(handle framework.StreamHandle, w framework.StreamWrite
 // ClearState implements framework.VM.
 func (vm *VM) ClearState() error {
 	return vm.run(func(rt *sobeklib.Runtime) error {
-		rt.Set("__REQUEST__", sobeklib.Undefined())        //nolint:errcheck
-		rt.Set("__gojsx_stream__", sobeklib.Undefined())   //nolint:errcheck
+		rt.Set("__REQUEST__", sobeklib.Undefined())      //nolint:errcheck
+		rt.Set("__gojsx_stream__", sobeklib.Undefined()) //nolint:errcheck
 		for _, key := range vm.jsi.Keys() {
 			vm.jsi.Delete(key) //nolint:errcheck
 		}
@@ -89,45 +88,45 @@ func (vm *VM) ClearState() error {
 	})
 }
 
-// ── SobekVMPool ───────────────────────────────────────────────────────────────
+// ── VMPool ───────────────────────────────────────────────────────────────
 
-// SobekVMPool wraps *VMPool and implements framework.VMPool.
-type SobekVMPool struct {
-	inner *VMPool
+// VMPool wraps the internal pool and implements framework.VMPool.
+type VMPool struct {
+	inner *vmPool
 }
 
-// NewSobekVMPool creates a framework.VMPool backed by a pre-warmed Sobek pool.
-func NewSobekVMPool(serverBundle string, bridge contract.BridgeConfig) (*SobekVMPool, error) {
-	inner, err := NewVMPool(serverBundle, bridge)
+// NewVMPool creates a framework.VMPool backed by a pre-warmed Sobek pool.
+func NewVMPool(serverBundle string, bridge contract.BridgeConfig) (*VMPool, error) {
+	inner, err := newVMPool(serverBundle, bridge)
 	if err != nil {
 		return nil, err
 	}
-	return &SobekVMPool{inner: inner}, nil
+	return &VMPool{inner: inner}, nil
 }
 
 // Acquire implements framework.VMPool.
-func (p *SobekVMPool) Acquire() framework.VM { return p.inner.Acquire() }
+func (p *VMPool) Acquire() framework.VM { return p.inner.Acquire() }
 
 // Release implements framework.VMPool.
-func (p *SobekVMPool) Release(vm framework.VM) { p.inner.Release(vm.(*VM)) }
+func (p *VMPool) Release(vm framework.VM) { p.inner.Release(vm.(*VM)) }
 
-// ── SobekVMFactory ────────────────────────────────────────────────────────────
+// ── VMFactory ────────────────────────────────────────────────────────────
 
-// SobekVMFactory implements framework.VMFactory for Sobek.
-type SobekVMFactory struct {
+// VMFactory implements framework.VMFactory for Sobek.
+type VMFactory struct {
 	prog *sobeklib.Program
 }
 
-// NewSobekVMFactory compiles serverBundle and returns a factory ready to create VMs.
-func NewSobekVMFactory(serverBundle []byte) (*SobekVMFactory, error) {
+// NewVMFactory compiles serverBundle and returns a factory ready to create VMs.
+func NewVMFactory(serverBundle []byte) (*VMFactory, error) {
 	prog, err := sobeklib.Compile("bundle.js", string(serverBundle), false)
 	if err != nil {
 		return nil, fmt.Errorf("sobek factory: compile: %w", err)
 	}
-	return &SobekVMFactory{prog: prog}, nil
+	return &VMFactory{prog: prog}, nil
 }
 
 // New implements framework.VMFactory.
-func (f *SobekVMFactory) New(bridge contract.BridgeConfig) (framework.VM, error) {
+func (f *VMFactory) New(bridge contract.BridgeConfig) (framework.VM, error) {
 	return newVM(f.prog, bridge)
 }

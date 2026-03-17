@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	quickjs "github.com/buke/quickjs-go"
+
 	"gojsx/framework"
 )
 
@@ -31,7 +32,7 @@ func DrainStream(vm *VM, w framework.StreamWriter, sess *RenderSession) (wroteAn
 	vm.run(func() {
 		// Install the per-request output sink. __outputChunk__ is called
 		// synchronously from JS during ctx.Await, so w is written incrementally.
-		outputFn := vm.ctx.NewFunction(func(qCtx *quickjs.Context, this *quickjs.Value, args []*quickjs.Value) *quickjs.Value {
+		outputFn := vm.ctx.NewFunction(func(qCtx *quickjs.Context, this *quickjs.Value, args []*quickjs.Value) *quickjs.Value { //nolint:lll
 			if len(args) > 0 && args[0].IsString() {
 				if chunk := args[0].String(); len(chunk) > 0 {
 					w.WriteRaw([]byte(chunk)) //nolint:errcheck

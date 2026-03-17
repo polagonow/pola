@@ -45,7 +45,7 @@ func Enable(rt *sobeklib.Runtime) {
 				fn := batch.Get(strconv.FormatInt(i, 10))
 				if callable, ok := sobeklib.AssertFunction(fn); ok {
 					func() {
-						defer func() { recover() }() //nolint:errcheck
+						defer func() { recover() }()   //nolint:errcheck
 						callable(sobeklib.Undefined()) //nolint:errcheck
 					}()
 				}

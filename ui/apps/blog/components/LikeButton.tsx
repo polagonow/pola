@@ -1,4 +1,4 @@
-"use client"
+"use client";
 import { useState } from "react";
 
 interface Props {
@@ -10,15 +10,18 @@ export default function LikeButton({ initialCount = 0 }: Props) {
   const [count, setCount] = useState(initialCount);
 
   const toggle = () => {
-    setLiked(l => !l);
-    setCount(c => liked ? c - 1 : c + 1);
+    setLiked((l) => !l);
+    setCount((c) => (liked ? c - 1 : c + 1));
   };
 
   return (
     <button
       className="btn btn-outline"
       onClick={toggle}
-      style={{ color: liked ? "#e11d48" : undefined, borderColor: liked ? "#fecdd3" : undefined }}
+      style={{
+        color: liked ? "#e11d48" : undefined,
+        borderColor: liked ? "#fecdd3" : undefined,
+      }}
     >
       {liked ? "♥" : "♡"} {count}
     </button>

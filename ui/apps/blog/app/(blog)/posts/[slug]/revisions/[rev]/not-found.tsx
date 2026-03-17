@@ -5,7 +5,9 @@ export default function RevisionNotFound() {
       <p style={{ fontSize: ".9rem", margin: ".5rem 0" }}>
         That revision does not exist for this post.
       </p>
-      <a className="btn btn-outline" href="/posts">Back to posts</a>
+      <a className="btn btn-outline" href="/posts">
+        Back to posts
+      </a>
     </div>
   );
 }

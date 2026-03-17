@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	qjs "github.com/fastschema/qjs"
+
 	"gojsx/vm/qjs/polyfill/textencoding"
 )
 

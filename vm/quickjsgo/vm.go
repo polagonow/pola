@@ -10,7 +10,6 @@
 package quickjsgo
 
 import (
-	"encoding/json"
 	"fmt"
 	"sync"
 
@@ -56,18 +55,6 @@ func (vm *VM) run(fn func()) {
 	vm.mu.Lock()
 	defer vm.mu.Unlock()
 	fn()
-}
-
-// close releases the jsi Value handle before the context is torn down.
-func (vm *VM) close() {
-	vm.mu.Lock()
-	defer vm.mu.Unlock()
-	if vm.jsi != nil {
-		vm.jsi.Free()
-		vm.jsi = nil
-	}
-	vm.ctx.Close()
-	vm.rt.Close()
 }
 
 // VMPool manages a pool of pre-warmed VMs.
@@ -179,7 +166,6 @@ globalThis.performance = { now: function() { return 0; } };
 
 		// Global bridge functions (synchronous).
 		for name, fn := range bridge.Globals {
-			name, fn := name, fn
 			bridgeFn := ctx.NewFunction(func(qCtx *quickjs.Context, this *quickjs.Value, args []*quickjs.Value) *quickjs.Value {
 				goArgs := exportArgs(args)
 				result, err := fn(goArgs)
@@ -259,14 +245,4 @@ func exportArgs(args []*quickjs.Value) []interface{} {
 		}
 	}
 	return out
-}
-
-// marshalResult converts a Go value to a *quickjs.Value.
-func marshalResult(ctx *quickjs.Context, v interface{}) *quickjs.Value {
-	b, err := json.Marshal(v)
-	if err != nil {
-		return ctx.NewString(fmt.Sprintf("%v", v))
-	}
-	ret := ctx.Eval(string(b), quickjs.EvalFileName("marshal.js"))
-	return ret
 }

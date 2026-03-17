@@ -1,29 +1,8 @@
 package tests
 
 import (
-	"strings"
 	"testing"
 )
-
-func walkFlight(v any, target string) bool {
-	switch val := v.(type) {
-	case string:
-		return strings.Contains(val, target)
-	case []any:
-		for _, item := range val {
-			if walkFlight(item, target) {
-				return true
-			}
-		}
-	case map[string]any:
-		for k, item := range val {
-			if strings.Contains(k, target) || walkFlight(item, target) {
-				return true
-			}
-		}
-	}
-	return false
-}
 
 func TestFlightTree_Root(t *testing.T) {
 	body := rsc(t, "/")
