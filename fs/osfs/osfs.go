@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -57,12 +58,16 @@ func (fs *OSFS) Watch(path string, onChange func(string)) error {
 	if !filepath.IsAbs(path) {
 		watchPath = filepath.Join(fs.root, path)
 	}
-	// Add the root and every subdirectory so changes at any depth are caught.
+	// Add the root and every non-excluded subdirectory recursively.
 	if err := filepath.WalkDir(watchPath, func(p string, d os.DirEntry, err error) error {
 		if err != nil {
-			return err
+			return nil // skip unreadable entries
 		}
 		if d.IsDir() {
+			name := filepath.Base(p)
+			if name == "node_modules" || name == "public" || (name != "." && strings.HasPrefix(name, ".")) {
+				return filepath.SkipDir
+			}
 			return w.Add(p)
 		}
 		return nil
@@ -78,7 +83,9 @@ func (fs *OSFS) Watch(path string, onChange func(string)) error {
 				if !ok {
 					return
 				}
-				onChange(event.Name)
+				if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) || event.Has(fsnotify.Remove) {
+					onChange(event.Name)
+				}
 			case _, ok := <-w.Errors:
 				if !ok {
 					return
