@@ -32,16 +32,6 @@ type discoveryProvider interface {
 }
 
 
-// assetServerProvider is a package-level default AssetServer constructor.
-// Populated by asset plugins (e.g. fs/osfs, embed) via RegisterAssetServer.
-var defaultAssetServerCtor func(publicDir string) core.AssetServer
-
-// RegisterAssetServer registers the default AssetServer constructor.
-// Called from init() in asset plugin packages.
-func RegisterAssetServer(f func(publicDir string) core.AssetServer) {
-	defaultAssetServerCtor = f
-}
-
 // noopAssetServer is used when no asset plugin is registered.
 type noopAssetServer struct{}
 
@@ -168,8 +158,8 @@ func Build(cfg *core.Config) (*core.App, error) {
 	}
 
 	var assets core.AssetServer
-	if defaultAssetServerCtor != nil {
-		assets = defaultAssetServerCtor(publicDir)
+	if ctor := core.DefaultAssetServer(); ctor != nil {
+		assets = ctor(publicDir)
 	} else {
 		assets = noopAssetServer{}
 	}

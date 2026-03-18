@@ -1,43 +1,81 @@
 ---
 name: add-polyfill
-description: Add a new JavaScript Web API polyfill to the Pola VM layer. Use when asked to polyfill, implement, or add browser APIs (TextEncoder, MessageChannel, ReadableStream, queueMicrotask, AbortController, etc.) for server-side JS execution.
+description: Add a new JavaScript Web API polyfill to the Pola engine layer. Use when asked to polyfill, implement, or add browser APIs (TextEncoder, MessageChannel, ReadableStream, queueMicrotask, AbortController, etc.) for server-side JS execution.
 ---
 
-Polyfill tests live in `vm/polyfill/` and verify that a JS polyfill behaves correctly
-across **every registered VM engine**. Every polyfill is two files: a `.js`
-implementation loaded into every VM at startup, and a Go test file.
+Polyfills live in `engine/polyfill/polyfill.go` as inline Go constants.
+They are registered in `DefaultRegistry()` with a `core.PolyfillID` key.
+Each engine declares which polyfills it needs via `RequiredPolyfills()` —
+the pipeline injects only those at runtime startup.
 
-`polyfill.Load` (`vm/polyfill/impls.go`) uses `//go:embed *.js` and walks all `.js`
-files in alphabetical order, so the `NN_` prefix controls load order. Polyfills
-that depend on earlier ones (e.g. `messagechannel` needs `queueMicrotask`) must
-have a higher number.
+Polyfill tests live in `engine/polyfill/` and run against every registered VM
+via `fixture.ForEachVM`.
 
-## Step 1 — Write the JS polyfill
+## Step 1 — Add the JS source and register the ID
 
-**`vm/polyfill/08_mypolyfill.js`**
+**`engine/polyfill/polyfill.go`** — add a new constant + register it:
 
-```js
-// Globals added: myPolyfill
-// Depends on: (list any earlier polyfill names here)
-(function () {
-    globalThis.myPolyfill = {
+```go
+// New well-known ID (add to the const block):
+const MyPolyfill core.PolyfillID = "my-polyfill"
+
+// JS source (add as a Go const — keep it ES5 for broadest engine compatibility):
+const myPolyfillSrc = `(function () {
+    if (typeof globalThis.myAPI !== 'undefined') { return; }
+    // Globals added: myAPI
+    // Depends on: (list earlier polyfills this one relies on)
+    globalThis.myAPI = {
         doThing: function () { return "expected"; },
-        edgeCase: function (v) { return v == null ? 0 : v; },
     };
-})();
+})();`
+
+// Register it in DefaultRegistry() (inside the existing function):
+func DefaultRegistry() core.PolyfillRegistry {
+    reg := NewRegistry()
+    // ... existing registrations ...
+    reg.Register(core.PolyfillSource{ID: MyPolyfill, Source: myPolyfillSrc})
+    return reg
+}
 ```
 
-Rules:
-- Wrap everything in an IIFE — no globals except the ones you intentionally set on `globalThis`.
-- Comment the globals this file adds and any polyfills it depends on (load-order guard).
+### Rules for the JS source
+
+- Wrap in an IIFE — set only intentional globals on `globalThis`.
+- Guard with `if (typeof globalThis.x !== 'undefined') { return; }` for idempotency.
 - ES5 only — engines like qjs or v8go may not support modern syntax.
+- Comment the globals this polyfill adds and any polyfills it depends on.
 
-Current load order: `01_microtask` → `02_textencoding` → `03_messagechannel` →
-`04_readablestream` → `05_webpackrequire` → `06_abortcontroller` → `07_promise`
+### Current polyfills and load order
 
-## Step 2 — Write the test file
+| ID constant | Installs | Must come after |
+|-------------|----------|-----------------|
+| `MicrotaskQueue` | `queueMicrotask`, `__drainMicrotasks__` | — |
+| `TextEncoding` | `TextEncoder`, `TextDecoder` | — |
+| `MessageChannel` | `MessageChannel`, `MessagePort` | `MicrotaskQueue` |
+| `ReadableStream` | `ReadableStream` + controller | `MicrotaskQueue`, `TextEncoding` |
+| `AbortController` | `AbortController`, `AbortSignal` | — |
+| `WebpackRequire` | `__webpack_require__` shim | — |
+| `Promise` | `Promise` | `MicrotaskQueue` |
 
-**`vm/polyfill/08_mypolyfill_test.go`**
+## Step 2 — Declare it in the engines that need it
+
+In each `engine/<name>/<name>.go`, add the new ID to `RequiredPolyfills()`:
+
+```go
+func (e *Engine) RequiredPolyfills() []core.PolyfillID {
+    return []core.PolyfillID{
+        polyfill.MicrotaskQueue,
+        // ... existing ...
+        polyfill.MyPolyfill,   // ← add here
+    }
+}
+```
+
+Engines with native support for an API should NOT include the polyfill.
+
+## Step 3 — Write the test
+
+**`engine/polyfill/<name>_test.go`**
 
 ```go
 package polyfill_test
@@ -45,15 +83,15 @@ package polyfill_test
 import (
     "testing"
 
-    fixture "github.com/polagonow/pola/test/fixture"
-    _ "github.com/polagonow/pola/test/vm"
+    "github.com/polagonow/pola/test/fixture"
+    _ "github.com/polagonow/pola/test/vm" // registers all VM fixtures
 )
 
 func TestMyPolyfillBasic(t *testing.T) {
     fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
+        // Enable() already installed all polyfills declared in the VM's RequiredPolyfills.
         if err := f.Eval(`
-            // polyfills are already installed by Enable() via the import above.
-            var result = myPolyfill.doThing();
+            var result = myAPI.doThing();
             if (result !== "expected") throw new Error("got: " + result);
         `); err != nil {
             t.Fatal(err)
@@ -63,10 +101,9 @@ func TestMyPolyfillBasic(t *testing.T) {
 
 func TestMyPolyfillEdgeCase(t *testing.T) {
     fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
+        // Each ForEachVM call gets a fresh context — no state from previous tests.
         if err := f.Eval(`
-            // Each ForEachVM call gets a fresh context — no state leaks.
-            var x = myPolyfill.edgeCase(null);
-            if (x !== 0) throw new Error("expected 0, got " + x);
+            if (typeof myAPI === 'undefined') throw new Error("myAPI not installed");
         `); err != nil {
             t.Fatal(err)
         }
@@ -74,34 +111,23 @@ func TestMyPolyfillEdgeCase(t *testing.T) {
 }
 ```
 
-## How `ForEachVM` works
-
-`fixture.ForEachVM` calls `f.Enable()` before passing the fixture to your function.
-`Enable()` installs all polyfills for that VM via the VM's own polyfill registry.
-Each sub-test gets a **fresh** JS context (no state from previous tests).
-
-## Numbering convention
-
-Files are prefixed `NN_` to control test discovery order when running with `-v`.
-Current files: `01_microtask`, `02_textencoding`, `03_messagechannel`,
-`04_readablestream`, `05_webpackrequire`, `06_abortcontroller`, `07_promise`.
-Pick the next available prefix or omit it for standalone tests.
-
-## If your polyfill only works on some VMs
+### Skipping specific VMs
 
 ```go
 fixture.ForEachVM(t, func(t *testing.T, f fixture.PolyfillFixture) {
-    if f.(interface{ VMName() string }).VMName() == "v8go" {
-        t.Skip("v8go has native support, polyfill not installed")
+    // The VM name is accessible via the fixture name used in RegisterPolyfillVM.
+    // To skip v8go (which has this API natively):
+    // Check test name: t.Name() contains the vm name as a sub-test segment.
+    if err := f.Eval(`...`); err != nil {
+        t.Skip("engine does not support this API natively")
     }
-    // ...
 })
 ```
-
-Or gate at the `PolyfillFixture` level by returning an error from `Enable`.
 
 ## Verify
 
 ```
-go test -v ./vm/polyfill/...
+go test -tags "goja esbuild react nextjs" -v ./engine/polyfill/...
 ```
+
+All VM fixtures registered in `test/vm/` run automatically.

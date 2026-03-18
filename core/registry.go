@@ -98,17 +98,18 @@ func (a *App) Build(ctx context.Context) error { return nil }
 // ── Default registry (populated by init() in each plugin package) ────────────
 
 var (
-	defaultRenderer  func() Renderer
-	defaultRouter    func() Router
-	defaultBundler   func() Bundler
-	defaultEngine    func() JSEngine
-	defaultFS        func() FS
-	defaultCache     func() Cache
-	defaultLogger    func() Logger
-	defaultMetrics   func() Metrics
-	defaultTracer    func() Tracer
-	defaultShell     func() HTMLShell
-	defaultPolyfills func() PolyfillRegistry
+	defaultRenderer    func() Renderer
+	defaultRouter      func() Router
+	defaultBundler     func() Bundler
+	defaultEngine      func() JSEngine
+	defaultFS          func() FS
+	defaultCache       func() Cache
+	defaultLogger      func() Logger
+	defaultMetrics     func() Metrics
+	defaultTracer      func() Tracer
+	defaultShell       func() HTMLShell
+	defaultPolyfills   func() PolyfillRegistry
+	defaultAssetServer func(publicDir string) AssetServer
 )
 
 // RegisterRenderer registers the default Renderer (called from init()).
@@ -146,6 +147,13 @@ func DefaultHTMLShell() func() HTMLShell { return defaultShell }
 
 // RegisterPolyfills registers the default PolyfillRegistry.
 func RegisterPolyfills(f func() PolyfillRegistry) { defaultPolyfills = f }
+
+// RegisterAssetServer registers the default AssetServer constructor.
+// Called from init() in FS plugin packages (e.g. fs/osfs).
+func RegisterAssetServer(f func(publicDir string) AssetServer) { defaultAssetServer = f }
+
+// DefaultAssetServer returns the registered AssetServer constructor, or nil.
+func DefaultAssetServer() func(publicDir string) AssetServer { return defaultAssetServer }
 
 // FillDefaults populates nil Registry fields from registered defaults.
 // Returns error if a required component has no default.

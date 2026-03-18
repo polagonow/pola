@@ -3,118 +3,108 @@ name: add-vm
 description: Add a new JavaScript engine (VM) to the Pola framework. Use when asked to add, integrate, or wire up a new JS runtime such as goja, v8go, sobek, quickjs, or any other engine.
 ---
 
-A VM implementation wires a JavaScript runtime into the `framework.VM` interface
-so the framework can execute React Server Components inside it.
+A JS engine implements `core.JSEngine` and optionally `core.SSRPoolFactory` (for
+React SSR). The engine declares which polyfills it needs; the pipeline injects only
+those. Each runtime is a single JS execution context returned by `NewRuntime`.
 
 ## Files to create
 
 | File | Purpose |
 |------|---------|
-| `vm/<name>/vm.go` | `VMFactory` + `VM` implementation |
-| `vm/<name>/register.go` | `init()` that calls `framework.RegisterDefaults` |
-| `vm/<name>/polyfill/polyfill.go` | VM-specific polyfill glue |
-| `vm/<name>_vm.go` | Build-tag import file (root `vm/` package) |
-| `test/vm/<name>.go` | `VMFixture` registration for the test suite |
+| `engine/<name>/<name>.go` | `JSEngine` (+ `SSRPoolFactory` if SSR-capable) |
+| `engine/<name>/register.go` | `init()` that calls `core.RegisterEngine` — gated by build tag |
+| `test/vm/<name>.go` | `PolyfillFixture` registration for the test suite |
 
 ---
 
-## Step 1 — Implement `framework.VM` and `framework.VMFactory`
+## Step 1 — Implement `core.JSEngine`
 
-**`vm/<name>/vm.go`** — full interface signatures in `framework/interfaces.go`
+**`engine/<name>/<name>.go`** — reference: `engine/goja/goja.go`
 
 ```go
-package myvm
+//go:build <name>
+
+package myengine
 
 import (
-    "github.com/polagonow/pola/framework"
-    "github.com/polagonow/pola/framework/contract"
+    "context"
+
+    "github.com/polagonow/pola/core"
+    "github.com/polagonow/pola/engine/polyfill"
 )
 
-// VMFactory implements framework.VMFactory.
-type VMFactory struct{ /* compiled program */ }
+// Engine implements core.JSEngine.
+type Engine struct{}
 
-func NewVMFactory(bundle []byte) (*VMFactory, error) {
-    // compile/load the bundle into the runtime
-    return &VMFactory{}, nil
+func NewEngine() *Engine { return &Engine{} }
+
+func (e *Engine) Name() string { return "<name>" }
+
+// RequiredPolyfills declares which Web API polyfills the engine needs.
+// Engines with native support for an API should omit that polyfill.
+func (e *Engine) RequiredPolyfills() []core.PolyfillID {
+    return []core.PolyfillID{
+        polyfill.MicrotaskQueue,
+        polyfill.TextEncoding,
+        polyfill.MessageChannel,
+        polyfill.ReadableStream,
+        polyfill.AbortController,
+        polyfill.WebpackRequire,
+    }
 }
 
-func (f *VMFactory) New(bridge contract.BridgeConfig) (framework.VM, error) {
-    return &VM{}, nil
+// NewRuntime creates a single JS execution context.
+func (e *Engine) NewRuntime(_ context.Context) (core.JSRuntime, error) {
+    return &Runtime{}, nil
 }
 
-// VM implements framework.VM.
-type VM struct{ /* per-request state */ }
+// Runtime implements core.JSRuntime.
+type Runtime struct{}
 
-func (v *VM) SetRequestContext(ctx map[string]any) error                             { return nil }
-func (v *VM) SetBridgeFunctions(funcs map[string]contract.GoFunc) error              { return nil }
-func (v *VM) CallRenderFunction(export, propsJSON string) (framework.StreamHandle, error) { return nil, nil }
-func (v *VM) ClearState() error                                                      { return nil }
+func (r *Runtime) Eval(script string) (any, error)         { /* ... */ return nil, nil }
+func (r *Runtime) Call(fn string, args ...any) (any, error) { /* ... */ return nil, nil }
+func (r *Runtime) Set(name string, value any) error        { /* ... */ return nil }
+func (r *Runtime) Dispose()                                {}
 ```
 
-Rules:
-- `New` must call `mypolyfill.Enable(...)` **before** running the bundle.
-- `SetBridgeFunctions` must wrap each Go func in a JS Promise (so `await` works).
-- `ClearState` resets `__REQUEST__`, `__JSI__`, and any stream handles for pool reuse.
+### SSR-capable engines (React RSC support)
 
-## Step 2 — Register global defaults
-
-**`vm/<name>/register.go`**
+If the engine supports React Server Components, also implement `core.SSRPoolFactory`
+and `core.SSRRuntime`. The pipeline calls `engine.NewSSRPool(bundle)` after bundling.
 
 ```go
-package myvm
+// NewSSRPool implements core.SSRPoolFactory.
+func (e *Engine) NewSSRPool(bundle []byte) (core.SSRPool, error) {
+    // Compile bundle, create pool of SSRRuntime instances
+    return &Pool{}, nil
+}
 
-import "github.com/polagonow/pola/framework"
+// SSRRuntime extends JSRuntime with streaming RSC rendering.
+// Implement core.SSRRuntime on top of your runtime type.
+type SSRRuntime struct{ Runtime }
+
+func (r *SSRRuntime) SetRequestContext(ctx map[string]any) error       { /* inject __REQUEST__ */ return nil }
+func (r *SSRRuntime) CallRenderFunction(export, propsJSON string) (core.StreamHandle, error) { return nil, nil }
+func (r *SSRRuntime) DrainStream(h core.StreamHandle, w core.StreamWriter) (bool, error)     { return false, nil }
+```
+
+## Step 2 — Register via init()
+
+**`engine/<name>/register.go`**
+
+```go
+//go:build <name>
+
+package myengine
+
+import "github.com/polagonow/pola/core"
 
 func init() {
-    framework.RegisterDefaults(framework.Defaults{
-        VMFactory: func(bundle []byte) (framework.VMFactory, error) {
-            return NewVMFactory(bundle)
-        },
-    })
+    core.RegisterEngine(func() core.JSEngine { return NewEngine() })
 }
 ```
 
-## Step 3 — Wire polyfills
-
-**`vm/<name>/polyfill/polyfill.go`**
-
-```go
-package polyfill
-
-import "github.com/polagonow/pola/vm/polyfill"
-
-func Enable(rt *MyRuntime) error {
-    return polyfill.Load(&runner{rt: rt})
-}
-
-type runner struct{ rt *MyRuntime }
-
-func (r *runner) RunScript(src, name string) error { return r.rt.Eval(src) }
-```
-
-Each VM needs polyfills for the Web APIs React Server Components rely on:
-- `queueMicrotask` / `__drainMicrotasks__`
-- `TextEncoder` / `TextDecoder`
-- `MessageChannel`
-- `ReadableStream`
-- `AbortController`
-- Webpack `require` shim
-
-See `vm/goja/polyfill/` for the reference implementation.
-
-## Step 4 — Add the build-tag import file
-
-**`vm/<name>_vm.go`** (in the root `vm/` package):
-
-```go
-//go:build myvm
-
-package vm
-
-import _ "github.com/polagonow/pola/vm/<name>"
-```
-
-## Step 5 — Register the VMFixture for tests
+## Step 3 — Register a polyfill fixture for tests
 
 **`test/vm/<name>.go`**
 
@@ -124,39 +114,63 @@ package vm
 import (
     "testing"
 
-    "github.com/polagonow/pola/framework"
+    "github.com/polagonow/pola/engine/polyfill"
     "github.com/polagonow/pola/test/fixture"
-    myvm "github.com/polagonow/pola/vm/<name>"
-    mypolyfill "github.com/polagonow/pola/vm/<name>/polyfill"
+    myengine "github.com/polagonow/pola/engine/<name>"
 )
 
-func init() { fixture.RegisterVM(&myVMFixture{}) }
-
-type myVMFixture struct{}
-
-func (f *myVMFixture) VMName() string { return "<name>" }
-func (f *myVMFixture) VMFactory() func([]byte) (framework.VMFactory, error) {
-    return func(b []byte) (framework.VMFactory, error) { return myvm.NewVMFactory(b) }
-}
-func (f *myVMFixture) NewPolyfill(t *testing.T) fixture.PolyfillFixture {
-    rt := /* create runtime instance */
-    t.Cleanup(rt.Close)
-    return &myPolyfillFixture{rt: rt}
+func init() {
+    fixture.RegisterPolyfillVM("<name>", func(_ *testing.T) fixture.PolyfillFixture {
+        rt := myengine.NewRuntime() // create a bare runtime instance
+        return &myPolyfillFixture{rt: rt}
+    })
 }
 
-type myPolyfillFixture struct{ rt *somelib.Runtime }
+type myPolyfillFixture struct{ rt *myengine.Runtime }
 
-func (f *myPolyfillFixture) Enable() error         { return mypolyfill.Enable(f.rt) }
-func (f *myPolyfillFixture) Eval(src string) error { _, err := f.rt.RunString(src); return err }
+func (f *myPolyfillFixture) Enable() error {
+    reg := polyfill.DefaultRegistry()
+    for _, src := range reg.Get(
+        polyfill.MicrotaskQueue,
+        polyfill.TextEncoding,
+        polyfill.MessageChannel,
+        polyfill.ReadableStream,
+        polyfill.AbortController,
+        polyfill.WebpackRequire,
+    ) {
+        if err := f.rt.Eval(src.Source); err != nil {
+            return err
+        }
+    }
+    return nil
+}
+
+func (f *myPolyfillFixture) Eval(src string) error {
+    _, err := f.rt.Eval(src)
+    return err
+}
 ```
+
+## Polyfills available (`engine/polyfill`)
+
+| ID | What it installs |
+|----|-----------------|
+| `polyfill.MicrotaskQueue` | `queueMicrotask`, `__drainMicrotasks__` |
+| `polyfill.TextEncoding` | `TextEncoder`, `TextDecoder` |
+| `polyfill.MessageChannel` | `MessageChannel`, `MessagePort` |
+| `polyfill.ReadableStream` | `ReadableStream`, `ReadableStreamDefaultController` |
+| `polyfill.AbortController` | `AbortController`, `AbortSignal` |
+| `polyfill.WebpackRequire` | `__webpack_require__` shim for RSC |
+| `polyfill.Promise` | `Promise` (omit if engine has native Promises) |
+
+Omit any polyfill your engine natively supports from `RequiredPolyfills()`.
 
 ## Verify
 
 ```
-go build -tags "myvm esbuild react" ./...
-go test -v ./vm/polyfill/...            # polyfill tests under "<name>" sub-test
-go test -v -timeout 120s ./test/e2e/... # e2e: "<name>:react:esbuild" combos appear
+go build -tags "<name> esbuild react nextjs" ./...
+go test -tags "<name> esbuild react nextjs" -v ./engine/polyfill/...
+go test -tags "<name> esbuild react nextjs" -v ./test/e2e/...
 ```
 
-The e2e tests automatically run the new VM against every registered
-bundler+renderer combo with no further changes needed.
+The e2e polyfill suite runs automatically for every registered VM fixture.

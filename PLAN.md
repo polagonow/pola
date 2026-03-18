@@ -807,53 +807,53 @@ func buildTags() string {
 ## Implementation Phases
 
 ### Phase 1 — Core scaffold
-- [ ] `go.mod` with `github.com/polagonow/pola`
-- [ ] `core/`: types, interfaces, registry, errors, globals
-- [ ] `internal/`: orchestrator (ServeHTTP), pipeline, hotreload
-- [ ] Root `README.md`
+- [x] `go.mod` with `github.com/polagonow/pola`
+- [x] `core/`: types, interfaces, registry, errors, globals
+- [x] `internal/`: orchestrator (ServeHTTP), pipeline, hotreload
+- [x] Root `README.md`
 
 ### Phase 2 — Logger + FS + Polyfill registry
-- [ ] `logger/`: interface, slog impl, noop impl
-- [ ] `fs/osfs/`, `embedfs/`, `hybrid/`
-- [ ] `engine/polyfill/registry.go` (subscription model)
+- [x] `logger/`: interface, slog impl, noop impl
+- [x] `fs/osfs/`, `embedfs/`, `hybrid/`
+- [x] `engine/polyfill/registry.go` (subscription model)
 
 ### Phase 3 — Engine plugins
-- [ ] `engine/goja/` (with polyfill subscription)
-- [ ] `engine/v8go/`, `sobek/`, `qjs/`
-- [ ] `engine/node/` (exec-based)
-- [ ] `engine/eventloop/`
+- [x] `engine/goja/` (with polyfill subscription)
+- [x] `engine/v8go/`, `sobek/`, `qjs/`
+- [x] `engine/node/` (exec-based)
+- [x] `engine/eventloop/`
 
 ### Phase 4 — Router + Bundler
-- [ ] `router/nextjs/` (extension-agnostic)
-- [ ] `router/std/`, `htmx/` (stubs)
-- [ ] `bundler/esbuild/`
-- [ ] `bundler/vite/`, `rollup/` (stubs)
+- [x] `router/nextjs/` (extension-agnostic)
+- [x] `router/std/`, `htmx/` (stubs)
+- [x] `bundler/esbuild/`
+- [x] `bundler/vite/`, `rollup/` (stubs)
 
 ### Phase 5 — Renderers
-- [ ] `renderer/react/` (full — migrated)
-- [ ] `renderer/templ/`, `htmx/`, `vue/`, `svelte/`, `angular/` (stubs)
+- [x] `renderer/react/` (full — migrated)
+- [x] `renderer/templ/`, `htmx/`, `vue/`, `svelte/`, `angular/` (stubs)
 
 ### Phase 6 — DI + Cache + Middleware + CSS
-- [ ] `injection/do/`
-- [ ] `cache/memory/`, `redis/` stub
-- [ ] `middleware/logging/`, `recovery/`, `compression/`
-- [ ] `css/tailwind/` (FULL), `sass/` stub
-- [ ] `static/filesystem/`
+- [x] `injection/do/`
+- [x] `cache/memory/`, `redis/` stub
+- [x] `middleware/logging/`, `recovery/`, `compression/`
+- [x] `css/tailwind/` (FULL), `sass/` stub
+- [x] `static/filesystem/`
 
 ### Phase 7 — Observability
-- [ ] `observability/metrics/prometheus/` + noop
-- [ ] `observability/tracing/otel/` + noop
-- [ ] `observability/pprof/`
+- [x] `observability/metrics/prometheus/` + noop
+- [x] `observability/tracing/otel/` + noop
+- [x] `observability/pprof/`
 
 ### Phase 8 — Wire + Test + Benchmark
-- [ ] `cmd/server/main.go` (do DI, all plugins wired)
-- [ ] Migrate + restructure `test/` (renderer-agnostic suites)
-- [ ] `benchmark/` package
-- [ ] Updated `magefile.go`
+- [x] `cmd/server/main.go` (do DI, all plugins wired)
+- [x] Migrate + restructure `test/` (renderer-agnostic suites)
+- [x] `benchmark/` package
+- [x] Updated `magefile.go`
 
 ### Phase 9 — Docs + Skills
-- [ ] `README.md` in every package
-- [ ] `.agents/skills/` per package group
+- [x] `README.md` in every package
+- [x] `.agents/skills/` per package group (update stale skills to new arch)
 
 ---
 

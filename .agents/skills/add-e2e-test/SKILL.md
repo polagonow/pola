@@ -83,8 +83,8 @@ func TestMyFeature(t *testing.T) { suite.RunMyFeatureTests(t) }
 
 ```go
 fixture.ForEachApp(t, func(t *testing.T, f fixture.AppFixture) {
-    if f.Bundler() != "esbuild" {
-        t.Skipf("skipping: test requires esbuild, got %s", f.Bundler())
+    if f.BundlerName() != "esbuild" {
+        t.Skipf("skipping: test requires esbuild, got %s", f.BundlerName())
     }
     // ...
 })

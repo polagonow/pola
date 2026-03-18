@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	samberdo "github.com/samber/do/v2"
 
@@ -67,6 +68,7 @@ func main() {
 		WebAppPath: e.WebAppPath,
 		Dev:        e.Dev,
 		Registry:   reg,
+		// PublicDir: "",
 	})
 	if err != nil {
 		log.Fatalf("pola: %v", err)
@@ -156,7 +158,10 @@ func registerBlogServices(inj *doinjection.Injector) {
 			}
 			return nil, fmt.Errorf("post %q not found", slug)
 		}).
-		Register("getProjects", func(_ []any) (any, error) { return projects, nil }).
+		Register("getProjects", func(_ []any) (any, error) {
+			time.Sleep(20 * time.Second) // simulate latency
+			return projects, nil
+		}).
 		Register("getProject", func(args []any) (any, error) {
 			id := argStr(args, 0)
 			for _, p := range projects {

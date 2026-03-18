@@ -49,10 +49,11 @@ func Run() error {
 	fmt.Printf("→ POLA_VM=%s POLA_BUNDLER=%s POLA_RENDERER=%s\n", polaVM, polaBundler, polaRenderer)
 	return sh.RunWithV(
 		map[string]string{
-			"CGO_ENABLED":  cgoEnabled,
-			"POLA_DEV":     "true",
-			"POLA_METRICS": polaMetrics,
-			"POLA_PPROF":   polaPprof,
+			"CGO_ENABLED":      cgoEnabled,
+			"POLA_DEV":         "true",
+			"POLA_METRICS":     polaMetrics,
+			"POLA_PPROF":       polaPprof,
+			"POLA_WEBAPP_PATH": "../../ui/apps/blog-e2e",
 		},
 		"go", "run",
 		"-C", "cmd/server",

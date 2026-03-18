@@ -3,6 +3,7 @@
 package osfs
 
 import (
+	"net/http"
 	"os"
 	"path/filepath"
 	"time"
@@ -75,4 +76,15 @@ func (fs *OSFS) Watch(path string, onChange func(string)) error {
 	return nil
 }
 
-func init() { core.RegisterFS(func() core.FS { return New(".") }) }
+func init() {
+	core.RegisterFS(func() core.FS { return New(".") })
+	core.RegisterAssetServer(func(publicDir string) core.AssetServer {
+		return &osAssetServer{dir: publicDir}
+	})
+}
+
+type osAssetServer struct{ dir string }
+
+func (s *osAssetServer) Handler(prefix string) http.Handler {
+	return http.StripPrefix(prefix, http.FileServer(http.Dir(s.dir)))
+}

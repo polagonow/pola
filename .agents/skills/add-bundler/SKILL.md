@@ -3,126 +3,172 @@ name: add-bundler
 description: Add a new bundler to the Pola framework. Use when asked to add, integrate, or wire up a new JS bundler such as Vite, Rollup, Parcel, Webpack, or any other build tool.
 ---
 
-A bundler takes source files from an app directory and produces a server-side JS
-bundle (run inside the VM) plus client-side assets (served to the browser).
-It implements `framework.Bundler`.
+A bundler implements `core.Bundler`. It takes source files from the app directory
+and produces a server-side JS bundle (run inside the VM) plus client-side assets
+(served to the browser). The framework calls `Build` at startup and `Watch` in dev mode.
 
 ## Files to create
 
 | File | Purpose |
 |------|---------|
-| `bundler/<name>/bundler.go` | `Bundler` implementation |
-| `bundler/<name>/register.go` | `init()` that calls `framework.RegisterDefaults` |
-| `bundler/<name>_bundler.go` | Build-tag import file (root `bundler/` package) |
-| `test/combo/<name>_react.go` | Test combo: new bundler × React renderer |
+| `bundler/<name>/<name>.go` | `core.Bundler` implementation |
+| `bundler/<name>/register.go` | `init()` that calls `core.RegisterBundler` — gated by build tag |
+| `test/combo/<name>_react.go` | Test combo: new bundler × React renderer × Goja engine |
 
 ---
 
-## Step 1 — Implement `framework.Bundler`
+## Step 1 — Implement `core.Bundler`
 
-**`bundler/<name>/bundler.go`** — full types in `framework/contract/contract.go`
+**`bundler/<name>/<name>.go`** — reference: `bundler/esbuild/esbuild.go`
 
 ```go
+//go:build <name>
+
 package mybundler
 
-import "github.com/polagonow/pola/framework/contract"
+import (
+    "context"
+    "fmt"
 
-// Bundler implements framework.Bundler.
+    "github.com/polagonow/pola/core"
+)
+
+// Bundler implements core.Bundler using <name>.
 type Bundler struct{}
 
-func NewBundler() *Bundler { return &Bundler{} }
+// New returns a new Bundler.
+func New() *Bundler { return &Bundler{} }
 
-func (b *Bundler) Bundle(input contract.BundleInput) (contract.BundleOutput, error) {
-    // input fields:
-    //   AppDir                 string   — root of the user's app
-    //   OutDir                 string   — write client assets here
-    //   AssetsURLPath          string   — URL prefix for client assets
-    //   ClientEntry            string   — browser bootstrap entry point
-    //   ClientComponents       []string — "use client" files to expose
-    //   Dev                    bool     — enable source maps / watch mode
-    //   ServerEntryContent     string   — pre-generated server entry JS
-    //   ServerBundleConditions []string — package.json export conditions
+// Name implements core.Bundler.
+func (b *Bundler) Name() string { return "<name>" }
 
-    return contract.BundleOutput{
+// Build runs the two-pass bundling pipeline.
+// Pass 1: client bundle (browser ESM) + manifest.
+// Pass 2: server bundle (CJS, react-server conditions) with client proxy stubs.
+func (b *Bundler) Build(_ context.Context, req core.BundleInput) (*core.BundleOutput, error) {
+    // req fields:
+    //   AppDir                 string            — root of the user's app
+    //   OutDir                 string            — write client assets here
+    //   AssetsURLPath          string            — URL prefix for browser assets
+    //   ClientEntry            string            — browser bootstrap entry (e.g. "@pola/react/client")
+    //   ClientComponents       []string          — "use client" files to expose to browser
+    //   Dev                    bool              — enable source maps / fast builds
+    //   ServerEntry            string            — path for the emitted server bundle file
+    //   ServerEntryContent     string            — pre-generated server entry JS source
+    //   ServerBundleConditions []string          — package.json export conditions (e.g. ["react-server"])
+    //   ServerBundleDefines    map[string]string — additional esbuild defines for server pass
+    //   External               []string          — packages to mark external
+    //   PublicEnvVars          map[string]string — POLA_PUBLIC_* vars injected as process.env.*
+
+    return &core.BundleOutput{
         ServerBundle:   []byte("/* compiled server JS */"),
-        ClientManifest: map[string]contract.ClientComponent{},
+        ClientFiles:    map[string][]byte{},
+        ClientEntryURL: req.AssetsURLPath + "/main.js",
+        ManifestJSON:   []byte("{}"),
+        ImportURLs:     map[string]string{},
     }, nil
+}
+
+// Watch implements core.Bundler — rebuilds on file changes.
+func (b *Bundler) Watch(_ context.Context, req core.BundleInput, onChange func(*core.BundleOutput)) error {
+    return fmt.Errorf("<name>: Watch not yet implemented")
 }
 ```
 
-## Step 2 — Register global defaults
+### BundleOutput fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `ServerBundle` | `[]byte` | CJS bundle executed inside the JS engine |
+| `ClientFiles` | `map[string][]byte` | Browser assets: relative path → content |
+| `ClientEntryURL` | `string` | Browser URL of the client entry script |
+| `ManifestJSON` | `[]byte` | Webpack-format client component manifest |
+| `ImportURLs` | `map[string]string` | Component module ID → browser chunk URL |
+
+## Step 2 — Register via init()
 
 **`bundler/<name>/register.go`**
 
 ```go
+//go:build <name>
+
 package mybundler
 
-import "github.com/polagonow/pola/framework"
+import "github.com/polagonow/pola/core"
 
 func init() {
-    framework.RegisterDefaults(framework.Defaults{
-        Bundler: func() framework.Bundler { return &Bundler{} },
-    })
+    core.RegisterBundler(func() core.Bundler { return New() })
 }
 ```
 
-## Step 3 — Add the build-tag import file
+## Step 3 — Add a test combo
 
-**`bundler/<name>_bundler.go`** (in the root `bundler/` package):
-
-```go
-//go:build mybundler && !embed
-
-package bundler
-
-import _ "github.com/polagonow/pola/bundler/<name>"
-```
-
-The `!embed` constraint is intentional: when building with `embed`, assets are
-pre-compiled into the binary and the bundler is not needed at runtime.
-
-## Step 4 — Add a test combo
-
-Create one file per bundler×renderer pair you want e2e-tested. Adding this file
-is all that's needed — every registered VM automatically runs against it.
-
-**`test/combo/<name>_react.go`**
+**`test/combo/<name>_react.go`** — reference: `test/combo/esbuild_react.go`
 
 ```go
+//go:build goja && <name> && react && nextjs
+
 package combo
 
 import (
-    mybundler "github.com/polagonow/pola/bundler/<name>"
-    "github.com/polagonow/pola/framework"
-    "github.com/polagonow/pola/framework/contract"
-    react "github.com/polagonow/pola/render/react"
-    _ "github.com/polagonow/pola/render/react/discovery/nextjs"
-    _ "github.com/polagonow/pola/render/react/shell"
+    "sync"
+    "testing"
+
+    pola "github.com/polagonow/pola"
+    "github.com/polagonow/pola/core"
+    gojaengine "github.com/polagonow/pola/engine/goja"
     "github.com/polagonow/pola/test/fixture"
+
+    _ "github.com/polagonow/pola/bundler/<name>"
+    _ "github.com/polagonow/pola/fs/osfs"
+    _ "github.com/polagonow/pola/logger/slog"
+    _ "github.com/polagonow/pola/renderer/react"
+    _ "github.com/polagonow/pola/router/nextjs"
 )
 
-func init() { fixture.RegisterBundlerRenderer(&mybundlerReactCombo{}) }
+func init() { fixture.Register(&myBundlerReactGojaFixture{}) }
 
-type mybundlerReactCombo struct{}
+type myBundlerReactGojaFixture struct {
+    once sync.Once
+    app  *core.App
+    err  error
+}
 
-func (c *mybundlerReactCombo) BundlerName() string  { return "<name>" }
-func (c *mybundlerReactCombo) RendererName() string { return "react" }
+func (f *myBundlerReactGojaFixture) Name() string         { return "goja:react:<name>" }
+func (f *myBundlerReactGojaFixture) EngineName() string   { return "goja" }
+func (f *myBundlerReactGojaFixture) RendererName() string { return "react" }
+func (f *myBundlerReactGojaFixture) BundlerName() string  { return "<name>" }
 
-func (c *mybundlerReactCombo) NewBundler() framework.Bundler { return mybundler.NewBundler() }
-
-func (c *mybundlerReactCombo) NewRendererFactory() func(framework.VMPool, framework.StreamProtocol, contract.BridgeConfig) framework.Renderer {
-    return func(pool framework.VMPool, protocol framework.StreamProtocol, bridge contract.BridgeConfig) framework.Renderer {
-        return react.NewVMRenderer(pool, protocol, bridge)
+func (f *myBundlerReactGojaFixture) GetApp(t *testing.T) *core.App {
+    t.Helper()
+    f.once.Do(func() {
+        f.app, f.err = pola.New(&core.Config{
+            WebAppPath: fixture.AppDir,
+            Registry: &core.Registry{
+                Engine:    gojaengine.NewEngine(),
+                Injectors: []core.RuntimeInjector{fixture.SharedInjector()},
+            },
+        })
+    })
+    if f.err != nil {
+        t.Fatalf("%s: build failed: %v", f.Name(), f.err)
     }
+    return f.app
+}
+
+func (f *myBundlerReactGojaFixture) NewPolyfill(t *testing.T) fixture.PolyfillFixture {
+    // return a goja polyfill fixture (same as esbuild_react.go)
+    return nil // fill in
 }
 ```
 
-No change to `test/e2e/ssr_rendering_test.go` — the file is in the `test/combo`
-package already imported there.
+No change to `test/e2e/ssr_rendering_test.go` — that file imports `test/combo` and all
+registered fixtures run automatically.
 
 ## Verify
 
 ```
-go build -tags "goja mybundler react" ./...
-go test -v -timeout 120s ./test/e2e/... # "<vm>:react:<name>" combos appear
+go build -tags "goja <name> react nextjs" ./...
+go test -tags "goja <name> react nextjs" -v -run TestHTMLShell ./test/e2e/...
+go test -tags "goja <name> react nextjs" -v ./test/e2e/...
 ```
