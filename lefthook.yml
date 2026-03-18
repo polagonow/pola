@@ -4,7 +4,7 @@ pre-commit:
     lint:
       glob: "**/*.go"
       root: "ui"
-      run: golangci-lint run ./...
+      run: go run mage.go lint
     ui-lint:
       root: "ui"
       glob: "ui/**/*.{ts,tsx}"
@@ -16,8 +16,10 @@ pre-commit:
 
 pre-push:
   commands:
-    test:
-      run: go test -timeout 60s ./...
+    unit-test:
+      run: go run mage.go test
+    e2e-test:
+      run: go run mage.go testE2E
 
 # Commit message hook - validate commit messages
 commit-msg:

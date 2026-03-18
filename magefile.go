@@ -88,19 +88,9 @@ func Test() error {
 	return sh.RunV("go", "test", "./...")
 }
 
-// TestUnit runs fast unit tests (skips e2e).
-func TestUnit() error {
-	return sh.RunV("go", "test", "./build/...", "./runtime/...")
-}
-
 // TestE2E runs end-to-end tests (builds bundles — slow).
 func TestE2E() error {
 	return sh.RunV("go", "test", "-v", "-run", "Test", "-timeout", "120s", "./test/...")
-}
-
-// TestBuild runs only build/discover tests.
-func TestBuild() error {
-	return sh.RunV("go", "test", "-v", "./build/...")
 }
 
 // Lint runs golangci-lint (Go) and eslint (UI).
