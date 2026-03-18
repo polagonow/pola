@@ -1,4 +1,4 @@
-import JSI from "@pola/jsi";
+import JSI from "@pola/di";
 
 export default async function RevisionPage({
   params,

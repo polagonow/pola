@@ -1,3 +1,5 @@
+//go:build moderncquickjs
+
 package vm
 
 import (
@@ -5,32 +7,41 @@ import (
 
 	mquickjs "modernc.org/quickjs"
 
-	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/engine/polyfill"
 	"github.com/polagonow/pola/test/fixture"
-	moderncvm "github.com/polagonow/pola/vm/moderncquickjs"
-	moderncpolyfill "github.com/polagonow/pola/vm/moderncquickjs/polyfill"
 )
 
-func init() { fixture.RegisterVM(&moderncquickjsVMFixture{}) }
-
-type moderncquickjsVMFixture struct{}
-
-func (f *moderncquickjsVMFixture) VMName() string { return "moderncquickjs" }
-func (f *moderncquickjsVMFixture) VMFactory() func([]byte) (framework.VMFactory, error) {
-	return func(b []byte) (framework.VMFactory, error) { return moderncvm.NewVMFactory(b) }
-}
-func (f *moderncquickjsVMFixture) NewPolyfill(t *testing.T) fixture.PolyfillFixture {
-	vm, err := mquickjs.NewVM()
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = vm.Close() })
-	return &moderncquickjsPolyfillFixture{vm: vm}
+func init() {
+	fixture.RegisterPolyfillVM("moderncquickjs", func(t *testing.T) fixture.PolyfillFixture {
+		vm, err := mquickjs.NewVM()
+		if err != nil {
+			return &errPolyfillFixture{err: err}
+		}
+		t.Cleanup(func() { _ = vm.Close() })
+		return &moderncquickjsPolyfillFixture{vm: vm}
+	})
 }
 
 type moderncquickjsPolyfillFixture struct{ vm *mquickjs.VM }
 
-func (f *moderncquickjsPolyfillFixture) Enable() error { return moderncpolyfill.Enable(f.vm) }
+func (f *moderncquickjsPolyfillFixture) Enable() error {
+	reg := polyfill.DefaultRegistry()
+	for _, src := range reg.Get(
+		polyfill.MicrotaskQueue,
+		polyfill.TextEncoding,
+		polyfill.MessageChannel,
+		polyfill.ReadableStream,
+		polyfill.AbortController,
+		polyfill.Promise,
+		polyfill.WebpackRequire,
+	) {
+		if _, err := f.vm.Eval(src.Source, mquickjs.EvalGlobal); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (f *moderncquickjsPolyfillFixture) Eval(src string) error {
 	_, err := f.vm.Eval(src, mquickjs.EvalGlobal)
 	return err

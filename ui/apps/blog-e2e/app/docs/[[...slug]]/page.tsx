@@ -1,4 +1,4 @@
-import JSI from "@pola/jsi";
+import JSI from "@pola/di";
 
 const DOCS: Record<string, Record<string, string>> = {
   "getting-started": {

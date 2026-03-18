@@ -1,0 +1,17 @@
+// Package pola is the main entry point for the Pola web framework.
+// Import this package to get a fully wired application.
+package pola
+
+import (
+	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/internal"
+)
+
+// New creates and builds a Pola application from the given Config.
+// All nil Registry fields are populated from init()-registered defaults.
+//
+//	app, err := pola.New(&core.Config{WebAppPath: "./app"})
+//	http.ListenAndServe(":8080", app)
+func New(cfg *core.Config) (*core.App, error) {
+	return internal.Build(cfg)
+}

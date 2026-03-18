@@ -5,27 +5,35 @@ import (
 
 	gojalib "github.com/dop251/goja"
 
-	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/engine/polyfill"
 	"github.com/polagonow/pola/test/fixture"
-	gojavm "github.com/polagonow/pola/vm/goja"
-	gojapolyfill "github.com/polagonow/pola/vm/goja/polyfill"
 )
 
-func init() { fixture.RegisterVM(&gojaVMFixture{}) }
-
-type gojaVMFixture struct{}
-
-func (f *gojaVMFixture) VMName() string { return "goja" }
-func (f *gojaVMFixture) VMFactory() func([]byte) (framework.VMFactory, error) {
-	return func(b []byte) (framework.VMFactory, error) { return gojavm.NewVMFactory(b) }
-}
-func (f *gojaVMFixture) NewPolyfill(_ *testing.T) fixture.PolyfillFixture {
-	return &gojaPolyfillFixture{rt: gojalib.New()}
+func init() {
+	fixture.RegisterPolyfillVM("goja", func(_ *testing.T) fixture.PolyfillFixture {
+		return &gojaPolyfillFixture{rt: gojalib.New()}
+	})
 }
 
 type gojaPolyfillFixture struct{ rt *gojalib.Runtime }
 
-func (f *gojaPolyfillFixture) Enable() error { return gojapolyfill.Enable(f.rt) }
+func (f *gojaPolyfillFixture) Enable() error {
+	reg := polyfill.DefaultRegistry()
+	for _, src := range reg.Get(
+		polyfill.MicrotaskQueue,
+		polyfill.TextEncoding,
+		polyfill.MessageChannel,
+		polyfill.ReadableStream,
+		polyfill.AbortController,
+		polyfill.WebpackRequire,
+	) {
+		if _, err := f.rt.RunString(src.Source); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (f *gojaPolyfillFixture) Eval(src string) error {
 	_, err := f.rt.RunString(src)
 	return err

@@ -12,55 +12,50 @@ import (
 	"github.com/magefile/mage/sh"
 )
 
-// ---------------------------------------------------------------------------
-// Configuration — mirror the Makefile variables
-// ---------------------------------------------------------------------------
+var (
+	polaVM       = envOr("POLA_VM", "goja")
+	polaBundler  = envOr("POLA_BUNDLER", "esbuild")
+	polaRenderer = envOr("POLA_RENDERER", "react")
+	polaRouter   = envOr("POLA_ROUTER", "nextjs")
+	polaCSS      = envOr("POLA_CSS", "none")
+	embedAssets  = envOr("POLA_EMBED", "1")
+	cgoEnabled   = envOr("CGO_ENABLED", "1")
+	polaMetrics  = envOr("POLA_METRICS", "false")
+	polaPprof    = envOr("POLA_PPROF", "false")
+)
 
-// jsVM selects the JavaScript engine: gojs (default), v8go, or quickjs
-var jsVM = envOr("JS_VM", "gojs")
-
-// jsBundler selects the JavaScript bundler: esbuild (default)
-var jsBundler = envOr("JS_BUNDLER", "esbuild")
-
-// jsRenderer selects the renderer: react (default)
-var jsRenderer = envOr("JS_RENDERER", "react")
-
-// embedAssets controls whether to embed UI assets in the Go binary (default: "1")
-var embedAssets = envOr("EMBED_ASSETS", "1")
-
-// cgoEnabled controls whether CGO is enabled (default: "1")
-var cgoEnabled = envOr("CGO_ENABLED", "1")
-
-// ---------------------------------------------------------------------------
-// Tag helpers
-// ---------------------------------------------------------------------------
-
-// runtimeTags returns build tags for non-embed builds: "<jsVM> <jsBundler> <jsRenderer>"
 func runtimeTags() string {
-	return strings.Join([]string{jsVM, jsBundler, jsRenderer}, " ")
+	tags := []string{polaVM, polaBundler, polaRenderer, polaRouter}
+	if polaCSS != "none" {
+		tags = append(tags, polaCSS)
+	}
+	return strings.Join(tags, " ")
 }
 
-// buildTags returns build tags for binary builds, optionally prepending "embed".
 func buildTags() string {
 	tags := []string{}
 	if embedAssets == "1" {
 		tags = append(tags, "embed")
 	}
-	tags = append(tags, jsVM, jsBundler, jsRenderer)
+	tags = append(tags, polaVM, polaBundler, polaRenderer, polaRouter)
+	if polaCSS != "none" {
+		tags = append(tags, polaCSS)
+	}
 	return strings.Join(tags, " ")
 }
 
-// ---------------------------------------------------------------------------
-// Targets
-// ---------------------------------------------------------------------------
-
-// Run starts the dev server (runs from example/blog so relative paths resolve correctly).
+// Run starts the dev server.
 func Run() error {
-	fmt.Printf("→ JS_VM=%s JS_BUNDLER=%s JS_RENDERER=%s\n", jsVM, jsBundler, jsRenderer)
+	fmt.Printf("→ POLA_VM=%s POLA_BUNDLER=%s POLA_RENDERER=%s\n", polaVM, polaBundler, polaRenderer)
 	return sh.RunWithV(
-		map[string]string{"CGO_ENABLED": cgoEnabled},
+		map[string]string{
+			"CGO_ENABLED":  cgoEnabled,
+			"POLA_DEV":     "true",
+			"POLA_METRICS": polaMetrics,
+			"POLA_PPROF":   polaPprof,
+		},
 		"go", "run",
-		"-C", "example/blog",
+		"-C", "cmd/server",
 		"-tags", runtimeTags(),
 		".",
 	)
@@ -70,9 +65,7 @@ func Run() error {
 func Build() error {
 	tags := buildTags()
 	fmt.Printf("→ tags=%q CGO_ENABLED=%s\n", tags, cgoEnabled)
-	if err := os.MkdirAll("bin", 0o755); err != nil {
-		return err
-	}
+	os.MkdirAll("bin", 0o755) //nolint:errcheck
 	return sh.RunWithV(
 		map[string]string{"CGO_ENABLED": cgoEnabled},
 		"go", "build",
@@ -83,17 +76,28 @@ func Build() error {
 	)
 }
 
-// Test runs all tests.
+// Test runs unit tests only (fast).
 func Test() error {
-	return sh.RunV("go", "test", "./...")
+	return sh.RunV("go", "test", "-tags", runtimeTags(), "./...")
 }
 
-// TestE2E runs end-to-end tests (builds bundles — slow).
+// TestE2E runs end-to-end tests (slow, builds bundles).
 func TestE2E() error {
-	return sh.RunV("go", "test", "-v", "-run", "Test", "-timeout", "120s", "./test/...")
+	return sh.RunV("go", "test", "-v", "-tags", runtimeTags(), "-run", "Test", "-timeout", "120s", "./test/...")
 }
 
-// Lint runs golangci-lint (Go) and eslint (UI).
+// TestAll runs all tests against all registered combos.
+func TestAll() error {
+	mg.Deps(Test, TestE2E)
+	return nil
+}
+
+// Benchmark runs performance benchmarks.
+func Benchmark() error {
+	return sh.RunV("go", "test", "-tags", runtimeTags(), "-bench=.", "-benchmem", "./benchmark/...")
+}
+
+// Lint runs golangci-lint and eslint.
 func Lint() error {
 	mg.Deps(UiLint)
 	return sh.RunV("golangci-lint", "run", "./...")
@@ -123,10 +127,6 @@ func InstallHooks() error {
 func Clean() error {
 	return sh.RunV("rm", "-rf", "bin/", "public/assets/")
 }
-
-// ---------------------------------------------------------------------------
-// Utility
-// ---------------------------------------------------------------------------
 
 func envOr(key, fallback string) string {
 	if v := os.Getenv(key); v != "" {

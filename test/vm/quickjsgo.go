@@ -1,3 +1,5 @@
+//go:build quickjsgo
+
 package vm
 
 import (
@@ -5,28 +7,20 @@ import (
 
 	quickjs "github.com/buke/quickjs-go"
 
-	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/engine/polyfill"
 	"github.com/polagonow/pola/test/fixture"
-	quickjsgovm "github.com/polagonow/pola/vm/quickjsgo"
-	quickjsgopolyfill "github.com/polagonow/pola/vm/quickjsgo/polyfill"
 )
 
-func init() { fixture.RegisterVM(&quickjsgoVMFixture{}) }
-
-type quickjsgoVMFixture struct{}
-
-func (f *quickjsgoVMFixture) VMName() string { return "quickjsgo" }
-func (f *quickjsgoVMFixture) VMFactory() func([]byte) (framework.VMFactory, error) {
-	return func(b []byte) (framework.VMFactory, error) { return quickjsgovm.NewQuickJSVMFactory(b) }
-}
-func (f *quickjsgoVMFixture) NewPolyfill(t *testing.T) fixture.PolyfillFixture {
-	rt := quickjs.NewRuntime()
-	ctx := rt.NewContext()
-	t.Cleanup(func() {
-		ctx.Close()
-		rt.Close()
+func init() {
+	fixture.RegisterPolyfillVM("quickjsgo", func(t *testing.T) fixture.PolyfillFixture {
+		rt := quickjs.NewRuntime()
+		ctx := rt.NewContext()
+		t.Cleanup(func() {
+			ctx.Close()
+			rt.Close()
+		})
+		return &quickjsgoPolyfillFixture{rt: rt, ctx: ctx}
 	})
-	return &quickjsgoPolyfillFixture{rt: rt, ctx: ctx}
 }
 
 type quickjsgoPolyfillFixture struct {
@@ -34,7 +28,26 @@ type quickjsgoPolyfillFixture struct {
 	ctx *quickjs.Context
 }
 
-func (f *quickjsgoPolyfillFixture) Enable() error { return quickjsgopolyfill.Enable(f.ctx) }
+func (f *quickjsgoPolyfillFixture) Enable() error {
+	reg := polyfill.DefaultRegistry()
+	for _, src := range reg.Get(
+		polyfill.MicrotaskQueue,
+		polyfill.TextEncoding,
+		polyfill.MessageChannel,
+		polyfill.ReadableStream,
+		polyfill.AbortController,
+		polyfill.Promise,
+		polyfill.WebpackRequire,
+	) {
+		ret := f.ctx.Eval(src.Source, quickjs.EvalFileName("polyfill.js"))
+		defer ret.Free()
+		if ret.IsException() {
+			return f.ctx.Exception()
+		}
+	}
+	return nil
+}
+
 func (f *quickjsgoPolyfillFixture) Eval(src string) error {
 	ret := f.ctx.Eval(src, quickjs.EvalFileName("test.js"))
 	defer ret.Free()
