@@ -21,6 +21,8 @@ type Env struct {
 	PprofPath    string `env:"POLA_PPROF_PATH" envDefault:"/debug/pprof"`
 
 	TracingEnabled bool `env:"POLA_TRACING" envDefault:"false"`
+
+	PublicDir string `env:"POLA_PUBLIC_DIR" envDefault:""`
 }
 
 // Load parses POLA_* environment variables into an Env struct.

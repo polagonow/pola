@@ -107,9 +107,9 @@ func newRuntime(prog *gojalib.Program) (*Runtime, error) {
 		r.rt = rt
 		r.di = rt.NewObject()
 		rt.Set(globals.BridgeObject, r.di)      //nolint:errcheck
-		rt.Set("global", rt.GlobalObject())      //nolint:errcheck
-		rt.Set("globalThis", rt.GlobalObject())  //nolint:errcheck
-		rt.Set("console", map[string]any{        //nolint:errcheck
+		rt.Set("global", rt.GlobalObject())     //nolint:errcheck
+		rt.Set("globalThis", rt.GlobalObject()) //nolint:errcheck
+		rt.Set("console", map[string]any{       //nolint:errcheck
 			"log":   func(c gojalib.FunctionCall) gojalib.Value { return logConsole("LOG", c) },
 			"warn":  func(c gojalib.FunctionCall) gojalib.Value { return logConsole("WARN", c) },
 			"error": func(c gojalib.FunctionCall) gojalib.Value { return logConsole("ERR", c) },
@@ -225,7 +225,7 @@ func (r *Runtime) SetDependencyInjection(funcs map[string]func(args []any) (any,
 			r.di.Delete(key) //nolint:errcheck
 		}
 		for name, fn := range funcs {
-			fn := fn // capture loop variable
+			fn := fn                                                    // capture loop variable
 			r.di.Set(name, func(c gojalib.FunctionCall) gojalib.Value { //nolint:errcheck
 				args := exportArgs(c.Arguments)
 				p, resolve, reject := rt.NewPromise()
@@ -376,6 +376,7 @@ func (r *Runtime) clearState() error {
 	return r.run(func(rt *gojalib.Runtime) error {
 		rt.Set(globals.RequestContext, gojalib.Undefined()) //nolint:errcheck
 		rt.Set(globals.StreamHandle, gojalib.Undefined())   //nolint:errcheck
+		rt.Set(globals.OutputChunk, gojalib.Undefined())    //nolint:errcheck
 		for _, key := range r.di.Keys() {
 			r.di.Delete(key) //nolint:errcheck
 		}

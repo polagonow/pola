@@ -13,8 +13,8 @@ import (
 
 	// Import to register all VM engines and bundler+renderer combos.
 	_ "github.com/polagonow/pola/test/combo"
-	_ "github.com/polagonow/pola/test/vm"
 	"github.com/polagonow/pola/test/e2e/suite"
+	_ "github.com/polagonow/pola/test/vm"
 )
 
 func TestHTMLShell(t *testing.T)                { suite.RunHTMLShellTests(t) }

@@ -185,6 +185,12 @@ func (rr *responseRecorder) WriteHeader(code int) {
 	rr.ResponseWriter.WriteHeader(code)
 }
 
+func (rr *responseRecorder) Flush() {
+	if f, ok := rr.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 func buildPageProps(r *http.Request, params map[string]any) map[string]any {
 	searchParams := map[string]any{}
 	for k, vs := range r.URL.Query() {

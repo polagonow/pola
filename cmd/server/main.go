@@ -67,8 +67,8 @@ func main() {
 	app, err := pola.New(&core.Config{
 		WebAppPath: e.WebAppPath,
 		Dev:        e.Dev,
+		PublicDir:  e.PublicDir,
 		Registry:   reg,
-		// PublicDir: "",
 	})
 	if err != nil {
 		log.Fatalf("pola: %v", err)

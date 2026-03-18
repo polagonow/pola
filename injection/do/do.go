@@ -49,10 +49,25 @@ func (inj *Injector) Name() string { return "do" }
 // Capabilities returns the list of functions exposed to the JS runtime.
 func (inj *Injector) Capabilities() []core.InjectionCapability { return inj.capabilities }
 
+// asyncDIRuntime is the optional interface JS runtimes implement when they
+// support async (Promise + goroutine) dependency injection. Goja satisfies
+// this; other runtimes fall back to the plain sync path.
+type asyncDIRuntime interface {
+	SetDependencyInjection(funcs map[string]func(args []any) (any, error)) error
+}
+
 // Inject sets the __DEPENDENCY_INJECTION__ global on the JSRuntime with all
 // registered functions. Each function is available as
 // __DEPENDENCY_INJECTION__.fnName(args...) in JS.
+//
+// If the runtime implements asyncDIRuntime (e.g. goja), each function is
+// wrapped in a Promise + goroutine so Go work runs off the JS event loop and
+// the JS side can await it without blocking. Otherwise the functions are set
+// as plain synchronous callables (fallback for runtimes without async support).
 func (inj *Injector) Inject(ctx context.Context, runtime core.JSRuntime) error {
+	if ar, ok := runtime.(asyncDIRuntime); ok {
+		return ar.SetDependencyInjection(inj.serviceFns)
+	}
 	fns := make(map[string]any, len(inj.serviceFns))
 	for name, fn := range inj.serviceFns {
 		captured := fn
