@@ -3,10 +3,18 @@ package quickjsgo
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
+	"text/template"
 
 	quickjs "github.com/buke/quickjs-go"
 
 	"gojsx/framework"
+	"gojsx/framework/globals"
+)
+
+var (
+	renderScriptTmpl = template.Must(template.New("renderScript").Parse("{{.RenderAsyncFn}}({{.ExportLit}}, {{.PropsLit}})"))
+	clearOutputTmpl  = template.Must(template.New("clearOutput").Parse("{{.OutputChunk}} = undefined;"))
 )
 
 // RenderSession holds the parameters for a single render.
@@ -43,12 +51,18 @@ func DrainStream(vm *VM, w framework.StreamWriter, sess *RenderSession) (wroteAn
 			return qCtx.NewUndefined()
 		})
 		g := vm.ctx.Globals()
-		g.Set("__outputChunk__", outputFn) // ownership transferred; do NOT free outputFn or g
+		g.Set(globals.OutputChunk, outputFn) // ownership transferred; do NOT free outputFn or g
 
 		// Evaluate the async render — returns a pending Promise.
 		exportLit, _ := json.Marshal(sess.ExportName)
 		propsLit, _ := json.Marshal(sess.PropsJSON)
-		script := fmt.Sprintf("__renderAsync__(%s, %s)", exportLit, propsLit)
+		var scriptBuf strings.Builder
+		_ = renderScriptTmpl.Execute(&scriptBuf, struct {
+			RenderAsyncFn string
+			ExportLit     string
+			PropsLit      string
+		}{globals.RenderAsyncFn, string(exportLit), string(propsLit)})
+		script := scriptBuf.String()
 
 		promise := vm.ctx.Eval(script, quickjs.EvalFileName("render.js"))
 		defer promise.Free()
@@ -72,7 +86,9 @@ func DrainStream(vm *VM, w framework.StreamWriter, sess *RenderSession) (wroteAn
 		}
 
 		// Release the closure's reference to w so the pool VM doesn't retain it.
-		clearRet := vm.ctx.Eval("__outputChunk__ = undefined;", quickjs.EvalFileName("clear_output.js"))
+		var clearBuf strings.Builder
+		_ = clearOutputTmpl.Execute(&clearBuf, struct{ OutputChunk string }{globals.OutputChunk})
+		clearRet := vm.ctx.Eval(clearBuf.String(), quickjs.EvalFileName("clear_output.js"))
 		clearRet.Free()
 	})
 

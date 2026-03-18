@@ -4,10 +4,24 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
+	"text/template"
 
 	"gojsx/framework"
 	"gojsx/framework/contract"
+	"gojsx/framework/globals"
 )
+
+var renderBlockTmpl = template.Must(template.New("renderBlock").Parse(
+	`(globalThis as any).{{.RenderFn}} = function(exportName: string, propsJSON: string): ReadableStream {
+  const Page = (__pages__ as any)[exportName];
+  if (!Page) throw new Error('{{.RenderFn}}: unknown page: ' + exportName);
+  return renderToReadableStream(React.createElement(Page, JSON.parse(propsJSON || "{}")), {{.ClientManifest}}, {
+    onError(error: unknown) {
+      return error instanceof Error ? error.message : String(error);
+    },
+  });
+};
+`))
 
 // ReactRSCEntryGenerator implements framework.ServerEntryGenerator for React
 // Server Components using the react-server-dom-webpack/server.browser adapter.
@@ -19,7 +33,7 @@ func (g *ReactRSCEntryGenerator) BundleConditions() []string {
 }
 
 // ServerGlobalName returns the JS global the RSCFlightProtocol calls to start a render.
-func (g *ReactRSCEntryGenerator) ServerGlobalName() string { return "__render__" }
+func (g *ReactRSCEntryGenerator) ServerGlobalName() string { return globals.RenderFn }
 
 // Generate produces the in-memory server-entry TypeScript source from the
 // discovered page list.
@@ -175,17 +189,9 @@ outer:
 	}
 	entry.WriteString("};\n")
 
-	entry.WriteString(`
-(globalThis as any).__render__ = function(exportName: string, propsJSON: string): ReadableStream {
-  const Page = (__pages__ as any)[exportName];
-  if (!Page) throw new Error('__render__: unknown page: ' + exportName);
-  return renderToReadableStream(React.createElement(Page, JSON.parse(propsJSON || "{}")), __CLIENT_MANIFEST__, {
-    onError(error: unknown) {
-      return error instanceof Error ? error.message : String(error);
-    },
-  });
-};
-`)
+	var renderBlockBuf strings.Builder
+	_ = renderBlockTmpl.Execute(&renderBlockBuf, struct{ RenderFn, ClientManifest string }{globals.RenderFn, globals.ClientManifest})
+	entry.WriteString(renderBlockBuf.String())
 
 	return entry.String(), nil
 }

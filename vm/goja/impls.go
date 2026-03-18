@@ -5,6 +5,7 @@ import (
 
 	"gojsx/framework"
 	"gojsx/framework/contract"
+	"gojsx/framework/globals"
 	polyfill "gojsx/vm/goja/polyfill"
 
 	gojalib "github.com/dop251/goja"
@@ -49,8 +50,8 @@ func (vm *VM) DrainStream(handle framework.StreamHandle, w framework.StreamWrite
 // ClearState implements framework.VM.
 func (vm *VM) ClearState() error {
 	return vm.run(func(rt *gojalib.Runtime) error {
-		rt.Set("__REQUEST__", gojalib.Undefined())      //nolint:errcheck
-		rt.Set("__gojsx_stream__", gojalib.Undefined()) //nolint:errcheck
+		rt.Set(globals.RequestContext, gojalib.Undefined()) //nolint:errcheck
+		rt.Set(globals.StreamHandle, gojalib.Undefined())   //nolint:errcheck
 		for _, key := range vm.jsi.Keys() {
 			vm.jsi.Delete(key) //nolint:errcheck
 		}
@@ -109,7 +110,7 @@ func (f *VMFactory) New(bridge contract.BridgeConfig) (framework.VM, error) {
 	err := vm.run(func(rt *gojalib.Runtime) error {
 		vm.rt = rt
 		vm.jsi = rt.NewObject()
-		rt.Set("__JSI__", vm.jsi)               //nolint:errcheck
+		rt.Set(globals.BridgeObject, vm.jsi)    //nolint:errcheck
 		rt.Set("global", rt.GlobalObject())     //nolint:errcheck
 		rt.Set("globalThis", rt.GlobalObject()) //nolint:errcheck
 		rt.Set("console", map[string]any{       //nolint:errcheck

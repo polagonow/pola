@@ -1,19 +1,16 @@
 =========================================================================
-currently e2e tests are coupled to testing only esbuild bundler and react render
-this leaves out future bunders and renders, how can we structure our framework, or tests to make thise posible to test. 
-
-I also want small binarys that means if user puts tags nrly taged mudules 
-should be bundled in binary see (/Users/paul/projects/go-react-ssr-v2/magefile.go)
-create seperate files v8go_vm.go etc in /Users/paul/projects/go-react-ssr-v2/vm/vm.go
-
-do the same for other sections like renders
+add benchmarks to vms, rendering engine, each testable file should have a unit test
 =======================================
+discovery style should be not coupled to react, it can be used by other frameworks too
+support for htmx,vue,svelte,react
+
+fix left hook commit-msg
 
 use solid implementaions of polyfills and you make sure you check if something is defined befefor polyfilling it!
 fo example promise :https://www.promisejs.org/implementing/
 =======================================
 
-currently we are using magic strings for 
+currently we are using magic strings for
 __gojsx_stream__, __JSI_ etc, please scan all of them and we put it in one place such that they are maintainable!
 
 

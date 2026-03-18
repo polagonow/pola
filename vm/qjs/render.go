@@ -3,10 +3,18 @@ package qjs
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
+	"text/template"
 
 	"gojsx/framework"
+	"gojsx/framework/globals"
 
 	qjs "github.com/fastschema/qjs"
+)
+
+var (
+	renderScriptTmpl  = template.Must(template.New("renderScript").Parse("{{.RenderAsyncFn}}({{.ExportLit}}, {{.PropsLit}})"))
+	clearOutputTmpl   = template.Must(template.New("clearOutput").Parse("{{.OutputChunk}} = undefined;"))
 )
 
 // RenderSession holds the parameters for a single render.
@@ -34,7 +42,7 @@ func DrainStream(vm *VM, w framework.StreamWriter, sess *RenderSession) (wroteAn
 	vm.run(func() {
 		// Install the per-request output sink. Called synchronously from JS
 		// during promise.Await(), so w is written incrementally.
-		vm.ctx.SetFunc("__outputChunk__", func(this *qjs.This) (*qjs.Value, error) {
+		vm.ctx.SetFunc(globals.OutputChunk, func(this *qjs.This) (*qjs.Value, error) {
 			args := this.Args()
 			if len(args) > 0 && args[0].IsString() {
 				if chunk := args[0].String(); len(chunk) > 0 {
@@ -49,7 +57,13 @@ func DrainStream(vm *VM, w framework.StreamWriter, sess *RenderSession) (wroteAn
 		// Evaluate the async render — returns a pending Promise.
 		exportLit, _ := json.Marshal(sess.ExportName)
 		propsLit, _ := json.Marshal(sess.PropsJSON)
-		script := fmt.Sprintf("__renderAsync__(%s, %s)", exportLit, propsLit)
+		var scriptBuf strings.Builder
+		_ = renderScriptTmpl.Execute(&scriptBuf, struct {
+			RenderAsyncFn string
+			ExportLit     string
+			PropsLit      string
+		}{globals.RenderAsyncFn, string(exportLit), string(propsLit)})
+		script := scriptBuf.String()
 
 		promise, evalErr := vm.ctx.Eval("render.js", qjs.Code(script))
 		if evalErr != nil {
@@ -71,7 +85,9 @@ func DrainStream(vm *VM, w framework.StreamWriter, sess *RenderSession) (wroteAn
 		}
 
 		// Release the closure's reference to w so the pooled VM doesn't retain it.
-		_, _ = vm.ctx.Eval("clear_output.js", qjs.Code("__outputChunk__ = undefined;"))
+		var clearBuf strings.Builder
+		_ = clearOutputTmpl.Execute(&clearBuf, struct{ OutputChunk string }{globals.OutputChunk})
+		_, _ = vm.ctx.Eval("clear_output.js", qjs.Code(clearBuf.String()))
 	})
 
 	return wroteAny, runErr

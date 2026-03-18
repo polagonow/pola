@@ -29,6 +29,7 @@ import (
 	"gojsx/bundler/manifest"
 	"gojsx/bundler/structs"
 	"gojsx/framework/contract"
+	"gojsx/framework/globals"
 )
 
 // Bundler implements framework.Bundler using the two-pass esbuild
@@ -270,7 +271,7 @@ func buildPagesBundle(
 	defines := map[string]string{
 		"process.env.NODE_ENV": `"production"`,
 		"__DEV__":              "false",
-		"__CLIENT_MANIFEST__":  manifestDefineJSON,
+		globals.ClientManifest: manifestDefineJSON,
 	}
 	for k, v := range cfg.ServerBundleDefines {
 		defines[k] = v
@@ -464,7 +465,7 @@ func probeServerEntryClientFiles(cfg structs.BundlerConfig, absDir string) []str
 	defines := map[string]string{
 		"process.env.NODE_ENV": `"production"`,
 		"__DEV__":              "false",
-		"__CLIENT_MANIFEST__":  "{}",
+		globals.ClientManifest: "{}",
 	}
 	api.Build(api.BuildOptions{
 		Stdin: &api.StdinOptions{

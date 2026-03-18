@@ -2,11 +2,21 @@ package quickjsgo
 
 import (
 	"fmt"
+	"strings"
+	"text/template"
 
 	quickjs "github.com/buke/quickjs-go"
 
 	"gojsx/framework"
 	"gojsx/framework/contract"
+	"gojsx/framework/globals"
+)
+
+var (
+	clearJSITmpl = template.Must(template.New("clearJSI").Parse(
+		"Object.keys({{.BridgeObject}}).forEach(function(k) { delete {{.BridgeObject}}[k]; })"))
+	clearStateTmpl = template.Must(template.New("clearState").Parse(
+		"{{.RequestContext}} = undefined; {{.StreamHandle}} = undefined; {{.OutputChunk}} = undefined; Object.keys({{.BridgeObject}}).forEach(function(k) { delete {{.BridgeObject}}[k]; });"))
 )
 
 // ── QuickJSStreamHandle ───────────────────────────────────────────────────────
@@ -34,7 +44,7 @@ func (vm *VM) SetRequestContext(ctx map[string]any) error {
 			return
 		}
 		g := vm.ctx.Globals()
-		g.Set("__REQUEST__", val) //nolint:errcheck
+		g.Set(globals.RequestContext, val) //nolint:errcheck
 		// Do NOT free val or g: Set transfers ownership of val, and g is a cached singleton.
 	})
 	return runErr
@@ -44,10 +54,9 @@ func (vm *VM) SetRequestContext(ctx map[string]any) error {
 func (vm *VM) SetBridgeFunctions(funcs map[string]contract.GoFunc) error {
 	vm.run(func() {
 		// Clear existing keys.
-		clearRet := vm.ctx.Eval(
-			"Object.keys(__JSI__).forEach(function(k) { delete __JSI__[k]; })",
-			quickjs.EvalFileName("clear_jsi.js"),
-		)
+		var clearJSIBuf strings.Builder
+		_ = clearJSITmpl.Execute(&clearJSIBuf, struct{ BridgeObject string }{globals.BridgeObject})
+		clearRet := vm.ctx.Eval(clearJSIBuf.String(), quickjs.EvalFileName("clear_jsi.js"))
 		clearRet.Free()
 
 		// Install new bridge functions.
@@ -113,10 +122,11 @@ func (vm *VM) DrainStream(handle framework.StreamHandle, w framework.StreamWrite
 // ClearState implements framework.VM.
 func (vm *VM) ClearState() error {
 	vm.run(func() {
-		clearRet := vm.ctx.Eval(
-			"__REQUEST__ = undefined; __gojsx_stream__ = undefined; __outputChunk__ = undefined; Object.keys(__JSI__).forEach(function(k) { delete __JSI__[k]; });", //nolint:lll
-			quickjs.EvalFileName("clear_state.js"),
-		)
+		var clearStateBuf strings.Builder
+		_ = clearStateTmpl.Execute(&clearStateBuf, struct {
+			RequestContext, StreamHandle, OutputChunk, BridgeObject string
+		}{globals.RequestContext, globals.StreamHandle, globals.OutputChunk, globals.BridgeObject})
+		clearRet := vm.ctx.Eval(clearStateBuf.String(), quickjs.EvalFileName("clear_state.js"))
 		clearRet.Free()
 	})
 	return nil

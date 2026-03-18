@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"gojsx/framework/contract"
+	"gojsx/framework/globals"
 	"gojsx/vm/eventloop"
 	"gojsx/vm/sobek/polyfill"
 
@@ -103,7 +104,7 @@ func newVM(prog *sobeklib.Program, bridge contract.BridgeConfig) (*VM, error) {
 
 		// __JSI__ bridge object.
 		vm.jsi = rt.NewObject()
-		rt.Set("__JSI__", vm.jsi) //nolint:errcheck
+		rt.Set(globals.BridgeObject, vm.jsi) //nolint:errcheck
 
 		// Global bridge functions (synchronous).
 		for name, fn := range bridge.Globals {

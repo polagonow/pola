@@ -9,6 +9,7 @@ import (
 	gojalib "github.com/dop251/goja"
 
 	"gojsx/framework"
+	"gojsx/framework/globals"
 )
 
 // RenderSession holds the JS callables and stream value for a single render.
@@ -25,13 +26,13 @@ type RenderSession struct {
 func StartRender(vm *VM, exportName, propsJSON string) (*RenderSession, error) {
 	var sess RenderSession
 	err := vm.run(func(rt *gojalib.Runtime) error {
-		renderFn, ok := gojalib.AssertFunction(rt.Get("__render__"))
+		renderFn, ok := gojalib.AssertFunction(rt.Get(globals.RenderFn))
 		if !ok {
-			return fmt.Errorf("__render__ is not a function")
+			return fmt.Errorf("%s is not a function", globals.RenderFn)
 		}
-		sess.PullStreamFn, ok = gojalib.AssertFunction(rt.Get("__pullStream__"))
+		sess.PullStreamFn, ok = gojalib.AssertFunction(rt.Get(globals.PullStreamFn))
 		if !ok {
-			return fmt.Errorf("__pullStream__ is not a function")
+			return fmt.Errorf("%s is not a function", globals.PullStreamFn)
 		}
 
 		decoderVal, err := rt.RunString("new TextDecoder()")

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sync"
 
+	"gojsx/framework/globals"
+
 	gojalib "github.com/dop251/goja"
 )
 
@@ -102,7 +104,7 @@ func PromiseToGo(rt *gojalib.Runtime, promise *gojalib.Promise) (gojalib.Value, 
 	// handles the straightforward case of a single pending microtask chain.
 	for promise.State() == gojalib.PromiseStatePending {
 		// Run any queued microtasks (then-callbacks, async continuations).
-		if err := rt.GlobalObject().Get("__runMicrotasks__"); err != nil {
+		if err := rt.GlobalObject().Get(globals.RunMicrotasksFn); err != nil {
 			break
 		}
 	}

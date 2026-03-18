@@ -8,11 +8,13 @@ import (
 	"fmt"
 
 	v8 "rogchap.com/v8go"
+
+	"gojsx/framework/globals"
 )
 
 // Enable installs __JSI__ as an empty global object into ctx.
 func Enable(ctx *v8.Context) error {
-	if _, err := ctx.RunScript("globalThis.__JSI__ = {};", "jsi.js"); err != nil {
+	if _, err := ctx.RunScript("globalThis."+globals.BridgeObject+" = {};", "jsi.js"); err != nil {
 		return fmt.Errorf("jsi: %w", err)
 	}
 	return nil

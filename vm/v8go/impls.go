@@ -3,11 +3,20 @@ package v8go
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
+	"text/template"
 
 	"gojsx/framework"
 	"gojsx/framework/contract"
+	"gojsx/framework/globals"
 
 	v8 "rogchap.com/v8go"
+)
+
+var (
+	deleteJSIKeyTmpl = template.Must(template.New("deleteJSIKey").Parse("delete {{.BridgeObject}}[{{.Key}}];"))
+	clearStateTmpl   = template.Must(template.New("clearState").Parse(
+		"globalThis.{{.RequestContext}} = undefined; globalThis.{{.StreamHandle}} = undefined;"))
 )
 
 // ── V8StreamHandle ─────────────────────────────────────────────────────────
@@ -32,7 +41,10 @@ func (vm *V8VM) SetRequestContext(ctx map[string]any) error {
 		return fmt.Errorf("v8: marshal request context: %w", err)
 	}
 	return vm.run(func() error {
-		_, err := vm.ctx.RunScript("globalThis.__REQUEST__ = "+string(data)+";", "request.js")
+		_, err := vm.ctx.RunScript(
+			"globalThis."+globals.RequestContext+" = "+string(data)+";",
+			"request.js",
+		)
 		return err
 	})
 }
@@ -42,7 +54,9 @@ func (vm *V8VM) SetBridgeFunctions(funcs map[string]contract.GoFunc) error {
 	return vm.run(func() error {
 		// Clear previously registered JSI keys.
 		for _, key := range vm.jsiKeys {
-			vm.ctx.RunScript(fmt.Sprintf("delete __JSI__[%q];", key), "jsi_clear.js") //nolint:errcheck
+			var delBuf strings.Builder
+			_ = deleteJSIKeyTmpl.Execute(&delBuf, struct{ BridgeObject, Key string }{globals.BridgeObject, fmt.Sprintf("%q", key)})
+			vm.ctx.RunScript(delBuf.String(), "jsi_clear.js") //nolint:errcheck
 		}
 		vm.jsiKeys = vm.jsiKeys[:0]
 
@@ -50,7 +64,7 @@ func (vm *V8VM) SetBridgeFunctions(funcs map[string]contract.GoFunc) error {
 			return nil
 		}
 
-		jsiVal, err := vm.ctx.Global().Get("__JSI__")
+		jsiVal, err := vm.ctx.Global().Get(globals.BridgeObject)
 		if err != nil {
 			return fmt.Errorf("v8: get __JSI__: %w", err)
 		}
@@ -102,11 +116,14 @@ func (vm *V8VM) CallRenderFunction(exportName, propsJSON string) (framework.Stre
 func (vm *V8VM) ClearState() error {
 	return vm.run(func() error {
 		for _, key := range vm.jsiKeys {
-			vm.ctx.RunScript(fmt.Sprintf("delete __JSI__[%q];", key), "jsi_clear.js") //nolint:errcheck
+			var delBuf strings.Builder
+			_ = deleteJSIKeyTmpl.Execute(&delBuf, struct{ BridgeObject, Key string }{globals.BridgeObject, fmt.Sprintf("%q", key)})
+			vm.ctx.RunScript(delBuf.String(), "jsi_clear.js") //nolint:errcheck
 		}
 		vm.jsiKeys = vm.jsiKeys[:0]
-		vm.ctx.RunScript( //nolint:errcheck
-			"globalThis.__REQUEST__ = undefined; globalThis.__gojsx_stream__ = undefined;", "clear.js")
+		var clearBuf strings.Builder
+		_ = clearStateTmpl.Execute(&clearBuf, struct{ RequestContext, StreamHandle string }{globals.RequestContext, globals.StreamHandle})
+		vm.ctx.RunScript(clearBuf.String(), "clear.js") //nolint:errcheck
 		return nil
 	})
 }

@@ -3,11 +3,21 @@ package moderncquickjs
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
+	"text/template"
 
 	mquickjs "modernc.org/quickjs"
 
 	"gojsx/framework"
 	"gojsx/framework/contract"
+	"gojsx/framework/globals"
+)
+
+var (
+	clearJSITmpl = template.Must(template.New("clearJSI").Parse(
+		"Object.keys({{.BridgeObject}}).forEach(function(k) { delete {{.BridgeObject}}[k]; });"))
+	clearStateTmpl = template.Must(template.New("clearState").Parse(
+		"globalThis.{{.RequestContext}} = undefined; Object.keys({{.BridgeObject}}).forEach(function(k) { delete {{.BridgeObject}}[k]; });"))
 )
 
 // ── StreamHandle ──────────────────────────────────────────────────────────────
@@ -33,7 +43,10 @@ func (vm *VM) SetRequestContext(ctx map[string]any) error {
 	}
 	var runErr error
 	vm.run(func() {
-		_, runErr = vm.inner.Eval("globalThis.__REQUEST__ = ("+string(b)+");", mquickjs.EvalGlobal)
+		_, runErr = vm.inner.Eval(
+			"globalThis."+globals.RequestContext+" = ("+string(b)+");",
+			mquickjs.EvalGlobal,
+		)
 	})
 	if runErr != nil {
 		return fmt.Errorf("moderncquickjs: set request context: %w", runErr)
@@ -50,10 +63,9 @@ func (vm *VM) SetBridgeFunctions(funcs map[string]contract.GoFunc) error {
 		vm.perReqFuncs = funcs
 
 		// Clear existing __JSI__ properties first.
-		if _, err := vm.inner.Eval(
-			"Object.keys(__JSI__).forEach(function(k) { delete __JSI__[k]; });",
-			mquickjs.EvalGlobal,
-		); err != nil {
+		var clearJSIBuf strings.Builder
+		_ = clearJSITmpl.Execute(&clearJSIBuf, struct{ BridgeObject string }{globals.BridgeObject})
+		if _, err := vm.inner.Eval(clearJSIBuf.String(), mquickjs.EvalGlobal); err != nil {
 			runErr = fmt.Errorf("moderncquickjs: clear __JSI__: %w", err)
 			return
 		}
@@ -61,8 +73,11 @@ func (vm *VM) SetBridgeFunctions(funcs map[string]contract.GoFunc) error {
 		// Install a wrapper for each function.
 		for name := range funcs {
 			nameJSON, _ := json.Marshal(name)
-			script := fmt.Sprintf(jsiWrapperJS, string(nameJSON), string(nameJSON))
-			if _, err := vm.inner.Eval(script, mquickjs.EvalGlobal); err != nil {
+			var scriptBuf strings.Builder
+			_ = jsiWrapperJSTmpl.Execute(&scriptBuf, struct {
+				BridgeObject, NameJSON, MQJSCallFn, MQJSErrorKey string
+			}{globals.BridgeObject, string(nameJSON), globals.MQJSCallFn, globals.MQJSErrorKey})
+			if _, err := vm.inner.Eval(scriptBuf.String(), mquickjs.EvalGlobal); err != nil {
 				runErr = fmt.Errorf("moderncquickjs: set bridge function %q: %w", name, err)
 				return
 			}
@@ -93,10 +108,9 @@ func (vm *VM) ClearState() error {
 		vm.perReqFuncs = nil
 		vm.currentWriter = nil
 		vm.wroteAny = false
-		_, runErr = vm.inner.Eval(
-			"globalThis.__REQUEST__ = undefined; Object.keys(__JSI__).forEach(function(k) { delete __JSI__[k]; });",
-			mquickjs.EvalGlobal,
-		)
+		var clearStateBuf strings.Builder
+		_ = clearStateTmpl.Execute(&clearStateBuf, struct{ RequestContext, BridgeObject string }{globals.RequestContext, globals.BridgeObject})
+		_, runErr = vm.inner.Eval(clearStateBuf.String(), mquickjs.EvalGlobal)
 	})
 	if runErr != nil {
 		return fmt.Errorf("moderncquickjs: clear state: %w", runErr)

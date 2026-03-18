@@ -5,6 +5,7 @@ import (
 
 	"gojsx/framework"
 	"gojsx/framework/contract"
+	"gojsx/framework/globals"
 
 	sobeklib "github.com/grafana/sobek"
 )
@@ -27,7 +28,7 @@ func (vm *VM) SetRequestContext(ctx map[string]any) error {
 		ctx = map[string]any{}
 	}
 	return vm.run(func(rt *sobeklib.Runtime) error {
-		return rt.Set("__REQUEST__", rt.ToValue(ctx))
+		return rt.Set(globals.RequestContext, rt.ToValue(ctx))
 	})
 }
 
@@ -79,8 +80,8 @@ func (vm *VM) DrainStream(handle framework.StreamHandle, w framework.StreamWrite
 // ClearState implements framework.VM.
 func (vm *VM) ClearState() error {
 	return vm.run(func(rt *sobeklib.Runtime) error {
-		rt.Set("__REQUEST__", sobeklib.Undefined())      //nolint:errcheck
-		rt.Set("__gojsx_stream__", sobeklib.Undefined()) //nolint:errcheck
+		rt.Set(globals.RequestContext, sobeklib.Undefined()) //nolint:errcheck
+		rt.Set(globals.StreamHandle, sobeklib.Undefined())   //nolint:errcheck
 		for _, key := range vm.jsi.Keys() {
 			vm.jsi.Delete(key) //nolint:errcheck
 		}

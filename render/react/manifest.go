@@ -3,6 +3,7 @@ package react
 import (
 	"gojsx/bundler/manifest"
 	"gojsx/framework/contract"
+	"gojsx/framework/globals"
 )
 
 // WebpackManifestEncoder implements framework.ManifestEncoder using the
@@ -11,7 +12,7 @@ type WebpackManifestEncoder struct{}
 
 // InjectGlobal returns the JS define name used to embed the manifest in the
 // server bundle.
-func (e *WebpackManifestEncoder) InjectGlobal() string { return "__CLIENT_MANIFEST__" }
+func (e *WebpackManifestEncoder) InjectGlobal() string { return globals.ClientManifest }
 
 // Encode builds the client manifest and import URL map from the list of
 // discovered client components and their compiled output files.

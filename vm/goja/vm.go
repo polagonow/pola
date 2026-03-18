@@ -11,6 +11,7 @@ import (
 	"sync"
 
 	"gojsx/framework/contract"
+	"gojsx/framework/globals"
 	polyfill "gojsx/vm/goja/polyfill"
 
 	gojalib "github.com/dop251/goja"
@@ -69,7 +70,7 @@ func (vm *VM) SetRequestContext(ctx map[string]any) error {
 		ctx = map[string]any{}
 	}
 	return vm.run(func(rt *gojalib.Runtime) error {
-		rt.Set("__REQUEST__", rt.ToValue(ctx)) //nolint:errcheck
+		rt.Set(globals.RequestContext, rt.ToValue(ctx)) //nolint:errcheck
 		return nil
 	})
 }
@@ -128,8 +129,8 @@ func (p *vmPool) Acquire() *VM {
 // Release clears per-request state and returns the VM to the pool.
 func (p *vmPool) Release(vm *VM) {
 	_ = vm.run(func(rt *gojalib.Runtime) error {
-		rt.Set("__REQUEST__", gojalib.Undefined())      //nolint:errcheck
-		rt.Set("__gojsx_stream__", gojalib.Undefined()) //nolint:errcheck
+		rt.Set(globals.RequestContext, gojalib.Undefined()) //nolint:errcheck
+		rt.Set(globals.StreamHandle, gojalib.Undefined())   //nolint:errcheck
 		for _, key := range vm.jsi.Keys() {
 			vm.jsi.Delete(key) //nolint:errcheck
 		}
@@ -151,7 +152,7 @@ func newVM(prog *gojalib.Program, bridge contract.BridgeConfig) (*VM, error) {
 	err := vm.run(func(rt *gojalib.Runtime) error {
 		vm.rt = rt
 		vm.jsi = rt.NewObject()
-		rt.Set("__JSI__", vm.jsi)               //nolint:errcheck
+		rt.Set(globals.BridgeObject, vm.jsi)    //nolint:errcheck
 		rt.Set("global", rt.GlobalObject())     //nolint:errcheck
 		rt.Set("globalThis", rt.GlobalObject()) //nolint:errcheck
 		rt.Set("console", map[string]any{       //nolint:errcheck

@@ -4,9 +4,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"text/template"
 	"time"
 
 	"gojsx/framework"
+	"gojsx/framework/globals"
+)
+
+var (
+	startRenderScriptTmpl = template.Must(template.New("startRender").Parse(
+		"globalThis.{{.StreamHandle}} = {{.RenderFn}}({{.ExportNameLit}}, {{.PropsJSONLit}});"))
+	pullScriptTmpl = template.Must(template.New("pull").Parse("{{.PullStreamFn}}({{.StreamHandle}})"))
 )
 
 // V8RenderSession holds per-render state. The stream is stored in the
@@ -18,14 +26,14 @@ type V8RenderSession struct{}
 func StartRender(vm *V8VM, exportName, propsJSON string) (*V8RenderSession, error) {
 	var sess V8RenderSession
 	err := vm.run(func() error {
-		// json.Marshal on a string produces a correctly-quoted JS string literal.
 		exportNameLit, _ := json.Marshal(exportName)
 		propsJSONLit, _ := json.Marshal(propsJSON)
-		script := fmt.Sprintf(
-			"globalThis.__gojsx_stream__ = __render__(%s, %s);",
-			exportNameLit, propsJSONLit,
-		)
-		_, err := vm.ctx.RunScript(script, "render.js")
+		var scriptBuf strings.Builder
+		_ = startRenderScriptTmpl.Execute(&scriptBuf, struct {
+			StreamHandle, RenderFn string
+			ExportNameLit, PropsJSONLit string
+		}{globals.StreamHandle, globals.RenderFn, string(exportNameLit), string(propsJSONLit)})
+		_, err := vm.ctx.RunScript(scriptBuf.String(), "render.js")
 		return err
 	})
 	return &sess, err
@@ -37,7 +45,9 @@ func DrainStream(vm *V8VM, w framework.StreamWriter, _ *V8RenderSession) (wroteA
 	for {
 		var done, noChunks bool
 		if runErr := vm.run(func() error {
-			result, err := vm.ctx.RunScript("__pullStream__(__gojsx_stream__)", "pull.js")
+			var pullBuf strings.Builder
+			_ = pullScriptTmpl.Execute(&pullBuf, struct{ PullStreamFn, StreamHandle string }{globals.PullStreamFn, globals.StreamHandle})
+			result, err := vm.ctx.RunScript(pullBuf.String(), "pull.js")
 			if err != nil {
 				return fmt.Errorf("v8: pull stream: %w", err)
 			}

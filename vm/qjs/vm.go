@@ -14,27 +14,27 @@ package qjs
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
 	"sync"
+	"text/template"
 
 	"gojsx/framework/contract"
+	"gojsx/framework/globals"
 	"gojsx/vm/qjs/polyfill"
 
 	qjs "github.com/fastschema/qjs"
 )
 
-// renderAsyncJS installs __renderAsync__ after polyfills and the bundle.
-// It calls __render__, polls __pullStream__ in a loop yielding via native
-// Promises so promise.Await() can interleave bridge-function resolutions
-// with JS microtasks.
-const renderAsyncJS = `
-globalThis.__renderAsync__ = async function(exportName, propsJSON) {
-	var stream = __render__(exportName, propsJSON);
+var (
+	renderAsyncJSTmpl = template.Must(template.New("renderAsync").Parse(`
+globalThis.{{.RenderAsyncFn}} = async function(exportName, propsJSON) {
+	var stream = {{.RenderFn}}(exportName, propsJSON);
 	var dec = new TextDecoder();
 	while (true) {
-		__drainMicrotasks__();
-		var result = __pullStream__(stream);
+		{{.DrainMicrotasksFn}}();
+		var result = {{.PullStreamFn}}(stream);
 		for (var i = 0; i < result.chunks.length; i++) {
-			__outputChunk__(dec.decode(result.chunks[i]));
+			{{.OutputChunk}}(dec.decode(result.chunks[i]));
 		}
 		if (result.done) return;
 		// Yield via a native Promise so the event loop can run pending
@@ -42,7 +42,27 @@ globalThis.__renderAsync__ = async function(exportName, propsJSON) {
 		await Promise.resolve();
 	}
 };
-`
+`))
+	consoleJSTmpl = template.Must(template.New("console").Parse(`
+globalThis.console = {
+	log:   function() { {{.QJSLogFn}}("LOG",  Array.prototype.slice.call(arguments)); },
+	warn:  function() { {{.QJSLogFn}}("WARN", Array.prototype.slice.call(arguments)); },
+	error: function() { {{.QJSLogFn}}("ERR",  Array.prototype.slice.call(arguments)); },
+	info:  function() { {{.QJSLogFn}}("INFO", Array.prototype.slice.call(arguments)); },
+};
+`))
+	renderAsyncJS string
+)
+
+func init() {
+	var b strings.Builder
+	if err := renderAsyncJSTmpl.Execute(&b, struct {
+		RenderAsyncFn, RenderFn, DrainMicrotasksFn, PullStreamFn, OutputChunk string
+	}{globals.RenderAsyncFn, globals.RenderFn, globals.DrainMicrotasksFn, globals.PullStreamFn, globals.OutputChunk}); err != nil {
+		panic("qjs: renderAsync template: " + err.Error())
+	}
+	renderAsyncJS = b.String()
+}
 
 // VM holds a qjs runtime + context. All JS operations are serialised
 // via mu except during promise.Await(), which releases the lock so bridge
@@ -119,7 +139,7 @@ globalThis.globalThis = globalThis;
 		}
 
 		// Console — install a Go-backed __qjs_log__, wire console in JS.
-		ctx.SetFunc("__qjs_log__", func(this *qjs.This) (*qjs.Value, error) {
+		ctx.SetFunc(globals.QJSLogFn, func(this *qjs.This) (*qjs.Value, error) {
 			args := this.Args()
 			if len(args) < 2 {
 				return this.Context().NewUndefined(), nil
@@ -139,13 +159,12 @@ globalThis.globalThis = globalThis;
 			return this.Context().NewUndefined(), nil
 		})
 
-		if err := evalOrErr(ctx, `
-globalThis.console = {
-	log:   function() { __qjs_log__("LOG",  Array.prototype.slice.call(arguments)); },
-	warn:  function() { __qjs_log__("WARN", Array.prototype.slice.call(arguments)); },
-	error: function() { __qjs_log__("ERR",  Array.prototype.slice.call(arguments)); },
-	info:  function() { __qjs_log__("INFO", Array.prototype.slice.call(arguments)); },
-};`, "console.js"); err != nil {
+		var consoleJS strings.Builder
+		if err := consoleJSTmpl.Execute(&consoleJS, struct{ QJSLogFn string }{globals.QJSLogFn}); err != nil {
+			initErr = fmt.Errorf("qjs: console template: %w", err)
+			return
+		}
+		if err := evalOrErr(ctx, consoleJS.String(), "console.js"); err != nil {
 			initErr = err
 			return
 		}
@@ -158,7 +177,7 @@ globalThis.performance = { now: function() { return 0; } };
 			return
 		}
 
-		if err := evalOrErr(ctx, "globalThis.__JSI__ = {};", "jsi.js"); err != nil {
+		if err := evalOrErr(ctx, "globalThis."+globals.BridgeObject+" = {};", "jsi.js"); err != nil {
 			initErr = err
 			return
 		}

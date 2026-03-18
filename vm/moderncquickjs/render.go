@@ -3,11 +3,20 @@ package moderncquickjs
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
+	"text/template"
 	"time"
 
 	"gojsx/framework"
+	"gojsx/framework/globals"
 
 	mquickjs "modernc.org/quickjs"
+)
+
+var (
+	startRenderScriptTmpl = template.Must(template.New("startRender").Parse("{{.StartRenderFn}}({{.ExportLit}}, {{.PropsLit}})"))
+	pullOnceTmpl          = template.Must(template.New("pullOnce").Parse("{{.PullOnceFn}}()"))
+	clearRenderStreamTmpl = template.Must(template.New("clearRenderStream").Parse("{{.ClearRenderStreamFn}}()"))
 )
 
 // RenderSession holds parameters for a single render.
@@ -33,10 +42,13 @@ func DrainStream(vm *VM, w framework.StreamWriter, sess *RenderSession) (wroteAn
 		vm.wroteAny = false
 		exportLit, _ := json.Marshal(sess.ExportName)
 		propsLit, _ := json.Marshal(sess.PropsJSON)
-		if _, e := vm.inner.Eval(
-			fmt.Sprintf("__startRender__(%s, %s)", exportLit, propsLit),
-			mquickjs.EvalGlobal,
-		); e != nil {
+		var startBuf strings.Builder
+		_ = startRenderScriptTmpl.Execute(&startBuf, struct {
+			StartRenderFn string
+			ExportLit     string
+			PropsLit      string
+		}{globals.StartRenderFn, string(exportLit), string(propsLit)})
+		if _, e := vm.inner.Eval(startBuf.String(), mquickjs.EvalGlobal); e != nil {
 			err = fmt.Errorf("moderncquickjs: start render: %w", e)
 		}
 	})
@@ -52,7 +64,9 @@ func DrainStream(vm *VM, w framework.StreamWriter, sess *RenderSession) (wroteAn
 		var iterWrote bool
 		vm.run(func() {
 			vm.wroteAny = false
-			result, e := vm.inner.Eval("__pullOnce__()", mquickjs.EvalGlobal)
+			var pullBuf strings.Builder
+			_ = pullOnceTmpl.Execute(&pullBuf, struct{ PullOnceFn string }{globals.PullOnceFn})
+			result, e := vm.inner.Eval(pullBuf.String(), mquickjs.EvalGlobal)
 			if e != nil {
 				err = fmt.Errorf("moderncquickjs: render: %w", e)
 				return
@@ -76,7 +90,9 @@ func DrainStream(vm *VM, w framework.StreamWriter, sess *RenderSession) (wroteAn
 	vm.run(func() {
 		vm.currentWriter = nil
 		vm.wroteAny = false
-		evalOrErr(vm.inner, "__clearRenderStream__()") //nolint:errcheck
+		var clearBuf strings.Builder
+		_ = clearRenderStreamTmpl.Execute(&clearBuf, struct{ ClearRenderStreamFn string }{globals.ClearRenderStreamFn})
+		evalOrErr(vm.inner, clearBuf.String()) //nolint:errcheck
 	})
 
 	return wroteAny, err

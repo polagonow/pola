@@ -3,11 +3,21 @@ package qjs
 import (
 	"encoding/json"
 	"fmt"
+	"strings"
+	"text/template"
 
 	"gojsx/framework"
 	"gojsx/framework/contract"
+	"gojsx/framework/globals"
 
 	qjs "github.com/fastschema/qjs"
+)
+
+var (
+	clearJSITmpl = template.Must(template.New("clearJSI").Parse(
+		"Object.keys({{.BridgeObject}}).forEach(function(k) { delete {{.BridgeObject}}[k]; })"))
+	clearStateTmpl = template.Must(template.New("clearState").Parse(
+		"{{.RequestContext}} = undefined; {{.StreamHandle}} = undefined; {{.OutputChunk}} = undefined; Object.keys({{.BridgeObject}}).forEach(function(k) { delete {{.BridgeObject}}[k]; });"))
 )
 
 // ── FastSchemaQJSStreamHandle ─────────────────────────────────────────────────
@@ -33,7 +43,7 @@ func (vm *VM) SetRequestContext(ctx map[string]any) error {
 	}
 	vm.run(func() {
 		val := vm.ctx.ParseJSON(string(b))
-		vm.ctx.Global().SetPropertyStr("__REQUEST__", val)
+		vm.ctx.Global().SetPropertyStr(globals.RequestContext, val)
 		// val ownership transferred to the global property; do not free.
 	})
 	return nil
@@ -55,14 +65,14 @@ type bridgeResult struct {
 func (vm *VM) SetBridgeFunctions(funcs map[string]contract.GoFunc) error {
 	vm.run(func() {
 		// Clear existing keys.
-		if _, err := vm.ctx.Eval("clear_jsi.js", qjs.Code(
-			"Object.keys(__JSI__).forEach(function(k) { delete __JSI__[k]; })",
-		)); err != nil {
+		var clearJSIBuf strings.Builder
+		_ = clearJSITmpl.Execute(&clearJSIBuf, struct{ BridgeObject string }{globals.BridgeObject})
+		if _, err := vm.ctx.Eval("clear_jsi.js", qjs.Code(clearJSIBuf.String())); err != nil {
 			_ = err // non-fatal
 		}
 
 		// Install synchronous bridge functions on __JSI__.
-		jsi := vm.ctx.Global().GetPropertyStr("__JSI__")
+		jsi := vm.ctx.Global().GetPropertyStr(globals.BridgeObject)
 		defer jsi.Free()
 
 		for name, fn := range funcs {
@@ -122,9 +132,11 @@ func (vm *VM) DrainStream(handle framework.StreamHandle, w framework.StreamWrite
 // ClearState implements framework.VM.
 func (vm *VM) ClearState() error {
 	vm.run(func() {
-		_, _ = vm.ctx.Eval("clear_state.js", qjs.Code(
-			"__REQUEST__ = undefined; __gojsx_stream__ = undefined; __outputChunk__ = undefined; Object.keys(__JSI__).forEach(function(k) { delete __JSI__[k]; });", //nolint:lll
-		))
+		var clearStateBuf strings.Builder
+		_ = clearStateTmpl.Execute(&clearStateBuf, struct {
+			RequestContext, StreamHandle, OutputChunk, BridgeObject string
+		}{globals.RequestContext, globals.StreamHandle, globals.OutputChunk, globals.BridgeObject})
+		_, _ = vm.ctx.Eval("clear_state.js", qjs.Code(clearStateBuf.String()))
 	})
 	return nil
 }
