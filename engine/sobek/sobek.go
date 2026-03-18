@@ -88,39 +88,25 @@ func newRuntime(prog *sobeklib.Program, logger core.Logger) (*Runtime, error) {
 		r.rt = rt
 		loop.SetCheckpoint(func() { rt.RunProgram(drainProg) }) //nolint:errcheck
 
-		rt.Set("global", rt.GlobalObject())     //nolint:errcheck
 		rt.Set("globalThis", rt.GlobalObject()) //nolint:errcheck
-		jsConsole := func(level string) func(sobeklib.FunctionCall) sobeklib.Value {
-			return func(c sobeklib.FunctionCall) sobeklib.Value {
-				if logger != nil {
-					args := make([]string, len(c.Arguments))
-					for i, a := range c.Arguments {
-						args[i] = a.String()
-					}
-					logger.Debug("js console", "engine", "sobek", "level", level, "output", strings.Join(args, " "))
-				}
-				return sobeklib.Undefined()
-			}
-		}
-		rt.Set("console", map[string]any{ //nolint:errcheck
-			"log":   jsConsole("LOG"),
-			"warn":  jsConsole("WARN"),
-			"error": jsConsole("ERR"),
-			"info":  jsConsole("INFO"),
-		})
-		rt.Set("process", map[string]any{ //nolint:errcheck
-			"env": map[string]any{"NODE_ENV": "production"},
-		})
-		rt.Set("performance", map[string]any{ //nolint:errcheck
-			"now": func(c sobeklib.FunctionCall) sobeklib.Value { return rt.ToValue(0) },
-		})
 
 		r.di = rt.NewObject()
 		rt.Set(globals.BridgeObject, r.di) //nolint:errcheck
 
+		// Install __pola_log__ so ConsoleBridge polyfill can wire console.* to the logger.
+		rt.Set(globals.PolaLogFn, func(c sobeklib.FunctionCall) sobeklib.Value { //nolint:errcheck
+			if len(c.Arguments) >= 2 {
+				polyfill.LogAtLevel(logger, "sobek", c.Arguments[0].String(), c.Arguments[1].String())
+			}
+			return sobeklib.Undefined()
+		})
+
 		// Install polyfills from the default registry.
+		// NodeGlobals and ConsoleBridge must come first (before bundle).
 		reg := polyfill.DefaultRegistry()
 		for _, src := range reg.Get(
+			polyfill.NodeGlobals,
+			polyfill.ConsoleBridge,
 			polyfill.MicrotaskQueue,
 			polyfill.TextEncoding,
 			polyfill.MessageChannel,

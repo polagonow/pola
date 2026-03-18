@@ -111,36 +111,22 @@ func newRuntime(prog *gojalib.Program, logger core.Logger) (*Runtime, error) {
 		r.rt = rt
 		r.di = rt.NewObject()
 		rt.Set(globals.BridgeObject, r.di)      //nolint:errcheck
-		rt.Set("global", rt.GlobalObject())     //nolint:errcheck
 		rt.Set("globalThis", rt.GlobalObject()) //nolint:errcheck
-		jsConsole := func(level string) func(gojalib.FunctionCall) gojalib.Value {
-			return func(c gojalib.FunctionCall) gojalib.Value {
-				if logger != nil {
-					args := make([]string, len(c.Arguments))
-					for i, a := range c.Arguments {
-						args[i] = a.String()
-					}
-					logger.Debug("js console", "engine", "goja", "level", level, "output", strings.Join(args, " "))
-				}
-				return gojalib.Undefined()
+
+		// Install __pola_log__ so ConsoleBridge polyfill can wire console.* to the logger.
+		rt.Set(globals.PolaLogFn, func(c gojalib.FunctionCall) gojalib.Value { //nolint:errcheck
+			if len(c.Arguments) >= 2 {
+				polyfill.LogAtLevel(logger, "goja", c.Arguments[0].String(), c.Arguments[1].String())
 			}
-		}
-		rt.Set("console", map[string]any{ //nolint:errcheck
-			"log":   jsConsole("LOG"),
-			"warn":  jsConsole("WARN"),
-			"error": jsConsole("ERR"),
-			"info":  jsConsole("INFO"),
-		})
-		rt.Set("process", map[string]any{ //nolint:errcheck
-			"env": map[string]any{"NODE_ENV": "production"},
-		})
-		rt.Set("performance", map[string]any{ //nolint:errcheck
-			"now": func(c gojalib.FunctionCall) gojalib.Value { return rt.ToValue(0) },
+			return gojalib.Undefined()
 		})
 
 		// Install polyfills via the default registry.
+		// NodeGlobals and ConsoleBridge must come first (before bundle).
 		reg := polyfill.DefaultRegistry()
 		for _, src := range reg.Get(
+			polyfill.NodeGlobals,
+			polyfill.ConsoleBridge,
 			polyfill.MicrotaskQueue,
 			polyfill.TextEncoding,
 			polyfill.MessageChannel,
@@ -452,4 +438,3 @@ func exportArgs(vals []gojalib.Value) []any {
 	}
 	return out
 }
-

@@ -209,9 +209,7 @@ func newRuntime(src string, logger core.Logger) (*Runtime, error) {
 		// ── Console bridge ────────────────────────────────────────────
 		// Install __pola_log__ before ConsoleBridge polyfill.
 		if err := inner.RegisterFunc(globals.PolaLogFn, func(level, msg string) {
-			if logger != nil {
-				logger.Debug("js console", "engine", "moderncquickjs", "level", level, "output", msg)
-			}
+			polyfill.LogAtLevel(logger, "moderncquickjs", level, msg)
 		}, false); err != nil {
 			initErr = fmt.Errorf("moderncquickjs: register %s: %w", globals.PolaLogFn, err)
 			return

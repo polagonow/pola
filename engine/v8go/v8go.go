@@ -92,21 +92,27 @@ func newV8Runtime(source string, logger core.Logger) (*Runtime, error) {
 		loop.SetCheckpoint(ctx.PerformMicrotaskCheckpoint)
 		global := ctx.Global()
 
-		global.Set("global", global)     //nolint:errcheck
 		global.Set("globalThis", global) //nolint:errcheck
 
-		// Console.
-		if err := enableConsole(iso, ctx, logger); err != nil {
-			initErr = fmt.Errorf("v8go: %w", err)
-			return
-		}
-
-		// process / performance stubs.
-		if _, err := ctx.RunScript(`
-globalThis.process = { env: { NODE_ENV: "production" } };
-globalThis.performance = { now: function() { return 0; } };
-`, "env.js"); err != nil {
-			initErr = fmt.Errorf("v8go: env globals: %w", err)
+		// Install __pola_log__ so ConsoleBridge polyfill can wire console.* to the logger.
+		logFT := v8.NewFunctionTemplate(iso, func(info *v8.FunctionCallbackInfo) *v8.Value {
+			args := info.Args()
+			if len(args) >= 2 {
+				level := args[0].String()
+				arr := args[1].Object()
+				lenVal, _ := arr.Get("length")
+				n := int(lenVal.Integer())
+				parts := make([]string, n)
+				for i := 0; i < n; i++ {
+					v, _ := arr.GetIdx(uint32(i))
+					parts[i] = v.String()
+				}
+				polyfill.LogAtLevel(logger, "v8go", level, strings.Join(parts, " "))
+			}
+			return nil
+		})
+		if err := global.Set(globals.PolaLogFn, logFT.GetFunction(ctx)); err != nil {
+			initErr = fmt.Errorf("v8go: set %s: %w", globals.PolaLogFn, err)
 			return
 		}
 
@@ -116,9 +122,11 @@ globalThis.performance = { now: function() { return 0; } };
 			return
 		}
 
-		// Polyfills.
+		// Polyfills. NodeGlobals and ConsoleBridge must come first (before bundle).
 		reg := polyfill.DefaultRegistry()
 		for _, src := range reg.Get(
+			polyfill.NodeGlobals,
+			polyfill.ConsoleBridge,
 			polyfill.MicrotaskQueue,
 			polyfill.TextEncoding,
 			polyfill.MessageChannel,
@@ -413,42 +421,6 @@ func (p *VMPool) Release(r *Runtime) {
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
-
-func enableConsole(iso *v8.Isolate, ctx *v8.Context, logger core.Logger) error {
-	const src = `
-globalThis.console = {
-	log:   function() { __v8_log__("LOG",  Array.prototype.slice.call(arguments)); },
-	warn:  function() { __v8_log__("WARN", Array.prototype.slice.call(arguments)); },
-	error: function() { __v8_log__("ERR",  Array.prototype.slice.call(arguments)); },
-	info:  function() { __v8_log__("INFO", Array.prototype.slice.call(arguments)); },
-};`
-	logFT := v8.NewFunctionTemplate(iso, func(info *v8.FunctionCallbackInfo) *v8.Value {
-		args := info.Args()
-		if len(args) < 2 {
-			return nil
-		}
-		level := args[0].String()
-		arr := args[1].Object()
-		lenVal, _ := arr.Get("length")
-		n := int(lenVal.Integer())
-		parts := make([]string, n)
-		for i := 0; i < n; i++ {
-			v, _ := arr.GetIdx(uint32(i))
-			parts[i] = v.String()
-		}
-		if logger != nil {
-			logger.Debug("js console", "engine", "v8go", "level", level, "output", strings.Join(parts, " "))
-		}
-		return nil
-	})
-	if err := ctx.Global().Set("__v8_log__", logFT.GetFunction(ctx)); err != nil {
-		return fmt.Errorf("console: set __v8_log__: %w", err)
-	}
-	if _, err := ctx.RunScript(src, "console.js"); err != nil {
-		return fmt.Errorf("console: %w", err)
-	}
-	return nil
-}
 
 func goToV8Value(iso *v8.Isolate, ctx *v8.Context, v any) (*v8.Value, error) {
 	switch t := v.(type) {

@@ -18,6 +18,25 @@ const consoleBridgeSrc = `(function() {
 	};
 })();`
 
+// LogAtLevel dispatches a JS console message to the appropriate Logger method
+// based on the level string produced by ConsoleBridge ("LOG", "INFO", "WARN",
+// "ERR", "DBG"). Used by every engine's __pola_log__ Go callback.
+func LogAtLevel(logger core.Logger, engine, level, msg string) {
+	if logger == nil {
+		return
+	}
+	switch level {
+	case "WARN":
+		logger.Warn("js", "engine", engine, "output", msg)
+	case "ERR":
+		logger.Error("js", "engine", engine, "output", msg)
+	case "DBG":
+		logger.Debug("js", "engine", engine, "output", msg)
+	default: // "LOG", "INFO"
+		logger.Info("js", "engine", engine, "output", msg)
+	}
+}
+
 // Well-known polyfill IDs.
 const (
 	Promise         core.PolyfillID = "promise"

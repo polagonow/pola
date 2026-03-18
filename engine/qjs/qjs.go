@@ -124,8 +124,8 @@ func newRuntime(src string, logger core.Logger) (*Runtime, error) {
 		// Install __pola_log__ Go callback (wired to logger) before ConsoleBridge polyfill.
 		ctx.SetFunc(globals.PolaLogFn, func(this *qjslib.This) (*qjslib.Value, error) {
 			args := this.Args()
-			if len(args) >= 2 && logger != nil {
-				logger.Debug("js console", "engine", "qjs", "level", args[0].String(), "output", args[1].String())
+			if len(args) >= 2 {
+				polyfill.LogAtLevel(logger, "qjs", args[0].String(), args[1].String())
 			}
 			return this.Context().NewUndefined(), nil
 		})
