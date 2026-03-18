@@ -42,14 +42,6 @@ globalThis.{{.RenderAsyncFn}} = async function(exportName, propsJSON) {
 	}
 };
 `))
-	consoleJSTmpl = template.Must(template.New("console").Parse(`
-globalThis.console = {
-	log:   function() { {{.QJSLogFn}}("LOG",  Array.prototype.slice.call(arguments)); },
-	warn:  function() { {{.QJSLogFn}}("WARN", Array.prototype.slice.call(arguments)); },
-	error: function() { {{.QJSLogFn}}("ERR",  Array.prototype.slice.call(arguments)); },
-	info:  function() { {{.QJSLogFn}}("INFO", Array.prototype.slice.call(arguments)); },
-};
-`))
 	renderAsyncJS string
 )
 
@@ -73,8 +65,12 @@ func init() {
 
 // Engine is a qjs-backed JSEngine.
 type Engine struct {
-	src string
+	src    string
+	logger core.Logger
 }
+
+// SetLogger implements core.LogAware.
+func (e *Engine) SetLogger(l core.Logger) { e.logger = l }
 
 // New creates an Engine from the given server bundle source.
 func New(bundleSource string) *Engine {
@@ -87,6 +83,7 @@ func (e *Engine) Name() string { return "qjs" }
 // RequiredPolyfills implements core.JSEngine.
 func (e *Engine) RequiredPolyfills() []core.PolyfillID {
 	return []core.PolyfillID{
+		polyfill.NodeGlobals,
 		polyfill.Promise,
 		polyfill.MicrotaskQueue,
 		polyfill.TextEncoding,
@@ -94,12 +91,13 @@ func (e *Engine) RequiredPolyfills() []core.PolyfillID {
 		polyfill.ReadableStream,
 		polyfill.AbortController,
 		polyfill.WebpackRequire,
+		polyfill.ConsoleBridge,
 	}
 }
 
 // NewRuntime implements core.JSEngine.
 func (e *Engine) NewRuntime(_ context.Context) (core.JSRuntime, error) {
-	return newRuntime(e.src)
+	return newRuntime(e.src, e.logger)
 }
 
 // ── Runtime ───────────────────────────────────────────────────────────────────
@@ -112,7 +110,7 @@ type Runtime struct {
 	src string
 }
 
-func newRuntime(src string) (*Runtime, error) {
+func newRuntime(src string, logger core.Logger) (*Runtime, error) {
 	rt, err := qjslib.New()
 	if err != nil {
 		return nil, fmt.Errorf("qjs: new runtime: %w", err)
@@ -123,68 +121,32 @@ func newRuntime(src string) (*Runtime, error) {
 	var initErr error
 
 	r.run(func() {
-		if err := evalOrErr(ctx, `
-globalThis.global = globalThis;
-globalThis.globalThis = globalThis;
-`, "globals.js"); err != nil {
-			initErr = err
-			return
-		}
-
-		// Console — install Go-backed __qjs_log__, wire console in JS.
-		ctx.SetFunc(globals.QJSLogFn, func(this *qjslib.This) (*qjslib.Value, error) {
+		// Install __pola_log__ Go callback (wired to logger) before ConsoleBridge polyfill.
+		ctx.SetFunc(globals.PolaLogFn, func(this *qjslib.This) (*qjslib.Value, error) {
 			args := this.Args()
-			if len(args) < 2 {
-				return this.Context().NewUndefined(), nil
+			if len(args) >= 2 && logger != nil {
+				logger.Debug("js console", "engine", "qjs", "level", args[0].String(), "output", args[1].String())
 			}
-			level := args[0].String()
-			arr := args[1]
-			lenVal := arr.GetPropertyStr("length")
-			n := int(lenVal.Int32())
-			lenVal.Free()
-			parts := make([]string, n)
-			for i := 0; i < n; i++ {
-				elem := arr.GetPropertyIndex(int64(i))
-				parts[i] = elem.String()
-				elem.Free()
-			}
-			fmt.Printf("[qjs:%s] %v\n", level, parts)
 			return this.Context().NewUndefined(), nil
 		})
-
-		var consoleJS strings.Builder
-		if err := consoleJSTmpl.Execute(&consoleJS, struct{ QJSLogFn string }{globals.QJSLogFn}); err != nil {
-			initErr = fmt.Errorf("qjs: console template: %w", err)
-			return
-		}
-		if err := evalOrErr(ctx, consoleJS.String(), "console.js"); err != nil {
-			initErr = err
-			return
-		}
-
-		if err := evalOrErr(ctx, `
-globalThis.process = { env: { NODE_ENV: "production" } };
-globalThis.performance = { now: function() { return 0; } };
-`, "proc.js"); err != nil {
-			initErr = err
-			return
-		}
 
 		if err := evalOrErr(ctx, "globalThis."+globals.BridgeObject+" = {};", "di.js"); err != nil {
 			initErr = err
 			return
 		}
 
-		// Install polyfills.
+		// Install polyfills (NodeGlobals + ConsoleBridge must come before bundle).
 		reg := polyfill.DefaultRegistry()
 		for _, pf := range reg.Get(
+			polyfill.NodeGlobals,
+			polyfill.ConsoleBridge,
+			polyfill.Promise,
 			polyfill.MicrotaskQueue,
 			polyfill.TextEncoding,
 			polyfill.MessageChannel,
 			polyfill.ReadableStream,
 			polyfill.AbortController,
 			polyfill.WebpackRequire,
-			polyfill.Promise,
 		) {
 			if err := evalOrErr(ctx, pf.Source, string(pf.ID)+".js"); err != nil {
 				initErr = fmt.Errorf("qjs: polyfill %s: %w", pf.ID, err)
@@ -396,16 +358,17 @@ func (r *Runtime) clearState() {
 
 // VMPool manages a pool of pre-warmed qjs Runtimes.
 type VMPool struct {
-	pool sync.Pool
-	src  string
+	pool   sync.Pool
+	src    string
+	logger core.Logger
 }
 
 // NewVMPool creates a pool backed by the given server-bundle source.
-func NewVMPool(serverBundle string) (*VMPool, error) {
-	p := &VMPool{src: serverBundle}
+func NewVMPool(serverBundle string, logger core.Logger) (*VMPool, error) {
+	p := &VMPool{src: serverBundle, logger: logger}
 	p.pool = sync.Pool{
 		New: func() any {
-			r, err := newRuntime(serverBundle)
+			r, err := newRuntime(serverBundle, logger)
 			if err != nil {
 				panic(fmt.Sprintf("qjs: pool create: %v", err))
 			}

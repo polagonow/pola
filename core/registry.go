@@ -240,7 +240,9 @@ func (noopLogger) With(args ...any) Logger       { return noopLogger{} }
 type noopMetrics struct{}
 
 func (noopMetrics) Name() string { return "noop" }
+func (noopMetrics) Path() string  { return "/metrics" }
 func (noopMetrics) RecordRequest(route, method string, statusCode int, duration time.Duration) {}
+func (noopMetrics) RecordRender(route string, duration time.Duration)                          {}
 func (noopMetrics) Handler() http.Handler { return http.NotFoundHandler() }
 
 type noopTracer struct{}

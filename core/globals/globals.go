@@ -57,7 +57,12 @@ const (
 	ClientManifest = "__CLIENT_MANIFEST__"
 )
 
-// QuickJS console helper used by qjs/quickjsgo.
+// PolaLogFn is the standard Go-backed console bridge installed by every engine
+// that uses the ConsoleBridge polyfill. Its signature is (level, msg string).
+const PolaLogFn = "__pola_log__"
+
+// QuickJS console helper used by qjs/quickjsgo (kept for backward compatibility).
+// Deprecated: use PolaLogFn instead.
 const (
 	// QJSLogFn is a Go-backed function used to implement `console.*` in qjs and
 	// quickjsgo (a minimal console polyfill).

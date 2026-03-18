@@ -98,7 +98,7 @@ func TestRuntime_Set(t *testing.T) {
 }
 
 func TestVMPool_AcquireRelease(t *testing.T) {
-	pool, err := goja.NewVMPool(simpleBundle)
+	pool, err := goja.NewVMPool(simpleBundle, nil)
 	if err != nil {
 		t.Fatalf("NewVMPool: %v", err)
 	}

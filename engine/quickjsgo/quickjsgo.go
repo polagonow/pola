@@ -48,14 +48,6 @@ globalThis.{{.RenderAsyncFn}} = async function(exportName, propsJSON) {
 };
 `))
 
-	consoleJSTmpl = template.Must(template.New("console").Parse(`
-globalThis.console = {
-	log:   function() { {{.QJSLogFn}}("LOG",  Array.prototype.slice.call(arguments)); },
-	warn:  function() { {{.QJSLogFn}}("WARN", Array.prototype.slice.call(arguments)); },
-	error: function() { {{.QJSLogFn}}("ERR",  Array.prototype.slice.call(arguments)); },
-	info:  function() { {{.QJSLogFn}}("INFO", Array.prototype.slice.call(arguments)); },
-};
-`))
 
 	renderAsyncJS string
 )
@@ -80,7 +72,12 @@ func init() {
 
 // Engine is a quickjsgo-backed JSEngine. It implements core.JSEngine and
 // core.SSRPoolFactory.
-type Engine struct{}
+type Engine struct {
+	logger core.Logger
+}
+
+// SetLogger implements core.LogAware.
+func (e *Engine) SetLogger(l core.Logger) { e.logger = l }
 
 // NewEngine returns a stateless Engine (no bundle pre-compilation needed).
 func NewEngine() *Engine { return &Engine{} }
@@ -92,6 +89,8 @@ func (e *Engine) Name() string { return "quickjsgo" }
 // quickjsgo needs all polyfills including Promise.
 func (e *Engine) RequiredPolyfills() []core.PolyfillID {
 	return []core.PolyfillID{
+		polyfill.NodeGlobals,
+		polyfill.ConsoleBridge,
 		polyfill.Promise,
 		polyfill.MicrotaskQueue,
 		polyfill.TextEncoding,
@@ -110,7 +109,7 @@ func (e *Engine) NewRuntime(_ context.Context) (core.JSRuntime, error) {
 
 // NewSSRPool implements core.SSRPoolFactory.
 func (e *Engine) NewSSRPool(bundle []byte) (core.SSRPool, error) {
-	pool, err := newVMPool(string(bundle))
+	pool, err := newVMPool(string(bundle), e.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -148,7 +147,7 @@ func setGlobal(ctx *quickjs.Context, name string, val *quickjs.Value) {
 	g.Set(name, val) //nolint:errcheck
 }
 
-func newRuntime(src string) (*Runtime, error) {
+func newRuntime(src string, logger core.Logger) (*Runtime, error) {
 	rt := quickjs.NewRuntime()
 	ctx := rt.NewContext()
 
@@ -156,52 +155,14 @@ func newRuntime(src string) (*Runtime, error) {
 	var initErr error
 
 	r.run(func() {
-		if err := evalOrErr(ctx, `
-globalThis.global = globalThis;
-globalThis.globalThis = globalThis;
-`, "globals.js"); err != nil {
-			initErr = err
-			return
-		}
-
-		// Console: Go-backed __qjs_log__, wired in JS.
+		// Install __pola_log__ Go callback (wired to logger) before ConsoleBridge polyfill.
 		logFn := ctx.NewFunction(func(qCtx *quickjs.Context, this *quickjs.Value, args []*quickjs.Value) *quickjs.Value {
-			if len(args) < 2 {
-				return qCtx.NewUndefined()
+			if len(args) >= 2 && logger != nil {
+				logger.Debug("js console", "engine", "quickjsgo", "level", args[0].String(), "output", args[1].String())
 			}
-			level := args[0].String()
-			arr := args[1]
-			lenVal := arr.Get("length")
-			n := int(lenVal.ToInt32())
-			lenVal.Free()
-			parts := make([]string, n)
-			for i := 0; i < n; i++ {
-				elem := arr.GetIdx(int64(i))
-				parts[i] = elem.String()
-				elem.Free()
-			}
-			fmt.Printf("[quickjsgo:%s] %v\n", level, parts)
 			return qCtx.NewUndefined()
 		})
-		setGlobal(ctx, globals.QJSLogFn, logFn)
-
-		var consoleJS strings.Builder
-		if err := consoleJSTmpl.Execute(&consoleJS, struct{ QJSLogFn string }{globals.QJSLogFn}); err != nil {
-			initErr = fmt.Errorf("quickjsgo: console template: %w", err)
-			return
-		}
-		if err := evalOrErr(ctx, consoleJS.String(), "console.js"); err != nil {
-			initErr = err
-			return
-		}
-
-		if err := evalOrErr(ctx, `
-globalThis.process = { env: { NODE_ENV: "production" } };
-globalThis.performance = { now: function() { return 0; } };
-`, "proc.js"); err != nil {
-			initErr = err
-			return
-		}
+		setGlobal(ctx, globals.PolaLogFn, logFn)
 
 		// __DEPENDENCY_INJECTION__ placeholder.
 		if err := evalOrErr(ctx, "globalThis."+globals.BridgeObject+" = {};", "di.js"); err != nil {
@@ -218,16 +179,18 @@ globalThis.performance = { now: function() { return 0; } };
 		}
 		r.jsi = jsiVal
 
-		// Polyfills.
+		// Polyfills (NodeGlobals + ConsoleBridge must come before bundle).
 		reg := polyfill.DefaultRegistry()
 		for _, pf := range reg.Get(
+			polyfill.NodeGlobals,
+			polyfill.ConsoleBridge,
+			polyfill.Promise,
 			polyfill.MicrotaskQueue,
 			polyfill.TextEncoding,
 			polyfill.MessageChannel,
 			polyfill.ReadableStream,
 			polyfill.AbortController,
 			polyfill.WebpackRequire,
-			polyfill.Promise,
 		) {
 			if err := evalOrErr(ctx, pf.Source, string(pf.ID)+".js"); err != nil {
 				initErr = fmt.Errorf("quickjsgo: polyfill %s: %w", pf.ID, err)
@@ -480,15 +443,16 @@ func (p *qjsgoSSRPool) Release(rt core.SSRRuntime) {
 // ── vmPool ────────────────────────────────────────────────────────────────────
 
 type vmPool struct {
-	pool sync.Pool
-	src  string
+	pool   sync.Pool
+	src    string
+	logger core.Logger
 }
 
-func newVMPool(serverBundle string) (*vmPool, error) {
-	p := &vmPool{src: serverBundle}
+func newVMPool(serverBundle string, logger core.Logger) (*vmPool, error) {
+	p := &vmPool{src: serverBundle, logger: logger}
 	p.pool = sync.Pool{
 		New: func() any {
-			r, err := newRuntime(serverBundle)
+			r, err := newRuntime(serverBundle, logger)
 			if err != nil {
 				panic(fmt.Sprintf("quickjsgo: pool create: %v", err))
 			}
@@ -539,4 +503,11 @@ func exportValue(v *quickjs.Value) any {
 		return v.ToFloat64()
 	}
 	return v.String()
+}
+
+// Registered is true when the quickjsgo build tag is active.
+var Registered = true
+
+func init() {
+	core.RegisterEngine(func() core.JSEngine { return NewEngine() })
 }

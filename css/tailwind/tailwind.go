@@ -23,7 +23,11 @@ type Tailwind struct {
 	Bin string
 	// ConfigPath is the tailwind config file path (optional, for v3; v4 is CSS-first).
 	ConfigPath string
+	logger     core.Logger
 }
+
+// SetLogger implements core.LogAware.
+func (t *Tailwind) SetLogger(l core.Logger) { t.logger = l }
 
 // New creates a Tailwind CSS processor.
 func New() *Tailwind { return &Tailwind{Bin: "tailwindcss"} }
@@ -65,7 +69,9 @@ func (t *Tailwind) Watch(ctx context.Context, inputPath, outputPath string, onCh
 	cmd.Stderr = os.Stderr
 	go func() {
 		if err := cmd.Run(); err != nil && ctx.Err() == nil {
-			fmt.Printf("tailwind watch error: %v\n", err)
+			if t.logger != nil {
+				t.logger.Error("tailwind: watch error", "err", err)
+			}
 		}
 	}()
 	return nil

@@ -16,6 +16,7 @@ import (
 type Metrics struct {
 	requestDuration *prometheus.HistogramVec
 	requestTotal    *prometheus.CounterVec
+	renderDuration  *prometheus.HistogramVec
 	reg             *prometheus.Registry
 }
 
@@ -33,8 +34,13 @@ func New() *Metrics {
 			Name: "pola_requests_total",
 			Help: "Total HTTP requests",
 		}, []string{"route", "method", "status"}),
+		renderDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
+			Name:    "pola_render_duration_seconds",
+			Help:    "SSR render latency per route",
+			Buckets: prometheus.DefBuckets,
+		}, []string{"route"}),
 	}
-	reg.MustRegister(m.requestDuration, m.requestTotal)
+	reg.MustRegister(m.requestDuration, m.requestTotal, m.renderDuration)
 	return m
 }
 
@@ -44,11 +50,19 @@ var _ core.Metrics = (*Metrics)(nil)
 // Name returns the metrics implementation name.
 func (m *Metrics) Name() string { return "prometheus" }
 
+// Path returns the metrics endpoint path.
+func (m *Metrics) Path() string { return "/metrics" }
+
 // RecordRequest records a single HTTP request's route, method, status and duration.
 func (m *Metrics) RecordRequest(route, method string, statusCode int, d time.Duration) {
 	status := fmt.Sprintf("%d", statusCode)
 	m.requestDuration.WithLabelValues(route, method, status).Observe(d.Seconds())
 	m.requestTotal.WithLabelValues(route, method, status).Inc()
+}
+
+// RecordRender records the SSR render duration for a given route.
+func (m *Metrics) RecordRender(route string, d time.Duration) {
+	m.renderDuration.WithLabelValues(route).Observe(d.Seconds())
 }
 
 // Handler returns an HTTP handler that serves Prometheus metrics at /metrics.

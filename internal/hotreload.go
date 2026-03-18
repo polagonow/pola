@@ -174,16 +174,16 @@ func (h *HotReloader) rebuild() {
 	}
 	defer h.building.Store(false)
 
-	fmt.Println("[hotreload] rebuilding...")
+	h.reg.Logger.Info("hotreload: rebuilding")
 	newApp, err := Build(h.cfg)
 	if err != nil {
-		fmt.Printf("[hotreload] build error: %v\n", err)
+		h.reg.Logger.Error("hotreload: build error", "err", err)
 		return
 	}
 
 	live := &liveApp{app: newApp, handler: newApp}
 	h.current.Store(live)
-	fmt.Println("[hotreload] rebuild complete")
+	h.reg.Logger.Info("hotreload: rebuild complete")
 	h.bus.Publish("update", []byte("reload"))
 }
 

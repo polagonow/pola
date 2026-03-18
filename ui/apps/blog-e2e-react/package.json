@@ -1,5 +1,5 @@
 {
-  "name": "@pola/blog-e2e",
+  "name": "@pola/blog-e2e-react",
   "version": "0.0.1",
   "private": true,
   "description": "Pola example blog application",

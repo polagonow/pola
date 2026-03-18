@@ -118,7 +118,9 @@ type Span interface {
 // Metrics records observability metrics.
 type Metrics interface {
 	Name() string
+	Path() string // HTTP path where the metrics endpoint is served (e.g. "/metrics")
 	RecordRequest(route, method string, statusCode int, duration time.Duration)
+	RecordRender(route string, duration time.Duration)
 	Handler() http.Handler
 }
 
@@ -131,7 +133,14 @@ type Tracer interface {
 // Pprof serves profiling endpoints.
 type Pprof interface {
 	Name() string
+	Path() string // HTTP path prefix where pprof endpoints are served (e.g. "/debug/pprof")
 	Handler() http.Handler
+}
+
+// LogAware is an optional interface implemented by components that accept a Logger.
+// The pipeline calls SetLogger on all registered components after FillDefaults.
+type LogAware interface {
+	SetLogger(Logger)
 }
 
 // HotReloader watches for file changes and triggers rebuilds.

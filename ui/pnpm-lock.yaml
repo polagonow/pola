@@ -36,7 +36,7 @@ importers:
         specifier: ^8.57.1
         version: 8.57.1(eslint@10.0.3)(typescript@5.9.3)
 
-  apps/blog-e2e:
+  apps/blog-e2e-react:
     dependencies:
       '@pola/di':
         specifier: workspace:*
@@ -65,8 +65,6 @@ importers:
         version: 19.2.3(@types/react@19.2.14)
 
   packages/di: {}
-
-  packages/jsi: {}
 
   packages/react:
     dependencies:

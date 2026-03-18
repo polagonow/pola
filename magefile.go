@@ -53,7 +53,7 @@ func Run() error {
 			"POLA_DEV":         "true",
 			"POLA_METRICS":     polaMetrics,
 			"POLA_PPROF":       polaPprof,
-			"POLA_WEBAPP_PATH": "../../ui/apps/blog-e2e",
+			"POLA_WEBAPP_PATH": "../../ui/apps/blog-e2e-react",
 		},
 		"go", "run",
 		"-C", "cmd/server",

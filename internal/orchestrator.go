@@ -34,7 +34,7 @@ type Orchestrator struct {
 
 // NewOrchestrator creates a new Orchestrator from the given registry and build artifacts.
 func NewOrchestrator(reg *core.Registry, routes []core.Route, shell core.HTMLShell, assets core.AssetServer, bundleOutput *core.BundleOutput, notFoundRoute *core.Route, dev bool) *Orchestrator {
-	return &Orchestrator{
+	o := &Orchestrator{
 		registry:      reg,
 		routes:        routes,
 		shell:         shell,
@@ -43,6 +43,10 @@ func NewOrchestrator(reg *core.Registry, routes []core.Route, shell core.HTMLShe
 		notFoundRoute: notFoundRoute,
 		dev:           dev,
 	}
+	if dev {
+		o.devScript = ClientScript
+	}
+	return o
 }
 
 // ServeHTTP handles a single HTTP request.
@@ -52,6 +56,18 @@ func (o *Orchestrator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Serve static assets under /public/.
 	if strings.HasPrefix(r.URL.Path, "/public/") {
 		o.assets.Handler("/public/").ServeHTTP(w, r)
+		return
+	}
+
+	// Metrics endpoint.
+	if r.URL.Path == o.registry.Metrics.Path() {
+		o.registry.Metrics.Handler().ServeHTTP(w, r)
+		return
+	}
+
+	// Pprof endpoints (nil when not registered).
+	if o.registry.Pprof != nil && strings.HasPrefix(r.URL.Path, o.registry.Pprof.Path()) {
+		o.registry.Pprof.Handler().ServeHTTP(w, r)
 		return
 	}
 
@@ -77,7 +93,9 @@ func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
 	ctx, span := o.registry.Tracer.StartSpan(r.Context(), "pola.handle")
 	defer span.End()
 
+	ctx, routeSpan := o.registry.Tracer.StartSpan(ctx, "pola.route.resolve")
 	route, params := o.registry.Router.Resolve(ctx, r.URL.Path)
+	routeSpan.End()
 	if route == nil {
 		isRSC := r.Header.Get("Content-Type") == rscContentType
 		if isRSC && o.notFoundRoute != nil {
@@ -124,6 +142,13 @@ func (o *Orchestrator) serveRSC(w http.ResponseWriter, r *http.Request, ctx cont
 
 // serveRSCBody writes the RSC Flight body to w. Headers must be set before calling.
 func (o *Orchestrator) serveRSCBody(ctx context.Context, req core.RenderRequest, w http.ResponseWriter) {
+	ctx, span := o.registry.Tracer.StartSpan(ctx, "pola.render")
+	renderStart := time.Now()
+	defer func() {
+		span.End()
+		o.registry.Metrics.RecordRender(req.Route.Pattern, time.Since(renderStart))
+	}()
+
 	sr, ok := o.registry.Renderer.(streamingRenderer)
 	if !ok {
 		// Fallback: call Render and write body.

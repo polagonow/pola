@@ -33,8 +33,12 @@ var drainProg, _ = sobeklib.Compile("drain.js", "0", false)
 
 // Engine is a Sobek-backed JSEngine.
 type Engine struct {
-	prog *sobeklib.Program
+	prog   *sobeklib.Program
+	logger core.Logger
 }
+
+// SetLogger implements core.LogAware.
+func (e *Engine) SetLogger(l core.Logger) { e.logger = l }
 
 // New compiles bundleSource and returns a ready Engine.
 func New(bundleSource string) (*Engine, error) {
@@ -62,7 +66,7 @@ func (e *Engine) RequiredPolyfills() []core.PolyfillID {
 
 // NewRuntime implements core.JSEngine.
 func (e *Engine) NewRuntime(_ context.Context) (core.JSRuntime, error) {
-	return newRuntime(e.prog)
+	return newRuntime(e.prog, e.logger)
 }
 
 // ── Runtime ───────────────────────────────────────────────────────────────────
@@ -74,7 +78,7 @@ type Runtime struct {
 	di   *sobeklib.Object
 }
 
-func newRuntime(prog *sobeklib.Program) (*Runtime, error) {
+func newRuntime(prog *sobeklib.Program, logger core.Logger) (*Runtime, error) {
 	loop := eventloop.New(false)
 	r := &Runtime{loop: loop}
 
@@ -86,11 +90,23 @@ func newRuntime(prog *sobeklib.Program) (*Runtime, error) {
 
 		rt.Set("global", rt.GlobalObject())     //nolint:errcheck
 		rt.Set("globalThis", rt.GlobalObject()) //nolint:errcheck
-		rt.Set("console", map[string]any{       //nolint:errcheck
-			"log":   func(c sobeklib.FunctionCall) sobeklib.Value { return logConsole("LOG", c) },
-			"warn":  func(c sobeklib.FunctionCall) sobeklib.Value { return logConsole("WARN", c) },
-			"error": func(c sobeklib.FunctionCall) sobeklib.Value { return logConsole("ERR", c) },
-			"info":  func(c sobeklib.FunctionCall) sobeklib.Value { return logConsole("INFO", c) },
+		jsConsole := func(level string) func(sobeklib.FunctionCall) sobeklib.Value {
+			return func(c sobeklib.FunctionCall) sobeklib.Value {
+				if logger != nil {
+					args := make([]string, len(c.Arguments))
+					for i, a := range c.Arguments {
+						args[i] = a.String()
+					}
+					logger.Debug("js console", "engine", "sobek", "level", level, "output", strings.Join(args, " "))
+				}
+				return sobeklib.Undefined()
+			}
+		}
+		rt.Set("console", map[string]any{ //nolint:errcheck
+			"log":   jsConsole("LOG"),
+			"warn":  jsConsole("WARN"),
+			"error": jsConsole("ERR"),
+			"info":  jsConsole("INFO"),
 		})
 		rt.Set("process", map[string]any{ //nolint:errcheck
 			"env": map[string]any{"NODE_ENV": "production"},
@@ -319,20 +335,21 @@ func (r *Runtime) clearState() error {
 
 // VMPool manages a pool of pre-warmed Sobek Runtimes.
 type VMPool struct {
-	pool sync.Pool
-	prog *sobeklib.Program
+	pool   sync.Pool
+	prog   *sobeklib.Program
+	logger core.Logger
 }
 
 // NewVMPool compiles the server bundle once and creates a pool.
-func NewVMPool(serverBundle string) (*VMPool, error) {
+func NewVMPool(serverBundle string, logger core.Logger) (*VMPool, error) {
 	prog, err := sobeklib.Compile("bundle.js", serverBundle, false)
 	if err != nil {
 		return nil, fmt.Errorf("sobek: pool compile: %w", err)
 	}
-	p := &VMPool{prog: prog}
+	p := &VMPool{prog: prog, logger: logger}
 	p.pool = sync.Pool{
 		New: func() any {
-			r, err := newRuntime(prog)
+			r, err := newRuntime(prog, logger)
 			if err != nil {
 				panic(fmt.Sprintf("sobek: pool create: %v", err))
 			}
@@ -363,11 +380,3 @@ func exportArgs(vals []sobeklib.Value) []any {
 	return out
 }
 
-func logConsole(level string, c sobeklib.FunctionCall) sobeklib.Value {
-	args := make([]string, len(c.Arguments))
-	for i, a := range c.Arguments {
-		args[i] = a.String()
-	}
-	fmt.Printf("[sobek:%s] %v\n", level, args)
-	return sobeklib.Undefined()
-}

@@ -39,7 +39,11 @@ var (
 // VM initialisation.
 type Engine struct {
 	source string
+	logger core.Logger
 }
+
+// SetLogger implements core.LogAware.
+func (e *Engine) SetLogger(l core.Logger) { e.logger = l }
 
 // New creates an Engine from the given server bundle source.
 func New(bundleSource string) *Engine {
@@ -63,7 +67,7 @@ func (e *Engine) RequiredPolyfills() []core.PolyfillID {
 
 // NewRuntime implements core.JSEngine.
 func (e *Engine) NewRuntime(_ context.Context) (core.JSRuntime, error) {
-	return newV8Runtime(e.source)
+	return newV8Runtime(e.source, e.logger)
 }
 
 // ── Runtime ───────────────────────────────────────────────────────────────────
@@ -76,7 +80,7 @@ type Runtime struct {
 	diKeys  []string // keys currently set on __DEPENDENCY_INJECTION__; cleared in clearState
 }
 
-func newV8Runtime(source string) (*Runtime, error) {
+func newV8Runtime(source string, logger core.Logger) (*Runtime, error) {
 	iso := v8.NewIsolate()
 	loop := eventloop.New(true)
 	r := &Runtime{iso: iso, loop: loop}
@@ -92,7 +96,7 @@ func newV8Runtime(source string) (*Runtime, error) {
 		global.Set("globalThis", global) //nolint:errcheck
 
 		// Console.
-		if err := enableConsole(iso, ctx); err != nil {
+		if err := enableConsole(iso, ctx, logger); err != nil {
 			initErr = fmt.Errorf("v8go: %w", err)
 			return
 		}
@@ -378,15 +382,16 @@ func (r *Runtime) clearState() error {
 type VMPool struct {
 	pool   sync.Pool
 	source string
+	logger core.Logger
 }
 
 // NewVMPool creates a pool backed by the given server-bundle source.
 // One Runtime is eagerly created to surface startup errors immediately.
-func NewVMPool(serverBundle string) (*VMPool, error) {
-	p := &VMPool{source: serverBundle}
+func NewVMPool(serverBundle string, logger core.Logger) (*VMPool, error) {
+	p := &VMPool{source: serverBundle, logger: logger}
 	p.pool = sync.Pool{
 		New: func() any {
-			r, err := newV8Runtime(serverBundle)
+			r, err := newV8Runtime(serverBundle, logger)
 			if err != nil {
 				panic(fmt.Sprintf("v8go: pool create: %v", err))
 			}
@@ -409,7 +414,7 @@ func (p *VMPool) Release(r *Runtime) {
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 
-func enableConsole(iso *v8.Isolate, ctx *v8.Context) error {
+func enableConsole(iso *v8.Isolate, ctx *v8.Context, logger core.Logger) error {
 	const src = `
 globalThis.console = {
 	log:   function() { __v8_log__("LOG",  Array.prototype.slice.call(arguments)); },
@@ -431,7 +436,9 @@ globalThis.console = {
 			v, _ := arr.GetIdx(uint32(i))
 			parts[i] = v.String()
 		}
-		fmt.Printf("[v8go:%s] %s\n", level, strings.Join(parts, " "))
+		if logger != nil {
+			logger.Debug("js console", "engine", "v8go", "level", level, "output", strings.Join(parts, " "))
+		}
 		return nil
 	})
 	if err := ctx.Global().Set("__v8_log__", logFT.GetFunction(ctx)); err != nil {

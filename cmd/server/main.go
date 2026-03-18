@@ -82,7 +82,7 @@ func main() {
 		mux.Handle(e.MetricsPath, reg.Metrics.Handler())
 	}
 	if e.PprofEnabled {
-		mux.Handle("/debug/pprof/", reg.Pprof.Handler())
+		mux.Handle(e.PprofPath+"/", reg.Pprof.Handler())
 	}
 
 	srv := &http.Server{Addr: addr, Handler: mux}

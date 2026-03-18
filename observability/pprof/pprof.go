@@ -21,6 +21,9 @@ var _ core.Pprof = (*server)(nil)
 // Name returns the pprof implementation name.
 func (s *server) Name() string { return "pprof" }
 
+// Path returns the pprof endpoint path prefix.
+func (s *server) Path() string { return "/debug/pprof" }
+
 // Handler returns an http.Handler that serves pprof endpoints under /debug/pprof/.
 func (s *server) Handler() http.Handler {
 	mux := http.NewServeMux()

@@ -30,8 +30,12 @@ import (
 // Engine compiles a server bundle once and creates lightweight Runtimes from it.
 // It implements core.JSEngine and core.SSRPoolFactory.
 type Engine struct {
-	prog *gojalib.Program // compiled server bundle; nil until WithBundle is called
+	prog   *gojalib.Program // compiled server bundle; nil until WithBundle is called
+	logger core.Logger
 }
+
+// SetLogger implements core.LogAware.
+func (e *Engine) SetLogger(l core.Logger) { e.logger = l }
 
 // NewEngine returns an Engine without a pre-compiled bundle.
 // The bundle is compiled later via NewSSRPool (called by the pipeline).
@@ -56,7 +60,7 @@ func (e *Engine) WithBundle(bundleSource string) (*Engine, error) {
 // NewSSRPool implements core.SSRPoolFactory. It compiles the server bundle and
 // returns a pool of goja Runtimes that implement core.SSRRuntime.
 func (e *Engine) NewSSRPool(bundle []byte) (core.SSRPool, error) {
-	pool, err := NewVMPool(string(bundle))
+	pool, err := NewVMPool(string(bundle), e.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -84,7 +88,7 @@ func (e *Engine) NewRuntime(_ context.Context) (core.JSRuntime, error) {
 	if e.prog == nil {
 		return nil, fmt.Errorf("goja: engine has no compiled bundle — call WithBundle first")
 	}
-	return newRuntime(e.prog)
+	return newRuntime(e.prog, e.logger)
 }
 
 // ── Runtime ───────────────────────────────────────────────────────────────────
@@ -99,7 +103,7 @@ type Runtime struct {
 }
 
 // newRuntime creates a fresh EventLoop, installs globals + polyfills, runs the bundle.
-func newRuntime(prog *gojalib.Program) (*Runtime, error) {
+func newRuntime(prog *gojalib.Program, logger core.Logger) (*Runtime, error) {
 	loop := eventloop.NewEventLoop(eventloop.EnableConsole(false))
 
 	r := &Runtime{loop: loop}
@@ -109,11 +113,23 @@ func newRuntime(prog *gojalib.Program) (*Runtime, error) {
 		rt.Set(globals.BridgeObject, r.di)      //nolint:errcheck
 		rt.Set("global", rt.GlobalObject())     //nolint:errcheck
 		rt.Set("globalThis", rt.GlobalObject()) //nolint:errcheck
-		rt.Set("console", map[string]any{       //nolint:errcheck
-			"log":   func(c gojalib.FunctionCall) gojalib.Value { return logConsole("LOG", c) },
-			"warn":  func(c gojalib.FunctionCall) gojalib.Value { return logConsole("WARN", c) },
-			"error": func(c gojalib.FunctionCall) gojalib.Value { return logConsole("ERR", c) },
-			"info":  func(c gojalib.FunctionCall) gojalib.Value { return logConsole("INFO", c) },
+		jsConsole := func(level string) func(gojalib.FunctionCall) gojalib.Value {
+			return func(c gojalib.FunctionCall) gojalib.Value {
+				if logger != nil {
+					args := make([]string, len(c.Arguments))
+					for i, a := range c.Arguments {
+						args[i] = a.String()
+					}
+					logger.Debug("js console", "engine", "goja", "level", level, "output", strings.Join(args, " "))
+				}
+				return gojalib.Undefined()
+			}
+		}
+		rt.Set("console", map[string]any{ //nolint:errcheck
+			"log":   jsConsole("LOG"),
+			"warn":  jsConsole("WARN"),
+			"error": jsConsole("ERR"),
+			"info":  jsConsole("INFO"),
 		})
 		rt.Set("process", map[string]any{ //nolint:errcheck
 			"env": map[string]any{"NODE_ENV": "production"},
@@ -388,21 +404,22 @@ func (r *Runtime) clearState() error {
 
 // VMPool is a typed pool of *Runtime values backed by a compiled bundle.
 type VMPool struct {
-	pool sync.Pool
-	prog *gojalib.Program
+	pool   sync.Pool
+	prog   *gojalib.Program
+	logger core.Logger
 }
 
 // NewVMPool compiles bundleSource once and creates a typed pool of Runtimes.
 // One Runtime is eagerly created to surface startup errors immediately.
-func NewVMPool(bundleSource string) (*VMPool, error) {
+func NewVMPool(bundleSource string, logger core.Logger) (*VMPool, error) {
 	prog, err := gojalib.Compile("bundle.js", bundleSource, false)
 	if err != nil {
 		return nil, fmt.Errorf("goja: pool compile: %w", err)
 	}
-	p := &VMPool{prog: prog}
+	p := &VMPool{prog: prog, logger: logger}
 	p.pool = sync.Pool{
 		New: func() any {
-			rt, err := newRuntime(prog)
+			rt, err := newRuntime(prog, logger)
 			if err != nil {
 				panic(fmt.Sprintf("goja: pool create runtime: %v", err))
 			}
@@ -436,11 +453,3 @@ func exportArgs(vals []gojalib.Value) []any {
 	return out
 }
 
-func logConsole(level string, c gojalib.FunctionCall) gojalib.Value {
-	args := make([]string, len(c.Arguments))
-	for i, a := range c.Arguments {
-		args[i] = a.String()
-	}
-	fmt.Printf("[goja:%s] %v\n", level, args)
-	return gojalib.Undefined()
-}

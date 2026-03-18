@@ -55,6 +55,13 @@ func Build(cfg *core.Config) (*core.App, error) {
 		return nil, fmt.Errorf("pola: fill defaults: %w", err)
 	}
 
+	// Propagate logger to all components that accept it.
+	for _, c := range []any{reg.Engine, reg.Bundler, reg.Renderer, reg.Router, reg.CSS} {
+		if la, ok := c.(core.LogAware); ok {
+			la.SetLogger(reg.Logger)
+		}
+	}
+
 	// Validate required components.
 	if reg.Router == nil {
 		return nil, fmt.Errorf("pola: no Router registered; import github.com/polagonow/pola/router/nextjs (or another Router)")
@@ -174,6 +181,19 @@ func Build(cfg *core.Config) (*core.App, error) {
 	// ── 9. Return App ──────────────────────────────────────────────────────
 	app := newApp(cfg, reg, orch)
 	app.SetArtifacts(bundleOutput)
+
+	// In dev mode wrap the app in a hot-reloader so file changes trigger a
+	// full rebuild and browser reload via WebSocket.
+	if cfg.Dev {
+		hr, err := NewHotReloader(cfg, app)
+		if err != nil {
+			return nil, fmt.Errorf("pola: hotreload: %w", err)
+		}
+		devApp := newApp(cfg, reg, hr.Handler())
+		devApp.SetArtifacts(bundleOutput)
+		return devApp, nil
+	}
+
 	return app, nil
 }
 

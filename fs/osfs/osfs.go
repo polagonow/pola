@@ -53,7 +53,20 @@ func (fs *OSFS) Watch(path string, onChange func(string)) error {
 	if err != nil {
 		return err
 	}
-	if err := w.Add(filepath.Join(fs.root, path)); err != nil {
+	watchPath := path
+	if !filepath.IsAbs(path) {
+		watchPath = filepath.Join(fs.root, path)
+	}
+	// Add the root and every subdirectory so changes at any depth are caught.
+	if err := filepath.WalkDir(watchPath, func(p string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if d.IsDir() {
+			return w.Add(p)
+		}
+		return nil
+	}); err != nil {
 		w.Close()
 		return err
 	}

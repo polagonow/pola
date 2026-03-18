@@ -5,6 +5,19 @@ package polyfill
 
 import "github.com/polagonow/pola/core"
 
+// consoleBridgeSrc installs globalThis.console to route all console.* calls
+// through __pola_log__(level, msg). Engines install __pola_log__ as a
+// native Go callback connected to their core.Logger.
+const consoleBridgeSrc = `(function() {
+	globalThis.console = {
+		log:   function() { __pola_log__("LOG",  Array.prototype.slice.call(arguments).join(" ")); },
+		warn:  function() { __pola_log__("WARN", Array.prototype.slice.call(arguments).join(" ")); },
+		error: function() { __pola_log__("ERR",  Array.prototype.slice.call(arguments).join(" ")); },
+		info:  function() { __pola_log__("INFO", Array.prototype.slice.call(arguments).join(" ")); },
+		debug: function() { __pola_log__("DBG",  Array.prototype.slice.call(arguments).join(" ")); },
+	};
+})();`
+
 // Well-known polyfill IDs.
 const (
 	Promise         core.PolyfillID = "promise"
@@ -14,6 +27,13 @@ const (
 	MicrotaskQueue  core.PolyfillID = "microtask-queue"
 	TextEncoding    core.PolyfillID = "text-encoding"
 	WebpackRequire  core.PolyfillID = "webpack-require"
+	// NodeGlobals installs process, performance, and global aliases required by
+	// React Server Components bundles. Used by engines that cannot set these via
+	// native Go calls (qjs, quickjsgo, moderncquickjs).
+	NodeGlobals core.PolyfillID = "node-globals"
+	// ConsoleBridge routes console.* calls through __pola_log__(level, msg).
+	// Engines install __pola_log__ as a native Go callback wired to core.Logger.
+	ConsoleBridge core.PolyfillID = "console-bridge"
 )
 
 // microtaskSrc installs queueMicrotask and __drainMicrotasks__.
@@ -422,6 +442,18 @@ const promiseSrc = `(function () {
 	globalThis.Promise = Promise;
 })();`
 
+// nodeGlobalsSrc installs process, performance, and global/globalThis aliases
+// expected by React Server Components bundles in non-browser environments.
+const nodeGlobalsSrc = `(function() {
+	globalThis.global = globalThis;
+	if (typeof globalThis.process === 'undefined') {
+		globalThis.process = { env: { NODE_ENV: "production" } };
+	}
+	if (typeof globalThis.performance === 'undefined') {
+		globalThis.performance = { now: function() { return 0; } };
+	}
+})();`
+
 // webpackRequireSrc installs __webpack_require__ and __webpack_chunk_load__.
 const webpackRequireSrc = `(function() {
 	if (typeof globalThis.__webpack_require__ !== 'undefined') { return; }
@@ -459,4 +491,6 @@ func Register(reg core.PolyfillRegistry) {
 	reg.Register(core.PolyfillSource{ID: AbortController, Source: abortControllerSrc})
 	reg.Register(core.PolyfillSource{ID: Promise, Source: promiseSrc})
 	reg.Register(core.PolyfillSource{ID: WebpackRequire, Source: webpackRequireSrc})
+	reg.Register(core.PolyfillSource{ID: NodeGlobals, Source: nodeGlobalsSrc})
+	reg.Register(core.PolyfillSource{ID: ConsoleBridge, Source: consoleBridgeSrc})
 }

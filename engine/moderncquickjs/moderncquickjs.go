@@ -80,14 +80,6 @@ globalThis.{{.ClearRenderStreamFn}} = function() {
 	return result;
 };`))
 
-	consoleJSTmpl = template.Must(template.New("console").Parse(`
-globalThis.console = {
-	log:   function() { {{.MQJSLogFn}}("LOG",  Array.prototype.slice.call(arguments).join(' ')); },
-	warn:  function() { {{.MQJSLogFn}}("WARN", Array.prototype.slice.call(arguments).join(' ')); },
-	error: function() { {{.MQJSLogFn}}("ERR",  Array.prototype.slice.call(arguments).join(' ')); },
-	info:  function() { {{.MQJSLogFn}}("INFO", Array.prototype.slice.call(arguments).join(' ')); },
-};
-void 0;`))
 
 	renderHelpersJS string
 )
@@ -135,7 +127,12 @@ func drainNativeJobs(vm *mquickjs.VM) {
 
 // Engine is a moderncquickjs-backed JSEngine. It implements core.JSEngine and
 // core.SSRPoolFactory.
-type Engine struct{}
+type Engine struct {
+	logger core.Logger
+}
+
+// SetLogger implements core.LogAware.
+func (e *Engine) SetLogger(l core.Logger) { e.logger = l }
 
 // NewEngine returns a stateless Engine (no bundle pre-compilation needed).
 func NewEngine() *Engine { return &Engine{} }
@@ -147,6 +144,8 @@ func (e *Engine) Name() string { return "moderncquickjs" }
 // moderncquickjs needs all polyfills including Promise (no native Promise).
 func (e *Engine) RequiredPolyfills() []core.PolyfillID {
 	return []core.PolyfillID{
+		polyfill.NodeGlobals,
+		polyfill.ConsoleBridge,
 		polyfill.MicrotaskQueue,
 		polyfill.TextEncoding,
 		polyfill.MessageChannel,
@@ -166,7 +165,7 @@ func (e *Engine) NewRuntime(_ context.Context) (core.JSRuntime, error) {
 // NewSSRPool implements core.SSRPoolFactory. Compiles the server bundle into a
 // pool of moderncquickjs Runtimes.
 func (e *Engine) NewSSRPool(bundle []byte) (core.SSRPool, error) {
-	pool, err := newVMPool(string(bundle))
+	pool, err := newVMPool(string(bundle), e.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +193,7 @@ func evalOrErr(inner *mquickjs.VM, src string) error {
 	return err
 }
 
-func newRuntime(src string) (*Runtime, error) {
+func newRuntime(src string, logger core.Logger) (*Runtime, error) {
 	loop := eventloop.New(false)
 
 	var r *Runtime
@@ -207,40 +206,14 @@ func newRuntime(src string) (*Runtime, error) {
 		}
 		r = &Runtime{inner: inner, loop: loop}
 
-		// ── Base globals ──────────────────────────────────────────────
-		if err := evalOrErr(inner, `
-globalThis.global = globalThis;
-globalThis.globalThis = globalThis;
-void 0;
-`); err != nil {
-			initErr = fmt.Errorf("moderncquickjs: globals: %w", err)
-			return
-		}
-
-		// ── Console ───────────────────────────────────────────────────
-		if err := inner.RegisterFunc(globals.MQJSLogFn, func(level, msg string) {
-			fmt.Printf("[moderncquickjs:%s] %s\n", level, msg)
+		// ── Console bridge ────────────────────────────────────────────
+		// Install __pola_log__ before ConsoleBridge polyfill.
+		if err := inner.RegisterFunc(globals.PolaLogFn, func(level, msg string) {
+			if logger != nil {
+				logger.Debug("js console", "engine", "moderncquickjs", "level", level, "output", msg)
+			}
 		}, false); err != nil {
-			initErr = fmt.Errorf("moderncquickjs: register %s: %w", globals.MQJSLogFn, err)
-			return
-		}
-		var consoleJS strings.Builder
-		if err := consoleJSTmpl.Execute(&consoleJS, struct{ MQJSLogFn string }{globals.MQJSLogFn}); err != nil {
-			initErr = fmt.Errorf("moderncquickjs: console template: %w", err)
-			return
-		}
-		if err := evalOrErr(inner, consoleJS.String()); err != nil {
-			initErr = fmt.Errorf("moderncquickjs: console: %w", err)
-			return
-		}
-
-		// ── Process / performance stubs ───────────────────────────────
-		if err := evalOrErr(inner, `
-globalThis.process = { env: { NODE_ENV: "production" } };
-globalThis.performance = { now: function() { return 0; } };
-void 0;
-`); err != nil {
-			initErr = fmt.Errorf("moderncquickjs: process: %w", err)
+			initErr = fmt.Errorf("moderncquickjs: register %s: %w", globals.PolaLogFn, err)
 			return
 		}
 
@@ -291,9 +264,11 @@ void 0;
 			return
 		}
 
-		// ── Polyfills ─────────────────────────────────────────────────
+		// ── Polyfills (NodeGlobals + ConsoleBridge before bundle) ─────
 		reg := polyfill.DefaultRegistry()
 		for _, pf := range reg.Get(
+			polyfill.NodeGlobals,
+			polyfill.ConsoleBridge,
 			polyfill.MicrotaskQueue,
 			polyfill.TextEncoding,
 			polyfill.MessageChannel,
@@ -549,15 +524,16 @@ func (p *mqjsSSRPool) Release(rt core.SSRRuntime) {
 // ── vmPool ────────────────────────────────────────────────────────────────────
 
 type vmPool struct {
-	pool sync.Pool
-	src  string
+	pool   sync.Pool
+	src    string
+	logger core.Logger
 }
 
-func newVMPool(serverBundle string) (*vmPool, error) {
-	p := &vmPool{src: serverBundle}
+func newVMPool(serverBundle string, logger core.Logger) (*vmPool, error) {
+	p := &vmPool{src: serverBundle, logger: logger}
 	p.pool = sync.Pool{
 		New: func() any {
-			r, err := newRuntime(serverBundle)
+			r, err := newRuntime(serverBundle, logger)
 			if err != nil {
 				panic(fmt.Sprintf("moderncquickjs: pool create: %v", err))
 			}
@@ -574,4 +550,11 @@ func (p *vmPool) Acquire() *Runtime { return p.pool.Get().(*Runtime) }
 func (p *vmPool) Release(r *Runtime) {
 	_ = r.clearState()
 	p.pool.Put(r)
+}
+
+// Registered is true when the moderncquickjs build tag is active.
+var Registered = true
+
+func init() {
+	core.RegisterEngine(func() core.JSEngine { return NewEngine() })
 }

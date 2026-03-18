@@ -21,8 +21,14 @@ var _ core.Metrics = (*Metrics)(nil)
 // Name returns the metrics implementation name.
 func (m *Metrics) Name() string { return "noop" }
 
+// Path returns the metrics endpoint path.
+func (m *Metrics) Path() string { return "/metrics" }
+
 // RecordRequest is a no-op.
 func (m *Metrics) RecordRequest(route, method string, statusCode int, d time.Duration) {}
+
+// RecordRender is a no-op.
+func (m *Metrics) RecordRender(route string, d time.Duration) {}
 
 // Handler returns an HTTP 404 handler (no metrics endpoint exposed).
 func (m *Metrics) Handler() http.Handler { return http.NotFoundHandler() }
