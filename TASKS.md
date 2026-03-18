@@ -2,16 +2,11 @@
 add benchmarks to vms, rendering engine, each testable file should have a unit test
 =======================================
 discovery style should be not coupled to react, it can be used by other frameworks too
-support for htmx,vue,svelte,react
-
-fix left hook commit-msg
+support for htmx,vue,svelte,react, angular
 
 use solid implementaions of polyfills and you make sure you check if something is defined befefor polyfilling it!
 fo example promise :https://www.promisejs.org/implementing/
 =======================================
-
-currently we are using magic strings for
-__gojsx_stream__, __JSI_ etc, please scan all of them and we put it in one place such that they are maintainable!
 
 
 PLEASE WORK ON MAKING THE HTML SHELL MORE DYNICMIC, WE WILL In future support html builder!
