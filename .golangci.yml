@@ -27,8 +27,6 @@ linters:
     - unparam
     - unused
   settings:
-    goimports:
-      local-prefixes: gojsx
     revive:
       rules:
         - name: comment-spacings
@@ -61,7 +59,8 @@ formatters:
     - goimports
   settings:
     goimports:
-      local-prefixes: gojsx
+      local-prefixes:
+        - github.com/polagonow/pola
   exclusions:
     generated: lax
     paths:

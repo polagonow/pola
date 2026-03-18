@@ -7,8 +7,8 @@ import (
 	"text/template"
 	"time"
 
-	"gojsx/framework"
-	"gojsx/framework/globals"
+	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/framework/globals"
 )
 
 var (
@@ -18,11 +18,11 @@ var (
 )
 
 // V8RenderSession holds per-render state. The stream is stored in the
-// __gojsx_stream__ global so __pullStream__ can access it by name.
+// stream-handle global so __pullStream__ can access it by name.
 type V8RenderSession struct{}
 
 // StartRender calls __render__(exportName, propsJSON) and stores the returned
-// ReadableStream in the __gojsx_stream__ global for DrainStream to consume.
+// ReadableStream in the stream-handle global for DrainStream to consume.
 func StartRender(vm *V8VM, exportName, propsJSON string) (*V8RenderSession, error) {
 	var sess V8RenderSession
 	err := vm.run(func() error {

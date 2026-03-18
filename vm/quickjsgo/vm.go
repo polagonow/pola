@@ -1,4 +1,4 @@
-// Package quickjsgo provides a QuickJS-backed VM implementation for the GoJSX
+// Package quickjsgo provides a QuickJS-backed VM implementation for the Pola
 // framework using github.com/buke/quickjs-go.
 //
 // Async bridge functions resolve via ctx.Schedule, and the entire render is
@@ -15,9 +15,9 @@ import (
 	"sync"
 	"text/template"
 
-	"gojsx/framework/contract"
-	"gojsx/framework/globals"
-	"gojsx/vm/quickjsgo/polyfill"
+	"github.com/polagonow/pola/framework/contract"
+	"github.com/polagonow/pola/framework/globals"
+	"github.com/polagonow/pola/vm/quickjsgo/polyfill"
 
 	quickjs "github.com/buke/quickjs-go"
 )

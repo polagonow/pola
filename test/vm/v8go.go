@@ -5,10 +5,10 @@ import (
 
 	v8 "rogchap.com/v8go"
 
-	"gojsx/framework"
-	"gojsx/test/fixture"
-	v8govm "gojsx/vm/v8go"
-	v8polyfill "gojsx/vm/v8go/polyfill"
+	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/test/fixture"
+	v8govm "github.com/polagonow/pola/vm/v8go"
+	v8polyfill "github.com/polagonow/pola/vm/v8go/polyfill"
 )
 
 func init() { fixture.RegisterVM(&v8goVMFixture{}) }

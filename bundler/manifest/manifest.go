@@ -70,7 +70,7 @@ func Build(
 }
 
 // ComputeModuleID returns a stable module ID for a client component file.
-// Files inside node_modules get a package-path id (e.g. "@gojsx/react/ErrorBoundary").
+// Files inside node_modules get a package-path id (e.g. "@pola/react/ErrorBoundary").
 // App files get a path id relative to the nearest ancestor of absAppDir that
 // contains absPath without a leading "../" (e.g. "components/ThemeToggle" for
 // files inside the app dir, "packages/react/components/ErrorBoundary" for

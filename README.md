@@ -1,4 +1,4 @@
-# GoJSX
+# Pola
 
 A Go framework for **React Server Components (RSC)** — implements the Flight streaming protocol, Next.js-style file conventions, and a pluggable multi-VM architecture. No Node.js. No CGO by default. A single Go binary serves everything.
 
@@ -6,13 +6,13 @@ A Go framework for **React Server Components (RSC)** — implements the Flight s
 
 ## What this is
 
-GoJSX lets you write React Server Components in TSX that run inside a Go process. Go functions are exposed to the JS runtime via a typed bridge (`JSI`), so your components can call your database, cache, or any Go service directly — no API layer required.
+Pola lets you write React Server Components in TSX that run inside a Go process. Go functions are exposed to the JS runtime via a typed bridge (`JSI`), so your components can call your database, cache, or any Go service directly — no API layer required.
 
 The server streams output using the **RSC Flight Protocol**: React's native wire format. Suspense boundaries resolve concurrently and stream their content as they complete.
 
 ```tsx
 // app/posts/page.tsx — runs in Go's JS VM, not in Node.js
-import JSI from "@gojsx/jsi"
+import JSI from "@pola/jsi"
 
 export default async function PostsPage() {
   const posts = await JSI.getPosts()  // ← calls a Go function directly
@@ -93,7 +93,7 @@ VMs are expensive to initialise (they parse and run the full server bundle). The
 ## Project structure
 
 ```
-gojsx/
+pola/
 │
 ├── framework/           Core interfaces + orchestration
 │   ├── framework.go     Config.Build() pipeline, App, Handler
@@ -119,7 +119,7 @@ gojsx/
 │
 ├── bundler/esbuild/     EsbuildBundler implementation
 │
-├── ui/apps/blog/        TypeScript source for the example blog
+├── ui/apps/blog-e2e/    TypeScript source for the example blog
 │   └── app/             Next.js-style app/ directory
 │
 ├── example/blog/        Go entry point for the example
@@ -130,7 +130,7 @@ gojsx/
 ├── magefile.go          Build targets (mage)
 ├── .golangci.yml        golangci-lint configuration
 ├── lefthook.yml         Git hooks (pre-commit lint, pre-push test, commit-msg)
-└── go.mod               Go 1.24, module: gojsx
+└── go.mod               Go 1.24, module: github.com/polagonow/pola
 ```
 
 ---
@@ -159,14 +159,14 @@ The server discovers pages, runs esbuild, boots the VM pool, and starts serving 
 
 ```bash
 go run mage.go build
-./bin/gojsx
+./bin/pola
 ```
 
 ---
 
 ## File conventions (Next.js App Router)
 
-Pages live under an `app/` directory. GoJSX discovers them automatically:
+Pages live under an `app/` directory. Pola discovers them automatically:
 
 | File | Route |
 |------|-------|
@@ -195,7 +195,7 @@ Any `.tsx` file without `"use client"` is a Server Component. It runs in the VM 
 
 ```tsx
 // app/posts/[slug]/page.tsx
-import JSI from "@gojsx/jsi"
+import JSI from "@pola/jsi"
 
 interface Props {
   params: { slug: string }
@@ -246,7 +246,7 @@ Go functions are exposed to Server Components via the `JSI` object. There are tw
 ### Defining the bridge
 
 ```go
-import "gojsx/framework/contract"
+import "github.com/polagonow/pola/framework/contract"
 
 bridge := contract.BridgeConfig{
     Globals: map[string]contract.GoFunc{
@@ -294,7 +294,7 @@ for i := range app.Artifacts().Routes {
 ### Using JSI in components
 
 ```tsx
-import JSI from "@gojsx/jsi"
+import JSI from "@pola/jsi"
 
 const posts = await JSI.getPosts()           // Context function
 const env   = getEnv("NEXT_PUBLIC_API_URL")  // Global function
@@ -309,12 +309,12 @@ package main
 
 import (
     "net/http"
-    "gojsx/framework"
-    "gojsx/framework/contract"
-    "gojsx/framework/hotreload"
-    _ "gojsx/bundler/esbuild"          // register bundler
-    _ "gojsx/vm/goja"                  // register VM
-    _ "gojsx/render/react/discovery/nextjs" // register discovery + entry gen
+    "github.com/polagonow/pola/framework"
+    "github.com/polagonow/pola/framework/contract"
+    "github.com/polagonow/pola/framework/hotreload"
+    _ "github.com/polagonow/pola/bundler/esbuild"          // register bundler
+    _ "github.com/polagonow/pola/vm/goja"                  // register VM
+    _ "github.com/polagonow/pola/render/react/discovery/nextjs" // register discovery + entry gen
 )
 
 func main() {
@@ -362,7 +362,7 @@ func main() {
 
 ## Hot reload
 
-In development (`Dev: true`), GoJSX watches the `AppDir` for changes using `fsnotify`. On any `.tsx`/`.ts` file change it:
+In development (`Dev: true`), Pola watches the `AppDir` for changes using `fsnotify`. On any `.tsx`/`.ts` file change it:
 
 1. Re-runs discovery + bundling
 2. Recompiles the VM pool
@@ -378,12 +378,12 @@ The active VM is chosen by a blank import in `vm/vm.go`. Swap it to change the e
 
 ```go
 // vm/vm.go
-import _ "gojsx/vm/goja"           // Pure-Go ES2020 — default
-// import _ "gojsx/vm/sobek"        // Pure-Go Goja fork
-// import _ "gojsx/vm/qjs"          // QuickJS via WASM (no CGO)
-// import _ "gojsx/vm/quickjsgo"    // QuickJS via CGO
-// import _ "gojsx/vm/moderncquickjs"
-// import _ "gojsx/vm/v8go"         // V8 via CGO (fastest, needs C++ toolchain)
+import _ "github.com/polagonow/pola/vm/goja"           // Pure-Go ES2020 — default
+// import _ "github.com/polagonow/pola/vm/sobek"        // Pure-Go Goja fork
+// import _ "github.com/polagonow/pola/vm/qjs"          // QuickJS via WASM (no CGO)
+// import _ "github.com/polagonow/pola/vm/quickjsgo"    // QuickJS via CGO
+// import _ "github.com/polagonow/pola/vm/moderncquickjs"
+// import _ "github.com/polagonow/pola/vm/v8go"         // V8 via CGO (fastest, needs C++ toolchain)
 ```
 
 Each package registers itself via `init()` using `framework.RegisterDefaults(...)`. Only one VM can be active at a time.
@@ -405,7 +405,7 @@ Wrap async data in `<Suspense>`. The shell streams immediately; resolved boundar
 
 ```tsx
 import { Suspense } from "react"
-import JSI from "@gojsx/jsi"
+import JSI from "@pola/jsi"
 
 export default function PostsPage() {
   return (
@@ -436,7 +436,7 @@ No `mage` binary needed. All targets run via `go run mage.go <target>`:
 
 ```bash
 go run mage.go run             # Start dev server (example/blog)
-go run mage.go build           # Compile binary → bin/gojsx
+go run mage.go build           # Compile binary → bin/pola
 go run mage.go test            # Run all tests
 go run mage.go testUnit        # Fast unit tests only
 go run mage.go testE2E         # Full e2e suite (120s timeout)
@@ -490,7 +490,7 @@ go run mage.go installHooks
 
 **Why esbuild as a Go package?** esbuild exposes its full API as an importable Go package. The bundler is part of the binary — no separate build step, no `package.json`, no `node_modules`. It runs in the same process at startup.
 
-**Why Next.js file conventions?** They're well-understood, tooled, and allow standard React codebases to target GoJSX with minimal changes. The discovery layer is an interface — you can replace it with your own convention.
+**Why Next.js file conventions?** They're well-understood, tooled, and allow standard React codebases to target Pola with minimal changes. The discovery layer is an interface — you can replace it with your own convention.
 
 **Why pluggable interfaces everywhere?** Swapping the VM, bundler, router, or renderer requires changing one blank import. The framework core has zero knowledge of any implementation.
 

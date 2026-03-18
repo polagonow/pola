@@ -3,10 +3,10 @@ package goja
 import (
 	"fmt"
 
-	"gojsx/framework"
-	"gojsx/framework/contract"
-	"gojsx/framework/globals"
-	polyfill "gojsx/vm/goja/polyfill"
+	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/framework/contract"
+	"github.com/polagonow/pola/framework/globals"
+	polyfill "github.com/polagonow/pola/vm/goja/polyfill"
 
 	gojalib "github.com/dop251/goja"
 	"github.com/dop251/goja_nodejs/eventloop"

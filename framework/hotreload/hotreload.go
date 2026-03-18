@@ -13,8 +13,8 @@ import (
 	"github.com/fsnotify/fsnotify"
 	"github.com/gorilla/websocket"
 
-	"gojsx/framework"
-	"gojsx/framework/pubsub"
+	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/framework/pubsub"
 )
 
 // liveApp pairs a built App with its cached Handler.

@@ -2,4 +2,4 @@
 
 package vm
 
-import _ "gojsx/vm/v8go"
+import _ "github.com/polagonow/pola/vm/v8go"

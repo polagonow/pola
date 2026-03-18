@@ -12,12 +12,12 @@ import (
 	"strings"
 	"sync"
 
-	"gojsx/framework/contract"
+	"github.com/polagonow/pola/framework/contract"
 )
 
 // ── Config ───────────────────────────────────────────────────────────────────
 
-// Config is the top-level wiring configuration for a GoJSX application.
+// Config is the top-level wiring configuration for a Pola application.
 // Every interface field has a built-in default (React + esbuild + Goja).
 // Set only the fields you want to override.
 type Config struct {
@@ -27,7 +27,7 @@ type Config struct {
 	Dev       bool
 
 	// ClientEntry is the browser bootstrap — a file path or a Node import
-	// specifier (e.g. "@gojsx/react/Client"). If empty, the framework
+	// specifier (e.g. "@pola/react/Client"). If empty, the framework
 	// looks for AppDir/_client.tsx; if absent, it uses the registered default.
 	ClientEntry string
 
@@ -43,12 +43,12 @@ type Config struct {
 	// Runtime (nil = built-in defaults)
 	// NewVM overrides the globally registered VM factory for this Config.
 	// Signature: func(serverBundle []byte) (VMFactory, error)
-	// If nil, the globally registered default (e.g. Goja via _ "gojsx/vm/goja") is used.
+	// If nil, the globally registered default (e.g. Goja via _ "github.com/polagonow/pola/vm/goja") is used.
 	NewVM func(serverBundle []byte) (VMFactory, error)
 
 	// RendererFactory overrides the globally registered renderer for this Config.
 	// Signature: func(pool VMPool, protocol StreamProtocol, bridge contract.BridgeConfig) Renderer
-	// If nil, the globally registered default (e.g. React via _ "gojsx/render/react") is used.
+	// If nil, the globally registered default (e.g. React via _ "github.com/polagonow/pola/render/react") is used.
 	RendererFactory func(pool VMPool, protocol StreamProtocol, bridge contract.BridgeConfig) Renderer
 
 	StreamProtocol StreamProtocol
@@ -289,43 +289,43 @@ func (c *Config) fillDefaults() error {
 	// for the defaults.
 	if c.Discoverer == nil {
 		if defaultDiscoverer == nil {
-			return fmt.Errorf("framework: no default Discoverer registered; import gojsx/build")
+			return fmt.Errorf("framework: no default Discoverer registered; import github.com/polagonow/pola/render/react/discovery/nextjs (or another Discoverer)")
 		}
 		c.Discoverer = defaultDiscoverer()
 	}
 	if c.Bundler == nil {
 		if defaultBundler == nil {
-			return fmt.Errorf("framework: no default Bundler registered; import gojsx/build")
+			return fmt.Errorf("framework: no default Bundler registered; import github.com/polagonow/pola/bundler/esbuild (or another Bundler)")
 		}
 		c.Bundler = defaultBundler()
 	}
 	if c.EntryGenerator == nil {
 		if defaultEntryGenerator == nil {
-			return fmt.Errorf("framework: no default EntryGenerator registered; import gojsx/build")
+			return fmt.Errorf("framework: no default EntryGenerator registered; import github.com/polagonow/pola/render/react/discovery/nextjs (or another EntryGenerator)")
 		}
 		c.EntryGenerator = defaultEntryGenerator()
 	}
 	if c.RouteBuilder == nil {
 		if defaultRouteBuilder == nil {
-			return fmt.Errorf("framework: no default RouteBuilder registered; import gojsx/build")
+			return fmt.Errorf("framework: no default RouteBuilder registered; import github.com/polagonow/pola/render/react/discovery/nextjs (or another RouteBuilder)")
 		}
 		c.RouteBuilder = defaultRouteBuilder()
 	}
 	if c.StreamProtocol == nil {
 		if defaultStreamProtocol == nil {
-			return fmt.Errorf("framework: no default StreamProtocol registered; import gojsx/runtime")
+			return fmt.Errorf("framework: no default StreamProtocol registered; import github.com/polagonow/pola/render/react (or another renderer)")
 		}
 		c.StreamProtocol = defaultStreamProtocol()
 	}
 	if c.HTMLShell == nil {
 		if defaultHTMLShell == nil {
-			return fmt.Errorf("framework: no default HTMLShell registered; import gojsx/html")
+			return fmt.Errorf("framework: no default HTMLShell registered; import github.com/polagonow/pola/render/react/shell (or another HTMLShell)")
 		}
 		c.HTMLShell = defaultHTMLShell()
 	}
 	if c.AssetServer == nil {
 		if defaultAssetServer == nil {
-			return fmt.Errorf("framework: no default AssetServer registered; import gojsx/server")
+			return fmt.Errorf("framework: no default AssetServer registered; import github.com/polagonow/pola/framework/assets/disk (or another AssetServer)")
 		}
 		c.AssetServer = defaultAssetServer(c.PublicDir)
 	}
@@ -340,7 +340,7 @@ func (c *Config) newVMFactory(serverBundle []byte) (VMFactory, error) {
 		return c.NewVM(serverBundle)
 	}
 	if defaultVMFactory == nil {
-		return nil, fmt.Errorf("framework: no default VMFactory registered; import gojsx/vm/goja")
+		return nil, fmt.Errorf("framework: no default VMFactory registered; import github.com/polagonow/pola/vm/goja (or another VM)")
 	}
 	return defaultVMFactory(serverBundle)
 }

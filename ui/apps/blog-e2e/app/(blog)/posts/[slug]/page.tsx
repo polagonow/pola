@@ -1,4 +1,4 @@
-import JSI from "@gojsx/jsi";
+import JSI from "@pola/jsi";
 
 import LikeButton from "@/components/LikeButton";
 

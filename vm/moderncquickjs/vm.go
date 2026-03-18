@@ -1,5 +1,5 @@
 // Package moderncquickjs provides a modernc.org/quickjs-backed VM implementation
-// for the GoJSX framework. This is a pure-Go (no CGo) QuickJS binding.
+// for the Pola framework. This is a pure-Go (no CGo) QuickJS binding.
 //
 // Bridge functions (both Globals and Context) are invoked synchronously inside
 // the JS event loop. The request goroutine blocks until each bridge call returns.
@@ -31,11 +31,11 @@ import (
 	lib "modernc.org/libquickjs"
 	mquickjs "modernc.org/quickjs"
 
-	"gojsx/framework"
-	"gojsx/framework/contract"
-	"gojsx/framework/globals"
-	"gojsx/vm/eventloop"
-	"gojsx/vm/moderncquickjs/polyfill"
+	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/framework/contract"
+	"github.com/polagonow/pola/framework/globals"
+	"github.com/polagonow/pola/vm/eventloop"
+	"github.com/polagonow/pola/vm/moderncquickjs/polyfill"
 )
 
 var (

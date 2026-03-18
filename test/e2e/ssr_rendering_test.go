@@ -1,4 +1,4 @@
-// Package e2e contains end-to-end tests for the GoJSX SSR framework.
+// Package e2e contains end-to-end tests for the Pola SSR framework.
 //
 // Tests are organised into testsuites (one file per feature area) and run
 // against every registered VM×renderer×bundler fixture via the driver package.
@@ -12,9 +12,9 @@ import (
 	"testing"
 
 	// Import to register all VM engines and bundler+renderer combos.
-	_ "gojsx/test/combo"
-	_ "gojsx/test/vm"
-	"gojsx/test/e2e/suite"
+	_ "github.com/polagonow/pola/test/combo"
+	_ "github.com/polagonow/pola/test/vm"
+	"github.com/polagonow/pola/test/e2e/suite"
 )
 
 func TestHTMLShell(t *testing.T)                { suite.RunHTMLShellTests(t) }

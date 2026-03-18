@@ -1,8 +1,8 @@
-import JSI from "@gojsx/jsi";
+import JSI from "@pola/jsi";
 
 const DOCS: Record<string, Record<string, string>> = {
   "getting-started": {
-    index: "Everything you need to get up and running with GoJSX.",
+    index: "Everything you need to get up and running with Pola.",
     installation:
       "Install Go 1.22+, clone the repo, and run `go run ./example`.",
     configuration: "Configure appDir, bridge functions, and the VM pool size.",

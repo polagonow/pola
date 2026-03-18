@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"sync"
 
-	"gojsx/framework/globals"
+	"github.com/polagonow/pola/framework/globals"
 
 	gojalib "github.com/dop251/goja"
 )

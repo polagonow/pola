@@ -5,10 +5,10 @@ import (
 
 	mquickjs "modernc.org/quickjs"
 
-	"gojsx/framework"
-	"gojsx/test/fixture"
-	moderncvm "gojsx/vm/moderncquickjs"
-	moderncpolyfill "gojsx/vm/moderncquickjs/polyfill"
+	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/test/fixture"
+	moderncvm "github.com/polagonow/pola/vm/moderncquickjs"
+	moderncpolyfill "github.com/polagonow/pola/vm/moderncquickjs/polyfill"
 )
 
 func init() { fixture.RegisterVM(&moderncquickjsVMFixture{}) }

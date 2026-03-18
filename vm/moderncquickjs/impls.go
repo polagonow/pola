@@ -8,9 +8,9 @@ import (
 
 	mquickjs "modernc.org/quickjs"
 
-	"gojsx/framework"
-	"gojsx/framework/contract"
-	"gojsx/framework/globals"
+	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/framework/contract"
+	"github.com/polagonow/pola/framework/globals"
 )
 
 var (

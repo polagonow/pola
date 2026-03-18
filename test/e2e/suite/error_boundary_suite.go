@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"gojsx/test/fixture"
+	"github.com/polagonow/pola/test/fixture"
 )
 
 // assertErrorBoundary checks that the Flight body contains an error row and that

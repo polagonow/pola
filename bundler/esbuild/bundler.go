@@ -1,4 +1,4 @@
-// Package esbuild implements the GoJSX Bundler interface using esbuild.
+// Package esbuild implements the Pola Bundler interface using esbuild.
 //
 // # Architecture
 //
@@ -26,10 +26,10 @@ import (
 
 	"github.com/evanw/esbuild/pkg/api"
 
-	"gojsx/bundler/manifest"
-	"gojsx/bundler/structs"
-	"gojsx/framework/contract"
-	"gojsx/framework/globals"
+	"github.com/polagonow/pola/bundler/manifest"
+	"github.com/polagonow/pola/bundler/structs"
+	"github.com/polagonow/pola/framework/contract"
+	"github.com/polagonow/pola/framework/globals"
 )
 
 // Bundler implements framework.Bundler using the two-pass esbuild
@@ -83,7 +83,7 @@ func Bundle(cfg structs.BundlerConfig) (*structs.BundleResult, error) {
 
 	// ------------------------------------------------------------------ //
 	// Probe — auto-discover "use client" files from the server entry     //
-	// Handles framework packages (@gojsx/react) and any        //
+	// Handles framework packages (@pola/react) and any         //
 	// third-party library with a "use client" directive automatically.   //
 	// ------------------------------------------------------------------ //
 	if probed := probeServerEntryClientFiles(cfg, absDir); len(probed) > 0 {
@@ -187,6 +187,71 @@ func newAtAliasPlugin(absAppDir string) api.Plugin {
 			})
 		},
 	}
+}
+
+// newPolaWorkspacePlugin resolves Pola UI workspace packages (e.g. @pola/react)
+// directly from the repo checkout, so builds/tests don't require node_modules.
+//
+// It maps:
+// - @pola/react/Client        → ui/packages/react/components/Client.tsx
+// - @pola/react/ErrorBoundary → ui/packages/react/components/ErrorBoundary.tsx
+// - @pola/react/types/page    → ui/packages/react/types/page.ts
+// - @pola/jsi                → ui/packages/jsi/index.ts
+func newPolaWorkspacePlugin(absAppDir string) api.Plugin {
+	return api.Plugin{
+		Name: "pola-workspace",
+		Setup: func(build api.PluginBuild) {
+			build.OnResolve(api.OnResolveOptions{Filter: `^@pola/(react|jsi)(/.*)?$`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
+				uiRoot := findUIRoot(absAppDir)
+				if uiRoot == "" {
+					// Fall back to default resolution (node_modules).
+					return api.OnResolveResult{}, nil
+				}
+
+				path := args.Path
+				if strings.HasPrefix(path, "@pola/react") {
+					sub := strings.TrimPrefix(path, "@pola/react")
+					switch sub {
+					case "", "/":
+						// Not currently used; fall back.
+						return api.OnResolveResult{}, nil
+					case "/Client":
+						return api.OnResolveResult{Path: filepath.Join(uiRoot, "packages", "react", "components", "Client.tsx")}, nil
+					case "/ErrorBoundary":
+						return api.OnResolveResult{Path: filepath.Join(uiRoot, "packages", "react", "components", "ErrorBoundary.tsx")}, nil
+					case "/types/page":
+						return api.OnResolveResult{Path: filepath.Join(uiRoot, "packages", "react", "types", "page.ts")}, nil
+					default:
+						return api.OnResolveResult{}, nil
+					}
+				}
+
+				if path == "@pola/jsi" {
+					return api.OnResolveResult{Path: filepath.Join(uiRoot, "packages", "jsi", "index.ts")}, nil
+				}
+				return api.OnResolveResult{}, nil
+			})
+		},
+	}
+}
+
+func findUIRoot(absAppDir string) string {
+	// Expected layout: <repo>/ui/apps/<app>. AppDir points at <repo>/ui/apps/<app>.
+	// Walk up until we find a directory named "ui" with a "packages" subdir.
+	dir := absAppDir
+	for range 10 {
+		if filepath.Base(dir) == "ui" {
+			if st, err := os.Stat(filepath.Join(dir, "packages")); err == nil && st.IsDir() {
+				return dir
+			}
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return ""
 }
 
 // buildPagesBundle generates a server entry from cfg.Pages and compiles it
@@ -297,7 +362,7 @@ func buildPagesBundle(
 		MinifyWhitespace:  true,
 		MinifyIdentifiers: true,
 		MinifySyntax:      true,
-		Plugins:           []api.Plugin{newAtAliasPlugin(absAppDir), useClientPlugin},
+		Plugins:           []api.Plugin{newAtAliasPlugin(absAppDir), newPolaWorkspacePlugin(absAppDir), useClientPlugin},
 		Conditions:        cfg.ServerBundleConditions,
 		Define:            defines,
 	})
@@ -319,7 +384,7 @@ func buildClientBundle(cfg structs.BundlerConfig, absDir string) (map[string][]b
 	absAppDir, _ := filepath.Abs(cfg.AppDir)
 
 	// Build the entry points list. When ClientEntry is a package specifier
-	// (e.g. "@gojsx/react/Client"), generate a temporary _client.tsx
+	// (e.g. "@pola/react/Client"), generate a temporary _client.tsx
 	// in the output directory's parent (public/) so it is never inside the
 	// app source tree. This prevents hot-reload watchers from triggering a
 	// rebuild on its CREATE/REMOVE events. esbuild still resolves node_modules
@@ -369,7 +434,7 @@ func buildClientBundle(cfg structs.BundlerConfig, absDir string) (map[string][]b
 		EntryNames:        "[name]-[hash]",
 		ChunkNames:        "chunks/[name]-[hash]",
 		Conditions:        clientConditions,
-		Plugins:           []api.Plugin{newAtAliasPlugin(absAppDir), newAutoDedupePlugin(absAppDir)},
+		Plugins:           []api.Plugin{newAtAliasPlugin(absAppDir), newPolaWorkspacePlugin(absAppDir), newAutoDedupePlugin(absAppDir)},
 		Metafile:          true,
 		Define: map[string]string{
 			"process.env.NODE_ENV": clientNodeEnv,
@@ -481,7 +546,7 @@ func probeServerEntryClientFiles(cfg structs.BundlerConfig, absDir string) []str
 		Conditions:    cfg.ServerBundleConditions,
 		External:      cfg.External,
 		Define:        defines,
-		Plugins:       []api.Plugin{newAtAliasPlugin(absAppDir), probePlugin},
+		Plugins:       []api.Plugin{newAtAliasPlugin(absAppDir), newPolaWorkspacePlugin(absAppDir), probePlugin},
 	})
 	return collected
 }

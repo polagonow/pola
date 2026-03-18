@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"gojsx/test/fixture"
+	"github.com/polagonow/pola/test/fixture"
 )
 
 // assertNotFoundError verifies that a Flight body contains an error row and

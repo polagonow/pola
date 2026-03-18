@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"gojsx/framework"
-	"gojsx/framework/contract"
+	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/framework/contract"
 )
 
 // VMRenderer implements framework.Renderer using the VM pool and stream protocol.

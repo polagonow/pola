@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"gojsx/test/fixture"
+	"github.com/polagonow/pola/test/fixture"
 )
 
 // RunClientBundleTests verifies that the client-side JS bundle is built, served,

@@ -4,12 +4,12 @@ import (
 	"fmt"
 	"sync"
 
-	"gojsx/framework/contract"
-	"gojsx/vm/eventloop"
-	"gojsx/vm/v8go/polyfill"
-	"gojsx/vm/v8go/polyfill/console"
-	"gojsx/vm/v8go/polyfill/globals"
-	"gojsx/vm/v8go/polyfill/jsi"
+	"github.com/polagonow/pola/framework/contract"
+	"github.com/polagonow/pola/vm/eventloop"
+	"github.com/polagonow/pola/vm/v8go/polyfill"
+	"github.com/polagonow/pola/vm/v8go/polyfill/console"
+	"github.com/polagonow/pola/vm/v8go/polyfill/globals"
+	"github.com/polagonow/pola/vm/v8go/polyfill/jsi"
 
 	v8 "rogchap.com/v8go"
 )

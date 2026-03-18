@@ -1,6 +1,6 @@
 ---
 name: add-e2e-test
-description: Add a new E2E test suite or test case to the GoJSX framework. Use when asked to write, add, or implement end-to-end tests, integration tests, or HTTP-level tests against the rendered app.
+description: Add a new E2E test suite or test case to the Pola framework. Use when asked to write, add, or implement end-to-end tests, integration tests, or HTTP-level tests against the rendered app.
 ---
 
 E2E tests live in `test/e2e/suite/` (one file per feature area) and run against
@@ -9,7 +9,7 @@ every registered VM × bundler+renderer combo automatically via `fixture.ForEach
 ## Pattern
 
 Each suite file exports a single `RunXxxTests(t *testing.T)` function that groups
-related sub-tests. Tests use helper functions from `gojsx/test/fixture` to make HTTP
+related sub-tests. Tests use helper functions from `github.com/polagonow/pola/test/fixture` to make HTTP
 requests against the fully-built app.
 
 ## Step 1 — Create the suite file
@@ -23,7 +23,7 @@ import (
     "strings"
     "testing"
 
-    "gojsx/test/fixture"
+    "github.com/polagonow/pola/test/fixture"
 )
 
 // RunMyFeatureTests verifies [describe what this suite tests].
@@ -60,7 +60,7 @@ func RunMyFeatureTests(t *testing.T) {
 func TestMyFeature(t *testing.T) { suite.RunMyFeatureTests(t) }
 ```
 
-## HTTP helpers (from `gojsx/test/fixture`)
+## HTTP helpers (from `github.com/polagonow/pola/test/fixture`)
 
 | Helper | What it does |
 |--------|-------------|

@@ -7,8 +7,8 @@ package polyfill_test
 import (
 	"testing"
 
-	fixture "gojsx/test/fixture"
-	_ "gojsx/test/vm"
+	fixture "github.com/polagonow/pola/test/fixture"
+	_ "github.com/polagonow/pola/test/vm"
 )
 
 func TestPromiseResolveThen(t *testing.T) {

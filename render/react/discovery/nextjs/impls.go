@@ -1,4 +1,4 @@
-// Package nextjs implements the GoJSX build interfaces using Next.js-style
+// Package nextjs implements the Pola build interfaces using Next.js-style
 // file conventions (app/page.tsx, layout.tsx, error.tsx, etc.).
 package nextjs
 
@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"gojsx/framework/contract"
+	"github.com/polagonow/pola/framework/contract"
 )
 
 // ── Discovery ─────────────────────────────────────────────────────────────────

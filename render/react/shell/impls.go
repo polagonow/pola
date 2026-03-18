@@ -1,6 +1,6 @@
 package shell
 
-import "gojsx/framework/contract"
+import "github.com/polagonow/pola/framework/contract"
 
 // ReactHTMLShell implements framework.HTMLShell using the React RSC HTML shell template.
 type ReactHTMLShell struct{}

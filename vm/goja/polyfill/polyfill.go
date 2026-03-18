@@ -6,8 +6,8 @@ import (
 
 	gojalib "github.com/dop251/goja"
 
-	"gojsx/framework"
-	"gojsx/vm/polyfill"
+	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/vm/polyfill"
 )
 
 type runner struct{ rt *gojalib.Runtime }

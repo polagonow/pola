@@ -78,7 +78,7 @@ func Build() error {
 		"go", "build",
 		"-tags", tags,
 		"-ldflags", "-s -w",
-		"-o", "bin/gojsx",
+		"-o", "bin/pola",
 		"./...",
 	)
 }

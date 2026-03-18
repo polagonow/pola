@@ -1,9 +1,9 @@
 package react
 
 import (
-	"gojsx/bundler/manifest"
-	"gojsx/framework/contract"
-	"gojsx/framework/globals"
+	"github.com/polagonow/pola/bundler/manifest"
+	"github.com/polagonow/pola/framework/contract"
+	"github.com/polagonow/pola/framework/globals"
 )
 
 // WebpackManifestEncoder implements framework.ManifestEncoder using the

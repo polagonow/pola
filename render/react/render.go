@@ -4,8 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"gojsx/framework/contract"
-	vmgoja "gojsx/vm/goja"
+	"github.com/polagonow/pola/framework/contract"
+	vmgoja "github.com/polagonow/pola/vm/goja"
 )
 
 // RenderOptions controls a single page render.

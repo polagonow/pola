@@ -6,4 +6,4 @@
 // and call fixture.RegisterVM from init().
 package vm
 
-import _ "gojsx/framework/assets/disk"
+import _ "github.com/polagonow/pola/framework/assets/disk"

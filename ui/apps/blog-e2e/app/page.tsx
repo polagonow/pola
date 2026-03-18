@@ -1,4 +1,4 @@
-import JSI from "@gojsx/jsi";
+import JSI from "@pola/jsi";
 
 function Tag({ label }: { label: string }) {
   return <span className="tag">{label}</span>;

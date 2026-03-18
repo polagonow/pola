@@ -1,5 +1,5 @@
 // package qjs provides a QuickJS-backed VM implementation for the
-// GoJSX framework using github.com/fastschema/qjs (CGo-free, Wazero-based).
+// Pola framework using github.com/fastschema/qjs (CGo-free, Wazero-based).
 //
 // Async bridge functions are created with ctx.Function(fn, true) (isAsync=true).
 // The goroutine spawned by each bridge call resolves/rejects the promise via
@@ -18,9 +18,9 @@ import (
 	"sync"
 	"text/template"
 
-	"gojsx/framework/contract"
-	"gojsx/framework/globals"
-	"gojsx/vm/qjs/polyfill"
+	"github.com/polagonow/pola/framework/contract"
+	"github.com/polagonow/pola/framework/globals"
+	"github.com/polagonow/pola/vm/qjs/polyfill"
 
 	qjs "github.com/fastschema/qjs"
 )

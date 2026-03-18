@@ -22,8 +22,8 @@ import (
 	"sync"
 	"testing"
 
-	"gojsx/framework"
-	"gojsx/framework/contract"
+	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/framework/contract"
 )
 
 // ── Interfaces ────────────────────────────────────────────────────────────────

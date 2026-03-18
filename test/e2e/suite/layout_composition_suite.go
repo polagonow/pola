@@ -3,7 +3,7 @@ package suite
 import (
 	"testing"
 
-	"gojsx/test/fixture"
+	"github.com/polagonow/pola/test/fixture"
 )
 
 // RunLayoutCompositionTests verifies that layouts wrap their descendant pages

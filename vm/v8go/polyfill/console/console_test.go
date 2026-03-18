@@ -5,7 +5,7 @@ import (
 
 	v8 "rogchap.com/v8go"
 
-	"gojsx/vm/v8go/polyfill/console"
+	"github.com/polagonow/pola/vm/v8go/polyfill/console"
 )
 
 func newCtx(t *testing.T) (*v8.Isolate, *v8.Context) {

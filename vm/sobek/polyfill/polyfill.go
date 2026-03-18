@@ -6,7 +6,7 @@ import (
 
 	sobeklib "github.com/grafana/sobek"
 
-	"gojsx/vm/polyfill"
+	"github.com/polagonow/pola/vm/polyfill"
 )
 
 type runner struct{ rt *sobeklib.Runtime }

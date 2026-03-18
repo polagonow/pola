@@ -6,7 +6,7 @@ import (
 
 	qjs "github.com/fastschema/qjs"
 
-	"gojsx/vm/polyfill"
+	"github.com/polagonow/pola/vm/polyfill"
 )
 
 type runner struct{ ctx *qjs.Context }

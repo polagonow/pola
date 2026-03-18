@@ -1,6 +1,6 @@
 package v8go
 
-import "gojsx/framework"
+import "github.com/polagonow/pola/framework"
 
 func init() {
 	framework.RegisterDefaults(framework.Defaults{

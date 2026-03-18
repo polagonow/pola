@@ -5,10 +5,10 @@ import (
 
 	qjslib "github.com/fastschema/qjs"
 
-	"gojsx/framework"
-	"gojsx/test/fixture"
-	qjsvm "gojsx/vm/qjs"
-	qjspolyfill "gojsx/vm/qjs/polyfill"
+	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/test/fixture"
+	qjsvm "github.com/polagonow/pola/vm/qjs"
+	qjspolyfill "github.com/polagonow/pola/vm/qjs/polyfill"
 )
 
 func init() { fixture.RegisterVM(&qjsVMFixture{}) }

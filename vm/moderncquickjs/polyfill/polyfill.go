@@ -6,7 +6,7 @@ import (
 
 	mquickjs "modernc.org/quickjs"
 
-	"gojsx/vm/polyfill"
+	"github.com/polagonow/pola/vm/polyfill"
 )
 
 type runner struct{ vm *mquickjs.VM }

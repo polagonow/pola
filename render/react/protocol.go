@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"net/http"
 
-	"gojsx/framework"
+	"github.com/polagonow/pola/framework"
 )
 
 // streamDrainable is satisfied by any VM that can drain its own stream handle.

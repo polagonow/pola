@@ -5,10 +5,10 @@ import (
 
 	sobeklib "github.com/grafana/sobek"
 
-	"gojsx/framework"
-	"gojsx/test/fixture"
-	sobekvm "gojsx/vm/sobek"
-	sobekpolyfill "gojsx/vm/sobek/polyfill"
+	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/test/fixture"
+	sobekvm "github.com/polagonow/pola/vm/sobek"
+	sobekpolyfill "github.com/polagonow/pola/vm/sobek/polyfill"
 )
 
 func init() { fixture.RegisterVM(&sobekVMFixture{}) }

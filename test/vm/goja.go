@@ -5,10 +5,10 @@ import (
 
 	gojalib "github.com/dop251/goja"
 
-	"gojsx/framework"
-	"gojsx/test/fixture"
-	gojavm "gojsx/vm/goja"
-	gojapolyfill "gojsx/vm/goja/polyfill"
+	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/test/fixture"
+	gojavm "github.com/polagonow/pola/vm/goja"
+	gojapolyfill "github.com/polagonow/pola/vm/goja/polyfill"
 )
 
 func init() { fixture.RegisterVM(&gojaVMFixture{}) }

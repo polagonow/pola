@@ -1,8 +1,8 @@
 package react
 
 import (
-	"gojsx/framework"
-	"gojsx/framework/contract"
+	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/framework/contract"
 )
 
 func init() {

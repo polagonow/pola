@@ -3,9 +3,9 @@ package sobek
 import (
 	"fmt"
 
-	"gojsx/framework"
-	"gojsx/framework/contract"
-	"gojsx/framework/globals"
+	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/framework/contract"
+	"github.com/polagonow/pola/framework/globals"
 
 	sobeklib "github.com/grafana/sobek"
 )

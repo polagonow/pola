@@ -6,8 +6,8 @@ import (
 	"strings"
 	"text/template"
 
-	"gojsx/framework"
-	"gojsx/framework/globals"
+	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/framework/globals"
 
 	qjs "github.com/fastschema/qjs"
 )

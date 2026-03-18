@@ -1,4 +1,4 @@
-// Package sobek provides a Sobek-backed VM implementation for the GoJSX framework.
+// Package sobek provides a Sobek-backed VM implementation for the Pola framework.
 //
 // Sobek (github.com/grafana/sobek) is a fork of Goja with the same API surface.
 // This implementation uses a channel-based event loop to serialise all runtime
@@ -10,10 +10,10 @@ import (
 	"fmt"
 	"sync"
 
-	"gojsx/framework/contract"
-	"gojsx/framework/globals"
-	"gojsx/vm/eventloop"
-	"gojsx/vm/sobek/polyfill"
+	"github.com/polagonow/pola/framework/contract"
+	"github.com/polagonow/pola/framework/globals"
+	"github.com/polagonow/pola/vm/eventloop"
+	"github.com/polagonow/pola/vm/sobek/polyfill"
 
 	sobeklib "github.com/grafana/sobek"
 )

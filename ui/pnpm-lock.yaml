@@ -38,10 +38,10 @@ importers:
 
   apps/blog:
     dependencies:
-      '@gojsx/jsi':
+      '@pola/jsi':
         specifier: workspace:*
         version: link:../../packages/jsi
-      '@gojsx/react':
+      '@pola/react':
         specifier: workspace:*
         version: link:../../packages/react
       react:

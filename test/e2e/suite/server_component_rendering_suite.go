@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"gojsx/test/fixture"
+	"github.com/polagonow/pola/test/fixture"
 )
 
 // RunServerComponentRenderingTests verifies RSC rendering behaviour across route types.

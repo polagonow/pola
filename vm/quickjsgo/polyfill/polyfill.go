@@ -6,7 +6,7 @@ import (
 
 	quickjs "github.com/buke/quickjs-go"
 
-	"gojsx/vm/polyfill"
+	"github.com/polagonow/pola/vm/polyfill"
 )
 
 type runner struct{ ctx *quickjs.Context }

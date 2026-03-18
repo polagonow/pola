@@ -1,11 +1,11 @@
 {
-  "name": "@gojsx/blog-e2e",
+  "name": "@pola/blog-e2e",
   "version": "0.0.1",
   "private": true,
-  "description": "GoJSX example blog application",
+  "description": "Pola example blog application",
   "dependencies": {
-    "@gojsx/jsi": "workspace:*",
-    "@gojsx/react": "workspace:*",
+    "@pola/jsi": "workspace:*",
+    "@pola/react": "workspace:*",
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-server-dom-esm": "npm:@kentcdodds/tmp-react-server-dom-esm@^19.0.1",

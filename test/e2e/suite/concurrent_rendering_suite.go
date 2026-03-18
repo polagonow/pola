@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"gojsx/test/fixture"
+	"github.com/polagonow/pola/test/fixture"
 )
 
 // RunConcurrentRenderingTests verifies that the server handles multiple

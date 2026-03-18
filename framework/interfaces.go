@@ -1,4 +1,4 @@
-// Package framework defines the pluggable interfaces for the GoJSX SSR
+// Package framework defines the pluggable interfaces for the Pola SSR
 // framework. Every concrete technology choice (esbuild, Goja, React, etc.)
 // implements one or more of these interfaces so the framework layer never
 // imports any specific bundler, VM, or renderer package.
@@ -8,7 +8,7 @@ import (
 	"context"
 	"net/http"
 
-	"gojsx/framework/contract"
+	"github.com/polagonow/pola/framework/contract"
 )
 
 // ── Discovery ────────────────────────────────────────────────────────────────

@@ -323,7 +323,7 @@ func (p *VMPool) Acquire() *VM { return p.pool.Get().(*VM) }
 func (p *VMPool) Release(vm *VM) {
 	_ = vm.run(func(rt *gojalib.Runtime) error {
 		rt.Set("__request__", gojalib.Undefined())
-		rt.Set("__gojsx_stream__", gojalib.Undefined())
+		rt.Set("__pola_stream__", gojalib.Undefined())
 		for _, key := range vm.jsi.Keys() {
 			vm.jsi.Delete(key)
 		}

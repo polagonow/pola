@@ -1,4 +1,4 @@
-// Package react renders the complete HTML shell for GoJSX React server-rendered pages.
+// Package react renders the complete HTML shell for Pola React server-rendered pages.
 package shell
 
 import (
@@ -7,7 +7,7 @@ import (
 	"html/template"
 	"strings"
 
-	"gojsx/framework/contract"
+	"github.com/polagonow/pola/framework/contract"
 )
 
 // Params holds the dynamic values needed to render the HTML shell.

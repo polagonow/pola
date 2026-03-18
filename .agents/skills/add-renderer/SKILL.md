@@ -1,6 +1,6 @@
 ---
 name: add-renderer
-description: Add a new renderer to the GoJSX framework. Use when asked to add, integrate, or wire up a new UI renderer such as Vue, Svelte, Solid, or any alternative to React for server-side rendering.
+description: Add a new renderer to the Pola framework. Use when asked to add, integrate, or wire up a new UI renderer such as Vue, Svelte, Solid, or any alternative to React for server-side rendering.
 ---
 
 A renderer takes the output of the VM (a streaming handle) and writes the HTTP
@@ -30,8 +30,8 @@ package myrenderer
 import (
     "context"
 
-    "gojsx/framework"
-    "gojsx/framework/contract"
+    "github.com/polagonow/pola/framework"
+    "github.com/polagonow/pola/framework/contract"
 )
 
 // VMRenderer implements framework.Renderer.
@@ -86,7 +86,7 @@ package myrenderer
 import (
     "net/http"
 
-    "gojsx/framework"
+    "github.com/polagonow/pola/framework"
 )
 
 // Protocol implements framework.StreamProtocol.
@@ -112,8 +112,8 @@ func (p *Protocol) Drain(vm framework.VM, handle framework.StreamHandle, w frame
 package myrenderer
 
 import (
-    "gojsx/framework"
-    "gojsx/framework/contract"
+    "github.com/polagonow/pola/framework"
+    "github.com/polagonow/pola/framework/contract"
 )
 
 func init() {
@@ -136,7 +136,7 @@ func init() {
 
 package render
 
-import _ "gojsx/render/<name>"
+import _ "github.com/polagonow/pola/render/<name>"
 ```
 
 ## Step 5 — Add a test combo
@@ -147,11 +147,11 @@ import _ "gojsx/render/<name>"
 package combo
 
 import (
-    esbuild "gojsx/bundler/esbuild"
-    "gojsx/framework"
-    "gojsx/framework/contract"
-    myrenderer "gojsx/render/<name>"
-    "gojsx/test/fixture"
+    esbuild "github.com/polagonow/pola/bundler/esbuild"
+    "github.com/polagonow/pola/framework"
+    "github.com/polagonow/pola/framework/contract"
+    myrenderer "github.com/polagonow/pola/render/<name>"
+    "github.com/polagonow/pola/test/fixture"
 )
 
 func init() { fixture.RegisterBundlerRenderer(&esbuildMyRendererCombo{}) }

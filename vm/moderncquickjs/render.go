@@ -7,8 +7,8 @@ import (
 	"text/template"
 	"time"
 
-	"gojsx/framework"
-	"gojsx/framework/globals"
+	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/framework/globals"
 
 	mquickjs "modernc.org/quickjs"
 )

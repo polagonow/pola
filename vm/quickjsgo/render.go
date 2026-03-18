@@ -8,8 +8,8 @@ import (
 
 	quickjs "github.com/buke/quickjs-go"
 
-	"gojsx/framework"
-	"gojsx/framework/globals"
+	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/framework/globals"
 )
 
 var (

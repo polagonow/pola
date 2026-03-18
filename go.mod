@@ -1,4 +1,4 @@
-module gojsx
+module github.com/polagonow/pola
 
 go 1.24.0
 

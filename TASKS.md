@@ -1,4 +1,12 @@
-=========================================================================
+=========================================
+================================
+rename @pola/react/Client to @pola/react/client
+the current tests are all runing react, they should be in /Users/admin/Projects/go-react-ssr-v2/test/e2e/react
+since now tests will be folder structured to specific renderer,
+maybe we should have an namespace combo registery
+================================================
+
+
 add benchmarks to vms, rendering engine, each testable file should have a unit test
 =======================================
 discovery style should be not coupled to react, it can be used by other frameworks too
@@ -47,5 +55,13 @@ SETUP TRYVY VOLUNALBITY SCAN
 https://trivy.dev/docs/latest/getting-started/
 
 
-SETUP magefile
-https://magefile.org/zeroinstall/
+
+
+==============================================================
+echo "# pola" >> README.md
+git init
+git add README.md
+git commit -m "first commit"
+git branch -M main
+git remote add origin git@github.com:polagonow/pola.git
+git push -u origin main

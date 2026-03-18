@@ -19,7 +19,7 @@ const (
 	// StreamHandle is where streaming VMs stash the current RSC ReadableStream.
 	// Used by v8go (and cleared by multiple VMs) so the Go side can call into
 	// PullStreamFn repeatedly without passing opaque handles through Go↔JS.
-	StreamHandle = "__gojsx_stream__"
+	StreamHandle = "__pola_stream__"
 
 	// OutputChunk is a per-request Go function used by non-streaming VMs to
 	// receive decoded chunks from JS during the async render loop.

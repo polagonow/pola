@@ -7,13 +7,13 @@
 package combo
 
 import (
-	esbuild "gojsx/bundler/esbuild"
-	"gojsx/framework"
-	"gojsx/framework/contract"
-	react "gojsx/render/react"
-	_ "gojsx/render/react/discovery/nextjs"
-	_ "gojsx/render/react/shell"
-	"gojsx/test/fixture"
+	esbuild "github.com/polagonow/pola/bundler/esbuild"
+	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/framework/contract"
+	react "github.com/polagonow/pola/render/react"
+	_ "github.com/polagonow/pola/render/react/discovery/nextjs"
+	_ "github.com/polagonow/pola/render/react/shell"
+	"github.com/polagonow/pola/test/fixture"
 )
 
 func init() { fixture.RegisterBundlerRenderer(&esbuildReactCombo{}) }

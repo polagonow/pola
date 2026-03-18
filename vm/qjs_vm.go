@@ -2,4 +2,4 @@
 
 package vm
 
-import _ "gojsx/vm/qjs"
+import _ "github.com/polagonow/pola/vm/qjs"

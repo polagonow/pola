@@ -1,8 +1,8 @@
 {
-  "name": "gojsx-ui",
+  "name": "pola-ui",
   "private": true,
   "type": "module",
-  "description": "Go SSR framework — React UI monorepo",
+  "description": "Pola UI monorepo",
   "scripts": {
     "lint": "eslint \"apps/**/*.{ts,tsx}\" \"packages/**/*.{ts,tsx}\"",
     "format": "prettier --write \"apps/**/*.{ts,tsx,json}\" \"packages/**/*.{ts,tsx,json}\"",

@@ -3,8 +3,8 @@ package polyfill_test
 import (
 	"testing"
 
-	"gojsx/test/fixture"
-	_ "gojsx/test/vm"
+	"github.com/polagonow/pola/test/fixture"
+	_ "github.com/polagonow/pola/test/vm"
 )
 
 func TestTextEncoderEncodeASCII(t *testing.T) {

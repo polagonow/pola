@@ -9,7 +9,7 @@ import (
 
 	v8 "rogchap.com/v8go"
 
-	"gojsx/framework/globals"
+	"github.com/polagonow/pola/framework/globals"
 )
 
 // Enable installs __JSI__ as an empty global object into ctx.

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"text/template"
 
-	"gojsx/framework"
-	"gojsx/framework/contract"
-	"gojsx/framework/globals"
+	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/framework/contract"
+	"github.com/polagonow/pola/framework/globals"
 )
 
 var renderBlockTmpl = template.Must(template.New("renderBlock").Parse(
@@ -87,7 +87,7 @@ outer:
 		}
 	}
 	if hasErrorPage {
-		entry.WriteString("import __FrameworkErrorBoundary__ from \"@gojsx/react/ErrorBoundary\";\n")
+		entry.WriteString("import __FrameworkErrorBoundary__ from \"@pola/react/ErrorBoundary\";\n")
 	}
 
 	seenError := make(map[string]bool)

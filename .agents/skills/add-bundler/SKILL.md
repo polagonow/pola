@@ -1,6 +1,6 @@
 ---
 name: add-bundler
-description: Add a new bundler to the GoJSX framework. Use when asked to add, integrate, or wire up a new JS bundler such as Vite, Rollup, Parcel, Webpack, or any other build tool.
+description: Add a new bundler to the Pola framework. Use when asked to add, integrate, or wire up a new JS bundler such as Vite, Rollup, Parcel, Webpack, or any other build tool.
 ---
 
 A bundler takes source files from an app directory and produces a server-side JS
@@ -25,7 +25,7 @@ It implements `framework.Bundler`.
 ```go
 package mybundler
 
-import "gojsx/framework/contract"
+import "github.com/polagonow/pola/framework/contract"
 
 // Bundler implements framework.Bundler.
 type Bundler struct{}
@@ -57,7 +57,7 @@ func (b *Bundler) Bundle(input contract.BundleInput) (contract.BundleOutput, err
 ```go
 package mybundler
 
-import "gojsx/framework"
+import "github.com/polagonow/pola/framework"
 
 func init() {
     framework.RegisterDefaults(framework.Defaults{
@@ -75,7 +75,7 @@ func init() {
 
 package bundler
 
-import _ "gojsx/bundler/<name>"
+import _ "github.com/polagonow/pola/bundler/<name>"
 ```
 
 The `!embed` constraint is intentional: when building with `embed`, assets are
@@ -92,13 +92,13 @@ is all that's needed — every registered VM automatically runs against it.
 package combo
 
 import (
-    mybundler "gojsx/bundler/<name>"
-    "gojsx/framework"
-    "gojsx/framework/contract"
-    react "gojsx/render/react"
-    _ "gojsx/render/react/discovery/nextjs"
-    _ "gojsx/render/react/shell"
-    "gojsx/test/fixture"
+    mybundler "github.com/polagonow/pola/bundler/<name>"
+    "github.com/polagonow/pola/framework"
+    "github.com/polagonow/pola/framework/contract"
+    react "github.com/polagonow/pola/render/react"
+    _ "github.com/polagonow/pola/render/react/discovery/nextjs"
+    _ "github.com/polagonow/pola/render/react/shell"
+    "github.com/polagonow/pola/test/fixture"
 )
 
 func init() { fixture.RegisterBundlerRenderer(&mybundlerReactCombo{}) }

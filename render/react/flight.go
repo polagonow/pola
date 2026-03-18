@@ -8,7 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"gojsx/framework/contract"
+	"github.com/polagonow/pola/framework/contract"
 )
 
 // ChunkType represents the type prefix in the RSC Flight wire format.

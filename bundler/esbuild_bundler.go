@@ -2,4 +2,4 @@
 
 package bundler
 
-import _ "gojsx/bundler/esbuild"
+import _ "github.com/polagonow/pola/bundler/esbuild"

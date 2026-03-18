@@ -1,6 +1,6 @@
 ---
 name: add-vm
-description: Add a new JavaScript engine (VM) to the GoJSX framework. Use when asked to add, integrate, or wire up a new JS runtime such as goja, v8go, sobek, quickjs, or any other engine.
+description: Add a new JavaScript engine (VM) to the Pola framework. Use when asked to add, integrate, or wire up a new JS runtime such as goja, v8go, sobek, quickjs, or any other engine.
 ---
 
 A VM implementation wires a JavaScript runtime into the `framework.VM` interface
@@ -26,8 +26,8 @@ so the framework can execute React Server Components inside it.
 package myvm
 
 import (
-    "gojsx/framework"
-    "gojsx/framework/contract"
+    "github.com/polagonow/pola/framework"
+    "github.com/polagonow/pola/framework/contract"
 )
 
 // VMFactory implements framework.VMFactory.
@@ -63,7 +63,7 @@ Rules:
 ```go
 package myvm
 
-import "gojsx/framework"
+import "github.com/polagonow/pola/framework"
 
 func init() {
     framework.RegisterDefaults(framework.Defaults{
@@ -81,7 +81,7 @@ func init() {
 ```go
 package polyfill
 
-import "gojsx/vm/polyfill"
+import "github.com/polagonow/pola/vm/polyfill"
 
 func Enable(rt *MyRuntime) error {
     return polyfill.Load(&runner{rt: rt})
@@ -111,7 +111,7 @@ See `vm/goja/polyfill/` for the reference implementation.
 
 package vm
 
-import _ "gojsx/vm/<name>"
+import _ "github.com/polagonow/pola/vm/<name>"
 ```
 
 ## Step 5 — Register the VMFixture for tests
@@ -124,10 +124,10 @@ package vm
 import (
     "testing"
 
-    "gojsx/framework"
-    "gojsx/test/fixture"
-    myvm "gojsx/vm/<name>"
-    mypolyfill "gojsx/vm/<name>/polyfill"
+    "github.com/polagonow/pola/framework"
+    "github.com/polagonow/pola/test/fixture"
+    myvm "github.com/polagonow/pola/vm/<name>"
+    mypolyfill "github.com/polagonow/pola/vm/<name>/polyfill"
 )
 
 func init() { fixture.RegisterVM(&myVMFixture{}) }

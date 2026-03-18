@@ -5,10 +5,10 @@ import (
 
 	quickjs "github.com/buke/quickjs-go"
 
-	"gojsx/framework"
-	"gojsx/test/fixture"
-	quickjsgovm "gojsx/vm/quickjsgo"
-	quickjsgopolyfill "gojsx/vm/quickjsgo/polyfill"
+	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/test/fixture"
+	quickjsgovm "github.com/polagonow/pola/vm/quickjsgo"
+	quickjsgopolyfill "github.com/polagonow/pola/vm/quickjsgo/polyfill"
 )
 
 func init() { fixture.RegisterVM(&quickjsgoVMFixture{}) }

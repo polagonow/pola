@@ -1,4 +1,4 @@
-import JSI from "@gojsx/jsi";
+import JSI from "@pola/jsi";
 
 // Demonstrates searchParams — pass ?id=... to look up a specific profile.
 export default async function ProfilePage({

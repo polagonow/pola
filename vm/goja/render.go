@@ -8,8 +8,8 @@ import (
 
 	gojalib "github.com/dop251/goja"
 
-	"gojsx/framework"
-	"gojsx/framework/globals"
+	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/framework/globals"
 )
 
 // RenderSession holds the JS callables and stream value for a single render.

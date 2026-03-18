@@ -8,8 +8,8 @@ import (
 
 	sobeklib "github.com/grafana/sobek"
 
-	"gojsx/framework"
-	"gojsx/framework/globals"
+	"github.com/polagonow/pola/framework"
+	"github.com/polagonow/pola/framework/globals"
 )
 
 // RenderSession holds the JS callables for a single render.

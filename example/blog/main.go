@@ -13,13 +13,13 @@ import (
 	"time"
 
 	// Blank imports register default implementations (esbuild, Goja, React HTML shell, disk assets).
-	_ "gojsx/bundler"
-	"gojsx/framework"
-	_ "gojsx/framework/assets/disk"
-	"gojsx/framework/contract"
-	"gojsx/framework/hotreload"
-	_ "gojsx/render"
-	_ "gojsx/vm"
+	_ "github.com/polagonow/pola/bundler"
+	"github.com/polagonow/pola/framework"
+	_ "github.com/polagonow/pola/framework/assets/disk"
+	"github.com/polagonow/pola/framework/contract"
+	"github.com/polagonow/pola/framework/hotreload"
+	_ "github.com/polagonow/pola/render"
+	_ "github.com/polagonow/pola/vm"
 )
 
 func main() {
@@ -67,7 +67,7 @@ func main() {
 
 	projects := []map[string]any{
 		{
-			"id": "1", "title": "GoJSX",
+			"id": "1", "title": "Pola",
 			"description": "Go-powered React SSR framework with Flight protocol.",
 			"tech":        []any{"Go", "React", "TypeScript", "esbuild"},
 			"stars":       142, "status": "active",

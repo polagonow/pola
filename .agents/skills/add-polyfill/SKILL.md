@@ -1,6 +1,6 @@
 ---
 name: add-polyfill
-description: Add a new JavaScript Web API polyfill to the GoJSX VM layer. Use when asked to polyfill, implement, or add browser APIs (TextEncoder, MessageChannel, ReadableStream, queueMicrotask, AbortController, etc.) for server-side JS execution.
+description: Add a new JavaScript Web API polyfill to the Pola VM layer. Use when asked to polyfill, implement, or add browser APIs (TextEncoder, MessageChannel, ReadableStream, queueMicrotask, AbortController, etc.) for server-side JS execution.
 ---
 
 Polyfill tests live in `vm/polyfill/` and verify that a JS polyfill behaves correctly
@@ -45,8 +45,8 @@ package polyfill_test
 import (
     "testing"
 
-    fixture "gojsx/test/fixture"
-    _ "gojsx/test/vm"
+    fixture "github.com/polagonow/pola/test/fixture"
+    _ "github.com/polagonow/pola/test/vm"
 )
 
 func TestMyPolyfillBasic(t *testing.T) {

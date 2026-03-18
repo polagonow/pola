@@ -6,7 +6,7 @@ import (
 
 	v8 "rogchap.com/v8go"
 
-	"gojsx/vm/polyfill"
+	"github.com/polagonow/pola/vm/polyfill"
 )
 
 type runner struct{ ctx *v8.Context }
