@@ -73,7 +73,7 @@ func Build() error {
 		"-tags", tags,
 		"-ldflags", "-s -w",
 		"-o", "bin/pola",
-		"./...",
+		"./cmd/server",
 	)
 }
 

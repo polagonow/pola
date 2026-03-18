@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -75,10 +74,7 @@ func main() {
 	}
 
 	// ── HTTP server ────────────────────────────────────────────────────────
-	addr := ":3000"
-	if port := os.Getenv("PORT"); port != "" {
-		addr = ":" + port
-	}
+	addr := e.Address + ":" + e.Port
 
 	mux := http.NewServeMux()
 	mux.Handle("/", app)
@@ -159,7 +155,7 @@ func registerBlogServices(inj *doinjection.Injector) {
 			return nil, fmt.Errorf("post %q not found", slug)
 		}).
 		Register("getProjects", func(_ []any) (any, error) {
-			time.Sleep(20 * time.Second) // simulate latency
+			time.Sleep(1 * time.Second) // simulate latency
 			return projects, nil
 		}).
 		Register("getProject", func(args []any) (any, error) {

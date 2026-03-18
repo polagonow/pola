@@ -23,6 +23,10 @@ type Env struct {
 	TracingEnabled bool `env:"POLA_TRACING" envDefault:"false"`
 
 	PublicDir string `env:"POLA_PUBLIC_DIR" envDefault:""`
+
+	Port string `env:"PORT" envDefault:"3000"`
+
+	Address string `env:"POLA_ADDRESS" envDefault:""`
 }
 
 // Load parses POLA_* environment variables into an Env struct.

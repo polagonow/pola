@@ -1,4 +1,5 @@
-package suite
+// Package reactsuite contains React-specific e2e test suites.
+package reactsuite
 
 import (
 	"testing"

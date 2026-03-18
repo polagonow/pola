@@ -1,4 +1,5 @@
-package suite
+// Package bundlersuite contains bundler-specific e2e test suites.
+package bundlersuite
 
 import (
 	"os"
