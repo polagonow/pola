@@ -7,6 +7,6 @@ func init() {
 		Discoverer:     func() framework.Discoverer { return &Discoverer{} },
 		RouteBuilder:   func() framework.RouteBuilder { return &RouteBuilder{} },
 		EntryGenerator: func() framework.ServerEntryGenerator { return &ReactRSCEntryGenerator{} },
-		ClientEntry:    "@pola/react/Client",
+		ClientEntry:    "@pola/react/client",
 	})
 }

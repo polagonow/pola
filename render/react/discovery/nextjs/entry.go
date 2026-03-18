@@ -87,7 +87,7 @@ outer:
 		}
 	}
 	if hasErrorPage {
-		entry.WriteString("import __FrameworkErrorBoundary__ from \"@pola/react/ErrorBoundary\";\n")
+		entry.WriteString("import __FrameworkErrorBoundary__ from \"@pola/react/error-boundary\";\n")
 	}
 
 	seenError := make(map[string]bool)

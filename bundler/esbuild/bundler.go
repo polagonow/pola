@@ -193,8 +193,8 @@ func newAtAliasPlugin(absAppDir string) api.Plugin {
 // directly from the repo checkout, so builds/tests don't require node_modules.
 //
 // It maps:
-// - @pola/react/Client        → ui/packages/react/components/Client.tsx
-// - @pola/react/ErrorBoundary → ui/packages/react/components/ErrorBoundary.tsx
+// - @pola/react/client        → ui/packages/react/components/Client.tsx
+// - @pola/react/error-boundary → ui/packages/react/components/ErrorBoundary.tsx
 // - @pola/react/types/page    → ui/packages/react/types/page.ts
 // - @pola/jsi                → ui/packages/jsi/index.ts
 func newPolaWorkspacePlugin(absAppDir string) api.Plugin {
@@ -384,7 +384,7 @@ func buildClientBundle(cfg structs.BundlerConfig, absDir string) (map[string][]b
 	absAppDir, _ := filepath.Abs(cfg.AppDir)
 
 	// Build the entry points list. When ClientEntry is a package specifier
-	// (e.g. "@pola/react/Client"), generate a temporary _client.tsx
+	// (e.g. "@pola/react/client"), generate a temporary _client.tsx
 	// in the output directory's parent (public/) so it is never inside the
 	// app source tree. This prevents hot-reload watchers from triggering a
 	// rebuild on its CREATE/REMOVE events. esbuild still resolves node_modules

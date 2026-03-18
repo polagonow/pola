@@ -1,20 +1,17 @@
-=========================================
-================================
-rename @pola/react/Client to @pola/react/client
-the current tests are all runing react, they should be in /Users/admin/Projects/go-react-ssr-v2/test/e2e/react
-since now tests will be folder structured to specific renderer,
-maybe we should have an namespace combo registery
-================================================
-
-
+=========================================================================
 add benchmarks to vms, rendering engine, each testable file should have a unit test
 =======================================
 discovery style should be not coupled to react, it can be used by other frameworks too
-support for htmx,vue,svelte,react, angular
+support for htmx,vue,svelte,react
+
+fix left hook commit-msg
 
 use solid implementaions of polyfills and you make sure you check if something is defined befefor polyfilling it!
 fo example promise :https://www.promisejs.org/implementing/
 =======================================
+
+currently we are using magic strings for
+__gojsx_stream__, __JSI_ etc, please scan all of them and we put it in one place such that they are maintainable!
 
 
 PLEASE WORK ON MAKING THE HTML SHELL MORE DYNICMIC, WE WILL In future support html builder!
@@ -56,8 +53,38 @@ https://trivy.dev/docs/latest/getting-started/
 
 
 
+=========================
+https://svelte.dev/docs/kit/glossary#SSR
+https://vuejs.org/api/ssr
+https://angular.dev/guide/ssr
+https://react.dev/
+https://templ.guide/server-side-rendering/htmx/
+https://htmgo.dev
 
-==============================================================
+
+# HTMX
+https://templ.guide/server-side-rendering/htmx/
+https://templ.guide/server-side-rendering/streaming/
+https://github.com/jritsema/go-htmx-tailwind-example
+https://github.com/a-h/templ/tree/main
+https://data-star.dev/guide/getting_started#installation
+
+
+# HTMGO
+https://htmgo.dev/docs/core-concepts/raw-html
+
+
+
+| Feature          | JS Frameworks | HTMX / templ | HTMGO   |
+| ---------------- | ------------- | ------------ | ------- |
+| Needs Node       | ✅             | ❌            | ❌       |
+| Works with Goja  | ❌             | ✅ (optional) | ✅       |
+| Complexity       | 🔴 High       | 🟢 Low       | 🟢 Low  |
+| Performance      | 🟡 Medium     | 🟢 High      | 🟢 High |
+| Control          | 🔴 Low        | 🟢 High      | 🟢 High |
+| Plug-in friendly | 🟡            | 🟢           | 🟢      |
+
+
 echo "# pola" >> README.md
 git init
 git add README.md
