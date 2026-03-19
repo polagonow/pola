@@ -1,4 +1,4 @@
-import JSI from "@pola/di";
+import di from "@pola/di";
 
 export default async function RevisionPage({
   params,
@@ -8,10 +8,10 @@ export default async function RevisionPage({
   searchParams?: Record<string, string>;
 }) {
   if (searchParams?.error !== undefined)
-    await JSI.triggerError(searchParams.error || undefined);
+    await di.triggerError(searchParams.error || undefined);
   const [post, revision] = await Promise.all([
-    JSI.getPost(params.slug),
-    JSI.getRevision(params.slug, params.rev),
+    di.getPost(params.slug),
+    di.getRevision(params.slug, params.rev),
   ]);
 
   return (

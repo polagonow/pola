@@ -1,4 +1,4 @@
-import JSI from "@pola/di";
+import di from "@pola/di";
 
 export default async function ProjectsPage({
   searchParams,
@@ -6,8 +6,8 @@ export default async function ProjectsPage({
   searchParams?: Record<string, string>;
 }) {
   if (searchParams?.error !== undefined)
-    await JSI.triggerError(searchParams.error || undefined);
-  const projects = await JSI.getProjects();
+    await di.triggerError(searchParams.error || undefined);
+  const projects = await di.getProjects();
 
   return (
     <div>

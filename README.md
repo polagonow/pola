@@ -119,7 +119,7 @@ pola/
 │
 ├── bundler/esbuild/     EsbuildBundler implementation
 │
-├── ui/apps/blog-e2e/    TypeScript source for the example blog
+├── ui/apps/blog-e2e-react/    TypeScript source for the example blog
 │   └── app/             Next.js-style app/ directory
 │
 ├── example/blog/        Go entry point for the example

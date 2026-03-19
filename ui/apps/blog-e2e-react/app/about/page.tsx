@@ -1,4 +1,4 @@
-import JSI from "@pola/di";
+import di from "@pola/di";
 
 export default async function AboutPage({
   searchParams,
@@ -6,7 +6,7 @@ export default async function AboutPage({
   searchParams?: Record<string, string>;
 }) {
   if (searchParams?.error !== undefined)
-    await JSI.triggerError(searchParams.error || undefined);
+    await di.triggerError(searchParams.error || undefined);
   return (
     <div>
       <h1

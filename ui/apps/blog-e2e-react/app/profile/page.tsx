@@ -1,4 +1,4 @@
-import JSI from "@pola/di";
+import di from "@pola/di";
 
 // Demonstrates searchParams — pass ?id=... to look up a specific profile.
 export default async function ProfilePage({
@@ -7,8 +7,8 @@ export default async function ProfilePage({
   searchParams?: Record<string, string>;
 }) {
   if (searchParams?.error !== undefined)
-    await JSI.triggerError(searchParams.error || undefined);
-  const profile = await JSI.getProfile(searchParams?.id);
+    await di.triggerError(searchParams.error || undefined);
+  const profile = await di.getProfile(searchParams?.id);
   const initials = profile.name
     .split(" ")
     .map((n: string) => n[0])

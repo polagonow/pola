@@ -374,7 +374,7 @@ injector := do.New()
 
 // Infrastructure plugins
 do.Provide(injector, func(i *do.Injector) (core.FS, error) {
-    return osfs.New("./ui/apps/blog-e2e"), nil
+    return osfs.New("./ui/apps/blog-e2e-react"), nil
 })
 do.Provide(injector, func(i *do.Injector) (core.JSEngine, error) {
     return goja.New(), nil
@@ -391,7 +391,7 @@ do.Provide(injector, func(i *do.Injector) (*UserService, error) {
 
 // do.RuntimeInjector resolves services and wires their methods into __DEPENDENCY_INJECTION__
 app, err := pola.New(&core.Config{
-    WebAppPath: "./ui/apps/blog-e2e",
+    WebAppPath: "./ui/apps/blog-e2e-react",
     Dev:    true,
     Registry: &core.Registry{
         Injectors: []core.RuntimeInjector{doinjection.New(injector)},

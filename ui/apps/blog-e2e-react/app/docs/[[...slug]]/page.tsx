@@ -1,4 +1,4 @@
-import JSI from "@pola/di";
+import di from "@pola/di";
 
 const DOCS: Record<string, Record<string, string>> = {
   "getting-started": {
@@ -39,7 +39,7 @@ export default async function DocsPage({
   searchParams?: Record<string, string>;
 }) {
   if (searchParams?.error !== undefined)
-    await JSI.triggerError(searchParams.error || undefined);
+    await di.triggerError(searchParams.error || undefined);
   const slug = params?.slug;
 
   // /docs — index

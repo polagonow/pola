@@ -53,9 +53,9 @@ type AppFixture interface {
 // ── Registries ────────────────────────────────────────────────────────────────
 
 var (
-	fixtureList   []AppFixture
-	polyfillVMs   []polyfillVMEntry
-	fixtureMu     sync.Mutex
+	fixtureList []AppFixture
+	polyfillVMs []polyfillVMEntry
+	fixtureMu   sync.Mutex
 )
 
 type polyfillVMEntry struct {
@@ -81,7 +81,7 @@ func RegisterPolyfillVM(name string, factory func(t *testing.T) PolyfillFixture)
 // ── Public iteration helpers ──────────────────────────────────────────────────
 
 // AppDir is the path to the test application, relative to the e2e package root.
-const AppDir = "../../ui/apps/blog-e2e"
+const AppDir = "../../ui/apps/blog-e2e-react"
 
 // ForEachApp runs fn as a sub-test for every registered AppFixture.
 func ForEachApp(t *testing.T, fn func(*testing.T, AppFixture)) {
@@ -231,7 +231,16 @@ func (i *testInjector) Capabilities() []core.InjectionCapability {
 	}
 	return caps
 }
+// asyncDIRuntime is the optional interface for runtimes that support
+// async (Promise + goroutine) dependency injection.
+type asyncDIRuntime interface {
+	SetDependencyInjection(funcs map[string]func(args []any) (any, error)) error
+}
+
 func (i *testInjector) Inject(_ context.Context, runtime core.JSRuntime) error {
+	if ar, ok := runtime.(asyncDIRuntime); ok {
+		return ar.SetDependencyInjection(i.fns)
+	}
 	fns := make(map[string]any, len(i.fns))
 	for name, fn := range i.fns {
 		fns[name] = fn

@@ -1,11 +1,11 @@
-import JSI from "@pola/di";
+import di from "@pola/di";
 
 function Tag({ label }: { label: string }) {
   return <span className="tag">{label}</span>;
 }
 
 async function FeaturedPosts() {
-  const posts = await JSI.getPosts();
+  const posts = await di.getPosts();
   return (
     <div className="card-grid">
       {posts.slice(0, 2).map((post) => (
@@ -34,7 +34,7 @@ async function FeaturedPosts() {
 }
 
 async function FeaturedProjects() {
-  const projects = await JSI.getProjects();
+  const projects = await di.getProjects();
   return (
     <div className="grid-2">
       {projects.slice(0, 2).map((p) => (
@@ -76,7 +76,7 @@ export default async function HomePage({
   searchParams?: Record<string, string>;
 }) {
   if (searchParams?.error !== undefined)
-    await JSI.triggerError(searchParams.error || undefined);
+    await di.triggerError(searchParams.error || undefined);
   return (
     <div>
       <div className="hero">
