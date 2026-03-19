@@ -1,7 +1,5 @@
 // Package react provides a React Server Components (RSC) renderer for Pola.
 // It implements streaming SSR via the RSC Flight wire protocol.
-//
-//go:build react
 package react
 
 import (
@@ -86,6 +84,39 @@ func (r *Renderer) Render(ctx context.Context, req core.RenderRequest) (core.Ren
 
 // ContentType is the MIME type for the RSC Flight wire format.
 const ContentType = "text/x-component"
+
+// ServeRequest implements the internal requestHandler interface.
+// It claims RSC Flight requests and streams the response; all others return false.
+func (r *Renderer) ServeRequest(ctx context.Context, w http.ResponseWriter, req *http.Request, renderReq core.RenderRequest, status int) (bool, error) {
+	if req.Header.Get("Content-Type") != ContentType {
+		return false, nil
+	}
+	w.Header().Set("Content-Type", ContentType+"; charset=utf-8")
+	w.WriteHeader(status)
+	return true, r.RenderToWriter(ctx, renderReq, newStreamWriter(w))
+}
+
+// ── streamWriter ──────────────────────────────────────────────────────────────
+
+type streamWriter struct {
+	w       http.ResponseWriter
+	flusher http.Flusher
+}
+
+func newStreamWriter(w http.ResponseWriter) *streamWriter {
+	sw := &streamWriter{w: w}
+	if f, ok := w.(http.Flusher); ok {
+		sw.flusher = f
+	}
+	return sw
+}
+
+func (sw *streamWriter) WriteRaw(p []byte) (int, error) { return sw.w.Write(p) }
+func (sw *streamWriter) Flush() {
+	if sw.flusher != nil {
+		sw.flusher.Flush()
+	}
+}
 
 // IsStreamingRequest reports whether the request carries the RSC Flight
 // Content-Type header, meaning the client expects the raw stream.

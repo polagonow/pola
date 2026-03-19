@@ -11,14 +11,13 @@ import (
 	"github.com/polagonow/pola/core"
 )
 
-// streamingRenderer is the optional interface for renderers that can stream
-// output directly to an http.ResponseWriter (RSC Flight protocol).
-type streamingRenderer interface {
-	RenderToWriter(ctx context.Context, req core.RenderRequest, w core.StreamWriter) error
+// requestHandler is an optional interface for renderers that want to own
+// the full HTTP response for certain requests (e.g. RSC Flight streaming).
+// Return handled=false to fall back to the HTML shell.
+type requestHandler interface {
+	ServeRequest(ctx context.Context, w http.ResponseWriter, r *http.Request,
+		req core.RenderRequest, status int) (bool, error)
 }
-
-// rscContentType is the MIME type for RSC Flight wire format requests.
-const rscContentType = "text/x-component"
 
 // Orchestrator implements http.Handler and wires all Pola components together.
 type Orchestrator struct {
@@ -89,6 +88,24 @@ func (o *Orchestrator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	o.registry.Metrics.RecordRequest(routeName, r.Method, rw.code, time.Since(start))
 }
 
+// tryRendererServe calls ServeRequest on the renderer if it implements
+// requestHandler. Returns true if the renderer claimed the response.
+func (o *Orchestrator) tryRendererServe(ctx context.Context, w http.ResponseWriter, r *http.Request, req core.RenderRequest, status int) bool {
+	rh, ok := o.registry.Renderer.(requestHandler)
+	if !ok {
+		return false
+	}
+	ctx, span := o.registry.Tracer.StartSpan(ctx, "pola.render")
+	renderStart := time.Now()
+	handled, err := rh.ServeRequest(ctx, w, r, req, status)
+	span.End()
+	o.registry.Metrics.RecordRender(req.Route.Pattern, time.Since(renderStart))
+	if err != nil {
+		o.registry.Logger.Error("pola: render", "err", err)
+	}
+	return handled
+}
+
 func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
 	ctx, span := o.registry.Tracer.StartSpan(r.Context(), "pola.handle")
 	defer span.End()
@@ -96,22 +113,20 @@ func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
 	ctx, routeSpan := o.registry.Tracer.StartSpan(ctx, "pola.route.resolve")
 	route, params := o.registry.Router.Resolve(ctx, r.URL.Path)
 	routeSpan.End()
+
 	if route == nil {
-		isRSC := r.Header.Get("Content-Type") == rscContentType
-		if isRSC && o.notFoundRoute != nil {
-			w.Header().Set("Content-Type", rscContentType+"; charset=utf-8")
-			w.WriteHeader(http.StatusNotFound)
+		if o.notFoundRoute != nil {
 			req := core.RenderRequest{
 				Route:          *o.notFoundRoute,
 				Props:          map[string]any{"params": map[string]any{}, "searchParams": map[string]any{}},
 				RequestContext: buildRequestContext(r),
 				Injectors:      o.registry.Injectors,
 			}
-			o.serveRSCBody(ctx, req, w)
-			return
+			if o.tryRendererServe(ctx, w, r, req, http.StatusNotFound) {
+				return
+			}
 		}
-		// HTML 404: return the client shell so the browser can bootstrap and
-		// fetch the GlobalNotFound component via a subsequent RSC request.
+		// HTML 404: client shell bootstraps, then fetches the not-found component.
 		w.WriteHeader(http.StatusNotFound)
 		o.serveHTML(w, r)
 		return
@@ -123,51 +138,10 @@ func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
 		RequestContext: buildRequestContext(r),
 		Injectors:      o.registry.Injectors,
 	}
-
-	if r.Header.Get("Content-Type") == rscContentType {
-		o.serveRSC(w, r, ctx, req)
+	if o.tryRendererServe(ctx, w, r, req, http.StatusOK) {
 		return
 	}
 	o.serveHTML(w, r)
-}
-
-// serveRSC streams the RSC Flight wire format to the client.
-func (o *Orchestrator) serveRSC(w http.ResponseWriter, r *http.Request, ctx context.Context, req core.RenderRequest) {
-	// Set Content-Type before any WriteHeader call so it's included in the
-	// response. If WriteHeader was already called (e.g. 404 not-found path),
-	// Set is a no-op but that's fine — the header was already flushed.
-	w.Header().Set("Content-Type", rscContentType+"; charset=utf-8")
-	o.serveRSCBody(ctx, req, w)
-}
-
-// serveRSCBody writes the RSC Flight body to w. Headers must be set before calling.
-func (o *Orchestrator) serveRSCBody(ctx context.Context, req core.RenderRequest, w http.ResponseWriter) {
-	ctx, span := o.registry.Tracer.StartSpan(ctx, "pola.render")
-	renderStart := time.Now()
-	defer func() {
-		span.End()
-		o.registry.Metrics.RecordRender(req.Route.Pattern, time.Since(renderStart))
-	}()
-
-	sr, ok := o.registry.Renderer.(streamingRenderer)
-	if !ok {
-		// Fallback: call Render and write body.
-		result, err := o.registry.Renderer.Render(ctx, req)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-		w.Write(result.Body) //nolint:errcheck
-		return
-	}
-	sw := &httpStreamWriter{w: w}
-	if f, ok := w.(http.Flusher); ok {
-		sw.flusher = f
-	}
-	if err := sr.RenderToWriter(ctx, req, sw); err != nil {
-		// Headers already sent — log only.
-		o.registry.Logger.Error("pola: RSC render", "err", err)
-	}
 }
 
 // serveHTML returns the HTML shell for initial page loads.
@@ -184,20 +158,6 @@ func (o *Orchestrator) serveHTML(w http.ResponseWriter, _ *http.Request) {
 	html := o.shell.Render(params)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write([]byte(html)) //nolint:errcheck
-}
-
-// ── httpStreamWriter ──────────────────────────────────────────────────────────
-
-type httpStreamWriter struct {
-	w       http.ResponseWriter
-	flusher http.Flusher
-}
-
-func (sw *httpStreamWriter) WriteRaw(p []byte) (int, error) { return sw.w.Write(p) }
-func (sw *httpStreamWriter) Flush() {
-	if sw.flusher != nil {
-		sw.flusher.Flush()
-	}
 }
 
 type responseRecorder struct {

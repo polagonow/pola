@@ -1,5 +1,3 @@
-//go:build react
-
 package react
 
 import (
