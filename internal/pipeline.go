@@ -195,6 +195,15 @@ func Build(cfg *core.Config) (*core.App, error) {
 	}
 	orch := NewOrchestrator(reg, routes, shell, assets, bundleOutput, notFoundRoute, cfg.Dev)
 
+	// ── 6.6. Copy static public files ────────────────────────────────────────
+	// When publicDir differs from the webapp's own public/ folder (e.g. embed
+	// builds writing to cmd/server/public/), copy non-asset statics such as
+	// favicon.ico so the //go:embed picks them up.
+	srcPublic := filepath.Join(absWebAppPath, "public")
+	if srcPublic != publicDir {
+		copyPublicStatics(srcPublic, publicDir)
+	}
+
 	// ── 9. Write prebuild-meta.json for embed builds ───────────────────────
 	// Saved into publicDir so it's picked up by //go:embed public in cmd/server/embed.go.
 	if bundleOutput != nil {
@@ -231,6 +240,34 @@ func Build(cfg *core.Config) (*core.App, error) {
 // New creates and builds a Pola application from the given config.
 func New(cfg *core.Config) (*core.App, error) {
 	return Build(cfg)
+}
+
+// copyPublicStatics copies non-asset static files from srcDir to dstDir,
+// skipping the "assets" subdirectory which is managed by the bundler.
+func copyPublicStatics(srcDir, dstDir string) {
+	entries, err := os.ReadDir(srcDir)
+	if err != nil {
+		return
+	}
+	if err := os.MkdirAll(dstDir, 0o755); err != nil {
+		return
+	}
+	for _, e := range entries {
+		if e.Name() == "assets" {
+			continue
+		}
+		src := filepath.Join(srcDir, e.Name())
+		dst := filepath.Join(dstDir, e.Name())
+		if e.IsDir() {
+			copyPublicStatics(src, dst)
+		} else {
+			data, err := os.ReadFile(src)
+			if err != nil {
+				continue
+			}
+			_ = os.WriteFile(dst, data, 0o644)
+		}
+	}
 }
 
 // routeLoader is the optional interface a Router may implement to accept
