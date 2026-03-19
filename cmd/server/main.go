@@ -24,13 +24,14 @@ import (
 	"github.com/polagonow/pola/observability/tracing/otel"
 
 	// plugins register themselves via init()
-	_ "github.com/polagonow/pola/bundler/esbuild" // requires: esbuild build tag
-	_ "github.com/polagonow/pola/cache/memory"
-	_ "github.com/polagonow/pola/engine/goja" // requires: goja build tag
-	_ "github.com/polagonow/pola/fs/osfs"
-	_ "github.com/polagonow/pola/logger/slog"
-	_ "github.com/polagonow/pola/renderer/react" // requires: react build tag
-	_ "github.com/polagonow/pola/router/nextjs"
+	_ "github.com/polagonow/pola/bundler"
+	_ "github.com/polagonow/pola/cache"
+	_ "github.com/polagonow/pola/css"
+	_ "github.com/polagonow/pola/engine"
+	_ "github.com/polagonow/pola/fs"
+	_ "github.com/polagonow/pola/logger"
+	_ "github.com/polagonow/pola/renderer"
+	_ "github.com/polagonow/pola/router"
 )
 
 func main() {

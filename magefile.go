@@ -18,12 +18,12 @@ var (
 	polaRenderer = envOr("POLA_RENDERER", "react")
 	polaRouter   = envOr("POLA_ROUTER", "nextjs")
 	polaCSS      = envOr("POLA_CSS", "none")
-	embedAssets  = envOr("POLA_EMBED", "1")
 	cgoEnabled   = envOr("CGO_ENABLED", "1")
 	polaMetrics  = envOr("POLA_METRICS", "false")
 	polaPprof    = envOr("POLA_PPROF", "false")
 )
 
+// runtimeTags returns build tags for dev/bundle runs (includes bundler).
 func runtimeTags() string {
 	tags := []string{polaVM, polaBundler, polaRenderer, polaRouter}
 	if polaCSS != "none" {
@@ -32,16 +32,12 @@ func runtimeTags() string {
 	return strings.Join(tags, " ")
 }
 
-func buildTags() string {
-	tags := []string{}
-	if embedAssets == "1" {
-		tags = append(tags, "embed")
-	}
-	tags = append(tags, polaVM, polaBundler, polaRenderer, polaRouter)
-	if polaCSS != "none" {
-		tags = append(tags, polaCSS)
-	}
-	return strings.Join(tags, " ")
+// binaryTags returns build tags for the production binary.
+// Excludes bundler and CSS plugins — both are build-time only; assets are
+// pre-built by Bundle and embedded. Only the VM, renderer, and router are
+// needed at runtime.
+func binaryTags() string {
+	return strings.Join([]string{"embed", polaVM, polaRenderer, polaRouter}, " ")
 }
 
 // Run starts the dev server.
@@ -62,11 +58,11 @@ func Run() error {
 	)
 }
 
-// Bundle pre-builds the JS/CSS assets into cmd/server/public/ so they can be
-// embedded by the "embed" build tag. Called automatically by Build when
-// POLA_EMBED=1 (the default).
+// Bundle is Stage 1: pre-builds JS/CSS assets into cmd/server/public/ using
+// the full runtime tags (including esbuild). The server exits immediately after
+// writing assets (POLA_BUILD_ONLY=true).
 func Bundle() error {
-	fmt.Printf("→ bundling assets into cmd/server/public/\n")
+	fmt.Println("→ [stage 1] bundling assets into cmd/server/public/")
 	return sh.RunWithV(
 		map[string]string{
 			"CGO_ENABLED":      cgoEnabled,
@@ -81,14 +77,13 @@ func Bundle() error {
 	)
 }
 
-// Build compiles the Go binary. When POLA_EMBED=1 (default) it first runs
-// Bundle to generate assets, then bakes them into the binary with the embed tag.
-func Build() error {
-	if embedAssets == "1" {
-		mg.Deps(Bundle)
-	}
-	tags := buildTags()
-	fmt.Printf("→ tags=%q CGO_ENABLED=%s\n", tags, cgoEnabled)
+// Compile is Stage 2: compiles the production Go binary with the embed tag
+// but WITHOUT esbuild — assets were already written by Bundle. mg.Deps ensures
+// Bundle runs first (and is memoised so it never runs twice in one invocation).
+func Compile() error {
+	mg.Deps(Bundle)
+	tags := binaryTags()
+	fmt.Printf("→ [stage 2] compiling binary tags=%q CGO_ENABLED=%s\n", tags, cgoEnabled)
 	os.MkdirAll("bin", 0o755) //nolint:errcheck
 	return sh.RunWithV(
 		map[string]string{"CGO_ENABLED": cgoEnabled},
@@ -98,6 +93,12 @@ func Build() error {
 		"-o", "bin/pola",
 		"./cmd/server",
 	)
+}
+
+// Build runs the full two-stage build: Bundle assets → Compile binary.
+func Build() error {
+	mg.Deps(Compile)
+	return nil
 }
 
 // Test runs unit tests only (fast).
