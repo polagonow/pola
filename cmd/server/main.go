@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"os/signal"
 	"syscall"
 	"time"
@@ -71,6 +72,12 @@ func main() {
 	})
 	if err != nil {
 		log.Fatalf("pola: %v", err)
+	}
+
+	// Build-only mode: generate assets to disk and exit (used by mage Bundle).
+	if os.Getenv("POLA_BUILD_ONLY") == "true" {
+		fmt.Println("pola: build complete")
+		return
 	}
 
 	// ── HTTP server ────────────────────────────────────────────────────────

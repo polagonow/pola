@@ -2,6 +2,7 @@ package internal
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -10,6 +11,15 @@ import (
 
 	"github.com/polagonow/pola/core"
 )
+
+// prebuildMeta is the JSON schema for prebuild-meta.json written during mage Bundle
+// and read back at startup in embed mode.
+type prebuildMeta struct {
+	Routes         []core.Route      `json:"routes"`
+	ClientEntryURL string            `json:"clientEntryURL"`
+	ImportURLs     map[string]string `json:"importURLs"`
+	GlobalNotFound string            `json:"globalNotFound"`
+}
 
 // entryGenerator is the optional interface a Renderer may implement to produce
 // the server-entry TypeScript source from a DiscoveryResult.
@@ -60,6 +70,13 @@ func Build(cfg *core.Config) (*core.App, error) {
 		if la, ok := c.(core.LogAware); ok {
 			la.SetLogger(reg.Logger)
 		}
+	}
+
+	// ── Prebuild fast-path (embed mode) ───────────────────────────────────
+	// When a prebuild loader is registered (via cmd/server/embed.go), skip
+	// route scanning and JS bundling — everything was pre-computed at mage Build time.
+	if loader := core.DefaultPrebuildLoader(); loader != nil {
+		return buildFromPrebuilt(cfg, reg, loader)
 	}
 
 	// Validate required components.
@@ -178,7 +195,21 @@ func Build(cfg *core.Config) (*core.App, error) {
 	}
 	orch := NewOrchestrator(reg, routes, shell, assets, bundleOutput, notFoundRoute, cfg.Dev)
 
-	// ── 9. Return App ──────────────────────────────────────────────────────
+	// ── 9. Write prebuild-meta.json for embed builds ───────────────────────
+	// Saved into publicDir so it's picked up by //go:embed public in cmd/server/embed.go.
+	if bundleOutput != nil {
+		meta := prebuildMeta{
+			Routes:         routes,
+			ClientEntryURL: bundleOutput.ClientEntryURL,
+			ImportURLs:     bundleOutput.ImportURLs,
+			GlobalNotFound: discovery.GlobalNotFound,
+		}
+		if b, err := json.Marshal(meta); err == nil {
+			_ = os.WriteFile(filepath.Join(publicDir, "prebuild-meta.json"), b, 0o644)
+		}
+	}
+
+	// ── 10. Return App ─────────────────────────────────────────────────────
 	app := newApp(cfg, reg, orch)
 	app.SetArtifacts(bundleOutput)
 
@@ -200,4 +231,54 @@ func Build(cfg *core.Config) (*core.App, error) {
 // New creates and builds a Pola application from the given config.
 func New(cfg *core.Config) (*core.App, error) {
 	return Build(cfg)
+}
+
+// routeLoader is the optional interface a Router may implement to accept
+// pre-built routes without calling ScanRoutes (used in embed/prebuild mode).
+type routeLoader interface {
+	LoadRoutes([]core.Route)
+}
+
+// buildFromPrebuilt builds an App from pre-computed artifacts (embed mode).
+// It skips route scanning, entry generation, and JS bundling.
+func buildFromPrebuilt(cfg *core.Config, reg *core.Registry, loader func() (*core.PrebuildArtifacts, error)) (*core.App, error) {
+	artifacts, err := loader()
+	if err != nil {
+		return nil, fmt.Errorf("pola: load prebuilt: %w", err)
+	}
+
+	// Seed the router's internal routing table from the pre-built route list.
+	if rl, ok := reg.Router.(routeLoader); ok {
+		rl.LoadRoutes(artifacts.Routes)
+	}
+
+	// Load the server bundle into the JS engine.
+	if bl, ok := reg.Renderer.(core.BundleLoader); ok && reg.Engine != nil && artifacts.BundleOutput != nil {
+		if err := bl.LoadBundle(reg.Engine, artifacts.BundleOutput.ServerBundle); err != nil {
+			return nil, fmt.Errorf("pola: load bundle: %w", err)
+		}
+	}
+
+	// Resolve shell and asset server (embed.go registers the embedded asset server).
+	var shell core.HTMLShell
+	if ctor := core.DefaultHTMLShell(); ctor != nil {
+		shell = ctor()
+	} else {
+		shell = noopShell{}
+	}
+	var assets core.AssetServer
+	if ctor := core.DefaultAssetServer(); ctor != nil {
+		assets = ctor("")
+	} else {
+		assets = noopAssetServer{}
+	}
+
+	var notFoundRoute *core.Route
+	if artifacts.GlobalNotFound != "" {
+		notFoundRoute = &core.Route{Export: "GlobalNotFound", Pattern: "/*"}
+	}
+	orch := NewOrchestrator(reg, artifacts.Routes, shell, assets, artifacts.BundleOutput, notFoundRoute, cfg.Dev)
+	app := newApp(cfg, reg, orch)
+	app.SetArtifacts(artifacts.BundleOutput)
+	return app, nil
 }

@@ -62,8 +62,31 @@ func Run() error {
 	)
 }
 
-// Build compiles the Go binary.
+// Bundle pre-builds the JS/CSS assets into cmd/server/public/ so they can be
+// embedded by the "embed" build tag. Called automatically by Build when
+// POLA_EMBED=1 (the default).
+func Bundle() error {
+	fmt.Printf("→ bundling assets into cmd/server/public/\n")
+	return sh.RunWithV(
+		map[string]string{
+			"CGO_ENABLED":      cgoEnabled,
+			"POLA_BUILD_ONLY":  "true",
+			"POLA_PUBLIC_DIR":  "./public",
+			"POLA_WEBAPP_PATH": "../../ui/apps/blog-e2e-react",
+		},
+		"go", "run",
+		"-C", "cmd/server",
+		"-tags", runtimeTags(),
+		".",
+	)
+}
+
+// Build compiles the Go binary. When POLA_EMBED=1 (default) it first runs
+// Bundle to generate assets, then bakes them into the binary with the embed tag.
 func Build() error {
+	if embedAssets == "1" {
+		mg.Deps(Bundle)
+	}
 	tags := buildTags()
 	fmt.Printf("→ tags=%q CGO_ENABLED=%s\n", tags, cgoEnabled)
 	os.MkdirAll("bin", 0o755) //nolint:errcheck

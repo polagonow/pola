@@ -42,6 +42,24 @@ type BuildArtifacts struct {
 	Output *BundleOutput
 }
 
+// PrebuildArtifacts holds all data pre-computed during mage Bundle so that the
+// production binary (embed tag) can skip route scanning and JS bundling entirely.
+type PrebuildArtifacts struct {
+	Routes         []Route
+	BundleOutput   *BundleOutput
+	GlobalNotFound string // non-empty when a GlobalNotFound export exists
+}
+
+var defaultPrebuildLoader func() (*PrebuildArtifacts, error)
+
+// RegisterPrebuildLoader registers a function that loads pre-built artifacts
+// from the binary (e.g. from an embedded FS). When registered, the pipeline
+// skips route scanning and JS bundling at startup.
+func RegisterPrebuildLoader(f func() (*PrebuildArtifacts, error)) { defaultPrebuildLoader = f }
+
+// DefaultPrebuildLoader returns the registered prebuild loader, or nil.
+func DefaultPrebuildLoader() func() (*PrebuildArtifacts, error) { return defaultPrebuildLoader }
+
 // App is the fully-wired Pola application. It implements http.Handler.
 type App struct {
 	cfg       Config

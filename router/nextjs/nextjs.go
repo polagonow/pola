@@ -159,6 +159,16 @@ func (r *Router) Resolve(_ context.Context, path string) (*core.Route, map[strin
 	return nil, nil
 }
 
+// LoadRoutes seeds the router's internal routing table from a pre-built route
+// list (e.g. loaded from prebuild-meta.json in embed mode). This allows
+// Resolve to work without calling ScanRoutes first.
+func (r *Router) LoadRoutes(routes []core.Route) {
+	r.mu.Lock()
+	r.routes = routes
+	r.sorted = false
+	r.mu.Unlock()
+}
+
 // DiscoveryResult returns the core.DiscoveryResult populated during the last
 // ScanRoutes call. Renderers use this to generate server entries.
 func (r *Router) DiscoveryResult() core.DiscoveryResult {
