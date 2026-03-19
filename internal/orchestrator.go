@@ -147,7 +147,9 @@ func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
 // serveHTML returns the HTML shell for initial page loads.
 // The client-side JS (Client.tsx) then fetches RSC Flight data separately.
 func (o *Orchestrator) serveHTML(w http.ResponseWriter, _ *http.Request) {
-	params := core.ShellParams{}
+	params := core.ShellParams{
+		Metadata: defaultMetadata(),
+	}
 	if o.bundleOutput != nil {
 		params.ImportURLs = o.bundleOutput.ImportURLs
 		params.ClientScript = o.bundleOutput.ClientEntryURL
@@ -158,6 +160,19 @@ func (o *Orchestrator) serveHTML(w http.ResponseWriter, _ *http.Request) {
 	html := o.shell.Render(params)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write([]byte(html)) //nolint:errcheck
+}
+
+// defaultMetadata returns the built-in metadata used when the application has
+// not supplied its own. It preserves the same title and favicon that were
+// previously hardcoded in the HTML template.
+func defaultMetadata() *core.Metadata {
+	faviconURL := "/public/favicon.ico"
+	return &core.Metadata{
+		Title: core.Title{Default: "Pola"},
+		Icons: &core.Icons{
+			Icon: []core.Icon{{URL: faviconURL}},
+		},
+	}
 }
 
 type responseRecorder struct {

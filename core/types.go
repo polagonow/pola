@@ -86,6 +86,11 @@ type ShellParams struct {
 	// Scripts holds bare JS expressions to embed as inline <script> blocks
 	// before the client module tag (e.g. "self.__flight_data=...").
 	Scripts []string
+
+	// Metadata contains SEO/social metadata rendered as <head> tags.
+	// When nil the shell emits no title, meta, or link tags beyond
+	// the built-in charset and viewport declarations.
+	Metadata *Metadata
 }
 
 // RenderOpts controls a single page render.
