@@ -277,7 +277,8 @@ func buildFromPrebuilt(cfg *core.Config, reg *core.Registry, loader func() (*cor
 	if artifacts.GlobalNotFound != "" {
 		notFoundRoute = &core.Route{Export: "GlobalNotFound", Pattern: "/*"}
 	}
-	orch := NewOrchestrator(reg, artifacts.Routes, shell, assets, artifacts.BundleOutput, notFoundRoute, cfg.Dev)
+	// Embed mode never supports hot reload — assets are baked into the binary.
+	orch := NewOrchestrator(reg, artifacts.Routes, shell, assets, artifacts.BundleOutput, notFoundRoute, false)
 	app := newApp(cfg, reg, orch)
 	app.SetArtifacts(artifacts.BundleOutput)
 	return app, nil

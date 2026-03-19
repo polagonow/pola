@@ -154,6 +154,8 @@ func registerBlogServices(inj *doinjection.Injector) {
 		Register("getPosts", func(_ []any) (any, error) { return posts, nil }).
 		Register("getPost", func(args []any) (any, error) {
 			slug := argStr(args, 0)
+
+			fmt.Printf("Fetching post with slug %q...\n", slug)
 			for _, p := range posts {
 				if p["slug"] == slug {
 					return p, nil

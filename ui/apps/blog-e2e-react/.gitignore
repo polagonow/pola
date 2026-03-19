@@ -21,3 +21,4 @@ yarn-error.log*
 *.tsbuildinfo
 
 public/assets
+public/prebuild-meta.json
