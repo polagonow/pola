@@ -1,13 +1,7 @@
 package shell
 
-// shellTemplate is the full HTML document template.
-const shellTemplate = `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  {{.HeadMeta}}
-  <style>
+// styles is the embedded CSS injected into every page shell via @templ.Raw(styles).
+const styles = `
     :root{
       --bg:#fff;--fg:#111;--muted:#6b7280;--border:#e5e7eb;
       --accent:#2563eb;--accent-fg:#fff;--surface:#f9fafb;
@@ -114,14 +108,4 @@ const shellTemplate = `<!DOCTYPE html>
       .grid-2{grid-template-columns:1fr}
       .hero h1{font-size:1.8rem}
     }
-  </style>
-  {{.ImportMap}}
-</head>
-<body>
-  {{.InnerHTML}}
-  {{range .Scripts}}
-    <script>{{.}}</script>
-  {{end}}
-  <script type="module" src="{{.ClientScript}}"></script>
-</body>
-</html>`
+  `

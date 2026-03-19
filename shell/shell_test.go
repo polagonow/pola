@@ -1,7 +1,6 @@
 package shell_test
 
 import (
-	"html/template"
 	"strings"
 	"testing"
 
@@ -16,7 +15,7 @@ func TestShellImplementsInterface(t *testing.T) {
 }
 
 func TestShellRenderContainsRootDiv(t *testing.T) {
-	s := shell.New(template.HTML(reactRoot))
+	s := shell.New(reactRoot)
 	out := s.Render(core.ShellParams{
 		ClientScript: "/public/assets/client.js",
 	})

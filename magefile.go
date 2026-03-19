@@ -40,8 +40,16 @@ func binaryTags() string {
 	return strings.Join([]string{"embed", polaVM, polaRenderer, polaRouter}, " ")
 }
 
+// Generate runs all code-generation steps (templ → Go).
+// Run and Bundle depend on this so it always executes before compilation.
+func Generate() error {
+	fmt.Println("→ generating templ components")
+	return sh.RunV("go", "tool", "templ", "generate", "./shell/...")
+}
+
 // Run starts the dev server.
 func Run() error {
+	mg.Deps(Generate)
 	fmt.Printf("→ POLA_VM=%s POLA_BUNDLER=%s POLA_RENDERER=%s\n", polaVM, polaBundler, polaRenderer)
 	return sh.RunWithV(
 		map[string]string{
@@ -62,6 +70,7 @@ func Run() error {
 // the full runtime tags (including esbuild). The server exits immediately after
 // writing assets (POLA_BUILD_ONLY=true).
 func Bundle() error {
+	mg.Deps(Generate)
 	fmt.Println("→ [stage 1] bundling assets into cmd/server/public/")
 	return sh.RunWithV(
 		map[string]string{

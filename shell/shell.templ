@@ -1,0 +1,193 @@
+package shell
+
+import (
+	"strings"
+
+	"github.com/polagonow/pola/core"
+)
+
+// page is the full HTML document shell. innerHTML, importMap, and inline
+// scripts are trusted framework values injected via templ.Raw().
+templ page(innerHTML string, importMap string, scripts []string, clientScript string, m *core.Metadata) {
+	<!DOCTYPE html>
+	<html lang="en">
+		<head>
+			<meta charset="UTF-8"/>
+			<meta name="viewport" content="width=device-width,initial-scale=1"/>
+			@headMeta(m)
+			@styleBlock()
+			if importMap != "" {
+				@templ.Raw(importMap)
+			}
+		</head>
+		<body>
+			@templ.Raw(innerHTML)
+			for _, sc := range scripts {
+				@inlineScript(sc)
+			}
+			<script type="module" src={ clientScript }></script>
+		</body>
+	</html>
+}
+
+// headMeta renders all SEO/social <head> tags derived from *core.Metadata.
+templ headMeta(m *core.Metadata) {
+	if m != nil {
+		if t := resolveTitle(m.Title); t != "" {
+			<title>{ t }</title>
+		}
+		if m.Description != nil {
+			<meta name="description" content={ *m.Description }/>
+		}
+		if m.ApplicationName != nil {
+			<meta name="application-name" content={ *m.ApplicationName }/>
+		}
+		if m.Generator != nil {
+			<meta name="generator" content={ *m.Generator }/>
+		}
+		if m.Referrer != nil {
+			<meta name="referrer" content={ *m.Referrer }/>
+		}
+		if m.Creator != nil {
+			<meta name="creator" content={ *m.Creator }/>
+		}
+		if m.Publisher != nil {
+			<meta name="publisher" content={ *m.Publisher }/>
+		}
+		if len(m.Keywords) > 0 {
+			<meta name="keywords" content={ strings.Join(m.Keywords, ", ") }/>
+		}
+		for _, a := range m.Authors {
+			if a.URL != nil {
+				<link rel="author" href={ *a.URL }/>
+			}
+			if a.Name != nil {
+				<meta name="author" content={ *a.Name }/>
+			}
+		}
+		if m.Robots != nil {
+			if rc := renderRobotsContent(m.Robots); rc != "" {
+				<meta name="robots" content={ rc }/>
+			}
+		}
+		if m.Alternates != nil {
+			if m.Alternates.Canonical != nil {
+				<link rel="canonical" href={ *m.Alternates.Canonical }/>
+			}
+			for _, lang := range sortedKeys(m.Alternates.Languages) {
+				<link rel="alternate" hreflang={ lang } href={ m.Alternates.Languages[lang] }/>
+			}
+		}
+		if m.Icons != nil {
+			@iconLinks("icon", m.Icons.Icon)
+			@iconLinks("shortcut icon", m.Icons.Shortcut)
+			@iconLinks("apple-touch-icon", m.Icons.Apple)
+			for _, oi := range m.Icons.Other {
+				@iconLinks(oi.Rel, []core.Icon{oi.Icon})
+			}
+		}
+		if m.OpenGraph != nil {
+			@openGraphMeta(m.OpenGraph)
+		}
+		if m.Twitter != nil {
+			@twitterMeta(m.Twitter)
+		}
+		if m.Verification != nil {
+			@verificationMeta(m.Verification)
+		}
+		for _, k := range sortedKeys(m.Other) {
+			<meta name={ k } content={ m.Other[k] }/>
+		}
+	}
+}
+
+templ iconLinks(rel string, icons []core.Icon) {
+	for _, ic := range icons {
+		if ic.Sizes != nil && ic.Type != nil {
+			<link rel={ rel } href={ ic.URL } sizes={ *ic.Sizes } type={ *ic.Type }/>
+		} else if ic.Sizes != nil {
+			<link rel={ rel } href={ ic.URL } sizes={ *ic.Sizes }/>
+		} else if ic.Type != nil {
+			<link rel={ rel } href={ ic.URL } type={ *ic.Type }/>
+		} else {
+			<link rel={ rel } href={ ic.URL }/>
+		}
+	}
+}
+
+templ openGraphMeta(og *core.OpenGraph) {
+	if og.Type != nil {
+		<meta property="og:type" content={ *og.Type }/>
+	} else {
+		<meta property="og:type" content="website"/>
+	}
+	if og.Title != nil {
+		<meta property="og:title" content={ *og.Title }/>
+	}
+	if og.Description != nil {
+		<meta property="og:description" content={ *og.Description }/>
+	}
+	if og.URL != nil {
+		<meta property="og:url" content={ *og.URL }/>
+	}
+	if og.SiteName != nil {
+		<meta property="og:site_name" content={ *og.SiteName }/>
+	}
+	if og.Locale != nil {
+		<meta property="og:locale" content={ *og.Locale }/>
+	}
+	for _, img := range og.Images {
+		<meta property="og:image" content={ img.URL }/>
+		if img.SecureURL != nil {
+			<meta property="og:image:secure_url" content={ *img.SecureURL }/>
+		}
+		if img.Type != nil {
+			<meta property="og:image:type" content={ *img.Type }/>
+		}
+		if img.Alt != nil {
+			<meta property="og:image:alt" content={ *img.Alt }/>
+		}
+		if img.Width != nil {
+			<meta property="og:image:width" content={ itoa(*img.Width) }/>
+		}
+		if img.Height != nil {
+			<meta property="og:image:height" content={ itoa(*img.Height) }/>
+		}
+	}
+}
+
+templ twitterMeta(tw *core.TwitterMeta) {
+	if tw.Card != nil {
+		<meta name="twitter:card" content={ *tw.Card }/>
+	}
+	if tw.Site != nil {
+		<meta name="twitter:site" content={ *tw.Site }/>
+	}
+	if tw.Creator != nil {
+		<meta name="twitter:creator" content={ *tw.Creator }/>
+	}
+	if tw.Title != nil {
+		<meta name="twitter:title" content={ *tw.Title }/>
+	}
+	if tw.Description != nil {
+		<meta name="twitter:description" content={ *tw.Description }/>
+	}
+	for _, img := range tw.Images {
+		<meta name="twitter:image" content={ img }/>
+	}
+}
+
+templ verificationMeta(v *core.Verification) {
+	if v.Google != nil {
+		<meta name="google-site-verification" content={ *v.Google }/>
+	}
+	if v.Yandex != nil {
+		<meta name="yandex-verification" content={ *v.Yandex }/>
+	}
+	if v.Yahoo != nil {
+		<meta name="y_key" content={ *v.Yahoo }/>
+	}
+	if v.Me != nil {
+		<link rel="me" href={ *v.Me }/>
+	}
+}
