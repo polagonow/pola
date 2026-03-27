@@ -7,7 +7,7 @@ export default function AboutLayout({
 }) {
   return (
     <div>
-      <div className="section-badge">ℹ About</div>
+      <div className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted)] mb-4">ℹ About</div>
       {children}
     </div>
   );

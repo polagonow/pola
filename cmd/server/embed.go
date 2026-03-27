@@ -38,6 +38,7 @@ func init() {
 			ClientEntryURL string            `json:"clientEntryURL"`
 			ImportURLs     map[string]string `json:"importURLs"`
 			GlobalNotFound string            `json:"globalNotFound"`
+			CSSURLs        []string          `json:"cssURLs"`
 		}
 		if err := json.Unmarshal(metaBytes, &meta); err != nil {
 			return nil, fmt.Errorf("embed: parse prebuild-meta.json: %w", err)
@@ -57,6 +58,7 @@ func init() {
 				ImportURLs:     meta.ImportURLs,
 			},
 			GlobalNotFound: meta.GlobalNotFound,
+			CSSURLs:        meta.CSSURLs,
 		}, nil
 	})
 }

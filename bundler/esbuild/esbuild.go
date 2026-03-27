@@ -49,24 +49,26 @@ func (b *Bundler) Build(_ context.Context, req core.BundleInput) (*core.BundleOu
 
 	absAppDir, _ := filepath.Abs(req.AppDir)
 
-	// Probe: auto-discover "use client" files referenced from the server entry
-	// (framework packages, third-party libraries, etc.).
-	if probed := probeServerEntryClientFiles(req, absDir); len(probed) > 0 {
+	// Probe: auto-discover "use client" files and CSS imports referenced from
+	// the server entry (framework packages, third-party libraries, etc.).
+	probe := probeServerEntry(req, absDir)
+	if len(probe.clientFiles) > 0 {
 		seen := make(map[string]bool, len(req.ClientComponents))
 		for _, c := range req.ClientComponents {
 			abs, _ := filepath.Abs(c)
 			seen[abs] = true
 		}
-		for _, p := range probed {
+		for _, p := range probe.clientFiles {
 			if !seen[p] {
 				req.ClientComponents = append(req.ClientComponents, p)
 				seen[p] = true
 			}
 		}
 	}
-
 	// Pass 1 — Client bundle (browser ESM).
-	clientFiles, clientEntryOutput, metafile, err := buildClientBundle(req, absDir)
+	// CSS files discovered during the probe are passed as additional entries
+	// so the CSS plugin can process them and esbuild emits hashed output.
+	clientFiles, clientEntryOutput, metafile, cssURLs, err := buildClientBundle(req, absDir, probe.cssFiles)
 	if err != nil {
 		return nil, err
 	}
@@ -120,6 +122,7 @@ func (b *Bundler) Build(_ context.Context, req core.BundleInput) (*core.BundleOu
 		ClientEntryURL: clientEntryOutput,
 		ManifestJSON:   manifestJSON,
 		ImportURLs:     importURLs,
+		CSSURLs:        cssURLs,
 	}, nil
 }
 
@@ -290,7 +293,7 @@ func buildPagesBundle(
 		MinifyWhitespace:  true,
 		MinifyIdentifiers: true,
 		MinifySyntax:      true,
-		Plugins:           []api.Plugin{newAtAliasPlugin(absAppDir), newPolaWorkspacePlugin(absAppDir), useClientPlugin},
+		Plugins:           []api.Plugin{newAtAliasPlugin(absAppDir), newPolaWorkspacePlugin(absAppDir), useClientPlugin, newCSSStubPlugin()},
 		Conditions:        req.ServerBundleConditions,
 		Define:            defines,
 	})
@@ -300,13 +303,13 @@ func buildPagesBundle(
 	return serverOutFile, nil
 }
 
-func buildClientBundle(req core.BundleInput, absDir string) (map[string][]byte, string, string, error) {
+func buildClientBundle(req core.BundleInput, absDir string, cssFiles []string) (map[string][]byte, string, string, []string, error) {
 	if req.AssetsURLPath == "" {
 		req.AssetsURLPath = "/public/assets"
 	}
 	absOutDir, err := filepath.Abs(req.OutDir)
 	if err != nil {
-		return nil, "", "", fmt.Errorf("esbuild: abs outdir: %w", err)
+		return nil, "", "", nil, fmt.Errorf("esbuild: abs outdir: %w", err)
 	}
 	absAppDir, _ := filepath.Abs(req.AppDir)
 
@@ -327,6 +330,7 @@ func buildClientBundle(req core.BundleInput, absDir string) (map[string][]byte, 
 		}
 	}
 	entries = append(entries, req.ClientComponents...)
+	entries = append(entries, cssFiles...)
 
 	clientNodeEnv := `"production"`
 	clientIsDev := "false"
@@ -343,6 +347,15 @@ func buildClientBundle(req core.BundleInput, absDir string) (map[string][]byte, 
 	for k, v := range req.PublicEnvVars {
 		quoted, _ := json.Marshal(v)
 		clientDefines[k] = string(quoted)
+	}
+
+	// Use the CSS processing plugin when a processor is available,
+	// otherwise stub CSS imports as empty JS.
+	var cssPlugin api.Plugin
+	if req.CSSProcessor != nil {
+		cssPlugin = newCSSPlugin(req.CSSProcessor)
+	} else {
+		cssPlugin = newCSSStubPlugin()
 	}
 
 	r := api.Build(api.BuildOptions{
@@ -362,13 +375,14 @@ func buildClientBundle(req core.BundleInput, absDir string) (map[string][]byte, 
 		MinifySyntax:      !req.Dev,
 		EntryNames:        "[name]-[hash]",
 		ChunkNames:        "chunks/[name]-[hash]",
+		AssetNames:        "[name]-[hash]",
 		Conditions:        []string{"browser", "import", "module", "default"},
-		Plugins:           []api.Plugin{newAtAliasPlugin(absAppDir), newPolaWorkspacePlugin(absAppDir), newAutoDedupePlugin(absAppDir)},
+		Plugins:           []api.Plugin{newAtAliasPlugin(absAppDir), newPolaWorkspacePlugin(absAppDir), newAutoDedupePlugin(absAppDir), cssPlugin},
 		Metafile:          true,
 		Define:            clientDefines,
 	})
 	if len(r.Errors) > 0 {
-		return nil, "", "", fmtErrors("client", r.Errors)
+		return nil, "", "", nil, fmtErrors("client", r.Errors)
 	}
 
 	files := make(map[string][]byte)
@@ -385,7 +399,9 @@ func buildClientBundle(req core.BundleInput, absDir string) (map[string][]byte, 
 		_ = os.MkdirAll(filepath.Dir(f.Path), 0o755)
 		_ = os.WriteFile(f.Path, f.Contents, 0o644)
 	}
-	return files, entryOutput, r.Metafile, nil
+
+	cssURLs := extractCSSURLs(r.Metafile, absDir, absOutDir, req.AssetsURLPath)
+	return files, entryOutput, r.Metafile, cssURLs, nil
 }
 
 func buildInputChunkURLs(metafile, absDir, absOutDir, assetsURLPath string) map[string]string {
@@ -419,12 +435,19 @@ func buildInputChunkURLs(metafile, absDir, absOutDir, assetsURLPath string) map[
 	return result
 }
 
-func probeServerEntryClientFiles(req core.BundleInput, absDir string) []string {
+// probeResult holds the outputs of the server entry probe pass.
+type probeResult struct {
+	clientFiles []string // absolute paths of "use client" files
+	cssFiles    []string // absolute paths of imported .css files
+}
+
+func probeServerEntry(req core.BundleInput, absDir string) probeResult {
 	if req.ServerEntryContent == "" {
-		return nil
+		return probeResult{}
 	}
 	absAppDir, _ := filepath.Abs(req.AppDir)
-	var collected []string
+	var result probeResult
+
 	probePlugin := api.Plugin{
 		Name: "probe-use-client",
 		Setup: func(build api.PluginBuild) {
@@ -437,12 +460,36 @@ func probeServerEntryClientFiles(req core.BundleInput, absDir string) []string {
 				if !strings.HasPrefix(trimmed, `"use client"`) && !strings.HasPrefix(trimmed, `'use client'`) {
 					return api.OnLoadResult{}, nil
 				}
-				collected = append(collected, args.Path)
+				result.clientFiles = append(result.clientFiles, args.Path)
 				empty := ""
 				return api.OnLoadResult{Contents: &empty, Loader: api.LoaderJS}, nil
 			})
 		},
 	}
+
+	// Collect CSS file paths discovered during import resolution, then stub them.
+	cssCollector := api.Plugin{
+		Name: "probe-css",
+		Setup: func(build api.PluginBuild) {
+			build.OnResolve(api.OnResolveOptions{Filter: `\.css$`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
+				resolved := args.Path
+				if strings.HasPrefix(args.Path, ".") {
+					resolved = filepath.Join(args.ResolveDir, args.Path)
+				}
+				resolved = filepath.Clean(resolved)
+				result.cssFiles = append(result.cssFiles, resolved)
+				return api.OnResolveResult{
+					Path:      args.Path,
+					Namespace: "css-stub",
+				}, nil
+			})
+			build.OnLoad(api.OnLoadOptions{Filter: `.*`, Namespace: "css-stub"}, func(args api.OnLoadArgs) (api.OnLoadResult, error) {
+				empty := ""
+				return api.OnLoadResult{Contents: &empty, Loader: api.LoaderJS}, nil
+			})
+		},
+	}
+
 	defines := map[string]string{
 		"process.env.NODE_ENV": `"production"`,
 		"__DEV__":              "false",
@@ -462,9 +509,9 @@ func probeServerEntryClientFiles(req core.BundleInput, absDir string) []string {
 		Conditions:    req.ServerBundleConditions,
 		External:      req.External,
 		Define:        defines,
-		Plugins:       []api.Plugin{newAtAliasPlugin(absAppDir), newPolaWorkspacePlugin(absAppDir), probePlugin},
+		Plugins:       []api.Plugin{newAtAliasPlugin(absAppDir), newPolaWorkspacePlugin(absAppDir), probePlugin, cssCollector},
 	})
-	return collected
+	return result
 }
 
 // ── esbuild plugins ──────────────────────────────────────────────────────────
@@ -572,6 +619,104 @@ func fmtErrors(pass string, errs []api.Message) error {
 		}
 	}
 	return fmt.Errorf("esbuild [%s]:\n%s", pass, strings.Join(msgs, "\n"))
+}
+
+// newCSSStubPlugin returns an esbuild plugin that stubs out .css imports
+// as empty JS. Used by the server and probe passes where CSS output is not needed.
+func newCSSStubPlugin() api.Plugin {
+	return api.Plugin{
+		Name: "css-stub",
+		Setup: func(build api.PluginBuild) {
+			build.OnResolve(api.OnResolveOptions{Filter: `\.css$`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
+				return api.OnResolveResult{
+					Path:      args.Path,
+					Namespace: "css-stub",
+				}, nil
+			})
+			build.OnLoad(api.OnLoadOptions{Filter: `.*`, Namespace: "css-stub"}, func(args api.OnLoadArgs) (api.OnLoadResult, error) {
+				empty := ""
+				return api.OnLoadResult{Contents: &empty, Loader: api.LoaderJS}, nil
+			})
+		},
+	}
+}
+
+// newCSSPlugin returns an esbuild plugin that processes .css imports through
+// a core.CSS processor (e.g. Tailwind). The processor runs on each CSS file
+// that esbuild discovers through its normal import resolution, and the
+// processed output is returned with LoaderCSS so esbuild emits it as a
+// hashed CSS output file.
+func newCSSPlugin(processor core.CSS) api.Plugin {
+	return api.Plugin{
+		Name: "css-process",
+		Setup: func(build api.PluginBuild) {
+			build.OnResolve(api.OnResolveOptions{Filter: `\.css$`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
+				// Skip if already in our namespace (avoid infinite recursion).
+				if args.Namespace == "css-process" {
+					return api.OnResolveResult{}, nil
+				}
+				// Resolve relative paths manually to avoid re-triggering OnResolve.
+				resolved := args.Path
+				if strings.HasPrefix(args.Path, ".") {
+					resolved = filepath.Join(args.ResolveDir, args.Path)
+				}
+				resolved = filepath.Clean(resolved)
+				return api.OnResolveResult{
+					Path:      resolved,
+					Namespace: "css-process",
+				}, nil
+			})
+
+			build.OnLoad(api.OnLoadOptions{Filter: `.*`, Namespace: "css-process"}, func(args api.OnLoadArgs) (api.OnLoadResult, error) {
+				tmpOut := args.Path + ".pola-processed.css"
+				defer os.Remove(tmpOut)
+
+				ctx := context.Background()
+				if err := processor.Process(ctx, args.Path, tmpOut); err != nil {
+					return api.OnLoadResult{}, fmt.Errorf("css-process: %w", err)
+				}
+
+				processed, err := os.ReadFile(tmpOut)
+				if err != nil {
+					return api.OnLoadResult{}, fmt.Errorf("css-process: read output: %w", err)
+				}
+				contents := string(processed)
+				return api.OnLoadResult{
+					Contents:   &contents,
+					Loader:     api.LoaderCSS,
+					ResolveDir: filepath.Dir(args.Path),
+				}, nil
+			})
+		},
+	}
+}
+
+// extractCSSURLs finds all emitted CSS files in the esbuild metafile and
+// returns their public URLs.
+func extractCSSURLs(metafile, absDir, absOutDir, assetsURLPath string) []string {
+	if metafile == "" {
+		return nil
+	}
+	var meta struct {
+		Outputs map[string]struct {
+			EntryPoint string `json:"entryPoint"`
+		} `json:"outputs"`
+	}
+	if err := json.Unmarshal([]byte(metafile), &meta); err != nil {
+		return nil
+	}
+	var urls []string
+	for outPath := range meta.Outputs {
+		if strings.HasSuffix(outPath, ".css") {
+			absOut := filepath.Join(absDir, outPath)
+			relOut, err := filepath.Rel(absOutDir, absOut)
+			if err != nil {
+				continue
+			}
+			urls = append(urls, assetsURLPath+"/"+filepath.ToSlash(relOut))
+		}
+	}
+	return urls
 }
 
 func isPackageSpecifier(s string) bool {

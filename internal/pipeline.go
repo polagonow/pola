@@ -19,6 +19,7 @@ type prebuildMeta struct {
 	ClientEntryURL string            `json:"clientEntryURL"`
 	ImportURLs     map[string]string `json:"importURLs"`
 	GlobalNotFound string            `json:"globalNotFound"`
+	CSSURLs        []string          `json:"cssURLs,omitempty"`
 }
 
 // entryGenerator is the optional interface a Renderer may implement to produce
@@ -153,6 +154,7 @@ func Build(cfg *core.Config) (*core.App, error) {
 		Dev:                cfg.Dev,
 		ServerEntryContent: serverEntryContent,
 		PublicEnvVars:      publicEnvVars,
+		CSSProcessor:       reg.CSS, // may be nil — bundler stubs CSS when nil
 	}
 	if bc, ok := reg.Renderer.(bundleConfigurator); ok {
 		bundleInput.ServerBundleConditions = bc.BundleConditions()
@@ -164,7 +166,13 @@ func Build(cfg *core.Config) (*core.App, error) {
 		return nil, fmt.Errorf("pola: bundle: %w", err)
 	}
 
-	// ── 6.5. Wire bundle to renderer ──────────────────────────────────────
+	// CSS URLs are reported by the bundler (emitted as hashed output files).
+	var cssURLs []string
+	if bundleOutput != nil {
+		cssURLs = bundleOutput.CSSURLs
+	}
+
+	// ── 6.5. Wire bundle to renderer ─────────────────────────────────────
 	// Renderers that implement core.BundleLoader receive the compiled server
 	// bundle so they can initialise their JS runtime pool.
 	if bl, ok := reg.Renderer.(core.BundleLoader); ok && reg.Engine != nil && bundleOutput != nil {
@@ -193,7 +201,7 @@ func Build(cfg *core.Config) (*core.App, error) {
 	if discovery.GlobalNotFound != "" {
 		notFoundRoute = &core.Route{Export: "GlobalNotFound", Pattern: "/*"}
 	}
-	orch := NewOrchestrator(reg, routes, shell, assets, bundleOutput, notFoundRoute, cfg.Dev)
+	orch := NewOrchestrator(reg, routes, shell, assets, bundleOutput, notFoundRoute, cssURLs, cfg.Dev)
 
 	// ── 6.6. Copy static public files ────────────────────────────────────────
 	// When publicDir differs from the webapp's own public/ folder (e.g. embed
@@ -212,6 +220,7 @@ func Build(cfg *core.Config) (*core.App, error) {
 			ClientEntryURL: bundleOutput.ClientEntryURL,
 			ImportURLs:     bundleOutput.ImportURLs,
 			GlobalNotFound: discovery.GlobalNotFound,
+			CSSURLs:        bundleOutput.CSSURLs,
 		}
 		if b, err := json.Marshal(meta); err == nil {
 			_ = os.WriteFile(filepath.Join(publicDir, "prebuild-meta.json"), b, 0o644)
@@ -315,7 +324,7 @@ func buildFromPrebuilt(cfg *core.Config, reg *core.Registry, loader func() (*cor
 		notFoundRoute = &core.Route{Export: "GlobalNotFound", Pattern: "/*"}
 	}
 	// Embed mode never supports hot reload — assets are baked into the binary.
-	orch := NewOrchestrator(reg, artifacts.Routes, shell, assets, artifacts.BundleOutput, notFoundRoute, false)
+	orch := NewOrchestrator(reg, artifacts.Routes, shell, assets, artifacts.BundleOutput, notFoundRoute, artifacts.CSSURLs, false)
 	app := newApp(cfg, reg, orch)
 	app.SetArtifacts(artifacts.BundleOutput)
 	return app, nil

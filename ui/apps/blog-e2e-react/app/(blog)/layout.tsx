@@ -7,8 +7,8 @@ export default function BlogLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="sidebar-layout">
-      <aside className="sidebar">
+    <div className="grid grid-cols-[200px_1fr] gap-8 items-start max-sm:grid-cols-1">
+      <aside className="sticky top-6 max-sm:hidden">
         <h4>Topics</h4>
         <ul>
           <li>

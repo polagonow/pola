@@ -87,6 +87,10 @@ type ShellParams struct {
 	// before the client module tag (e.g. "self.__flight_data=...").
 	Scripts []string
 
+	// Stylesheets holds URLs of external CSS files to load via <link> tags
+	// (e.g. "/public/assets/styles.css" produced by a CSS processor).
+	Stylesheets []string
+
 	// Metadata contains SEO/social metadata rendered as <head> tags.
 	// When nil the shell emits no title, meta, or link tags beyond
 	// the built-in charset and viewport declarations.
@@ -130,6 +134,10 @@ type BundleInput struct {
 	// ServerBundleDefines are additional esbuild defines for the server pass
 	// (merged with the bundler's base defines such as __CLIENT_MANIFEST__).
 	ServerBundleDefines map[string]string
+
+	// CSSProcessor is the optional CSS processor (e.g. Tailwind) to use
+	// during the client bundle pass. When nil, CSS imports are stubbed.
+	CSSProcessor CSS
 }
 
 // BundleOutput is the result of a successful build.
@@ -150,6 +158,10 @@ type BundleOutput struct {
 
 	// ImportURLs maps module IDs to their browser-loadable chunk URLs.
 	ImportURLs map[string]string
+
+	// CSSURLs are the public URLs of emitted CSS bundles (e.g.
+	// "/public/assets/globals-HASH.css"). Empty when no CSS was emitted.
+	CSSURLs []string
 }
 
 // FSFileInfo describes a single entry returned by FS.ReadDir.

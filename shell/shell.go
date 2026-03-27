@@ -37,7 +37,7 @@ func New(innerHTML string) *Shell {
 // It implements core.HTMLShell.
 func (s *Shell) Render(p core.ShellParams) string {
 	var buf strings.Builder
-	_ = page(s.innerHTML, ImportMap(p.ImportURLs), p.Scripts, p.ClientScript, p.Metadata).
+	_ = page(s.innerHTML, ImportMap(p.ImportURLs), p.Scripts, p.ClientScript, p.Stylesheets, p.Metadata).
 		Render(context.Background(), &buf)
 	return buf.String()
 }
