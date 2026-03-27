@@ -42,43 +42,13 @@ func (r *Renderer) LoadBundle(engine core.JSEngine, bundle []byte) error {
 	return nil
 }
 
-// Render implements core.Renderer. It acquires a VM from the pool, drives the
-// RSC Flight render, streams all chunks to the writer embedded in ctx, and
-// releases the VM.
-func (r *Renderer) Render(ctx context.Context, req core.RenderRequest) (core.RenderResult, error) {
+// Render implements core.Renderer. It validates that the pool is ready and
+// returns a streaming RenderResult. The actual render is performed via
+// RenderToWriter when a concrete StreamWriter is available.
+func (r *Renderer) Render(_ context.Context, _ core.RenderRequest) (core.RenderResult, error) {
 	if r.pool == nil {
 		return core.RenderResult{}, fmt.Errorf("react renderer: VM pool not configured")
 	}
-
-	vm, err := r.pool.Acquire()
-	if err != nil {
-		return core.RenderResult{}, fmt.Errorf("react renderer: acquire VM: %w", err)
-	}
-	defer r.pool.Release(vm)
-
-	// Apply per-request injectors (Go → JS bridge).
-	for _, inj := range req.Injectors {
-		if err := inj.Inject(ctx, vm); err != nil {
-			return core.RenderResult{}, fmt.Errorf("react renderer: inject %s: %w", inj.Name(), err)
-		}
-	}
-
-	if err := vm.SetRequestContext(req.RequestContext); err != nil {
-		return core.RenderResult{}, fmt.Errorf("react renderer: set context: %w", err)
-	}
-
-	propsJSON, err := json.Marshal(req.Props)
-	if err != nil {
-		return core.RenderResult{}, fmt.Errorf("react renderer: marshal props: %w", err)
-	}
-
-	_, err = vm.CallRenderFunction(req.Route.Export, string(propsJSON))
-	if err != nil {
-		return core.RenderResult{}, fmt.Errorf("react renderer: call render: %w", err)
-	}
-
-	// Streaming result — the caller must use RenderToWriter for the full
-	// streaming path where a concrete StreamWriter is available.
 	return core.RenderResult{
 		ContentType: ContentType,
 		Streaming:   true,
@@ -127,6 +97,35 @@ func IsStreamingRequest(r *http.Request) bool {
 	return r.Header.Get("Content-Type") == "text/x-component"
 }
 
+// prepareVM acquires a VM from the pool, applies injectors, sets the request
+// context, and marshals props. The caller must release the VM when done.
+func (r *Renderer) prepareVM(ctx context.Context, req core.RenderRequest) (core.SSRRuntime, string, error) {
+	vm, err := r.pool.Acquire()
+	if err != nil {
+		return nil, "", fmt.Errorf("react renderer: acquire VM: %w", err)
+	}
+
+	for _, inj := range req.Injectors {
+		if err := inj.Inject(ctx, vm); err != nil {
+			r.pool.Release(vm)
+			return nil, "", fmt.Errorf("react renderer: inject %s: %w", inj.Name(), err)
+		}
+	}
+
+	if err := vm.SetRequestContext(req.RequestContext); err != nil {
+		r.pool.Release(vm)
+		return nil, "", fmt.Errorf("react renderer: set context: %w", err)
+	}
+
+	propsJSON, err := json.Marshal(req.Props)
+	if err != nil {
+		r.pool.Release(vm)
+		return nil, "", fmt.Errorf("react renderer: marshal props: %w", err)
+	}
+
+	return vm, string(propsJSON), nil
+}
+
 // RenderToWriter acquires a VM, performs a full RSC Flight render, and
 // streams all chunks to w. This is the primary render path used by the
 // Pola pipeline when it has a concrete StreamWriter available.
@@ -135,29 +134,13 @@ func (r *Renderer) RenderToWriter(ctx context.Context, req core.RenderRequest, w
 		return fmt.Errorf("react renderer: VM pool not configured")
 	}
 
-	vm, err := r.pool.Acquire()
+	vm, propsJSON, err := r.prepareVM(ctx, req)
 	if err != nil {
-		return fmt.Errorf("react renderer: acquire VM: %w", err)
+		return err
 	}
 	defer r.pool.Release(vm)
 
-	// Apply per-request injectors.
-	for _, inj := range req.Injectors {
-		if err := inj.Inject(ctx, vm); err != nil {
-			return fmt.Errorf("react renderer: inject %s: %w", inj.Name(), err)
-		}
-	}
-
-	if err := vm.SetRequestContext(req.RequestContext); err != nil {
-		return fmt.Errorf("react renderer: set context: %w", err)
-	}
-
-	propsJSON, err := json.Marshal(req.Props)
-	if err != nil {
-		return fmt.Errorf("react renderer: marshal props: %w", err)
-	}
-
-	handle, err := vm.CallRenderFunction(req.Route.Export, string(propsJSON))
+	handle, err := vm.CallRenderFunction(req.Route.Export, propsJSON)
 	if err != nil {
 		return fmt.Errorf("react renderer: call render: %w", err)
 	}
