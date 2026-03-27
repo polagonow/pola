@@ -1,42 +1,34 @@
 export default function Loading() {
   return (
-    <div style={{ animation: "pulse 1.4s ease-in-out infinite" }}>
+    <div className="animate-[pulse_1.4s_ease-in-out_infinite]">
       <div
+        className="bg-[var(--color-border)] rounded-sm"
         style={{
           height: ".75rem",
           width: "30%",
-          background: "var(--border)",
-          borderRadius: 4,
           marginBottom: ".6rem",
         }}
       />
       <div
+        className="bg-[var(--color-border)] rounded-sm mb-6"
         style={{
           height: "1.6rem",
           width: "70%",
-          background: "var(--border)",
-          borderRadius: 4,
-          marginBottom: "1.5rem",
         }}
       />
-      <div
-        className="card"
-        style={{ display: "flex", flexDirection: "column", gap: ".5rem" }}
-      >
+      <div className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-6 py-5 transition-shadow hover:shadow-sm flex flex-col gap-2">
         <div
+          className="bg-[var(--color-border)] rounded-sm"
           style={{
             height: ".75rem",
             width: "25%",
-            background: "var(--border)",
-            borderRadius: 4,
           }}
         />
         <div
+          className="bg-[var(--color-border)] rounded-sm"
           style={{
             height: "1rem",
             width: "80%",
-            background: "var(--border)",
-            borderRadius: 4,
           }}
         />
       </div>

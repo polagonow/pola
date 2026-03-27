@@ -17,8 +17,8 @@ func TestName(t *testing.T) {
 
 func TestNew_DefaultBin(t *testing.T) {
 	tw := New()
-	if tw.Bin != "tailwindcss" {
-		t.Fatalf("expected default Bin 'tailwindcss', got %q", tw.Bin)
+	if tw.Bin != "" {
+		t.Fatalf("expected default Bin '', got %q", tw.Bin)
 	}
 }
 

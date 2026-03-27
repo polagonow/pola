@@ -25,24 +25,14 @@ export default function SearchFilter({
   return (
     <div>
       <input
-        className="search-input"
+        className="w-full py-2 px-3 mb-4 border border-[var(--color-border)] rounded-lg text-sm bg-[var(--color-bg)] text-[var(--color-fg)]"
         type="search"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder={placeholder}
-        style={{
-          width: "100%",
-          padding: ".5rem .75rem",
-          marginBottom: "1rem",
-          border: "1px solid var(--border)",
-          borderRadius: "var(--radius)",
-          fontSize: ".9rem",
-          background: "var(--bg)",
-          color: "var(--fg)",
-        }}
       />
       {filtered.length === 0 ? (
-        <p style={{ color: "var(--muted)", fontSize: ".9rem" }}>
+        <p className="text-[var(--color-muted)] text-sm">
           No results for "{query}"
         </p>
       ) : (

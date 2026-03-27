@@ -7,7 +7,7 @@ export default function ProjectLayout({
 }) {
   return (
     <div>
-      <a href="/projects" className="back-link">
+      <a href="/projects" className="text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)] mb-4 inline-block">
         ← All projects
       </a>
       {children}

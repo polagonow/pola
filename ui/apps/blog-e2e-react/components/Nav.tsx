@@ -11,12 +11,16 @@ const LINKS = [
 
 export default function Nav() {
   return (
-    <nav>
+    <nav className="flex items-center gap-4">
       {LINKS.map(({ href, label }) => (
         <NavLink
           key={href}
           href={href}
-          className={({ isActive }) => (isActive ? "nav-active" : "")}
+          className={({ isActive }) =>
+            isActive
+              ? "text-[var(--color-fg)] font-semibold text-sm hover:no-underline"
+              : "text-[var(--color-muted)] text-sm font-medium hover:text-[var(--color-fg)] hover:no-underline"
+          }
         >
           {label}
         </NavLink>

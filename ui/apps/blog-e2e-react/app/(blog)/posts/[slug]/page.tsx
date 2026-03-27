@@ -15,37 +15,30 @@ export default async function PostPage({
 
   return (
     <div>
-      <div className="detail-header">
-        <div className="meta" style={{ marginBottom: ".75rem" }}>
+      <div className="mb-6">
+        <div className="text-sm text-[var(--color-muted)] flex flex-wrap gap-3 mb-3">
           <span>{post.date}</span>
           <span>{post.readTime} min read</span>
           <span>{post.author}</span>
         </div>
-        <h1 style={{ fontSize: "2rem", fontWeight: 800, lineHeight: 1.2 }}>
+        <h1 className="text-3xl font-extrabold leading-tight">
           {post.title}
         </h1>
-        <div className="tags" style={{ marginTop: ".75rem" }}>
+        <div className="flex flex-wrap gap-1.5 mt-3">
           {post.tags.map((t) => (
-            <span key={t} className="tag">
+            <span key={t} className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded-full px-2.5 py-0.5 text-xs text-[var(--color-muted)]">
               {t}
             </span>
           ))}
         </div>
       </div>
 
-      <p
-        style={{
-          color: "var(--muted)",
-          fontSize: "1.05rem",
-          lineHeight: 1.7,
-          marginBottom: "2rem",
-        }}
-      >
+      <p className="text-[var(--color-muted)] text-[1.05rem] leading-relaxed mb-8">
         {post.excerpt}
       </p>
 
-      <div className="card" style={{ marginBottom: "1.5rem" }}>
-        <p style={{ color: "var(--muted)", fontSize: ".9rem" }}>
+      <div className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-6 py-5 transition-shadow hover:shadow-sm mb-6">
+        <p className="text-[var(--color-muted)] text-sm">
           <em>
             Full content would go here. This is a framework demo — the post body
             is not stored in the bridge data.
@@ -53,22 +46,16 @@ export default async function PostPage({
         </p>
       </div>
 
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-4">
           <LikeButton initialCount={42} />
-          <span style={{ fontSize: ".85rem", color: "var(--muted)" }}>
+          <span className="text-sm text-[var(--color-muted)]">
             Did you find this useful?
           </span>
         </div>
         <a
           href={`/posts/${params.slug}/revisions`}
-          style={{ fontSize: ".85rem", color: "var(--muted)" }}
+          className="text-sm text-[var(--color-muted)]"
         >
           View revisions →
         </a>

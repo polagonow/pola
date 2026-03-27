@@ -1,6 +1,5 @@
 import di from "@pola/di";
 
-// Demonstrates searchParams — pass ?id=... to look up a specific profile.
 export default async function ProfilePage({
   searchParams,
 }: {
@@ -16,43 +15,27 @@ export default async function ProfilePage({
 
   return (
     <div>
-      <div className="profile-card" style={{ marginBottom: "2rem" }}>
-        <div className="avatar">{initials}</div>
-        <div className="profile-info">
+      <div className="flex gap-6 items-start mb-8">
+        <div className="w-[72px] h-[72px] rounded-full bg-[var(--color-accent)] flex items-center justify-center text-3xl font-bold text-white shrink-0">{initials}</div>
+        <div>
           <h1>{profile.name}</h1>
-          <div className="role">{profile.role}</div>
-          <p
-            style={{
-              color: "var(--muted)",
-              fontSize: ".9rem",
-              marginTop: ".5rem",
-              maxWidth: 400,
-            }}
-          >
+          <div className="text-[var(--color-muted)] text-sm mb-2">{profile.role}</div>
+          <p className="text-[var(--color-muted)] text-sm mt-2 max-w-[400px]">
             {profile.bio}
           </p>
         </div>
       </div>
 
-      <div className="card">
-        <h2
-          style={{ fontSize: "1rem", fontWeight: 600, marginBottom: ".75rem" }}
-        >
+      <div className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-6 py-5 transition-shadow hover:shadow-sm">
+        <h2 className="text-base font-semibold mb-3">
           Contact
         </h2>
-        <dl
-          style={{
-            display: "grid",
-            gridTemplateColumns: "max-content 1fr",
-            gap: ".4rem 1.5rem",
-            fontSize: ".9rem",
-          }}
-        >
-          <dt style={{ color: "var(--muted)", fontWeight: 600 }}>Email</dt>
+        <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1.5 text-sm">
+          <dt className="text-[var(--color-muted)] font-semibold">Email</dt>
           <dd>
             <a href={`mailto:${profile.email}`}>{profile.email}</a>
           </dd>
-          <dt style={{ color: "var(--muted)", fontWeight: 600 }}>GitHub</dt>
+          <dt className="text-[var(--color-muted)] font-semibold">GitHub</dt>
           <dd>
             <a
               href={`https://github.com/${profile.github}`}
@@ -62,7 +45,7 @@ export default async function ProfilePage({
               @{profile.github}
             </a>
           </dd>
-          <dt style={{ color: "var(--muted)", fontWeight: 600 }}>Website</dt>
+          <dt className="text-[var(--color-muted)] font-semibold">Website</dt>
           <dd>
             <a href={profile.website} target="_blank" rel="noreferrer">
               {profile.website}
@@ -72,13 +55,7 @@ export default async function ProfilePage({
       </div>
 
       {searchParams?.id && (
-        <p
-          style={{
-            marginTop: "1rem",
-            fontSize: ".85rem",
-            color: "var(--muted)",
-          }}
-        >
+        <p className="mt-4 text-sm text-[var(--color-muted)]">
           Showing profile for id: <code>{searchParams.id}</code> (via
           searchParams)
         </p>

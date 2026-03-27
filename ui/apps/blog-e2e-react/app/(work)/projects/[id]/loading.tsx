@@ -1,29 +1,24 @@
 export default function Loading() {
   return (
-    <div style={{ opacity: 0.5 }}>
+    <div className="opacity-50">
       <div
+        className="bg-[var(--color-border)] rounded-sm mb-3"
         style={{
           height: "1.8rem",
-          background: "var(--border)",
-          borderRadius: 4,
           width: "40%",
-          marginBottom: ".75rem",
         }}
       />
       <div
+        className="bg-[var(--color-border)] rounded-sm mb-6"
         style={{
           height: ".8rem",
-          background: "var(--border)",
-          borderRadius: 4,
           width: "70%",
-          marginBottom: "1.5rem",
         }}
       />
       <div
+        className="bg-[var(--color-border)] rounded-sm"
         style={{
           height: ".75rem",
-          background: "var(--border)",
-          borderRadius: 4,
           width: "30%",
         }}
       />

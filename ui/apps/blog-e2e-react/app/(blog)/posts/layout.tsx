@@ -7,7 +7,7 @@ export default function PostsLayout({
 }) {
   return (
     <div>
-      <div className="section-badge">✍︎ Blog</div>
+      <div className="text-xs font-semibold uppercase tracking-wider text-[var(--color-muted)] mb-4">✍︎ Blog</div>
       {children}
     </div>
   );
