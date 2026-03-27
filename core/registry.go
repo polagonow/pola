@@ -7,14 +7,30 @@ import (
 	samberdo "github.com/samber/do/v2"
 )
 
-// Config is the top-level configuration for a Pola application.
+// Config holds resolved configuration for a Pola application.
+// Constructed internally from Option functions — not created directly by users.
 type Config struct {
-	// WebAppPath is the path to the frontend app directory (env: POLA_WEBAPP_PATH)
 	WebAppPath string
-	// PublicDir is where compiled assets are written (default: WebAppPath/public)
-	PublicDir string
-	// Dev enables development mode with hot reload
-	Dev bool
+	PublicDir  string
+	Dev        bool
+}
+
+// Option configures a Pola application.
+type Option func(*Config)
+
+// WithWebAppPath sets the path to the frontend app directory.
+func WithWebAppPath(path string) Option {
+	return func(c *Config) { c.WebAppPath = path }
+}
+
+// WithPublicDir sets where compiled assets are written.
+func WithPublicDir(dir string) Option {
+	return func(c *Config) { c.PublicDir = dir }
+}
+
+// WithDev enables development mode with hot reload.
+func WithDev(dev bool) Option {
+	return func(c *Config) { c.Dev = dev }
 }
 
 // BuildArtifacts holds the outputs produced during the build pipeline.
@@ -27,7 +43,7 @@ type BuildArtifacts struct {
 type PrebuildArtifacts struct {
 	Routes         []Route
 	BundleOutput   *BundleOutput
-	GlobalNotFound string // non-empty when a GlobalNotFound export exists
+	GlobalNotFound string   // non-empty when a GlobalNotFound export exists
 	CSSURLs        []string // external stylesheet URLs
 }
 
@@ -39,9 +55,9 @@ type App struct {
 	artifacts BuildArtifacts
 }
 
-// New creates and builds a Pola application from the given config.
+// New creates and builds a Pola application from the given options.
 // All components are resolved from the DI container.
-func New(cfg *Config) (*App, error) {
+func New(opts ...Option) (*App, error) {
 	// Populated by internal/pipeline — separate package to avoid cycles.
 	// This stub exists so core can be imported without internal/.
 	panic("core.New: not implemented — import github.com/polagonow/pola to get the full implementation")
