@@ -256,7 +256,7 @@ func Build(cfg *core.Config) (*core.App, error) {
 	// In dev mode wrap the app in a hot-reloader so file changes trigger a
 	// full rebuild and browser reload via WebSocket.
 	if cfg.Dev {
-		hr, err := NewHotReloader(cfg, injector, app)
+		hr, err := NewHotReloader(cfg, injector, app, notFoundRoute)
 		if err != nil {
 			return nil, fmt.Errorf("pola: hotreload: %w", err)
 		}

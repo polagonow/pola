@@ -53,25 +53,27 @@ type liveApp struct {
 // HotReloader watches for bundler rebuild events and notifies browsers
 // via WebSocket.
 type HotReloader struct {
-	cfg      *core.Config
-	injector samberdo.Injector
-	bus      *di.EventBus
-	current  atomic.Pointer[liveApp]
-	done     chan struct{}
+	cfg           *core.Config
+	injector      samberdo.Injector
+	bus           *di.EventBus
+	notFoundRoute *core.Route
+	current       atomic.Pointer[liveApp]
+	done          chan struct{}
 }
 
 // NewHotReloader creates a HotReloader for the given config and initial app.
 // It listens on the bundler's Watch channel for rebuild events and notifies
 // connected browsers via WebSocket.
-func NewHotReloader(cfg *core.Config, injector samberdo.Injector, initial *core.App) (*HotReloader, error) {
+func NewHotReloader(cfg *core.Config, injector samberdo.Injector, initial *core.App, notFoundRoute *core.Route) (*HotReloader, error) {
 	bus := samberdo.MustInvoke[*di.EventBus](injector)
 	logger := samberdo.MustInvoke[core.Logger](injector)
 
 	h := &HotReloader{
-		cfg:      cfg,
-		injector: injector,
-		bus:      bus,
-		done:     make(chan struct{}),
+		cfg:           cfg,
+		injector:      injector,
+		bus:           bus,
+		notFoundRoute: notFoundRoute,
+		done:          make(chan struct{}),
 	}
 
 	live := &liveApp{app: initial, handler: initial}
@@ -147,8 +149,8 @@ func NewHotReloader(cfg *core.Config, injector samberdo.Injector, initial *core.
 				}
 
 				// Rebuild orchestrator with new output.
-				metrics := samberdo.MustInvoke[core.Metrics](injector)
-				tracer := samberdo.MustInvoke[core.Tracer](injector)
+				metrics, _ := samberdo.Invoke[core.Metrics](injector)
+				tracer, _ := samberdo.Invoke[core.Tracer](injector)
 				pprof, _ := samberdo.Invoke[core.Pprof](injector)
 				mws := samberdo.MustInvoke[*di.MiddlewareCollector](injector).All()
 				injs := samberdo.MustInvoke[*di.InjectorCollector](injector).All()
@@ -159,10 +161,7 @@ func NewHotReloader(cfg *core.Config, injector samberdo.Injector, initial *core.
 					cssURLs = newOutput.CSSURLs
 				}
 
-				// Reuse existing routes from current app.
-				cur := h.current.Load()
-				orch := NewOrchestrator(renderer, router, logger, metrics, tracer, pprof, mws, injs, nil, shell, assets, newOutput, nil, cssURLs, true)
-				_ = cur
+				orch := NewOrchestrator(renderer, router, logger, metrics, tracer, pprof, mws, injs, nil, shell, assets, newOutput, h.notFoundRoute, cssURLs, true)
 
 				newApp := newApp(cfg, injector, orch)
 				newApp.SetArtifacts(newOutput)
