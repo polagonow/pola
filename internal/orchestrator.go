@@ -158,12 +158,14 @@ func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
 		defer span.End()
 	}
 
+	var routeSpan core.Span
 	if o.tracer != nil {
-		var routeSpan core.Span
 		ctx, routeSpan = o.tracer.StartSpan(ctx, "pola.route.resolve")
-		defer routeSpan.End()
 	}
 	route, params := o.router.Resolve(ctx, r.URL.Path)
+	if routeSpan != nil {
+		routeSpan.End()
+	}
 
 	// Store resolved route pattern for metrics (avoids re-resolving in ServeHTTP).
 	if route != nil {
