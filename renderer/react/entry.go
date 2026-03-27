@@ -48,7 +48,7 @@ func (g *EntryGenerator) ServerGlobalName() string { return globals.RenderFn }
 // discovered page list.
 func (g *EntryGenerator) Generate(cfg EntryGenConfig) (string, error) { //nolint:gocyclo
 	absAppDir, _ := filepath.Abs(cfg.AppDir)
-	absPagesDir := filepath.Join(absAppDir, "app")
+	absPagesDir := absAppDir
 
 	var entry strings.Builder
 
@@ -265,11 +265,27 @@ func LayoutAlias(pagesDir, layoutPath string) string {
 	return b.String()
 }
 
+// titleCase converts a string to PascalCase, handling hyphens and underscores
+// so that e.g. "my-page" becomes "MyPage" (a valid JS identifier).
 func titleCase(s string) string {
 	if len(s) == 0 {
 		return ""
 	}
-	return strings.ToUpper(s[:1]) + s[1:]
+	var b strings.Builder
+	upper := true
+	for _, r := range s {
+		if r == '-' || r == '_' {
+			upper = true
+			continue
+		}
+		if upper {
+			b.WriteString(strings.ToUpper(string(r)))
+			upper = false
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 func stripBrackets(s string) string {
