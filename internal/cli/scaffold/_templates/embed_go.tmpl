@@ -26,14 +26,14 @@ func init() {
 
 	di.Stage(func(i samberdo.Injector) {
 		// Override the osfs asset server with one backed by the embedded FS.
-		samberdo.Provide(i, func(_ samberdo.Injector) (core.AssetServerFactory, error) {
+		samberdo.Override(i, func(_ samberdo.Injector) (core.AssetServerFactory, error) {
 			return func(_ string) core.AssetServer {
 				return &embedAssetServer{sub: sub}
 			}, nil
 		})
 
 		// Register the prebuild loader so the pipeline skips route scanning and bundling.
-		samberdo.Provide(i, func(_ samberdo.Injector) (core.PrebuildLoader, error) {
+		samberdo.Override(i, func(_ samberdo.Injector) (core.PrebuildLoader, error) {
 			return func() (*core.PrebuildArtifacts, error) {
 				metaBytes, err := fs.ReadFile(sub, "prebuild-meta.json")
 				if err != nil {
