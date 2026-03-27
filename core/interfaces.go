@@ -178,7 +178,7 @@ type SSRRuntime interface {
 
 // SSRPool manages a pool of SSRRuntime instances backed by a compiled bundle.
 type SSRPool interface {
-	Acquire() SSRRuntime
+	Acquire() (SSRRuntime, error)
 	Release(rt SSRRuntime)
 }
 

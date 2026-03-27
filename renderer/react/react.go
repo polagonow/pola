@@ -50,7 +50,10 @@ func (r *Renderer) Render(ctx context.Context, req core.RenderRequest) (core.Ren
 		return core.RenderResult{}, fmt.Errorf("react renderer: VM pool not configured")
 	}
 
-	vm := r.pool.Acquire()
+	vm, err := r.pool.Acquire()
+	if err != nil {
+		return core.RenderResult{}, fmt.Errorf("react renderer: acquire VM: %w", err)
+	}
 	defer r.pool.Release(vm)
 
 	// Apply per-request injectors (Go → JS bridge).
@@ -132,7 +135,10 @@ func (r *Renderer) RenderToWriter(ctx context.Context, req core.RenderRequest, w
 		return fmt.Errorf("react renderer: VM pool not configured")
 	}
 
-	vm := r.pool.Acquire()
+	vm, err := r.pool.Acquire()
+	if err != nil {
+		return fmt.Errorf("react renderer: acquire VM: %w", err)
+	}
 	defer r.pool.Release(vm)
 
 	// Apply per-request injectors.
