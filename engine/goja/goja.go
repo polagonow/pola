@@ -14,12 +14,12 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/core/globals"
 	"github.com/polagonow/pola/engine/polyfill"
+	"github.com/polagonow/pola/internal/vmpool"
 
 	gojalib "github.com/dop251/goja"
 	"github.com/dop251/goja_nodejs/eventloop"
@@ -64,7 +64,7 @@ func (e *Engine) NewSSRPool(bundle []byte) (core.SSRPool, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &gojaSSRPool{pool: pool}, nil
+	return &gojaSSRPool{pool: pool.pool, logger: e.logger}, nil
 }
 
 // Name implements core.JSEngine.
@@ -255,8 +255,11 @@ type gojaStreamHandle struct{ sess StreamSession }
 
 func (h *gojaStreamHandle) IsNil() bool { return h == nil }
 
-// gojaSSRPool wraps *VMPool and implements core.SSRPool.
-type gojaSSRPool struct{ pool *VMPool }
+// gojaSSRPool wraps *vmpool.Pool and implements core.SSRPool.
+type gojaSSRPool struct {
+	pool   *vmpool.Pool[*Runtime]
+	logger core.Logger
+}
 
 func (p *gojaSSRPool) Acquire() (core.SSRRuntime, error) { return p.pool.Acquire() }
 func (p *gojaSSRPool) Release(rt core.SSRRuntime) {
@@ -388,54 +391,37 @@ func (r *Runtime) clearState() error {
 
 // ── VMPool ────────────────────────────────────────────────────────────────────
 
-// VMPool is a typed pool of *Runtime values backed by a compiled bundle.
+// VMPool is a bounded pool of *Runtime values backed by a compiled bundle.
 type VMPool struct {
-	pool   sync.Pool
-	prog   *gojalib.Program
-	logger core.Logger
+	pool *vmpool.Pool[*Runtime]
 }
 
-// NewVMPool compiles bundleSource once and creates a typed pool of Runtimes.
-// One Runtime is eagerly created to surface startup errors immediately.
+// NewVMPool compiles bundleSource once and creates a bounded pool of Runtimes.
 func NewVMPool(bundleSource string, logger core.Logger) (*VMPool, error) {
 	prog, err := gojalib.Compile("bundle.js", bundleSource, false)
 	if err != nil {
 		return nil, fmt.Errorf("goja: pool compile: %w", err)
 	}
-	p := &VMPool{prog: prog, logger: logger}
-	p.pool = sync.Pool{
-		New: func() any {
-			rt, err := newRuntime(prog, logger)
-			if err != nil {
-				panic(fmt.Sprintf("goja: pool create runtime: %v", err))
-			}
-			return rt
-		},
-	}
-	// Eagerly create one Runtime to catch startup errors immediately.
-	rt, err := newRuntime(prog, logger)
+	p, err := vmpool.New(
+		vmpool.Config{MinSize: 1, MaxSize: 64},
+		func() (*Runtime, error) { return newRuntime(prog, logger) },
+		func(r *Runtime) { _ = r.clearState() },
+	)
 	if err != nil {
-		return nil, fmt.Errorf("goja: pool create runtime: %w", err)
+		return nil, fmt.Errorf("goja: pool init: %w", err)
 	}
-	p.pool.Put(rt)
-	return p, nil
+	return &VMPool{pool: p}, nil
 }
 
-// Acquire returns a Runtime from the pool. If the pool needs to create a new
-// Runtime and that fails, the error is returned instead of panicking.
-func (p *VMPool) Acquire() (rt *Runtime, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("%v", r)
-		}
-	}()
-	return p.pool.Get().(*Runtime), nil
+// Acquire returns a Runtime from the pool. Blocks if all VMs are in use.
+// Returns an error if VM creation fails.
+func (p *VMPool) Acquire() (*Runtime, error) {
+	return p.pool.Acquire()
 }
 
 // Release clears per-request state and returns the Runtime to the pool.
 func (p *VMPool) Release(r *Runtime) {
-	_ = r.clearState()
-	p.pool.Put(r)
+	p.pool.Release(r)
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
