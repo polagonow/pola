@@ -52,21 +52,18 @@ func (m *memoryBus) Subscribe(topics ...string) subscription {
 		m.topics[topic][cid] = ch
 	}
 	m.cid++
-	return &memorySubscription{ch, m.closer(cid, topics)}
+	return &memorySubscription{ch, m.closer(cid, ch, topics)}
 }
 
-func (m *memoryBus) closer(id int, topics []string) func() {
+func (m *memoryBus) closer(id int, ch chan []byte, topics []string) func() {
+	var once sync.Once
 	return func() {
 		m.mu.Lock()
 		defer m.mu.Unlock()
-		for i, topic := range topics {
-			if i == 0 {
-				if ch := m.topics[topic][id]; ch != nil {
-					close(ch)
-				}
-			}
+		for _, topic := range topics {
 			delete(m.topics[topic], id)
 		}
+		once.Do(func() { close(ch) })
 	}
 }
 
