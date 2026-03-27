@@ -27,13 +27,13 @@ type Orchestrator struct {
 	assets        core.AssetServer
 	bundleOutput  *core.BundleOutput
 	notFoundRoute *core.Route // GlobalNotFound export, or nil
-	cssURL        string     // external stylesheet URL, or ""
+	cssURLs       []string   // external stylesheet URLs
 	dev           bool
 	devScript     string // hot-reload inline script, set in dev mode
 }
 
 // NewOrchestrator creates a new Orchestrator from the given registry and build artifacts.
-func NewOrchestrator(reg *core.Registry, routes []core.Route, shell core.HTMLShell, assets core.AssetServer, bundleOutput *core.BundleOutput, notFoundRoute *core.Route, cssURL string, dev bool) *Orchestrator {
+func NewOrchestrator(reg *core.Registry, routes []core.Route, shell core.HTMLShell, assets core.AssetServer, bundleOutput *core.BundleOutput, notFoundRoute *core.Route, cssURLs []string, dev bool) *Orchestrator {
 	o := &Orchestrator{
 		registry:      reg,
 		routes:        routes,
@@ -41,7 +41,7 @@ func NewOrchestrator(reg *core.Registry, routes []core.Route, shell core.HTMLShe
 		assets:        assets,
 		bundleOutput:  bundleOutput,
 		notFoundRoute: notFoundRoute,
-		cssURL:        cssURL,
+		cssURLs:       cssURLs,
 		dev:           dev,
 	}
 	if dev {
@@ -156,8 +156,8 @@ func (o *Orchestrator) serveHTML(w http.ResponseWriter, _ *http.Request) {
 		params.ImportURLs = o.bundleOutput.ImportURLs
 		params.ClientScript = o.bundleOutput.ClientEntryURL
 	}
-	if o.cssURL != "" {
-		params.Stylesheets = []string{o.cssURL}
+	if len(o.cssURLs) > 0 {
+		params.Stylesheets = o.cssURLs
 	}
 	if o.devScript != "" {
 		params.Scripts = append(params.Scripts, o.devScript)

@@ -68,7 +68,7 @@ func (b *Bundler) Build(_ context.Context, req core.BundleInput) (*core.BundleOu
 	// Pass 1 — Client bundle (browser ESM).
 	// CSS files discovered during the probe are passed as additional entries
 	// so the CSS plugin can process them and esbuild emits hashed output.
-	clientFiles, clientEntryOutput, metafile, cssURL, err := buildClientBundle(req, absDir, probe.cssFiles)
+	clientFiles, clientEntryOutput, metafile, cssURLs, err := buildClientBundle(req, absDir, probe.cssFiles)
 	if err != nil {
 		return nil, err
 	}
@@ -122,7 +122,7 @@ func (b *Bundler) Build(_ context.Context, req core.BundleInput) (*core.BundleOu
 		ClientEntryURL: clientEntryOutput,
 		ManifestJSON:   manifestJSON,
 		ImportURLs:     importURLs,
-		CSSURL:         cssURL,
+		CSSURLs:        cssURLs,
 	}, nil
 }
 
@@ -303,13 +303,13 @@ func buildPagesBundle(
 	return serverOutFile, nil
 }
 
-func buildClientBundle(req core.BundleInput, absDir string, cssFiles []string) (map[string][]byte, string, string, string, error) {
+func buildClientBundle(req core.BundleInput, absDir string, cssFiles []string) (map[string][]byte, string, string, []string, error) {
 	if req.AssetsURLPath == "" {
 		req.AssetsURLPath = "/public/assets"
 	}
 	absOutDir, err := filepath.Abs(req.OutDir)
 	if err != nil {
-		return nil, "", "", "", fmt.Errorf("esbuild: abs outdir: %w", err)
+		return nil, "", "", nil, fmt.Errorf("esbuild: abs outdir: %w", err)
 	}
 	absAppDir, _ := filepath.Abs(req.AppDir)
 
@@ -382,7 +382,7 @@ func buildClientBundle(req core.BundleInput, absDir string, cssFiles []string) (
 		Define:            clientDefines,
 	})
 	if len(r.Errors) > 0 {
-		return nil, "", "", "", fmtErrors("client", r.Errors)
+		return nil, "", "", nil, fmtErrors("client", r.Errors)
 	}
 
 	files := make(map[string][]byte)
@@ -400,8 +400,8 @@ func buildClientBundle(req core.BundleInput, absDir string, cssFiles []string) (
 		_ = os.WriteFile(f.Path, f.Contents, 0o644)
 	}
 
-	cssURL := extractCSSURL(r.Metafile, absDir, absOutDir, req.AssetsURLPath)
-	return files, entryOutput, r.Metafile, cssURL, nil
+	cssURLs := extractCSSURLs(r.Metafile, absDir, absOutDir, req.AssetsURLPath)
+	return files, entryOutput, r.Metafile, cssURLs, nil
 }
 
 func buildInputChunkURLs(metafile, absDir, absOutDir, assetsURLPath string) map[string]string {
@@ -691,11 +691,11 @@ func newCSSPlugin(processor core.CSS) api.Plugin {
 	}
 }
 
-// extractCSSURL finds the emitted CSS file in the esbuild metafile and
-// returns its public URL, or "" if no CSS was emitted.
-func extractCSSURL(metafile, absDir, absOutDir, assetsURLPath string) string {
+// extractCSSURLs finds all emitted CSS files in the esbuild metafile and
+// returns their public URLs.
+func extractCSSURLs(metafile, absDir, absOutDir, assetsURLPath string) []string {
 	if metafile == "" {
-		return ""
+		return nil
 	}
 	var meta struct {
 		Outputs map[string]struct {
@@ -703,8 +703,9 @@ func extractCSSURL(metafile, absDir, absOutDir, assetsURLPath string) string {
 		} `json:"outputs"`
 	}
 	if err := json.Unmarshal([]byte(metafile), &meta); err != nil {
-		return ""
+		return nil
 	}
+	var urls []string
 	for outPath := range meta.Outputs {
 		if strings.HasSuffix(outPath, ".css") {
 			absOut := filepath.Join(absDir, outPath)
@@ -712,10 +713,10 @@ func extractCSSURL(metafile, absDir, absOutDir, assetsURLPath string) string {
 			if err != nil {
 				continue
 			}
-			return assetsURLPath + "/" + filepath.ToSlash(relOut)
+			urls = append(urls, assetsURLPath+"/"+filepath.ToSlash(relOut))
 		}
 	}
-	return ""
+	return urls
 }
 
 func isPackageSpecifier(s string) bool {

@@ -48,7 +48,7 @@ type PrebuildArtifacts struct {
 	Routes         []Route
 	BundleOutput   *BundleOutput
 	GlobalNotFound string // non-empty when a GlobalNotFound export exists
-	CSSURL         string // external stylesheet URL, or ""
+	CSSURLs        []string // external stylesheet URLs
 }
 
 var defaultPrebuildLoader func() (*PrebuildArtifacts, error)
