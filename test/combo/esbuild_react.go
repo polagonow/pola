@@ -55,9 +55,7 @@ func (f *esbuildReactGojaFixture) BundlerName() string  { return "esbuild" }
 func (f *esbuildReactGojaFixture) GetApp(t *testing.T) *core.App {
 	t.Helper()
 	f.once.Do(func() {
-		f.app, f.err = pola.New(&core.Config{
-			WebAppPath: fixture.AppDir,
-		})
+		f.app, f.err = pola.New(core.WithWebAppPath(fixture.AppDir))
 	})
 	if f.err != nil {
 		t.Fatalf("%s: build failed: %v", f.Name(), f.err)

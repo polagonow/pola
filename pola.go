@@ -7,11 +7,14 @@ import (
 	"github.com/polagonow/pola/internal"
 )
 
-// New creates and builds a Pola application from the given Config.
-// All nil Registry fields are populated from init()-registered defaults.
+// New creates and builds a Pola application from the given options.
 //
-//	app, err := pola.New(&core.Config{WebAppPath: "./app"})
+//	app, err := pola.New(core.WithWebAppPath("./app"), core.WithDev(true))
 //	http.ListenAndServe(":8080", app)
-func New(cfg *core.Config) (*core.App, error) {
+func New(opts ...core.Option) (*core.App, error) {
+	cfg := &core.Config{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
 	return internal.Build(cfg)
 }

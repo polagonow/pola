@@ -49,11 +49,11 @@ func main() {
 	}
 
 	// ── Build app ──────────────────────────────────────────────────────────
-	app, err := pola.New(&core.Config{
-		WebAppPath: e.WebAppPath,
-		Dev:        e.Dev,
-		PublicDir:  e.PublicDir,
-	})
+	app, err := pola.New(
+		core.WithWebAppPath(e.WebAppPath),
+		core.WithPublicDir(e.PublicDir),
+		core.WithDev(e.Dev),
+	)
 	if err != nil {
 		log.Fatalf("pola: %v", err)
 	}
