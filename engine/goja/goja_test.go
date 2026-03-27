@@ -103,7 +103,10 @@ func TestVMPool_AcquireRelease(t *testing.T) {
 		t.Fatalf("NewVMPool: %v", err)
 	}
 
-	rt := pool.Acquire()
+	rt, err := pool.Acquire()
+	if err != nil {
+		t.Fatalf("Acquire: %v", err)
+	}
 	if rt == nil {
 		t.Fatal("Acquire returned nil")
 	}

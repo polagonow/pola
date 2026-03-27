@@ -258,7 +258,7 @@ func (h *gojaStreamHandle) IsNil() bool { return h == nil }
 // gojaSSRPool wraps *VMPool and implements core.SSRPool.
 type gojaSSRPool struct{ pool *VMPool }
 
-func (p *gojaSSRPool) Acquire() core.SSRRuntime { return p.pool.Acquire() }
+func (p *gojaSSRPool) Acquire() (core.SSRRuntime, error) { return p.pool.Acquire() }
 func (p *gojaSSRPool) Release(rt core.SSRRuntime) {
 	if r, ok := rt.(*Runtime); ok {
 		p.pool.Release(r)
@@ -413,14 +413,23 @@ func NewVMPool(bundleSource string, logger core.Logger) (*VMPool, error) {
 		},
 	}
 	// Eagerly create one Runtime to catch startup errors immediately.
-	rt := p.pool.New()
+	rt, err := newRuntime(prog, logger)
+	if err != nil {
+		return nil, fmt.Errorf("goja: pool create runtime: %w", err)
+	}
 	p.pool.Put(rt)
 	return p, nil
 }
 
-// Acquire returns a Runtime from the pool.
-func (p *VMPool) Acquire() *Runtime {
-	return p.pool.Get().(*Runtime)
+// Acquire returns a Runtime from the pool. If the pool needs to create a new
+// Runtime and that fails, the error is returned instead of panicking.
+func (p *VMPool) Acquire() (rt *Runtime, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v", r)
+		}
+	}()
+	return p.pool.Get().(*Runtime), nil
 }
 
 // Release clears per-request state and returns the Runtime to the pool.

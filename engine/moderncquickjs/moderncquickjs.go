@@ -512,7 +512,7 @@ func (h *mqjsStreamHandle) IsNil() bool { return h == nil }
 
 type mqjsSSRPool struct{ pool *vmPool }
 
-func (p *mqjsSSRPool) Acquire() core.SSRRuntime { return p.pool.Acquire() }
+func (p *mqjsSSRPool) Acquire() (core.SSRRuntime, error) { return p.pool.Acquire() }
 func (p *mqjsSSRPool) Release(rt core.SSRRuntime) {
 	if r, ok := rt.(*Runtime); ok {
 		p.pool.Release(r)
@@ -539,12 +539,22 @@ func newVMPool(serverBundle string, logger core.Logger) (*vmPool, error) {
 		},
 	}
 	// Eagerly create one Runtime to surface startup errors immediately.
-	r := p.pool.New()
+	r, err := newRuntime(serverBundle, logger)
+	if err != nil {
+		return nil, fmt.Errorf("moderncquickjs: pool create: %w", err)
+	}
 	p.pool.Put(r)
 	return p, nil
 }
 
-func (p *vmPool) Acquire() *Runtime { return p.pool.Get().(*Runtime) }
+func (p *vmPool) Acquire() (rt *Runtime, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v", r)
+		}
+	}()
+	return p.pool.Get().(*Runtime), nil
+}
 func (p *vmPool) Release(r *Runtime) {
 	_ = r.clearState()
 	p.pool.Put(r)
