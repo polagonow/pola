@@ -93,3 +93,12 @@ func TestImportMapNonEmpty(t *testing.T) {
 		t.Errorf("ImportMap() missing URL, got: %s", result)
 	}
 }
+
+func TestImportMapEscapesScriptBreakout(t *testing.T) {
+	// Go's json.Marshal escapes < and > to \u003c/\u003e, preventing
+	// a "</script>" sequence in keys/values from breaking out of the tag.
+	result := shell.ImportMap(map[string]string{"</script><img src=x onerror=alert(1)>": "/evil.js"})
+	if strings.Contains(result, "</script><img") {
+		t.Errorf("ImportMap() must not contain raw </script> breakout, got: %s", result)
+	}
+}
