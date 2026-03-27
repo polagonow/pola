@@ -98,14 +98,9 @@ func Build(cfg *core.Config) (*core.App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("pola: no Router registered; import _ \"github.com/polagonow/pola/router/nextjs\"")
 	}
-	bundler, err := samberdo.Invoke[core.Bundler](injector)
-	if err != nil {
-		return nil, fmt.Errorf("pola: no Bundler registered; import _ \"github.com/polagonow/pola/bundler/esbuild\"")
-	}
-	fsys, err := samberdo.Invoke[core.FS](injector)
-	if err != nil {
-		return nil, fmt.Errorf("pola: no FS registered; import _ \"github.com/polagonow/pola/fs/osfs\"")
-	}
+	// Bundler and FS are optional in embed/prebuild mode (no esbuild tag).
+	bundler, _ := samberdo.Invoke[core.Bundler](injector)
+	fsys, _ := samberdo.Invoke[core.FS](injector)
 	logger, err := samberdo.Invoke[core.Logger](injector)
 	if err != nil {
 		return nil, fmt.Errorf("pola: no Logger registered; import _ \"github.com/polagonow/pola/logger/slog\"")
@@ -135,6 +130,14 @@ func Build(cfg *core.Config) (*core.App, error) {
 	// ── Prebuild fast-path (embed mode) ───────────────────────────────────
 	if loader, err := samberdo.Invoke[core.PrebuildLoader](injector); err == nil {
 		return buildFromPrebuilt(cfg, injector, loader, renderer, router, engine, logger, metrics, tracer, pprof, middleware, injectors)
+	}
+
+	// If no prebuild loader, bundler and FS are required.
+	if bundler == nil {
+		return nil, fmt.Errorf("pola: no Bundler registered; import _ \"github.com/polagonow/pola/bundler/esbuild\"")
+	}
+	if fsys == nil {
+		return nil, fmt.Errorf("pola: no FS registered; import _ \"github.com/polagonow/pola/fs/osfs\"")
 	}
 
 	// ── Resolve paths ─────────────────────────────────────────────────────
