@@ -342,13 +342,25 @@ func NewVMPool(serverBundle string, logger core.Logger) (*VMPool, error) {
 			return r
 		},
 	}
-	r := p.pool.New()
+	// Eagerly create one Runtime to catch startup errors immediately.
+	r, err := newRuntime(prog, logger)
+	if err != nil {
+		return nil, fmt.Errorf("sobek: pool create: %w", err)
+	}
 	p.pool.Put(r)
 	return p, nil
 }
 
-// Acquire returns a Runtime from the pool.
-func (p *VMPool) Acquire() *Runtime { return p.pool.Get().(*Runtime) }
+// Acquire returns a Runtime from the pool. If the pool needs to create a new
+// Runtime and that fails, the error is returned instead of panicking.
+func (p *VMPool) Acquire() (rt *Runtime, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			err = fmt.Errorf("%v", r)
+		}
+	}()
+	return p.pool.Get().(*Runtime), nil
+}
 
 // Release clears per-request state and returns the Runtime to the pool.
 func (p *VMPool) Release(r *Runtime) {
