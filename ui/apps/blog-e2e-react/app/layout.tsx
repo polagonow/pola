@@ -1,4 +1,5 @@
 import React from "react";
+import "./globals.css";
 
 import Nav from "@/components/Nav";
 import ThemeToggle from "@/components/ThemeToggle";
