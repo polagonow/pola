@@ -26,6 +26,7 @@ import (
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/core/globals"
 	"github.com/polagonow/pola/engine/polyfill"
+	"github.com/polagonow/pola/internal/vmpool"
 )
 
 // ── JS templates ──────────────────────────────────────────────────────────────
@@ -431,7 +432,7 @@ func (h *qjsgoStreamHandle) IsNil() bool { return h == nil }
 
 // ── SSRPool adapter ───────────────────────────────────────────────────────────
 
-type qjsgoSSRPool struct{ pool *vmPool }
+type qjsgoSSRPool struct{ pool *vmpool.Pool[*Runtime] }
 
 func (p *qjsgoSSRPool) Acquire() (core.SSRRuntime, error) { return p.pool.Acquire() }
 func (p *qjsgoSSRPool) Release(rt core.SSRRuntime) {
@@ -442,43 +443,12 @@ func (p *qjsgoSSRPool) Release(rt core.SSRRuntime) {
 
 // ── vmPool ────────────────────────────────────────────────────────────────────
 
-type vmPool struct {
-	pool   sync.Pool
-	src    string
-	logger core.Logger
-}
-
-func newVMPool(serverBundle string, logger core.Logger) (*vmPool, error) {
-	p := &vmPool{src: serverBundle, logger: logger}
-	p.pool = sync.Pool{
-		New: func() any {
-			r, err := newRuntime(serverBundle, logger)
-			if err != nil {
-				panic(fmt.Sprintf("quickjsgo: pool create: %v", err))
-			}
-			return r
-		},
-	}
-	// Eagerly create one Runtime to surface startup errors immediately.
-	r, err := newRuntime(serverBundle, logger)
-	if err != nil {
-		return nil, fmt.Errorf("quickjsgo: pool create: %w", err)
-	}
-	p.pool.Put(r)
-	return p, nil
-}
-
-func (p *vmPool) Acquire() (rt *Runtime, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("%v", r)
-		}
-	}()
-	return p.pool.Get().(*Runtime), nil
-}
-func (p *vmPool) Release(r *Runtime) {
-	_ = r.clearState()
-	p.pool.Put(r)
+func newVMPool(serverBundle string, logger core.Logger) (*vmpool.Pool[*Runtime], error) {
+	return vmpool.New(
+		vmpool.Config{MinSize: 1, MaxSize: 64},
+		func() (*Runtime, error) { return newRuntime(serverBundle, logger) },
+		func(r *Runtime) { _ = r.clearState() },
+	)
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
