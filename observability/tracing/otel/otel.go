@@ -4,8 +4,10 @@ package otel
 
 import (
 	"context"
+	"fmt"
 
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/polagonow/pola/core"
@@ -44,10 +46,25 @@ var _ core.Span = (*otelSpan)(nil)
 func (s *otelSpan) End() { s.span.End() }
 
 // SetAttribute sets a span attribute.
-// In production code use the attribute.* constructors for type safety;
-// this simplified form accepts any value and discards non-primitive types.
+// It converts the value to the appropriate OTEL attribute type.
 func (s *otelSpan) SetAttribute(key string, value any) {
-	// Simplified: attribute setting is best done directly via the otel SDK
-	// using typed attribute.* helpers. This method satisfies the interface
-	// without introducing a hard dependency on attribute types here.
+	s.span.SetAttributes(toAttribute(key, value))
+}
+
+// toAttribute converts a key/value pair to an OTEL attribute.KeyValue.
+func toAttribute(key string, value any) attribute.KeyValue {
+	switch v := value.(type) {
+	case string:
+		return attribute.String(key, v)
+	case bool:
+		return attribute.Bool(key, v)
+	case int:
+		return attribute.Int(key, v)
+	case int64:
+		return attribute.Int64(key, v)
+	case float64:
+		return attribute.Float64(key, v)
+	default:
+		return attribute.String(key, fmt.Sprintf("%v", v))
+	}
 }
