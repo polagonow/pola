@@ -206,6 +206,13 @@ func registerBlogServices(inj *doinjection.Injector) {
 				msg = s
 			}
 			return nil, fmt.Errorf("%s", msg)
+		}).
+		Register("submitContact", func(args []any) (any, error) {
+			name := argStr(args, 0)
+			email := argStr(args, 1)
+			message := argStr(args, 2)
+			fmt.Printf("[Go] Contact submission: name=%q email=%q message=%q\n", name, email, message)
+			return map[string]any{"success": true, "name": name, "email": email}, nil
 		})
 }
 

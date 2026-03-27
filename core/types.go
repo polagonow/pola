@@ -21,6 +21,15 @@ type ClientRef struct {
 // ClientManifest maps moduleId → ClientRef.
 type ClientManifest map[string]ClientRef
 
+// ServerActionEntry maps an action ID to its source module and export.
+type ServerActionEntry struct {
+	ModuleID   string `json:"moduleId"`
+	ExportName string `json:"exportName"`
+}
+
+// ServerActionManifest maps action IDs to their entries.
+type ServerActionManifest map[string]ServerActionEntry
+
 // PageSegment represents one directory level in the route hierarchy.
 // Both LayoutPath and ErrorPath are optional (empty string = absent).
 type PageSegment struct {
@@ -61,6 +70,7 @@ type DiscoveryResult struct {
 	AppDir           string   // absolute path to the web app root; used by entry generators
 	Pages            []PageEntry
 	ClientComponents []string // absolute paths of "use client" files
+	ServerActions    []string // absolute paths of "use server" files
 	GlobalNotFound   string   // abs path to global-not-found.tsx, or ""
 	GlobalError      string   // abs path to global-error.tsx, or ""
 }
@@ -110,6 +120,7 @@ type BundleInput struct {
 	ServerEntry   string // output path for server bundle; defaults auto-set
 
 	ClientComponents []string // abs paths of "use client" files
+	ServerActions    []string // abs paths of "use server" files
 
 	External []string
 	Dev      bool
@@ -150,6 +161,9 @@ type BundleOutput struct {
 
 	// ImportURLs maps module IDs to their browser-loadable chunk URLs.
 	ImportURLs map[string]string
+
+	// ServerActionManifest maps action IDs to their source module and export.
+	ServerActionManifest ServerActionManifest
 }
 
 // FSFileInfo describes a single entry returned by FS.ReadDir.

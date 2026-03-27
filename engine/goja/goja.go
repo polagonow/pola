@@ -285,6 +285,47 @@ func (r *Runtime) DrainStream(handle core.StreamHandle, w core.StreamWriter) (bo
 	return r.drainSession(h.sess, w)
 }
 
+// CallServerAction calls __callServerAction__(actionID, body) and returns
+// a stream handle that can be drained with DrainStream.
+func (r *Runtime) CallServerAction(actionID, body string) (core.StreamHandle, error) {
+	sess, err := r.callGlobalStream(globals.CallServerActionFn, actionID, body)
+	if err != nil {
+		return nil, err
+	}
+	return &gojaStreamHandle{sess: sess}, nil
+}
+
+// callGlobalStream is a generalised version of startRender: it calls the named
+// global function with two string arguments and returns the resulting
+// ReadableStream wrapped in a StreamSession.
+func (r *Runtime) callGlobalStream(fnName, arg0, arg1 string) (StreamSession, error) {
+	var sess StreamSession
+	err := r.run(func(rt *gojalib.Runtime) error {
+		fn, ok := gojalib.AssertFunction(rt.Get(fnName))
+		if !ok {
+			return fmt.Errorf("goja: %s is not a function", fnName)
+		}
+		sess.PullStreamFn, ok = gojalib.AssertFunction(rt.Get(globals.PullStreamFn))
+		if !ok {
+			return fmt.Errorf("goja: %s is not a function", globals.PullStreamFn)
+		}
+
+		decoderVal, err := rt.RunString("new TextDecoder()")
+		if err != nil {
+			return fmt.Errorf("goja: TextDecoder instantiation failed: %w", err)
+		}
+		sess.DecoderObj = decoderVal.ToObject(rt)
+		sess.DecodeFn, ok = gojalib.AssertFunction(sess.DecoderObj.Get("decode"))
+		if !ok {
+			return fmt.Errorf("goja: TextDecoder.decode is not a function")
+		}
+
+		sess.Stream, err = fn(gojalib.Undefined(), rt.ToValue(arg0), rt.ToValue(arg1))
+		return err
+	})
+	return sess, err
+}
+
 // Ensure *Runtime satisfies core.SSRRuntime at compile time.
 var _ core.SSRRuntime = (*Runtime)(nil)
 

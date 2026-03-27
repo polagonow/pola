@@ -34,6 +34,10 @@ const (
 	// VMs call this to start a render and obtain a ReadableStream.
 	RenderFn = "__render__"
 
+	// CallServerActionFn is the server bundle global that dispatches server
+	// action calls. It accepts (actionId, bodyStr) and returns a ReadableStream.
+	CallServerActionFn = "__callServerAction__"
+
 	// PullStreamFn is installed by the ReadableStream polyfill and drives a single
 	// pull iteration, returning `{ chunks, done }` to the Go polling loop.
 	PullStreamFn = "__pullStream__"

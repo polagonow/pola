@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/polagonow/pola/core"
@@ -201,4 +202,71 @@ func (r *Renderer) BundleConditions() []string {
 // ClientEntry returns the package specifier for the React client hydration entry.
 func (r *Renderer) ClientEntry() string {
 	return "@pola/react/client"
+}
+
+// serverActionRuntime is the optional interface for VMs that support server actions.
+type serverActionRuntime interface {
+	CallServerAction(actionID, body string) (core.StreamHandle, error)
+}
+
+// HandleAction executes a server action and streams the Flight-encoded response.
+func (r *Renderer) HandleAction(ctx context.Context, w http.ResponseWriter, req *http.Request, actionID string, injectors []core.RuntimeInjector) error {
+	if r.pool == nil {
+		return fmt.Errorf("react renderer: VM pool not configured")
+	}
+
+	vm := r.pool.Acquire()
+	defer r.pool.Release(vm)
+
+	// Apply per-request injectors.
+	for _, inj := range injectors {
+		if err := inj.Inject(ctx, vm); err != nil {
+			return fmt.Errorf("react renderer: inject %s: %w", inj.Name(), err)
+		}
+	}
+
+	if err := vm.SetRequestContext(buildActionRequestContext(req)); err != nil {
+		return fmt.Errorf("react renderer: set context: %w", err)
+	}
+
+	body, err := io.ReadAll(req.Body)
+	if err != nil {
+		return fmt.Errorf("react renderer: read body: %w", err)
+	}
+
+	sar, ok := vm.(serverActionRuntime)
+	if !ok {
+		return fmt.Errorf("react renderer: VM does not support server actions")
+	}
+
+	handle, err := sar.CallServerAction(actionID, string(body))
+	if err != nil {
+		return fmt.Errorf("react renderer: call action: %w", err)
+	}
+
+	sw := newStreamWriter(w)
+	wroteAny, err := vm.DrainStream(handle, sw)
+	if err != nil {
+		return fmt.Errorf("react renderer: drain action stream: %w", err)
+	}
+	if !wroteAny {
+		return fmt.Errorf("react renderer: no Flight output from action")
+	}
+	return nil
+}
+
+func buildActionRequestContext(r *http.Request) map[string]any {
+	headers := make(map[string]string)
+	for k, v := range r.Header {
+		if len(v) > 0 {
+			headers[k] = v[0]
+		}
+	}
+	return map[string]any{
+		"url":    r.URL.String(),
+		"path":   r.URL.Path,
+		"query":  r.URL.RawQuery,
+		"method": r.Method,
+		"headers": headers,
+	}
 }

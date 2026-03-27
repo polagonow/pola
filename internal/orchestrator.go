@@ -19,6 +19,12 @@ type requestHandler interface {
 		req core.RenderRequest, status int) (bool, error)
 }
 
+// actionHandler is an optional interface for renderers that support server actions.
+type actionHandler interface {
+	HandleAction(ctx context.Context, w http.ResponseWriter, r *http.Request,
+		actionID string, injectors []core.RuntimeInjector) error
+}
+
 // Orchestrator implements http.Handler and wires all Pola components together.
 type Orchestrator struct {
 	registry      *core.Registry
@@ -110,6 +116,14 @@ func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
 	ctx, span := o.registry.Tracer.StartSpan(r.Context(), "pola.handle")
 	defer span.End()
 
+	// ── Server Action POST ───────────────────────────────────────────────
+	if r.Method == http.MethodPost {
+		if actionID := r.Header.Get("Next-Action"); actionID != "" {
+			o.handleServerAction(ctx, w, r, actionID)
+			return
+		}
+	}
+
 	ctx, routeSpan := o.registry.Tracer.StartSpan(ctx, "pola.route.resolve")
 	route, params := o.registry.Router.Resolve(ctx, r.URL.Path)
 	routeSpan.End()
@@ -188,6 +202,20 @@ func (rr *responseRecorder) WriteHeader(code int) {
 func (rr *responseRecorder) Flush() {
 	if f, ok := rr.ResponseWriter.(http.Flusher); ok {
 		f.Flush()
+	}
+}
+
+func (o *Orchestrator) handleServerAction(ctx context.Context, w http.ResponseWriter, r *http.Request, actionID string) {
+	ah, ok := o.registry.Renderer.(actionHandler)
+	if !ok {
+		http.Error(w, "renderer does not support server actions", http.StatusNotImplemented)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/x-component; charset=utf-8")
+	if err := ah.HandleAction(ctx, w, r, actionID, o.registry.Injectors); err != nil {
+		o.registry.Logger.Error("pola: server action", "err", err, "actionID", actionID)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
 	}
 }
 

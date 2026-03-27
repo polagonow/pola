@@ -13,6 +13,8 @@ package esbuild
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -65,8 +67,16 @@ func (b *Bundler) Build(_ context.Context, req core.BundleInput) (*core.BundleOu
 		}
 	}
 
+	// Probe: auto-discover "use server" files and compute action IDs.
+	actionInfos := discoverServerActions(req, absDir, absAppDir)
+
+	// Append server action dispatcher to server entry content.
+	if len(actionInfos) > 0 {
+		req.ServerEntryContent += generateActionDispatcher(actionInfos, absAppDir)
+	}
+
 	// Pass 1 — Client bundle (browser ESM).
-	clientFiles, clientEntryOutput, metafile, err := buildClientBundle(req, absDir)
+	clientFiles, clientEntryOutput, metafile, err := buildClientBundle(req, absDir, actionInfos)
 	if err != nil {
 		return nil, err
 	}
@@ -114,12 +124,27 @@ func (b *Bundler) Build(_ context.Context, req core.BundleInput) (*core.BundleOu
 		}
 	}
 
+	// Build server action manifest.
+	var actionManifest core.ServerActionManifest
+	if len(actionInfos) > 0 {
+		actionManifest = make(core.ServerActionManifest)
+		for _, info := range actionInfos {
+			for exportName, actionID := range info.actions {
+				actionManifest[actionID] = core.ServerActionEntry{
+					ModuleID:   info.moduleID,
+					ExportName: exportName,
+				}
+			}
+		}
+	}
+
 	return &core.BundleOutput{
-		ServerBundle:   serverBundle,
-		ClientFiles:    clientFiles,
-		ClientEntryURL: clientEntryOutput,
-		ManifestJSON:   manifestJSON,
-		ImportURLs:     importURLs,
+		ServerBundle:         serverBundle,
+		ClientFiles:          clientFiles,
+		ClientEntryURL:       clientEntryOutput,
+		ManifestJSON:         manifestJSON,
+		ImportURLs:           importURLs,
+		ServerActionManifest: actionManifest,
 	}, nil
 }
 
@@ -300,7 +325,38 @@ func buildPagesBundle(
 	return serverOutFile, nil
 }
 
-func buildClientBundle(req core.BundleInput, absDir string) (map[string][]byte, string, string, error) {
+// newUseServerClientPlugin returns an esbuild plugin that replaces "use server"
+// files with createServerReference stubs in the client bundle.
+func newUseServerClientPlugin(actionInfos []serverActionInfo) api.Plugin {
+	actionSet := make(map[string]*serverActionInfo)
+	for i := range actionInfos {
+		actionSet[actionInfos[i].absPath] = &actionInfos[i]
+	}
+	return api.Plugin{
+		Name: "resolve-server-actions",
+		Setup: func(build api.PluginBuild) {
+			build.OnLoad(api.OnLoadOptions{Filter: `\.(tsx|ts|jsx|js)$`}, func(args api.OnLoadArgs) (api.OnLoadResult, error) {
+				info, ok := actionSet[args.Path]
+				if !ok {
+					return api.OnLoadResult{}, nil
+				}
+				var sb strings.Builder
+				sb.WriteString(`import { createServerReference } from "react-server-dom-webpack/client";` + "\n")
+				for exportName, actionID := range info.actions {
+					fmt.Fprintf(&sb, "export const %s = createServerReference(%q, globalThis.__callServer__);\n",
+						exportName, actionID)
+				}
+				stub := sb.String()
+				return api.OnLoadResult{
+					Contents: &stub,
+					Loader:   api.LoaderJS,
+				}, nil
+			})
+		},
+	}
+}
+
+func buildClientBundle(req core.BundleInput, absDir string, actionInfos []serverActionInfo) (map[string][]byte, string, string, error) {
 	if req.AssetsURLPath == "" {
 		req.AssetsURLPath = "/public/assets"
 	}
@@ -363,7 +419,7 @@ func buildClientBundle(req core.BundleInput, absDir string) (map[string][]byte, 
 		EntryNames:        "[name]-[hash]",
 		ChunkNames:        "chunks/[name]-[hash]",
 		Conditions:        []string{"browser", "import", "module", "default"},
-		Plugins:           []api.Plugin{newAtAliasPlugin(absAppDir), newPolaWorkspacePlugin(absAppDir), newAutoDedupePlugin(absAppDir)},
+		Plugins:           appendServerPlugin([]api.Plugin{newAtAliasPlugin(absAppDir), newPolaWorkspacePlugin(absAppDir), newAutoDedupePlugin(absAppDir)}, actionInfos),
 		Metafile:          true,
 		Define:            clientDefines,
 	})
@@ -465,6 +521,137 @@ func probeServerEntryClientFiles(req core.BundleInput, absDir string) []string {
 		Plugins:       []api.Plugin{newAtAliasPlugin(absAppDir), newPolaWorkspacePlugin(absAppDir), probePlugin},
 	})
 	return collected
+}
+
+// probeServerActionFiles is the "use server" analogue of probeServerEntryClientFiles.
+// It discovers files with the "use server" directive that are reachable from the
+// server entry.
+func probeServerActionFiles(req core.BundleInput, absDir string) []string {
+	if req.ServerEntryContent == "" {
+		return nil
+	}
+	absAppDir, _ := filepath.Abs(req.AppDir)
+	var collected []string
+	probePlugin := api.Plugin{
+		Name: "probe-use-server",
+		Setup: func(build api.PluginBuild) {
+			build.OnLoad(api.OnLoadOptions{Filter: `\.(tsx|ts|jsx|js)$`}, func(args api.OnLoadArgs) (api.OnLoadResult, error) {
+				contents, err := os.ReadFile(args.Path)
+				if err != nil {
+					return api.OnLoadResult{}, nil
+				}
+				trimmed := strings.TrimSpace(string(contents))
+				if !strings.HasPrefix(trimmed, `"use server"`) && !strings.HasPrefix(trimmed, `'use server'`) {
+					return api.OnLoadResult{}, nil
+				}
+				collected = append(collected, args.Path)
+				empty := ""
+				return api.OnLoadResult{Contents: &empty, Loader: api.LoaderJS}, nil
+			})
+		},
+	}
+	defines := map[string]string{
+		"process.env.NODE_ENV": `"production"`,
+		"__DEV__":              "false",
+		globals.ClientManifest: "{}",
+	}
+	api.Build(api.BuildOptions{
+		Stdin: &api.StdinOptions{
+			Contents: req.ServerEntryContent, ResolveDir: absAppDir,
+			Loader: api.LoaderTSX, Sourcefile: "<probe-server>",
+		},
+		Bundle:        true,
+		Write:         false,
+		Outfile:       "_probe_server.js",
+		Format:        api.FormatCommonJS,
+		Platform:      api.PlatformBrowser,
+		AbsWorkingDir: absDir,
+		Conditions:    req.ServerBundleConditions,
+		External:      req.External,
+		Define:        defines,
+		Plugins:       []api.Plugin{newAtAliasPlugin(absAppDir), newPolaWorkspacePlugin(absAppDir), probePlugin},
+	})
+	return collected
+}
+
+// discoverExports runs a quick esbuild build to discover the export names of a file.
+func discoverExports(filePath, absDir string) []string {
+	r := api.Build(api.BuildOptions{
+		EntryPoints:   []string{filePath},
+		Bundle:        false,
+		Write:         false,
+		Outfile:       "_exports.js",
+		Format:        api.FormatESModule,
+		Platform:      api.PlatformBrowser,
+		AbsWorkingDir: absDir,
+		Metafile:      true,
+	})
+	if r.Metafile == "" {
+		return nil
+	}
+	var meta struct {
+		Outputs map[string]struct {
+			Exports []string `json:"exports"`
+		} `json:"outputs"`
+	}
+	if err := json.Unmarshal([]byte(r.Metafile), &meta); err != nil {
+		return nil
+	}
+	for _, o := range meta.Outputs {
+		if len(o.Exports) > 0 {
+			return o.Exports
+		}
+	}
+	return nil
+}
+
+// computeActionID returns a deterministic action ID for a module+export pair.
+func computeActionID(moduleID, exportName string) string {
+	h := sha256.Sum256([]byte(moduleID + "#" + exportName))
+	return hex.EncodeToString(h[:8])
+}
+
+// serverActionInfo holds the discovered exports and computed action IDs for a
+// single "use server" file.
+type serverActionInfo struct {
+	absPath  string
+	moduleID string
+	// exportName → actionID
+	actions map[string]string
+}
+
+// discoverServerActions probes for "use server" files, discovers their exports,
+// and computes stable action IDs.
+func discoverServerActions(req core.BundleInput, absDir, absAppDir string) []serverActionInfo {
+	probed := probeServerActionFiles(req, absDir)
+	if len(probed) == 0 {
+		return nil
+	}
+
+	var infos []serverActionInfo
+	for _, p := range probed {
+		modID := computeModuleID(absAppDir, p)
+		exports := discoverExports(p, absDir)
+		if len(exports) == 0 {
+			continue
+		}
+		actions := make(map[string]string, len(exports))
+		for _, exp := range exports {
+			if exp == "default" {
+				continue // skip default for now — typically not used for actions
+			}
+			actions[exp] = computeActionID(modID, exp)
+		}
+		if len(actions) == 0 {
+			continue
+		}
+		infos = append(infos, serverActionInfo{
+			absPath:  p,
+			moduleID: modID,
+			actions:  actions,
+		})
+	}
+	return infos
 }
 
 // ── esbuild plugins ──────────────────────────────────────────────────────────
@@ -572,6 +759,61 @@ func fmtErrors(pass string, errs []api.Message) error {
 		}
 	}
 	return fmt.Errorf("esbuild [%s]:\n%s", pass, strings.Join(msgs, "\n"))
+}
+
+// generateActionDispatcher produces TypeScript code that imports "use server"
+// files, builds an action map, and exposes __callServerAction__ as a global.
+func generateActionDispatcher(infos []serverActionInfo, absAppDir string) string {
+	var sb strings.Builder
+	sb.WriteString("\n// ── Server Actions (generated) ──\n")
+	sb.WriteString(`import { registerServerReference as __registerServerReference__ } from "react-server-dom-webpack/server.browser";` + "\n")
+
+	for i, info := range infos {
+		rel, err := filepath.Rel(absAppDir, info.absPath)
+		if err != nil {
+			rel = info.absPath
+		}
+		fmt.Fprintf(&sb, "import * as __actions_%d__ from %q;\n", i, "./"+filepath.ToSlash(rel))
+	}
+
+	// Register each exported function as a server reference so React's Flight
+	// encoder serialises them as action references instead of erroring.
+	for i, info := range infos {
+		for exportName, actionID := range info.actions {
+			fmt.Fprintf(&sb, "__registerServerReference__(__actions_%d__.%s, %q, %q);\n",
+				i, exportName, actionID, exportName)
+		}
+	}
+
+	sb.WriteString("const __actionMap__: Record<string, Function> = {\n")
+	for i, info := range infos {
+		for exportName, actionID := range info.actions {
+			fmt.Fprintf(&sb, "  %q: __actions_%d__.%s,\n", actionID, i, exportName)
+		}
+	}
+	sb.WriteString("};\n")
+
+	fmt.Fprintf(&sb, `(globalThis as any).%s = function(actionId: string, bodyStr: string): ReadableStream {
+  const fn = __actionMap__[actionId];
+  if (!fn) throw new Error('%s: unknown action: ' + actionId);
+  const args = JSON.parse(bodyStr || "[]");
+  const resultPromise = Promise.resolve(fn.apply(null, args));
+  return renderToReadableStream(resultPromise, %s, {
+    onError(error: unknown) {
+      return error instanceof Error ? error.message : String(error);
+    },
+  });
+};
+`, globals.CallServerActionFn, globals.CallServerActionFn, globals.ClientManifest)
+
+	return sb.String()
+}
+
+func appendServerPlugin(plugins []api.Plugin, actionInfos []serverActionInfo) []api.Plugin {
+	if len(actionInfos) > 0 {
+		plugins = append(plugins, newUseServerClientPlugin(actionInfos))
+	}
+	return plugins
 }
 
 func isPackageSpecifier(s string) bool {
