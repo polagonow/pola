@@ -159,9 +159,9 @@ type BundleOutput struct {
 	// ImportURLs maps module IDs to their browser-loadable chunk URLs.
 	ImportURLs map[string]string
 
-	// CSSURL is the public URL of the emitted CSS bundle (e.g.
-	// "/public/assets/styles-HASH.css"), or "" if no CSS was emitted.
-	CSSURL string
+	// CSSURLs are the public URLs of emitted CSS bundles (e.g.
+	// "/public/assets/globals-HASH.css"). Empty when no CSS was emitted.
+	CSSURLs []string
 }
 
 // FSFileInfo describes a single entry returned by FS.ReadDir.
