@@ -1,12 +1,14 @@
 package internal
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/polagonow/pola/core"
@@ -166,10 +168,19 @@ func Build(cfg *core.Config) (*core.App, error) {
 	}
 
 	// ── 6.5. Process CSS ─────────────────────────────────────────────────
+	// Scan source files for CSS imports (like Next.js: `import "./styles.css"`),
+	// generate a synthetic input that @import's them all, and pass it to the
+	// CSS processor (e.g. Tailwind).
 	var cssURL string
 	if reg.CSS != nil {
-		cssInput := filepath.Join(absWebAppPath, "app", "globals.css")
-		if _, statErr := os.Stat(cssInput); statErr == nil {
+		cssFiles := scanCSSImports(reg.FS, absWebAppPath, exts)
+		if len(cssFiles) > 0 {
+			cssInput, cleanup, err := generateCSSInput(cssFiles, absWebAppPath)
+			if err != nil {
+				return nil, fmt.Errorf("pola: css input: %w", err)
+			}
+			defer cleanup()
+
 			cssOutput := filepath.Join(publicDir, "assets", "styles.css")
 			if err := os.MkdirAll(filepath.Dir(cssOutput), 0o755); err != nil {
 				return nil, fmt.Errorf("pola: css mkdir: %w", err)
@@ -342,4 +353,111 @@ func buildFromPrebuilt(cfg *core.Config, reg *core.Registry, loader func() (*cor
 	app := newApp(cfg, reg, orch)
 	app.SetArtifacts(artifacts.BundleOutput)
 	return app, nil
+}
+
+// ── CSS import scanning ──────────────────────────────────────────────────────
+
+// cssImportRE matches `import "foo.css"` or `import './bar.css'` in JS/TS files.
+var cssImportRE = regexp.MustCompile(`(?m)^\s*import\s+["']([^"']+\.css)["']`)
+
+// scanCSSImports walks appDir recursively, reads each source file matching
+// exts, and extracts CSS import paths. Returns deduplicated absolute paths
+// in discovery order.
+// Note: uses os.ReadDir/os.ReadFile directly because the scanner works with
+// absolute paths and core.FS implementations may prepend a root prefix.
+func scanCSSImports(_ core.FS, appDir string, exts []string) []string {
+	extSet := make(map[string]bool, len(exts))
+	for _, e := range exts {
+		extSet[e] = true
+	}
+	// Also scan .css extension itself so we don't miss anything.
+	extSet[".css"] = false // present in map but we only scan source files for imports
+
+	var cssFiles []string
+	seen := map[string]bool{}
+
+	var walk func(dir string)
+	walk = func(dir string) {
+		entries, err := os.ReadDir(dir)
+		if err != nil {
+			return
+		}
+		for _, e := range entries {
+			name := e.Name()
+			path := filepath.Join(dir, name)
+			if e.IsDir() {
+				if name == "node_modules" || name == "public" || strings.HasPrefix(name, ".") {
+					continue
+				}
+				walk(path)
+				continue
+			}
+			ext := filepath.Ext(name)
+			if !extSet[ext] {
+				continue
+			}
+			data, err := os.ReadFile(path)
+			if err != nil {
+				continue
+			}
+			scanner := bufio.NewScanner(strings.NewReader(string(data)))
+			for scanner.Scan() {
+				line := scanner.Text()
+				// Stop scanning after the first non-import, non-blank, non-comment,
+				// non-directive line — imports must be at the top.
+				trimmed := strings.TrimSpace(line)
+				if trimmed == "" || strings.HasPrefix(trimmed, "//") || strings.HasPrefix(trimmed, "/*") || strings.HasPrefix(trimmed, "*") {
+					continue
+				}
+				if !strings.HasPrefix(trimmed, "import") && !strings.HasPrefix(trimmed, `"use `) && !strings.HasPrefix(trimmed, `'use `) {
+					break
+				}
+				matches := cssImportRE.FindStringSubmatch(line)
+				if len(matches) < 2 {
+					continue
+				}
+				cssPath := matches[1]
+				var abs string
+				if strings.HasPrefix(cssPath, ".") {
+					abs = filepath.Join(filepath.Dir(path), cssPath)
+				} else {
+					abs = filepath.Join(appDir, cssPath)
+				}
+				abs = filepath.Clean(abs)
+				if !seen[abs] {
+					seen[abs] = true
+					cssFiles = append(cssFiles, abs)
+				}
+			}
+		}
+	}
+	walk(filepath.Join(appDir, "app"))
+	// Also scan components directory.
+	walk(filepath.Join(appDir, "components"))
+	return cssFiles
+}
+
+// generateCSSInput writes a temporary CSS file in appDir that @import's each
+// discovered CSS file. The file is placed in appDir so the CSS processor
+// (e.g. Tailwind) can resolve node_modules and scan content relative to the app.
+// Returns the path and a cleanup function.
+func generateCSSInput(cssFiles []string, appDir string) (string, func(), error) {
+	var sb strings.Builder
+	for _, f := range cssFiles {
+		rel, err := filepath.Rel(appDir, f)
+		if err != nil {
+			rel = f
+		}
+		// Use ./ prefix for relative paths.
+		if !strings.HasPrefix(rel, ".") {
+			rel = "./" + rel
+		}
+		sb.WriteString(fmt.Sprintf("@import %q;\n", filepath.ToSlash(rel)))
+	}
+
+	tmpFile := filepath.Join(appDir, ".pola-css-input.css")
+	if err := os.WriteFile(tmpFile, []byte(sb.String()), 0o644); err != nil {
+		return "", func() {}, fmt.Errorf("write css input: %w", err)
+	}
+	return tmpFile, func() { _ = os.Remove(tmpFile) }, nil
 }

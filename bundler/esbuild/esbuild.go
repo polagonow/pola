@@ -290,7 +290,7 @@ func buildPagesBundle(
 		MinifyWhitespace:  true,
 		MinifyIdentifiers: true,
 		MinifySyntax:      true,
-		Plugins:           []api.Plugin{newAtAliasPlugin(absAppDir), newPolaWorkspacePlugin(absAppDir), useClientPlugin},
+		Plugins:           []api.Plugin{newAtAliasPlugin(absAppDir), newPolaWorkspacePlugin(absAppDir), useClientPlugin, newCSSStubPlugin()},
 		Conditions:        req.ServerBundleConditions,
 		Define:            defines,
 	})
@@ -363,7 +363,7 @@ func buildClientBundle(req core.BundleInput, absDir string) (map[string][]byte, 
 		EntryNames:        "[name]-[hash]",
 		ChunkNames:        "chunks/[name]-[hash]",
 		Conditions:        []string{"browser", "import", "module", "default"},
-		Plugins:           []api.Plugin{newAtAliasPlugin(absAppDir), newPolaWorkspacePlugin(absAppDir), newAutoDedupePlugin(absAppDir)},
+		Plugins:           []api.Plugin{newAtAliasPlugin(absAppDir), newPolaWorkspacePlugin(absAppDir), newAutoDedupePlugin(absAppDir), newCSSStubPlugin()},
 		Metafile:          true,
 		Define:            clientDefines,
 	})
@@ -462,7 +462,7 @@ func probeServerEntryClientFiles(req core.BundleInput, absDir string) []string {
 		Conditions:    req.ServerBundleConditions,
 		External:      req.External,
 		Define:        defines,
-		Plugins:       []api.Plugin{newAtAliasPlugin(absAppDir), newPolaWorkspacePlugin(absAppDir), probePlugin},
+		Plugins:       []api.Plugin{newAtAliasPlugin(absAppDir), newPolaWorkspacePlugin(absAppDir), probePlugin, newCSSStubPlugin()},
 	})
 	return collected
 }
@@ -572,6 +572,27 @@ func fmtErrors(pass string, errs []api.Message) error {
 		}
 	}
 	return fmt.Errorf("esbuild [%s]:\n%s", pass, strings.Join(msgs, "\n"))
+}
+
+// newCSSStubPlugin returns an esbuild plugin that stubs out .css imports.
+// CSS is processed separately by the CSS pipeline (e.g. Tailwind), so esbuild
+// should not attempt to bundle CSS files.
+func newCSSStubPlugin() api.Plugin {
+	return api.Plugin{
+		Name: "css-stub",
+		Setup: func(build api.PluginBuild) {
+			build.OnResolve(api.OnResolveOptions{Filter: `\.css$`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
+				return api.OnResolveResult{
+					Path:      args.Path,
+					Namespace: "css-stub",
+				}, nil
+			})
+			build.OnLoad(api.OnLoadOptions{Filter: `.*`, Namespace: "css-stub"}, func(args api.OnLoadArgs) (api.OnLoadResult, error) {
+				empty := ""
+				return api.OnLoadResult{Contents: &empty, Loader: api.LoaderJS}, nil
+			})
+		},
+	}
 }
 
 func isPackageSpecifier(s string) bool {
