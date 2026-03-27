@@ -15,10 +15,19 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	samberdo "github.com/samber/do/v2"
+
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/core/di"
 )
 
-func init() { core.RegisterCSS(func() core.CSS { return New() }) }
+func init() {
+	di.Stage(func(i samberdo.Injector) {
+		samberdo.Provide(i, func(_ samberdo.Injector) (core.CSS, error) {
+			return New(), nil
+		})
+	})
+}
 
 // PostCSS runs the postcss CLI to process CSS.
 type PostCSS struct {

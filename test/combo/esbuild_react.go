@@ -13,22 +13,33 @@ import (
 	"testing"
 
 	gojalib "github.com/dop251/goja"
+	samberdo "github.com/samber/do/v2"
 
 	pola "github.com/polagonow/pola"
 	"github.com/polagonow/pola/core"
-	gojaengine "github.com/polagonow/pola/engine/goja"
+	"github.com/polagonow/pola/core/di"
 	"github.com/polagonow/pola/engine/polyfill"
 	"github.com/polagonow/pola/test/fixture"
 
-	// Import to trigger init() registration of each plugin.
+	// Plugins self-register via init() → di.Stage().
 	_ "github.com/polagonow/pola/bundler/esbuild"
+	_ "github.com/polagonow/pola/engine/goja"
 	_ "github.com/polagonow/pola/fs/osfs"
 	_ "github.com/polagonow/pola/logger/slog"
+	_ "github.com/polagonow/pola/observability/metrics/prometheus"
+	_ "github.com/polagonow/pola/observability/tracing/otel"
 	_ "github.com/polagonow/pola/renderer/react"
 	_ "github.com/polagonow/pola/router/nextjs"
 )
 
-func init() { fixture.Register(&esbuildReactGojaFixture{}) }
+func init() {
+	// Register test injector for DI-backed service calls in e2e tests.
+	di.Stage(func(i samberdo.Injector) {
+		ic := samberdo.MustInvoke[*di.InjectorCollector](i)
+		ic.Add(fixture.SharedInjector())
+	})
+	fixture.Register(&esbuildReactGojaFixture{})
+}
 
 type esbuildReactGojaFixture struct {
 	once sync.Once
@@ -46,10 +57,6 @@ func (f *esbuildReactGojaFixture) GetApp(t *testing.T) *core.App {
 	f.once.Do(func() {
 		f.app, f.err = pola.New(&core.Config{
 			WebAppPath: fixture.AppDir,
-			Registry: &core.Registry{
-				Engine:    gojaengine.NewEngine(),
-				Injectors: []core.RuntimeInjector{fixture.SharedInjector()},
-			},
 		})
 	})
 	if f.err != nil {

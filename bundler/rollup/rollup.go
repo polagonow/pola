@@ -29,6 +29,6 @@ func (b *Bundler) Build(_ context.Context, _ core.BundleInput) (*core.BundleOutp
 }
 
 // Watch always returns ErrNotImplemented.
-func (b *Bundler) Watch(_ context.Context, _ core.BundleInput, _ func(*core.BundleOutput)) error {
-	return ErrNotImplemented
+func (b *Bundler) Watch(_ context.Context, _ core.BundleInput) (<-chan *core.BundleOutput, error) {
+	return nil, ErrNotImplemented
 }
