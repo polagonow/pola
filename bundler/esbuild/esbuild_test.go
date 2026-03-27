@@ -57,7 +57,7 @@ func TestBuild_Name(t *testing.T) {
 // TestBuild_Watch_Stub verifies that Watch returns an error (stub).
 func TestBuild_Watch_Stub(t *testing.T) {
 	b := New()
-	err := b.Watch(context.Background(), core.BundleInput{}, nil)
+	_, err := b.Watch(context.Background(), core.BundleInput{})
 	if err == nil {
 		t.Error("expected Watch to return an error (not yet implemented)")
 	}

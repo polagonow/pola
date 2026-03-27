@@ -9,7 +9,10 @@ import (
 	"io/fs"
 	"net/http"
 
+	samberdo "github.com/samber/do/v2"
+
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/core/di"
 )
 
 //go:embed all:public
@@ -21,45 +24,49 @@ func init() {
 		panic("embed: sub public: " + err.Error())
 	}
 
-	// Override the osfs asset server with one backed by the embedded FS.
-	core.RegisterAssetServer(func(_ string) core.AssetServer {
-		return &embedAssetServer{sub: sub}
-	})
+	di.Stage(func(i samberdo.Injector) {
+		// Override the osfs asset server with one backed by the embedded FS.
+		samberdo.Provide(i, func(_ samberdo.Injector) (core.AssetServerFactory, error) {
+			return func(_ string) core.AssetServer {
+				return &embedAssetServer{sub: sub}
+			}, nil
+		})
 
-	// Register the prebuild loader so the pipeline skips route scanning and bundling.
-	core.RegisterPrebuildLoader(func() (*core.PrebuildArtifacts, error) {
-		// Read prebuild-meta.json (written during mage Bundle).
-		metaBytes, err := fs.ReadFile(sub, "prebuild-meta.json")
-		if err != nil {
-			return nil, fmt.Errorf("embed: read prebuild-meta.json: %w", err)
-		}
-		var meta struct {
-			Routes         []core.Route      `json:"routes"`
-			ClientEntryURL string            `json:"clientEntryURL"`
-			ImportURLs     map[string]string `json:"importURLs"`
-			GlobalNotFound string            `json:"globalNotFound"`
-			CSSURLs        []string          `json:"cssURLs"`
-		}
-		if err := json.Unmarshal(metaBytes, &meta); err != nil {
-			return nil, fmt.Errorf("embed: parse prebuild-meta.json: %w", err)
-		}
+		// Register the prebuild loader so the pipeline skips route scanning and bundling.
+		samberdo.Provide(i, func(_ samberdo.Injector) (core.PrebuildLoader, error) {
+			return func() (*core.PrebuildArtifacts, error) {
+				metaBytes, err := fs.ReadFile(sub, "prebuild-meta.json")
+				if err != nil {
+					return nil, fmt.Errorf("embed: read prebuild-meta.json: %w", err)
+				}
+				var meta struct {
+					Routes         []core.Route      `json:"routes"`
+					ClientEntryURL string            `json:"clientEntryURL"`
+					ImportURLs     map[string]string `json:"importURLs"`
+					GlobalNotFound string            `json:"globalNotFound"`
+					CSSURLs        []string          `json:"cssURLs"`
+				}
+				if err := json.Unmarshal(metaBytes, &meta); err != nil {
+					return nil, fmt.Errorf("embed: parse prebuild-meta.json: %w", err)
+				}
 
-		// Read the pre-built server bundle (_server.js lives at publicDir root).
-		serverBundle, err := fs.ReadFile(sub, "_server.js")
-		if err != nil {
-			return nil, fmt.Errorf("embed: read _server.js: %w", err)
-		}
+				serverBundle, err := fs.ReadFile(sub, "_server.js")
+				if err != nil {
+					return nil, fmt.Errorf("embed: read _server.js: %w", err)
+				}
 
-		return &core.PrebuildArtifacts{
-			Routes: meta.Routes,
-			BundleOutput: &core.BundleOutput{
-				ServerBundle:   serverBundle,
-				ClientEntryURL: meta.ClientEntryURL,
-				ImportURLs:     meta.ImportURLs,
-			},
-			GlobalNotFound: meta.GlobalNotFound,
-			CSSURLs:        meta.CSSURLs,
-		}, nil
+				return &core.PrebuildArtifacts{
+					Routes: meta.Routes,
+					BundleOutput: &core.BundleOutput{
+						ServerBundle:   serverBundle,
+						ClientEntryURL: meta.ClientEntryURL,
+						ImportURLs:     meta.ImportURLs,
+					},
+					GlobalNotFound: meta.GlobalNotFound,
+					CSSURLs:        meta.CSSURLs,
+				}, nil
+			}, nil
+		})
 	})
 }
 

@@ -58,7 +58,7 @@ type Router interface {
 type Bundler interface {
 	Name() string
 	Build(ctx context.Context, req BundleInput) (*BundleOutput, error)
-	Watch(ctx context.Context, req BundleInput, onChange func(*BundleOutput)) error
+	Watch(ctx context.Context, req BundleInput) (<-chan *BundleOutput, error)
 }
 
 // FS is the file system abstraction.
@@ -204,3 +204,11 @@ type HTMLShell interface {
 type AssetServer interface {
 	Handler(prefix string) http.Handler
 }
+
+// AssetServerFactory creates an AssetServer for the given public directory.
+type AssetServerFactory func(publicDir string) AssetServer
+
+// PrebuildLoader loads pre-built artifacts from the binary (e.g. from an
+// embedded FS). When registered, the pipeline skips route scanning and JS
+// bundling at startup.
+type PrebuildLoader func() (*PrebuildArtifacts, error)

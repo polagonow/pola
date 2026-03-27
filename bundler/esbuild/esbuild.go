@@ -7,7 +7,7 @@
 //	go build -tags esbuild ./...
 //
 // The init function registered under the esbuild build tag calls
-// core.RegisterBundler so the framework can resolve the default bundler
+// di.Stage so the framework can resolve the default bundler
 // without a direct import cycle.
 package esbuild
 
@@ -20,12 +20,20 @@ import (
 	"strings"
 
 	"github.com/evanw/esbuild/pkg/api"
+	samberdo "github.com/samber/do/v2"
 
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/core/di"
 	"github.com/polagonow/pola/core/globals"
 )
 
-func init() { core.RegisterBundler(func() core.Bundler { return New() }) }
+func init() {
+	di.Stage(func(i samberdo.Injector) {
+		samberdo.Provide(i, func(_ samberdo.Injector) (core.Bundler, error) {
+			return New(), nil
+		})
+	})
+}
 
 // Bundler implements core.Bundler using the two-pass esbuild pipeline.
 type Bundler struct{}
@@ -128,8 +136,8 @@ func (b *Bundler) Build(_ context.Context, req core.BundleInput) (*core.BundleOu
 
 // Watch stubs esbuild incremental watch mode.
 // TODO: implement using esbuild's context-based rebuild API.
-func (b *Bundler) Watch(_ context.Context, _ core.BundleInput, _ func(*core.BundleOutput)) error {
-	return fmt.Errorf("esbuild: Watch not yet implemented")
+func (b *Bundler) Watch(_ context.Context, _ core.BundleInput) (<-chan *core.BundleOutput, error) {
+	return nil, fmt.Errorf("esbuild: Watch not yet implemented")
 }
 
 // ── manifest (inlined from bundler/manifest) ─────────────────────────────────

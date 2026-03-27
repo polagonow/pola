@@ -2,12 +2,20 @@
 
 package goja
 
-import "github.com/polagonow/pola/core"
+import (
+	samberdo "github.com/samber/do/v2"
+
+	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/core/di"
+)
 
 // Registered is set to true when the goja build tag is active.
-// The pipeline uses this to auto-select Goja when no engine is explicitly configured.
 var Registered = true
 
 func init() {
-	core.RegisterEngine(func() core.JSEngine { return &Engine{} })
+	di.Stage(func(i samberdo.Injector) {
+		samberdo.Provide(i, func(_ samberdo.Injector) (core.JSEngine, error) {
+			return &Engine{}, nil
+		})
+	})
 }

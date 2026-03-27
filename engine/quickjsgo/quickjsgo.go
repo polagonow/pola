@@ -22,8 +22,10 @@ import (
 	"text/template"
 
 	quickjs "github.com/buke/quickjs-go"
+	samberdo "github.com/samber/do/v2"
 
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/core/di"
 	"github.com/polagonow/pola/core/globals"
 	"github.com/polagonow/pola/engine/polyfill"
 	"github.com/polagonow/pola/internal/vmpool"
@@ -489,5 +491,9 @@ func exportValue(v *quickjs.Value) any {
 var Registered = true
 
 func init() {
-	core.RegisterEngine(func() core.JSEngine { return NewEngine() })
+	di.Stage(func(i samberdo.Injector) {
+		samberdo.Provide(i, func(_ samberdo.Injector) (core.JSEngine, error) {
+			return NewEngine(), nil
+		})
+	})
 }
