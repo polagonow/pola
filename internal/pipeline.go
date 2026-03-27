@@ -53,6 +53,33 @@ type noopShell struct{}
 
 func (noopShell) Render(_ core.ShellParams) string { return "<!DOCTYPE html><html><body></body></html>" }
 
+// resolveShellAndAssets returns the registered HTMLShell and AssetServer,
+// falling back to noop implementations when none are registered.
+func resolveShellAndAssets(publicDir string) (core.HTMLShell, core.AssetServer) {
+	var shell core.HTMLShell
+	if ctor := core.DefaultHTMLShell(); ctor != nil {
+		shell = ctor()
+	} else {
+		shell = noopShell{}
+	}
+	var assets core.AssetServer
+	if ctor := core.DefaultAssetServer(); ctor != nil {
+		assets = ctor(publicDir)
+	} else {
+		assets = noopAssetServer{}
+	}
+	return shell, assets
+}
+
+// newNotFoundRoute returns a catch-all Route for the global not-found page,
+// or nil if globalNotFound is empty.
+func newNotFoundRoute(globalNotFound string) *core.Route {
+	if globalNotFound == "" {
+		return nil
+	}
+	return &core.Route{Export: "GlobalNotFound", Pattern: "/*"}
+}
+
 // Build runs the full build pipeline and returns a ready App.
 func Build(cfg *core.Config) (*core.App, error) {
 	// ── 0. Resolve registry ───────────────────────────────────────────────
@@ -182,25 +209,10 @@ func Build(cfg *core.Config) (*core.App, error) {
 	}
 
 	// ── 7. Resolve shell and asset server ─────────────────────────────────
-	var shell core.HTMLShell
-	if ctor := core.DefaultHTMLShell(); ctor != nil {
-		shell = ctor()
-	} else {
-		shell = noopShell{}
-	}
-
-	var assets core.AssetServer
-	if ctor := core.DefaultAssetServer(); ctor != nil {
-		assets = ctor(publicDir)
-	} else {
-		assets = noopAssetServer{}
-	}
+	shell, assets := resolveShellAndAssets(publicDir)
 
 	// ── 8. Wire orchestrator ───────────────────────────────────────────────
-	var notFoundRoute *core.Route
-	if discovery.GlobalNotFound != "" {
-		notFoundRoute = &core.Route{Export: "GlobalNotFound", Pattern: "/*"}
-	}
+	notFoundRoute := newNotFoundRoute(discovery.GlobalNotFound)
 	orch := NewOrchestrator(reg, routes, shell, assets, bundleOutput, notFoundRoute, cssURLs, cfg.Dev)
 
 	// ── 6.6. Copy static public files ────────────────────────────────────────
@@ -306,23 +318,9 @@ func buildFromPrebuilt(cfg *core.Config, reg *core.Registry, loader func() (*cor
 	}
 
 	// Resolve shell and asset server (embed.go registers the embedded asset server).
-	var shell core.HTMLShell
-	if ctor := core.DefaultHTMLShell(); ctor != nil {
-		shell = ctor()
-	} else {
-		shell = noopShell{}
-	}
-	var assets core.AssetServer
-	if ctor := core.DefaultAssetServer(); ctor != nil {
-		assets = ctor("")
-	} else {
-		assets = noopAssetServer{}
-	}
+	shell, assets := resolveShellAndAssets("")
 
-	var notFoundRoute *core.Route
-	if artifacts.GlobalNotFound != "" {
-		notFoundRoute = &core.Route{Export: "GlobalNotFound", Pattern: "/*"}
-	}
+	notFoundRoute := newNotFoundRoute(artifacts.GlobalNotFound)
 	// Embed mode never supports hot reload — assets are baked into the binary.
 	orch := NewOrchestrator(reg, artifacts.Routes, shell, assets, artifacts.BundleOutput, notFoundRoute, artifacts.CSSURLs, false)
 	app := newApp(cfg, reg, orch)
