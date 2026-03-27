@@ -26,22 +26,52 @@ type requestHandler interface {
 
 // Orchestrator implements http.Handler and wires all Pola components together.
 type Orchestrator struct {
-	registry      *core.Registry
+	renderer      core.Renderer
+	router        core.Router
+	logger        core.Logger
+	metrics       core.Metrics
+	tracer        core.Tracer
+	pprof         core.Pprof // may be nil
+	middleware    []core.Middleware
+	injectors     []core.RuntimeInjector
 	routes        []core.Route
 	shell         core.HTMLShell
 	assets        core.AssetServer
 	bundleOutput  *core.BundleOutput
-	notFoundRoute *core.Route // GlobalNotFound export, or nil
-	cssURLs       []string   // external stylesheet URLs
+	notFoundRoute *core.Route  // GlobalNotFound export, or nil
+	cssURLs       []string     // external stylesheet URLs
 	dev           bool
 	devScript     string       // hot-reload inline script, set in dev mode
 	handler       http.Handler // middleware chain wrapping handle, built once
 }
 
-// NewOrchestrator creates a new Orchestrator from the given registry and build artifacts.
-func NewOrchestrator(reg *core.Registry, routes []core.Route, shell core.HTMLShell, assets core.AssetServer, bundleOutput *core.BundleOutput, notFoundRoute *core.Route, cssURLs []string, dev bool) *Orchestrator {
+// NewOrchestrator creates a new Orchestrator from resolved services and build artifacts.
+func NewOrchestrator(
+	renderer core.Renderer,
+	router core.Router,
+	logger core.Logger,
+	metrics core.Metrics,
+	tracer core.Tracer,
+	pprof core.Pprof,
+	middleware []core.Middleware,
+	injectors []core.RuntimeInjector,
+	routes []core.Route,
+	shell core.HTMLShell,
+	assets core.AssetServer,
+	bundleOutput *core.BundleOutput,
+	notFoundRoute *core.Route,
+	cssURLs []string,
+	dev bool,
+) *Orchestrator {
 	o := &Orchestrator{
-		registry:      reg,
+		renderer:      renderer,
+		router:        router,
+		logger:        logger,
+		metrics:       metrics,
+		tracer:        tracer,
+		pprof:         pprof,
+		middleware:    middleware,
+		injectors:     injectors,
 		routes:        routes,
 		shell:         shell,
 		assets:        assets,
@@ -55,8 +85,8 @@ func NewOrchestrator(reg *core.Registry, routes []core.Route, shell core.HTMLShe
 	}
 	// Build the middleware chain once at construction time instead of per request.
 	handler := http.Handler(http.HandlerFunc(o.handle))
-	for i := len(reg.Middleware) - 1; i >= 0; i-- {
-		handler = reg.Middleware[i].Wrap(handler)
+	for i := len(middleware) - 1; i >= 0; i-- {
+		handler = middleware[i].Wrap(handler)
 	}
 	o.handler = handler
 	return o
@@ -72,15 +102,15 @@ func (o *Orchestrator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Metrics endpoint.
-	if r.URL.Path == o.registry.Metrics.Path() {
-		o.registry.Metrics.Handler().ServeHTTP(w, r)
+	// Metrics endpoint (nil when not registered).
+	if o.metrics != nil && r.URL.Path == o.metrics.Path() {
+		o.metrics.Handler().ServeHTTP(w, r)
 		return
 	}
 
 	// Pprof endpoints (nil when not registered).
-	if o.registry.Pprof != nil && strings.HasPrefix(r.URL.Path, o.registry.Pprof.Path()) {
-		o.registry.Pprof.Handler().ServeHTTP(w, r)
+	if o.pprof != nil && strings.HasPrefix(r.URL.Path, o.pprof.Path()) {
+		o.pprof.Handler().ServeHTTP(w, r)
 		return
 	}
 
@@ -88,38 +118,54 @@ func (o *Orchestrator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rw := &responseRecorder{ResponseWriter: w, code: http.StatusOK}
 	o.handler.ServeHTTP(rw, r)
 
-	routeName := "unknown"
-	if pat, ok := r.Context().Value(routePatternKey).(string); ok && pat != "" {
-		routeName = pat
+	if o.metrics != nil {
+		routeName := "unknown"
+		if pat, ok := r.Context().Value(routePatternKey).(string); ok && pat != "" {
+			routeName = pat
+		}
+		o.metrics.RecordRequest(routeName, r.Method, rw.code, time.Since(start))
 	}
-	o.registry.Metrics.RecordRequest(routeName, r.Method, rw.code, time.Since(start))
 }
 
 // tryRendererServe calls ServeRequest on the renderer if it implements
 // requestHandler. Returns true if the renderer claimed the response.
 func (o *Orchestrator) tryRendererServe(ctx context.Context, w http.ResponseWriter, r *http.Request, req core.RenderRequest, status int) bool {
-	rh, ok := o.registry.Renderer.(requestHandler)
+	rh, ok := o.renderer.(requestHandler)
 	if !ok {
 		return false
 	}
-	ctx, span := o.registry.Tracer.StartSpan(ctx, "pola.render")
+	if o.tracer != nil {
+		var span core.Span
+		ctx, span = o.tracer.StartSpan(ctx, "pola.render")
+		defer span.End()
+	}
 	renderStart := time.Now()
 	handled, err := rh.ServeRequest(ctx, w, r, req, status)
-	span.End()
-	o.registry.Metrics.RecordRender(req.Route.Pattern, time.Since(renderStart))
+	if o.metrics != nil {
+		o.metrics.RecordRender(req.Route.Pattern, time.Since(renderStart))
+	}
 	if err != nil {
-		o.registry.Logger.Error("pola: render", "err", err)
+		o.logger.Error("pola: render", "err", err)
 	}
 	return handled
 }
 
 func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
-	ctx, span := o.registry.Tracer.StartSpan(r.Context(), "pola.handle")
-	defer span.End()
+	ctx := r.Context()
+	if o.tracer != nil {
+		var span core.Span
+		ctx, span = o.tracer.StartSpan(ctx, "pola.handle")
+		defer span.End()
+	}
 
-	ctx, routeSpan := o.registry.Tracer.StartSpan(ctx, "pola.route.resolve")
-	route, params := o.registry.Router.Resolve(ctx, r.URL.Path)
-	routeSpan.End()
+	var routeSpan core.Span
+	if o.tracer != nil {
+		ctx, routeSpan = o.tracer.StartSpan(ctx, "pola.route.resolve")
+	}
+	route, params := o.router.Resolve(ctx, r.URL.Path)
+	if routeSpan != nil {
+		routeSpan.End()
+	}
 
 	// Store resolved route pattern for metrics (avoids re-resolving in ServeHTTP).
 	if route != nil {
@@ -133,7 +179,7 @@ func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
 				Route:          *o.notFoundRoute,
 				Props:          map[string]any{"params": map[string]any{}, "searchParams": map[string]any{}},
 				RequestContext: buildRequestContext(r),
-				Injectors:      o.registry.Injectors,
+				Injectors:      o.injectors,
 			}
 			if o.tryRendererServe(ctx, w, r, req, http.StatusNotFound) {
 				return
@@ -149,7 +195,7 @@ func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
 		Route:          *route,
 		Props:          buildPageProps(r, params),
 		RequestContext: buildRequestContext(r),
-		Injectors:      o.registry.Injectors,
+		Injectors:      o.injectors,
 	}
 	if o.tryRendererServe(ctx, w, r, req, http.StatusOK) {
 		return
@@ -179,8 +225,7 @@ func (o *Orchestrator) serveHTML(w http.ResponseWriter, _ *http.Request) {
 }
 
 // defaultMetadata returns the built-in metadata used when the application has
-// not supplied its own. It preserves the same title and favicon that were
-// previously hardcoded in the HTML template.
+// not supplied its own.
 func defaultMetadata() *core.Metadata {
 	faviconURL := "/public/favicon.ico"
 	return &core.Metadata{
@@ -220,9 +265,7 @@ func buildPageProps(r *http.Request, params map[string]any) map[string]any {
 }
 
 // allowedHeaders lists the HTTP headers that are safe to expose to JS server
-// components. Sensitive headers (Cookie, Authorization, Proxy-Authorization,
-// X-Forwarded-For, etc.) are intentionally excluded to prevent accidental
-// leakage through the RSC Flight stream.
+// components.
 var allowedHeaders = map[string]struct{}{
 	"Accept":            {},
 	"Accept-Encoding":   {},

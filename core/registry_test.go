@@ -3,7 +3,10 @@ package core_test
 import (
 	"testing"
 
+	samberdo "github.com/samber/do/v2"
+
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/core/di"
 )
 
 func TestPolyfillRegistry(t *testing.T) {
@@ -27,17 +30,28 @@ func TestPolyfillRegistryMissing(t *testing.T) {
 	}
 }
 
-func TestRegistryFillDefaultsNoopFallback(t *testing.T) {
-	reg := &core.Registry{}
-	if err := reg.FillDefaults(); err != nil {
-		t.Fatalf("FillDefaults failed: %v", err)
+func TestDIBuildMissingServicesError(t *testing.T) {
+	injector := di.Build()
+
+	// Unregistered services should return errors, not noops.
+	if _, err := samberdo.Invoke[core.Logger](injector); err == nil {
+		t.Fatal("expected error for unregistered Logger")
 	}
-	// Logger should be noop, not nil
-	if reg.Logger == nil {
-		t.Fatal("Logger should not be nil after FillDefaults")
+	if _, err := samberdo.Invoke[core.Metrics](injector); err == nil {
+		t.Fatal("expected error for unregistered Metrics")
 	}
-	// Metrics should be noop
-	if reg.Metrics == nil {
-		t.Fatal("Metrics should not be nil after FillDefaults")
+	if _, err := samberdo.Invoke[core.Tracer](injector); err == nil {
+		t.Fatal("expected error for unregistered Tracer")
+	}
+
+	// Framework-internal singletons should always be available.
+	if _, err := samberdo.Invoke[*di.MiddlewareCollector](injector); err != nil {
+		t.Fatalf("MiddlewareCollector should be registered: %v", err)
+	}
+	if _, err := samberdo.Invoke[*di.InjectorCollector](injector); err != nil {
+		t.Fatalf("InjectorCollector should be registered: %v", err)
+	}
+	if _, err := samberdo.Invoke[*di.EventBus](injector); err != nil {
+		t.Fatalf("EventBus should be registered: %v", err)
 	}
 }

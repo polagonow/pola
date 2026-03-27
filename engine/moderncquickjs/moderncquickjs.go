@@ -31,7 +31,10 @@ import (
 	lib "modernc.org/libquickjs"
 	mquickjs "modernc.org/quickjs"
 
+	samberdo "github.com/samber/do/v2"
+
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/core/di"
 	"github.com/polagonow/pola/core/globals"
 	"github.com/polagonow/pola/engine/eventloop"
 	"github.com/polagonow/pola/engine/polyfill"
@@ -533,5 +536,9 @@ func newVMPool(serverBundle string, logger core.Logger) (*vmpool.Pool[*Runtime],
 var Registered = true
 
 func init() {
-	core.RegisterEngine(func() core.JSEngine { return NewEngine() })
+	di.Stage(func(i samberdo.Injector) {
+		samberdo.Provide(i, func(_ samberdo.Injector) (core.JSEngine, error) {
+			return NewEngine(), nil
+		})
+	})
 }

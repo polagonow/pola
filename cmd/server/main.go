@@ -14,25 +14,35 @@ import (
 
 	pola "github.com/polagonow/pola"
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/core/di"
 	"github.com/polagonow/pola/core/env"
 	doinjection "github.com/polagonow/pola/injection/do"
-	sloglogger "github.com/polagonow/pola/logger/slog"
-	"github.com/polagonow/pola/middleware/logging"
-	"github.com/polagonow/pola/middleware/recovery"
-	"github.com/polagonow/pola/observability/metrics/prometheus"
-	"github.com/polagonow/pola/observability/pprof"
-	"github.com/polagonow/pola/observability/tracing/otel"
 
-	// plugins register themselves via init()
+	// plugins self-register via init() → di.Stage()
 	_ "github.com/polagonow/pola/bundler"
 	_ "github.com/polagonow/pola/cache"
 	_ "github.com/polagonow/pola/css"
 	_ "github.com/polagonow/pola/engine"
 	_ "github.com/polagonow/pola/fs"
 	_ "github.com/polagonow/pola/logger"
+	_ "github.com/polagonow/pola/middleware/logging"
+	_ "github.com/polagonow/pola/middleware/recovery"
+	_ "github.com/polagonow/pola/observability/metrics/prometheus"
+	_ "github.com/polagonow/pola/observability/tracing/otel"
 	_ "github.com/polagonow/pola/renderer"
 	_ "github.com/polagonow/pola/router"
 )
+
+func init() {
+	// Register blog demo services into the DI container.
+	di.Stage(func(i samberdo.Injector) {
+		injector := doinjection.New(i)
+		registerBlogServices(injector)
+
+		ic := samberdo.MustInvoke[*di.InjectorCollector](i)
+		ic.Add(injector)
+	})
+}
 
 func main() {
 	e, err := env.Load()
@@ -40,37 +50,12 @@ func main() {
 		log.Fatalf("env: %v", err)
 	}
 
-	logger := sloglogger.New()
-
-	// ── Dependency injection ───────────────────────────────────────────────
-	injector := doinjection.New(samberdo.New())
-	registerBlogServices(injector)
-
-	// ── Registry ───────────────────────────────────────────────────────────
-	reg := &core.Registry{
-		Injectors: []core.RuntimeInjector{injector},
-		Middleware: []core.Middleware{
-			recovery.New(logger),
-			logging.New(logger),
-		},
-	}
-	if e.MetricsEnabled {
-		reg.Metrics = prometheus.New()
-	}
-	if e.TracingEnabled {
-		reg.Tracer = otel.New()
-	}
-	if e.PprofEnabled {
-		reg.Pprof = pprof.New()
-	}
-
 	// ── Build app ──────────────────────────────────────────────────────────
-	app, err := pola.New(&core.Config{
-		WebAppPath: e.WebAppPath,
-		Dev:        e.Dev,
-		PublicDir:  e.PublicDir,
-		Registry:   reg,
-	})
+	app, err := pola.New(
+		core.WithWebAppPath(e.WebAppPath),
+		core.WithPublicDir(e.PublicDir),
+		core.WithDev(e.Dev),
+	)
 	if err != nil {
 		log.Fatalf("pola: %v", err)
 	}
@@ -86,12 +71,6 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.Handle("/", app)
-	if e.MetricsEnabled {
-		mux.Handle(e.MetricsPath, reg.Metrics.Handler())
-	}
-	if e.PprofEnabled {
-		mux.Handle(e.PprofPath+"/", reg.Pprof.Handler())
-	}
 
 	srv := &http.Server{Addr: addr, Handler: mux}
 
