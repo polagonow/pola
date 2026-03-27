@@ -52,6 +52,8 @@ func ImportMap(importURLs map[string]string) string {
 	if err != nil {
 		return ""
 	}
+	// json.Marshal escapes <, >, & to \uXXXX by default, so "</script>"
+	// sequences in keys/values cannot break out of the script tag.
 	return fmt.Sprintf(`<script type="importmap">%s</script>`, payload)
 }
 
