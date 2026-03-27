@@ -2,8 +2,17 @@
 
 package nextjs
 
-import "github.com/polagonow/pola/core"
+import (
+	samberdo "github.com/samber/do/v2"
+
+	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/core/di"
+)
 
 func init() {
-	core.RegisterRouter(func() core.Router { return New() })
+	di.Stage(func(i samberdo.Injector) {
+		samberdo.Provide(i, func(_ samberdo.Injector) (core.Router, error) {
+			return New(), nil
+		})
+	})
 }

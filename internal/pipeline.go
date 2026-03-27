@@ -9,7 +9,10 @@ import (
 	"path/filepath"
 	"strings"
 
+	samberdo "github.com/samber/do/v2"
+
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/core/di"
 )
 
 // prebuildMeta is the JSON schema for prebuild-meta.json written during mage Bundle
@@ -42,7 +45,6 @@ type discoveryProvider interface {
 	DiscoveryResult() core.DiscoveryResult
 }
 
-
 // noopAssetServer is used when no asset plugin is registered.
 type noopAssetServer struct{}
 
@@ -51,24 +53,8 @@ func (noopAssetServer) Handler(_ string) http.Handler { return http.NotFoundHand
 // noopShell is used when no HTML shell is registered.
 type noopShell struct{}
 
-func (noopShell) Render(_ core.ShellParams) string { return "<!DOCTYPE html><html><body></body></html>" }
-
-// resolveShellAndAssets returns the registered HTMLShell and AssetServer,
-// falling back to noop implementations when none are registered.
-func resolveShellAndAssets(publicDir string) (core.HTMLShell, core.AssetServer) {
-	var shell core.HTMLShell
-	if ctor := core.DefaultHTMLShell(); ctor != nil {
-		shell = ctor()
-	} else {
-		shell = noopShell{}
-	}
-	var assets core.AssetServer
-	if ctor := core.DefaultAssetServer(); ctor != nil {
-		assets = ctor(publicDir)
-	} else {
-		assets = noopAssetServer{}
-	}
-	return shell, assets
+func (noopShell) Render(_ core.ShellParams) string {
+	return "<!DOCTYPE html><html><body></body></html>"
 }
 
 // newNotFoundRoute returns a catch-all Route for the global not-found page,
@@ -80,45 +66,75 @@ func newNotFoundRoute(globalNotFound string) *core.Route {
 	return &core.Route{Export: "GlobalNotFound", Pattern: "/*"}
 }
 
+// resolveShellAndAssets resolves HTMLShell and AssetServer from the DI container,
+// falling back to noop implementations when none are registered.
+func resolveShellAndAssets(injector samberdo.Injector, publicDir string) (core.HTMLShell, core.AssetServer) {
+	var shell core.HTMLShell
+	if s, err := samberdo.Invoke[core.HTMLShell](injector); err == nil {
+		shell = s
+	} else {
+		shell = noopShell{}
+	}
+	var assets core.AssetServer
+	if factory, err := samberdo.Invoke[core.AssetServerFactory](injector); err == nil {
+		assets = factory(publicDir)
+	} else {
+		assets = noopAssetServer{}
+	}
+	return shell, assets
+}
+
 // Build runs the full build pipeline and returns a ready App.
 func Build(cfg *core.Config) (*core.App, error) {
-	// ── 0. Resolve registry ───────────────────────────────────────────────
-	reg := cfg.Registry
-	if reg == nil {
-		reg = &core.Registry{}
+	// ── 0. Build DI container ───────────────────────────────────────────
+	injector := di.Build()
+
+	// ── 1. Resolve required services ────────────────────────────────────
+	renderer, err := samberdo.Invoke[core.Renderer](injector)
+	if err != nil {
+		return nil, fmt.Errorf("pola: no Renderer registered; import _ \"github.com/polagonow/pola/renderer/react\"")
+	}
+	router, err := samberdo.Invoke[core.Router](injector)
+	if err != nil {
+		return nil, fmt.Errorf("pola: no Router registered; import _ \"github.com/polagonow/pola/router/nextjs\"")
+	}
+	bundler, err := samberdo.Invoke[core.Bundler](injector)
+	if err != nil {
+		return nil, fmt.Errorf("pola: no Bundler registered; import _ \"github.com/polagonow/pola/bundler/esbuild\"")
+	}
+	fsys, err := samberdo.Invoke[core.FS](injector)
+	if err != nil {
+		return nil, fmt.Errorf("pola: no FS registered; import _ \"github.com/polagonow/pola/fs/osfs\"")
+	}
+	logger, err := samberdo.Invoke[core.Logger](injector)
+	if err != nil {
+		return nil, fmt.Errorf("pola: no Logger registered; import _ \"github.com/polagonow/pola/logger/slog\"")
+	}
+	engine, err := samberdo.Invoke[core.JSEngine](injector)
+	if err != nil {
+		return nil, fmt.Errorf("pola: no JSEngine registered; import _ \"github.com/polagonow/pola/engine\" with a build tag (goja, quickjsgo, etc.)")
 	}
 
-	// ── 1. Fill defaults ──────────────────────────────────────────────────
-	if err := reg.FillDefaults(); err != nil {
-		return nil, fmt.Errorf("pola: fill defaults: %w", err)
-	}
+	// Optional services — nil when not registered.
+	metrics, _ := samberdo.Invoke[core.Metrics](injector)
+	tracer, _ := samberdo.Invoke[core.Tracer](injector)
+	css, _ := samberdo.Invoke[core.CSS](injector)
+	pprof, _ := samberdo.Invoke[core.Pprof](injector)
+
+	// Slice collectors
+	middleware := samberdo.MustInvoke[*di.MiddlewareCollector](injector).All()
+	injectors := samberdo.MustInvoke[*di.InjectorCollector](injector).All()
 
 	// Propagate logger to all components that accept it.
-	for _, c := range []any{reg.Engine, reg.Bundler, reg.Renderer, reg.Router, reg.CSS} {
+	for _, c := range []any{engine, bundler, renderer, router, css} {
 		if la, ok := c.(core.LogAware); ok {
-			la.SetLogger(reg.Logger)
+			la.SetLogger(logger)
 		}
 	}
 
 	// ── Prebuild fast-path (embed mode) ───────────────────────────────────
-	// When a prebuild loader is registered (via cmd/server/embed.go), skip
-	// route scanning and JS bundling — everything was pre-computed at mage Build time.
-	if loader := core.DefaultPrebuildLoader(); loader != nil {
-		return buildFromPrebuilt(cfg, reg, loader)
-	}
-
-	// Validate required components.
-	if reg.Router == nil {
-		return nil, fmt.Errorf("pola: no Router registered; import github.com/polagonow/pola/router/nextjs (or another Router)")
-	}
-	if reg.Bundler == nil {
-		return nil, fmt.Errorf("pola: no Bundler registered; import github.com/polagonow/pola/bundler/esbuild (or another Bundler)")
-	}
-	if reg.Renderer == nil {
-		return nil, fmt.Errorf("pola: no Renderer registered; import github.com/polagonow/pola/renderer/react (or another Renderer)")
-	}
-	if reg.FS == nil {
-		return nil, fmt.Errorf("pola: no FS registered; import github.com/polagonow/pola/fs/osfs (or another FS)")
+	if loader, err := samberdo.Invoke[core.PrebuildLoader](injector); err == nil {
+		return buildFromPrebuilt(cfg, injector, loader, renderer, router, engine, logger, metrics, tracer, pprof, middleware, injectors)
 	}
 
 	// ── Resolve paths ─────────────────────────────────────────────────────
@@ -140,21 +156,21 @@ func Build(cfg *core.Config) (*core.App, error) {
 	ctx := context.Background()
 
 	// ── 2. Scan routes ────────────────────────────────────────────────────
-	exts := reg.Renderer.FileExtensions()
-	routes, err := reg.Router.ScanRoutes(ctx, reg.FS, absWebAppPath, exts)
+	exts := renderer.FileExtensions()
+	routes, err := router.ScanRoutes(ctx, fsys, absWebAppPath, exts)
 	if err != nil {
 		return nil, fmt.Errorf("pola: scan routes: %w", err)
 	}
 
 	// ── 3. Get DiscoveryResult (optional, router may implement it) ────────
 	var discovery core.DiscoveryResult
-	if dp, ok := reg.Router.(discoveryProvider); ok {
+	if dp, ok := router.(discoveryProvider); ok {
 		discovery = dp.DiscoveryResult()
 	}
 
 	// ── 4. Generate server entry source ───────────────────────────────────
 	var serverEntryContent string
-	if eg, ok := reg.Renderer.(entryGenerator); ok {
+	if eg, ok := renderer.(entryGenerator); ok {
 		serverEntryContent, err = eg.GenerateEntry(discovery)
 		if err != nil {
 			return nil, fmt.Errorf("pola: generate entry: %w", err)
@@ -181,14 +197,14 @@ func Build(cfg *core.Config) (*core.App, error) {
 		Dev:                cfg.Dev,
 		ServerEntryContent: serverEntryContent,
 		PublicEnvVars:      publicEnvVars,
-		CSSProcessor:       reg.CSS, // may be nil — bundler stubs CSS when nil
+		CSSProcessor:       css, // may be nil — bundler stubs CSS when nil
 	}
-	if bc, ok := reg.Renderer.(bundleConfigurator); ok {
+	if bc, ok := renderer.(bundleConfigurator); ok {
 		bundleInput.ServerBundleConditions = bc.BundleConditions()
 		bundleInput.ClientEntry = bc.ClientEntry()
 	}
 
-	bundleOutput, err := reg.Bundler.Build(ctx, bundleInput)
+	bundleOutput, err := bundler.Build(ctx, bundleInput)
 	if err != nil {
 		return nil, fmt.Errorf("pola: bundle: %w", err)
 	}
@@ -200,32 +216,26 @@ func Build(cfg *core.Config) (*core.App, error) {
 	}
 
 	// ── 6.5. Wire bundle to renderer ─────────────────────────────────────
-	// Renderers that implement core.BundleLoader receive the compiled server
-	// bundle so they can initialise their JS runtime pool.
-	if bl, ok := reg.Renderer.(core.BundleLoader); ok && reg.Engine != nil && bundleOutput != nil {
-		if err := bl.LoadBundle(reg.Engine, bundleOutput.ServerBundle); err != nil {
+	if bl, ok := renderer.(core.BundleLoader); ok && engine != nil && bundleOutput != nil {
+		if err := bl.LoadBundle(engine, bundleOutput.ServerBundle); err != nil {
 			return nil, fmt.Errorf("pola: load bundle: %w", err)
 		}
 	}
 
 	// ── 7. Resolve shell and asset server ─────────────────────────────────
-	shell, assets := resolveShellAndAssets(publicDir)
+	shell, assets := resolveShellAndAssets(injector, publicDir)
 
 	// ── 8. Wire orchestrator ───────────────────────────────────────────────
 	notFoundRoute := newNotFoundRoute(discovery.GlobalNotFound)
-	orch := NewOrchestrator(reg, routes, shell, assets, bundleOutput, notFoundRoute, cssURLs, cfg.Dev)
+	orch := NewOrchestrator(renderer, router, logger, metrics, tracer, pprof, middleware, injectors, routes, shell, assets, bundleOutput, notFoundRoute, cssURLs, cfg.Dev)
 
 	// ── 6.6. Copy static public files ────────────────────────────────────────
-	// When publicDir differs from the webapp's own public/ folder (e.g. embed
-	// builds writing to cmd/server/public/), copy non-asset statics such as
-	// favicon.ico so the //go:embed picks them up.
 	srcPublic := filepath.Join(absWebAppPath, "public")
 	if srcPublic != publicDir {
 		copyPublicStatics(srcPublic, publicDir)
 	}
 
 	// ── 9. Write prebuild-meta.json for embed builds ───────────────────────
-	// Saved into publicDir so it's picked up by //go:embed public in cmd/server/embed.go.
 	if bundleOutput != nil {
 		meta := prebuildMeta{
 			Routes:         routes,
@@ -240,17 +250,17 @@ func Build(cfg *core.Config) (*core.App, error) {
 	}
 
 	// ── 10. Return App ─────────────────────────────────────────────────────
-	app := newApp(cfg, reg, orch)
+	app := newApp(cfg, injector, orch)
 	app.SetArtifacts(bundleOutput)
 
 	// In dev mode wrap the app in a hot-reloader so file changes trigger a
 	// full rebuild and browser reload via WebSocket.
 	if cfg.Dev {
-		hr, err := NewHotReloader(cfg, app)
+		hr, err := NewHotReloader(cfg, injector, app, notFoundRoute)
 		if err != nil {
 			return nil, fmt.Errorf("pola: hotreload: %w", err)
 		}
-		devApp := newApp(cfg, reg, hr.Handler())
+		devApp := newApp(cfg, injector, hr.Handler())
 		devApp.SetArtifacts(bundleOutput)
 		return devApp, nil
 	}
@@ -299,31 +309,43 @@ type routeLoader interface {
 
 // buildFromPrebuilt builds an App from pre-computed artifacts (embed mode).
 // It skips route scanning, entry generation, and JS bundling.
-func buildFromPrebuilt(cfg *core.Config, reg *core.Registry, loader func() (*core.PrebuildArtifacts, error)) (*core.App, error) {
+func buildFromPrebuilt(
+	cfg *core.Config,
+	injector samberdo.Injector,
+	loader core.PrebuildLoader,
+	renderer core.Renderer,
+	router core.Router,
+	engine core.JSEngine,
+	logger core.Logger,
+	metrics core.Metrics,
+	tracer core.Tracer,
+	pprof core.Pprof,
+	middleware []core.Middleware,
+	injectors []core.RuntimeInjector,
+) (*core.App, error) {
 	artifacts, err := loader()
 	if err != nil {
 		return nil, fmt.Errorf("pola: load prebuilt: %w", err)
 	}
 
 	// Seed the router's internal routing table from the pre-built route list.
-	if rl, ok := reg.Router.(routeLoader); ok {
+	if rl, ok := router.(routeLoader); ok {
 		rl.LoadRoutes(artifacts.Routes)
 	}
 
 	// Load the server bundle into the JS engine.
-	if bl, ok := reg.Renderer.(core.BundleLoader); ok && reg.Engine != nil && artifacts.BundleOutput != nil {
-		if err := bl.LoadBundle(reg.Engine, artifacts.BundleOutput.ServerBundle); err != nil {
+	if bl, ok := renderer.(core.BundleLoader); ok && engine != nil && artifacts.BundleOutput != nil {
+		if err := bl.LoadBundle(engine, artifacts.BundleOutput.ServerBundle); err != nil {
 			return nil, fmt.Errorf("pola: load bundle: %w", err)
 		}
 	}
 
 	// Resolve shell and asset server (embed.go registers the embedded asset server).
-	shell, assets := resolveShellAndAssets("")
+	shell, assets := resolveShellAndAssets(injector, "")
 
 	notFoundRoute := newNotFoundRoute(artifacts.GlobalNotFound)
-	// Embed mode never supports hot reload — assets are baked into the binary.
-	orch := NewOrchestrator(reg, artifacts.Routes, shell, assets, artifacts.BundleOutput, notFoundRoute, artifacts.CSSURLs, false)
-	app := newApp(cfg, reg, orch)
+	orch := NewOrchestrator(renderer, router, logger, metrics, tracer, pprof, middleware, injectors, artifacts.Routes, shell, assets, artifacts.BundleOutput, notFoundRoute, artifacts.CSSURLs, false)
+	app := newApp(cfg, injector, orch)
 	app.SetArtifacts(artifacts.BundleOutput)
 	return app, nil
 }

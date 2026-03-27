@@ -1,18 +1,19 @@
 package internal
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"net/url"
 	"path/filepath"
 	"strings"
-	"sync"
 	"sync/atomic"
-	"time"
 
 	"github.com/gorilla/websocket"
+	samberdo "github.com/samber/do/v2"
 
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/core/di"
 )
 
 // ClientScript is the browser-side WebSocket listener that triggers a page
@@ -30,16 +31,12 @@ var wsUpgrader = websocket.Upgrader{
 }
 
 // checkSameOrigin validates that the WebSocket Origin header matches the
-// request Host, preventing cross-origin WebSocket hijacking. Requests with
-// no Origin header (e.g. non-browser clients) are allowed.
+// request Host, preventing cross-origin WebSocket hijacking.
 func checkSameOrigin(r *http.Request) bool {
 	origin := r.Header.Get("Origin")
 	if origin == "" {
 		return true
 	}
-	// Origin is a full URL (e.g. "http://localhost:3000"), so we need to
-	// extract the host portion and compare it to the request Host.
-	// Use url.Parse to handle any scheme.
 	u, err := url.Parse(origin)
 	if err != nil {
 		return false
@@ -53,107 +50,182 @@ type liveApp struct {
 	handler http.Handler
 }
 
-// HotReloader watches the app directory for source file changes, rebuilds,
-// and notifies browsers via WebSocket.
+// HotReloader watches for bundler rebuild events and notifies browsers
+// via WebSocket.
 type HotReloader struct {
-	cfg     *core.Config
-	reg     *core.Registry
-	exts    []string // file extensions to watch, from renderer
-	appDir  string   // absolute path
-	bus     *memoryBus
-	current atomic.Pointer[liveApp]
-	timerMu sync.Mutex
-	timer   *time.Timer
-	building atomic.Bool
-	done    chan struct{}
+	cfg           *core.Config
+	injector      samberdo.Injector
+	bus           *di.EventBus
+	notFoundRoute *core.Route
+	current       atomic.Pointer[liveApp]
+	done          chan struct{}
 }
 
 // NewHotReloader creates a HotReloader for the given config and initial app.
-// It watches cfg.WebAppPath for changes to files matching the renderer's
-// FileExtensions, rebuilds via internal.Build, and notifies browsers.
-func NewHotReloader(cfg *core.Config, initial *core.App) (*HotReloader, error) {
-	reg := cfg.Registry
-	if reg == nil {
-		reg = &core.Registry{}
+// It listens on the bundler's Watch channel for rebuild events and notifies
+// connected browsers via WebSocket.
+func NewHotReloader(cfg *core.Config, injector samberdo.Injector, initial *core.App, notFoundRoute *core.Route) (*HotReloader, error) {
+	bus := samberdo.MustInvoke[*di.EventBus](injector)
+	logger := samberdo.MustInvoke[core.Logger](injector)
+
+	h := &HotReloader{
+		cfg:           cfg,
+		injector:      injector,
+		bus:           bus,
+		notFoundRoute: notFoundRoute,
+		done:          make(chan struct{}),
 	}
 
-	// Determine file extensions to watch from the renderer (if available).
-	var exts []string
-	if reg.Renderer != nil {
-		exts = reg.Renderer.FileExtensions()
+	live := &liveApp{app: initial, handler: initial}
+	h.current.Store(live)
+
+	// Start watching via bundler's Watch channel.
+	bundler, err := samberdo.Invoke[core.Bundler](injector)
+	if err != nil {
+		// No bundler — fall back to no-op watch.
+		return h, nil
 	}
-	// Always watch CSS too.
+
+	// Reconstruct the bundle input for watch mode.
+	renderer, _ := samberdo.Invoke[core.Renderer](injector)
+	router, _ := samberdo.Invoke[core.Router](injector)
+	fsys, _ := samberdo.Invoke[core.FS](injector)
+	css, _ := samberdo.Invoke[core.CSS](injector)
+	engine, _ := samberdo.Invoke[core.JSEngine](injector)
+	_ = router
+	_ = fsys
+
+	output := initial.Artifacts().Output
+	if output == nil {
+		return h, nil
+	}
+
+	// Use the same bundle input shape, derived from config.
+	webAppPath := cfg.WebAppPath
+	if webAppPath == "" {
+		webAppPath = "./app"
+	}
+	publicDir := cfg.PublicDir
+	if publicDir == "" {
+		publicDir = webAppPath + "/public"
+	}
+
+	bundleInput := core.BundleInput{
+		AppDir:        webAppPath,
+		OutDir:        publicDir + "/assets",
+		AssetsURLPath: "/public/assets",
+		Dev:           true,
+		CSSProcessor:  css,
+	}
+
+	watchCh, watchErr := bundler.Watch(h.contextFromDone(), bundleInput)
+	if watchErr != nil {
+		logger.Warn("hotreload: bundler watch not available, falling back to full rebuild", "err", watchErr)
+		// Fall back to FS-based watching if bundler.Watch is not implemented.
+		if fsys != nil {
+			return h.fallbackFSWatch(cfg, logger, fsys, renderer)
+		}
+		return h, nil
+	}
+
+	// Goroutine: read from bundler watch channel.
+	go func() {
+		for {
+			select {
+			case <-h.done:
+				return
+			case newOutput, ok := <-watchCh:
+				if !ok {
+					return
+				}
+				logger.Info("hotreload: bundler delivered new output")
+
+				// Rewire: load bundle into renderer if applicable.
+				if bl, ok := renderer.(core.BundleLoader); ok && engine != nil && newOutput != nil {
+					if err := bl.LoadBundle(engine, newOutput.ServerBundle); err != nil {
+						logger.Error("hotreload: load bundle", "err", err)
+						continue
+					}
+				}
+
+				// Rebuild orchestrator with new output.
+				metrics, _ := samberdo.Invoke[core.Metrics](injector)
+				tracer, _ := samberdo.Invoke[core.Tracer](injector)
+				pprof, _ := samberdo.Invoke[core.Pprof](injector)
+				mws := samberdo.MustInvoke[*di.MiddlewareCollector](injector).All()
+				injs := samberdo.MustInvoke[*di.InjectorCollector](injector).All()
+				shell, assets := resolveShellAndAssets(injector, publicDir)
+
+				var cssURLs []string
+				if newOutput != nil {
+					cssURLs = newOutput.CSSURLs
+				}
+
+				orch := NewOrchestrator(renderer, router, logger, metrics, tracer, pprof, mws, injs, nil, shell, assets, newOutput, h.notFoundRoute, cssURLs, true)
+
+				newApp := newApp(cfg, injector, orch)
+				newApp.SetArtifacts(newOutput)
+				h.current.Store(&liveApp{app: newApp, handler: newApp})
+
+				logger.Info("hotreload: rebuild complete")
+				bus.Publish("update", []byte("reload"))
+			}
+		}
+	}()
+
+	return h, nil
+}
+
+// contextFromDone returns a context.Context that cancels when h.done is closed.
+func (h *HotReloader) contextFromDone() context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-h.done
+		cancel()
+	}()
+	return ctx
+}
+
+// fallbackFSWatch sets up FS-based file watching when the bundler doesn't
+// support Watch. It does a full rebuild on file changes.
+func (h *HotReloader) fallbackFSWatch(cfg *core.Config, logger core.Logger, fsys core.FS, renderer core.Renderer) (*HotReloader, error) {
+	var exts []string
+	if renderer != nil {
+		exts = renderer.FileExtensions()
+	}
 	exts = append(exts, ".css")
 
 	webAppPath := cfg.WebAppPath
 	if webAppPath == "" {
 		webAppPath = "./app"
 	}
-	absAppDir, err := filepath.Abs(webAppPath)
-	if err != nil {
-		return nil, fmt.Errorf("hotreload: abs app dir: %w", err)
-	}
 
-	h := &HotReloader{
-		cfg:    cfg,
-		reg:    reg,
-		exts:   exts,
-		appDir: absAppDir,
-		bus:    newMemoryBus(),
-		done:   make(chan struct{}),
-	}
-
-	live := &liveApp{app: initial, handler: initial}
-	h.current.Store(live)
-
-	// Start FS watch via the registry's FS.Watch (if available).
-	if reg.FS != nil {
-		if err := reg.FS.Watch(absAppDir, h.onFileChange); err != nil {
-			return nil, fmt.Errorf("hotreload: fs watch: %w", err)
+	if err := fsys.Watch(webAppPath, func(path string) {
+		if !isSourceFile(path, webAppPath, exts) {
+			return
 		}
+		logger.Info("hotreload: file changed, rebuilding", "path", path)
+		newApp, err := Build(cfg)
+		if err != nil {
+			logger.Error("hotreload: build error", "err", err)
+			return
+		}
+		h.current.Store(&liveApp{app: newApp, handler: newApp})
+		logger.Info("hotreload: rebuild complete")
+		h.bus.Publish("update", []byte("reload"))
+	}); err != nil {
+		return nil, fmt.Errorf("hotreload: fs watch: %w", err)
 	}
 
 	return h, nil
 }
 
-// Handler returns an http.Handler that serves WebSocket at /__dev__/hot
-// and delegates all other requests to the current live App.
-func (h *HotReloader) Handler() http.Handler {
-	ws := &wsServer{ps: h.bus}
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/__dev__/hot" {
-			ws.ServeHTTP(w, r)
-			return
-		}
-		h.current.Load().handler.ServeHTTP(w, r)
-	})
-}
-
-// Close stops pending rebuild timers.
-func (h *HotReloader) Close() error {
-	h.timerMu.Lock()
-	if h.timer != nil {
-		h.timer.Stop()
-	}
-	h.timerMu.Unlock()
-	close(h.done)
-	return nil
-}
-
-// onFileChange is called by FS.Watch for every changed path.
-func (h *HotReloader) onFileChange(path string) {
-	if !h.isSourceFile(path) {
-		return
-	}
-	h.scheduleRebuild()
-}
-
 // isSourceFile returns true when path has one of the watched extensions and
-// is not inside an excluded directory (node_modules, public, hidden dirs).
-func (h *HotReloader) isSourceFile(path string) bool {
+// is not inside an excluded directory.
+func isSourceFile(path, appDir string, exts []string) bool {
 	ext := strings.ToLower(filepath.Ext(path))
 	matched := false
-	for _, e := range h.exts {
+	for _, e := range exts {
 		if ext == e {
 			matched = true
 			break
@@ -162,7 +234,7 @@ func (h *HotReloader) isSourceFile(path string) bool {
 	if !matched {
 		return false
 	}
-	rel, err := filepath.Rel(h.appDir, path)
+	rel, err := filepath.Rel(appDir, path)
 	if err != nil {
 		return false
 	}
@@ -174,42 +246,29 @@ func (h *HotReloader) isSourceFile(path string) bool {
 	return true
 }
 
-// scheduleRebuild resets the debounce timer to fire 150 ms from now.
-func (h *HotReloader) scheduleRebuild() {
-	h.timerMu.Lock()
-	defer h.timerMu.Unlock()
-	if h.timer != nil {
-		h.timer.Reset(150 * time.Millisecond)
-	} else {
-		h.timer = time.AfterFunc(150*time.Millisecond, h.rebuild)
-	}
+// Handler returns an http.Handler that serves WebSocket at /__dev__/hot
+// and delegates all other requests to the current live App.
+func (h *HotReloader) Handler() http.Handler {
+	ws := &wsServer{bus: h.bus}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/__dev__/hot" {
+			ws.ServeHTTP(w, r)
+			return
+		}
+		h.current.Load().handler.ServeHTTP(w, r)
+	})
 }
 
-// rebuild runs a full build and, on success, swaps in the new App and
-// publishes a "reload" message so all connected browsers reload.
-func (h *HotReloader) rebuild() {
-	if !h.building.CompareAndSwap(false, true) {
-		return
-	}
-	defer h.building.Store(false)
-
-	h.reg.Logger.Info("hotreload: rebuilding")
-	newApp, err := Build(h.cfg)
-	if err != nil {
-		h.reg.Logger.Error("hotreload: build error", "err", err)
-		return
-	}
-
-	live := &liveApp{app: newApp, handler: newApp}
-	h.current.Store(live)
-	h.reg.Logger.Info("hotreload: rebuild complete")
-	h.bus.Publish("update", []byte("reload"))
+// Close stops watching and pending operations.
+func (h *HotReloader) Close() error {
+	close(h.done)
+	return nil
 }
 
 // ── WebSocket server ──────────────────────────────────────────────────────────
 
 type wsServer struct {
-	ps subscriber
+	bus *di.EventBus
 }
 
 func (s *wsServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -219,7 +278,7 @@ func (s *wsServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	defer func() { _ = conn.Close() }()
 
-	sub := s.ps.Subscribe("update")
+	sub := s.bus.Subscribe("update")
 	defer sub.Close()
 
 	for {

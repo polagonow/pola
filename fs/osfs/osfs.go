@@ -10,7 +10,10 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	samberdo "github.com/samber/do/v2"
+
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/core/di"
 )
 
 // OSFS is an FS rooted at a directory on the OS filesystem.
@@ -106,9 +109,15 @@ func (fs *OSFS) Watch(path string, onChange func(string)) error {
 }
 
 func init() {
-	core.RegisterFS(func() core.FS { return New(".") })
-	core.RegisterAssetServer(func(publicDir string) core.AssetServer {
-		return &osAssetServer{dir: publicDir}
+	di.Stage(func(i samberdo.Injector) {
+		samberdo.Provide(i, func(_ samberdo.Injector) (core.FS, error) {
+			return New("."), nil
+		})
+		samberdo.Provide(i, func(_ samberdo.Injector) (core.AssetServerFactory, error) {
+			return func(publicDir string) core.AssetServer {
+				return &osAssetServer{dir: publicDir}
+			}, nil
+		})
 	})
 }
 
