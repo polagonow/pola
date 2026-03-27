@@ -10,6 +10,7 @@ and `Watch` in dev mode.
 | Package | Build tag | Status | Notes |
 |---------|-----------|--------|-------|
 | `css/tailwind` | `tailwind` | **FULL** | Runs `tailwindcss` CLI (standalone or npx) |
+| `css/postcss` | `postcss` | **FULL** | Runs `postcss` CLI; reads `postcss.config.js` for plugins |
 | `css/sass` | `sass` | stub | Sass/SCSS |
 
 ## Usage
@@ -33,5 +34,7 @@ reg.CSS = &tailwind.Tailwind{
 
 ```bash
 go build -tags tailwind ./...      # Tailwind
+go build -tags postcss ./...       # PostCSS
 POLA_CSS=tailwind mage build       # via Magefile env var
+POLA_CSS=postcss mage build        # PostCSS via Magefile
 ```
