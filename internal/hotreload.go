@@ -3,6 +3,7 @@ package internal
 import (
 	"fmt"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -25,7 +26,25 @@ const ClientScript = `(function(){` +
 	`})();`
 
 var wsUpgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true },
+	CheckOrigin: checkSameOrigin,
+}
+
+// checkSameOrigin validates that the WebSocket Origin header matches the
+// request Host, preventing cross-origin WebSocket hijacking. Requests with
+// no Origin header (e.g. non-browser clients) are allowed.
+func checkSameOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+	// Origin is a full URL (e.g. "http://localhost:3000"), so we need to
+	// extract the host portion and compare it to the request Host.
+	// Use url.Parse to handle any scheme.
+	u, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+	return strings.EqualFold(u.Host, r.Host)
 }
 
 // liveApp pairs a built App with its http.Handler.
