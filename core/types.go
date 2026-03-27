@@ -134,6 +134,10 @@ type BundleInput struct {
 	// ServerBundleDefines are additional esbuild defines for the server pass
 	// (merged with the bundler's base defines such as __CLIENT_MANIFEST__).
 	ServerBundleDefines map[string]string
+
+	// CSSProcessor is the optional CSS processor (e.g. Tailwind) to use
+	// during the client bundle pass. When nil, CSS imports are stubbed.
+	CSSProcessor CSS
 }
 
 // BundleOutput is the result of a successful build.
@@ -154,6 +158,10 @@ type BundleOutput struct {
 
 	// ImportURLs maps module IDs to their browser-loadable chunk URLs.
 	ImportURLs map[string]string
+
+	// CSSURL is the public URL of the emitted CSS bundle (e.g.
+	// "/public/assets/styles-HASH.css"), or "" if no CSS was emitted.
+	CSSURL string
 }
 
 // FSFileInfo describes a single entry returned by FS.ReadDir.

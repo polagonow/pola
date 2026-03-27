@@ -5,4 +5,3 @@ dist
 public/assets
 _server.js
 cmd/server/public/
-.pola-css-input.css
