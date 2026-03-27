@@ -17,7 +17,7 @@ var (
 	polaBundler  = envOr("POLA_BUNDLER", "esbuild")
 	polaRenderer = envOr("POLA_RENDERER", "react")
 	polaRouter   = envOr("POLA_ROUTER", "nextjs")
-	polaCSS      = envOr("POLA_CSS", "none")
+	polaCSS      = envOr("POLA_CSS", "tailwind")
 	cgoEnabled   = envOr("CGO_ENABLED", "1")
 	polaMetrics  = envOr("POLA_METRICS", "false")
 	polaPprof    = envOr("POLA_PPROF", "false")

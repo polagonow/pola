@@ -9,64 +9,37 @@ export default async function AboutPage({
     await di.triggerError(searchParams.error || undefined);
   return (
     <div>
-      <h1
-        style={{ fontSize: "1.8rem", fontWeight: 800, marginBottom: ".75rem" }}
-      >
+      <h1 className="text-3xl font-extrabold mb-3">
         About this site
       </h1>
 
-      <p
-        style={{
-          color: "var(--muted)",
-          lineHeight: 1.7,
-          marginBottom: "1.5rem",
-          maxWidth: "560px",
-        }}
-      >
+      <p className="text-[var(--color-muted)] leading-relaxed mb-6 max-w-[560px]">
         DevBlog is a framework showcase built with <strong>GoJSX</strong> — a
         Go-powered React SSR framework that runs Server Components inside a Goja
         VM and streams them via the Flight wire protocol.
       </p>
 
-      <div className="card" style={{ marginBottom: "1rem" }}>
-        <h2
-          style={{ fontSize: "1rem", fontWeight: 600, marginBottom: ".75rem" }}
-        >
+      <div className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-6 py-5 transition-shadow hover:shadow-sm mb-4">
+        <h2 className="text-base font-semibold mb-3">
           Framework stack
         </h2>
-        <dl
-          style={{
-            display: "grid",
-            gridTemplateColumns: "max-content 1fr",
-            gap: ".4rem 1.5rem",
-            fontSize: ".9rem",
-          }}
-        >
-          <dt style={{ color: "var(--muted)", fontWeight: 600 }}>Runtime</dt>
+        <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1.5 text-sm">
+          <dt className="text-[var(--color-muted)] font-semibold">Runtime</dt>
           <dd>Goja — Go JS VM</dd>
-          <dt style={{ color: "var(--muted)", fontWeight: 600 }}>Renderer</dt>
+          <dt className="text-[var(--color-muted)] font-semibold">Renderer</dt>
           <dd>react-server-dom-esm (Flight protocol)</dd>
-          <dt style={{ color: "var(--muted)", fontWeight: 600 }}>Bundler</dt>
+          <dt className="text-[var(--color-muted)] font-semibold">Bundler</dt>
           <dd>esbuild (two-pass: server CJS + client ESM)</dd>
-          <dt style={{ color: "var(--muted)", fontWeight: 600 }}>Language</dt>
+          <dt className="text-[var(--color-muted)] font-semibold">Language</dt>
           <dd>Go + TypeScript + React</dd>
         </dl>
       </div>
 
-      <div className="card">
-        <h2
-          style={{ fontSize: "1rem", fontWeight: 600, marginBottom: ".75rem" }}
-        >
+      <div className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-6 py-5 transition-shadow hover:shadow-sm">
+        <h2 className="text-base font-semibold mb-3">
           Features demonstrated
         </h2>
-        <ul
-          style={{
-            fontSize: ".9rem",
-            lineHeight: 2,
-            color: "var(--muted)",
-            paddingLeft: "1.25rem",
-          }}
-        >
+        <ul className="text-sm leading-loose text-[var(--color-muted)] pl-5">
           <li>
             Async Server Components with <code>Suspense</code>
           </li>

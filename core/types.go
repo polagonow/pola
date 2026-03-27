@@ -87,6 +87,10 @@ type ShellParams struct {
 	// before the client module tag (e.g. "self.__flight_data=...").
 	Scripts []string
 
+	// Stylesheets holds URLs of external CSS files to load via <link> tags
+	// (e.g. "/public/assets/styles.css" produced by a CSS processor).
+	Stylesheets []string
+
 	// Metadata contains SEO/social metadata rendered as <head> tags.
 	// When nil the shell emits no title, meta, or link tags beyond
 	// the built-in charset and viewport declarations.

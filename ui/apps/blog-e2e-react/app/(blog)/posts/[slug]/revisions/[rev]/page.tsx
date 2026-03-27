@@ -16,31 +16,24 @@ export default async function RevisionPage({
 
   return (
     <div>
-      <div className="detail-header">
-        <div className="meta" style={{ marginBottom: ".5rem" }}>
+      <div className="mb-6">
+        <div className="text-sm text-[var(--color-muted)] flex flex-wrap gap-3 mb-2">
           <span>Revision {revision.rev}</span>
           <span>{revision.date}</span>
         </div>
-        <h1 style={{ fontSize: "1.6rem", fontWeight: 800, lineHeight: 1.25 }}>
+        <h1 className="text-2xl font-extrabold leading-tight">
           {post.title}
         </h1>
       </div>
 
-      <div className="card" style={{ marginBottom: "1.5rem" }}>
-        <p
-          style={{
-            fontWeight: 600,
-            marginBottom: ".35rem",
-            fontSize: ".9rem",
-            color: "var(--muted)",
-          }}
-        >
+      <div className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-6 py-5 transition-shadow hover:shadow-sm mb-6">
+        <p className="font-semibold mb-1 text-sm text-[var(--color-muted)]">
           Change summary
         </p>
         <p>{revision.summary}</p>
       </div>
 
-      <a href={`/posts/${params.slug}`} className="back-link">
+      <a href={`/posts/${params.slug}`} className="text-sm text-[var(--color-muted)] mb-4 inline-block hover:text-[var(--color-fg)]">
         ← Back to post
       </a>
     </div>

@@ -8,14 +8,19 @@ import (
 
 // page is the full HTML document shell. innerHTML, importMap, and inline
 // scripts are trusted framework values injected via templ.Raw().
-templ page(innerHTML string, importMap string, scripts []string, clientScript string, m *core.Metadata) {
+templ page(innerHTML string, importMap string, scripts []string, clientScript string, stylesheets []string, m *core.Metadata) {
 	<!DOCTYPE html>
 	<html lang="en">
 		<head>
 			<meta charset="UTF-8"/>
 			<meta name="viewport" content="width=device-width,initial-scale=1"/>
 			@headMeta(m)
-			@styleBlock()
+			if len(stylesheets) == 0 {
+				@styleBlock()
+			}
+			for _, href := range stylesheets {
+				<link rel="stylesheet" href={ href }/>
+			}
 			if importMap != "" {
 				@templ.Raw(importMap)
 			}
