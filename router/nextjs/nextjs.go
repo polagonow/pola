@@ -83,7 +83,7 @@ func (r *Router) ScanRoutes(ctx context.Context, _ core.FS, appDir string, exts 
 		routes = append(routes, core.Route{Pattern: pattern, Export: export})
 
 		// Collect PageEntry for the DiscoveryResult (used by renderers).
-		segs, segErr := collectSegments(pagesDir, filepath.Dir(path))
+		segs, segErr := collectSegments(pagesDir, filepath.Dir(path), exts)
 		if segErr != nil {
 			return segErr
 		}
@@ -91,7 +91,7 @@ func (r *Router) ScanRoutes(ctx context.Context, _ core.FS, appDir string, exts 
 			PageComponentPath: path,
 			Segments:          segs,
 		}
-		entry.LoadingComponentPath, entry.NotFoundComponentPath = discoverCompanions(filepath.Dir(path))
+		entry.LoadingComponentPath, entry.NotFoundComponentPath = discoverCompanions(filepath.Dir(path), exts)
 		pages = append(pages, entry)
 		return nil
 	})
@@ -294,9 +294,24 @@ func fileExists(path string) bool {
 	return err == nil
 }
 
+// findWithExts looks for dir/base.ext for each ext in exts, returning the
+// first match found. Returns "" if none exist.
+func findWithExts(dir, base string, exts []string) string {
+	for _, ext := range exts {
+		if !strings.HasPrefix(ext, ".") {
+			ext = "." + ext
+		}
+		candidate := filepath.Join(dir, base+ext)
+		if fileExists(candidate) {
+			return candidate
+		}
+	}
+	return ""
+}
+
 // ── discovery helpers ────────────────────────────────────────────────────────
 
-func collectSegments(pagesDir, pageDir string) ([]core.PageSegment, error) {
+func collectSegments(pagesDir, pageDir string, exts []string) ([]core.PageSegment, error) {
 	absPagesDir, _ := filepath.Abs(pagesDir)
 	absPageDir, _ := filepath.Abs(pageDir)
 	rel, err := filepath.Rel(absPagesDir, absPageDir)
@@ -315,12 +330,12 @@ func collectSegments(pagesDir, pageDir string) ([]core.PageSegment, error) {
 	for _, d := range dirs {
 		var seg core.PageSegment
 		seg.Dir = d
-		if candidate := filepath.Join(d, "layout.tsx"); fileExists(candidate) {
+		if candidate := findWithExts(d, "layout", exts); candidate != "" {
 			if ok, _ := hasDefaultExport(candidate); ok {
 				seg.LayoutPath = candidate
 			}
 		}
-		if candidate := filepath.Join(d, "error.tsx"); fileExists(candidate) {
+		if candidate := findWithExts(d, "error", exts); candidate != "" {
 			if ok, _ := hasDefaultExport(candidate); ok {
 				seg.ErrorPath = candidate
 			}
@@ -332,20 +347,20 @@ func collectSegments(pagesDir, pageDir string) ([]core.PageSegment, error) {
 	return segments, nil
 }
 
-func discoverCompanions(pageDir string) (loading, notFound string) {
-	for _, name := range []string{"loading.tsx", "not-found.tsx"} {
-		candidate := filepath.Join(pageDir, name)
-		if !fileExists(candidate) {
+func discoverCompanions(pageDir string, exts []string) (loading, notFound string) {
+	for _, base := range []string{"loading", "not-found"} {
+		candidate := findWithExts(pageDir, base, exts)
+		if candidate == "" {
 			continue
 		}
 		ok, _ := hasDefaultExport(candidate)
 		if !ok {
 			continue
 		}
-		switch name {
-		case "loading.tsx":
+		switch base {
+		case "loading":
 			loading = candidate
-		case "not-found.tsx":
+		case "not-found":
 			notFound = candidate
 		}
 	}
@@ -358,18 +373,17 @@ type globalComponents struct {
 }
 
 func discoverGlobalComponents(appDir string, exts []string) globalComponents {
-	_ = exts // reserved for future multi-extension support
 	pagesDir := filepath.Join(appDir, "app")
 	var gc globalComponents
 	for _, item := range []struct {
-		name string
+		base string
 		dest *string
 	}{
-		{"global-not-found.tsx", &gc.NotFoundPath},
-		{"global-error.tsx", &gc.ErrorPath},
+		{"global-not-found", &gc.NotFoundPath},
+		{"global-error", &gc.ErrorPath},
 	} {
-		candidate := filepath.Join(pagesDir, item.name)
-		if !fileExists(candidate) {
+		candidate := findWithExts(pagesDir, item.base, exts)
+		if candidate == "" {
 			continue
 		}
 		if ok, _ := hasDefaultExport(candidate); ok {
@@ -380,14 +394,20 @@ func discoverGlobalComponents(appDir string, exts []string) globalComponents {
 }
 
 func discoverClientComponents(appDir string, exts []string) ([]string, error) {
-	_ = exts // currently scans .ts and .tsx regardless of exts (renderer-specific)
 	componentsDir := filepath.Join(appDir, "components")
+	extSet := make(map[string]bool, len(exts))
+	for _, e := range exts {
+		if !strings.HasPrefix(e, ".") {
+			e = "." + e
+		}
+		extSet[e] = true
+	}
 	var paths []string
 	err := filepath.WalkDir(componentsDir, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() || !isTSFile(d.Name()) {
+		if d.IsDir() || !extSet[filepath.Ext(d.Name())] {
 			return nil
 		}
 		ok, err := hasUseClient(path)
@@ -400,11 +420,6 @@ func discoverClientComponents(appDir string, exts []string) ([]string, error) {
 		return nil
 	})
 	return paths, err
-}
-
-func isTSFile(name string) bool {
-	ext := filepath.Ext(name)
-	return ext == ".ts" || ext == ".tsx"
 }
 
 func hasDefaultExport(path string) (bool, error) {
