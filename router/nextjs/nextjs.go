@@ -4,11 +4,8 @@
 package nextjs
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"io/fs"
-	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -38,10 +35,10 @@ func (r *Router) Name() string { return "nextjs" }
 // finds files named page.EXT for any ext in exts, and converts them to URL
 // patterns using Next.js conventions. It also detects "use client" files in
 // appDir/components/ and populates the internal DiscoveryResult.
-func (r *Router) ScanRoutes(ctx context.Context, _ core.FS, appDir string, exts []string) ([]core.Route, error) {
+func (r *Router) ScanRoutes(ctx context.Context, fsys core.FS, appDir string, exts []string) ([]core.Route, error) {
 	// Determine the pages root: prefer appDir/app/, fall back to appDir.
 	pagesDir := filepath.Join(appDir, "app")
-	if !dirExists(pagesDir) {
+	if !fsys.Exists(pagesDir) {
 		pagesDir = appDir
 	}
 
@@ -56,20 +53,17 @@ func (r *Router) ScanRoutes(ctx context.Context, _ core.FS, appDir string, exts 
 	var routes []core.Route
 	var pages []core.PageEntry
 
-	err := filepath.WalkDir(pagesDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() {
+	err := walkDir(fsys, pagesDir, func(path string, info core.FSFileInfo) error {
+		if info.IsDir {
 			return nil
 		}
-		base := d.Name()
+		base := info.Name
 		// Must be named "page.<ext>" for one of the allowed extensions.
 		if !isPageFile(base, extSet) {
 			return nil
 		}
 
-		ok, err := hasDefaultExport(path)
+		ok, err := hasDefaultExport(fsys, path)
 		if err != nil {
 			return err
 		}
@@ -83,7 +77,7 @@ func (r *Router) ScanRoutes(ctx context.Context, _ core.FS, appDir string, exts 
 		routes = append(routes, core.Route{Pattern: pattern, Export: export})
 
 		// Collect PageEntry for the DiscoveryResult (used by renderers).
-		segs, segErr := collectSegments(pagesDir, filepath.Dir(path), exts)
+		segs, segErr := collectSegments(fsys, pagesDir, filepath.Dir(path), exts)
 		if segErr != nil {
 			return segErr
 		}
@@ -91,7 +85,7 @@ func (r *Router) ScanRoutes(ctx context.Context, _ core.FS, appDir string, exts 
 			PageComponentPath: path,
 			Segments:          segs,
 		}
-		entry.LoadingComponentPath, entry.NotFoundComponentPath = discoverCompanions(filepath.Dir(path), exts)
+		entry.LoadingComponentPath, entry.NotFoundComponentPath = discoverCompanions(fsys, filepath.Dir(path), exts)
 		pages = append(pages, entry)
 		return nil
 	})
@@ -100,8 +94,8 @@ func (r *Router) ScanRoutes(ctx context.Context, _ core.FS, appDir string, exts 
 	}
 
 	// Discover client components from appDir/components/.
-	clientComponents, err := discoverClientComponents(appDir, exts)
-	if err != nil && !os.IsNotExist(err) {
+	clientComponents, err := discoverClientComponents(fsys, appDir, exts)
+	if err != nil && !isNotExist(fsys, filepath.Join(appDir, "components")) {
 		return nil, err
 	}
 
@@ -120,7 +114,7 @@ func (r *Router) ScanRoutes(ctx context.Context, _ core.FS, appDir string, exts 
 	}
 
 	// Discover global components (global-not-found, global-error).
-	gc := discoverGlobalComponents(appDir, exts)
+	gc := discoverGlobalComponents(fsys, appDir, exts)
 	if gc.ErrorPath != "" && !seen[gc.ErrorPath] {
 		clientComponents = append(clientComponents, gc.ErrorPath)
 	}
@@ -175,6 +169,67 @@ func (r *Router) DiscoveryResult() core.DiscoveryResult {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.discovery
+}
+
+// ── FS helpers ───────────────────────────────────────────────────────────────
+
+// walkDir recursively walks a directory using core.FS, calling fn for each entry.
+func walkDir(fsys core.FS, root string, fn func(path string, info core.FSFileInfo) error) error {
+	entries, err := fsys.ReadDir(root)
+	if err != nil {
+		return err
+	}
+	for _, entry := range entries {
+		path := filepath.Join(root, entry.Name)
+		if err := fn(path, entry); err != nil {
+			return err
+		}
+		if entry.IsDir {
+			if err := walkDir(fsys, path, fn); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// isNotExist returns true when the given path does not exist on the FS.
+func isNotExist(fsys core.FS, path string) bool {
+	return !fsys.Exists(path)
+}
+
+// hasDefaultExport scans a file for an "export default function/class" line.
+func hasDefaultExport(fsys core.FS, path string) (bool, error) {
+	data, err := fsys.ReadFile(path)
+	if err != nil {
+		return false, err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "export default function") ||
+			strings.HasPrefix(line, "export default async function") ||
+			strings.HasPrefix(line, "export default class") {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// hasUseClient checks whether the first non-empty line of a file is "use client".
+func hasUseClient(fsys core.FS, path string) (bool, error) {
+	data, err := fsys.ReadFile(path)
+	if err != nil {
+		return false, err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		line = strings.TrimSuffix(line, ";")
+		return line == `"use client"` || line == `'use client'`, nil
+	}
+	return false, nil
 }
 
 // ── path conversion ──────────────────────────────────────────────────────────
@@ -284,25 +339,20 @@ func titleCase(s string) string {
 	return strings.ToUpper(s[:1]) + s[1:]
 }
 
-func dirExists(path string) bool {
-	st, err := os.Stat(path)
-	return err == nil && st.IsDir()
-}
-
-func fileExists(path string) bool {
-	_, err := os.Stat(path)
-	return err == nil
+func isTSFile(name string) bool {
+	ext := filepath.Ext(name)
+	return ext == ".ts" || ext == ".tsx"
 }
 
 // findWithExts looks for dir/base.ext for each ext in exts, returning the
 // first match found. Returns "" if none exist.
-func findWithExts(dir, base string, exts []string) string {
+func findWithExts(fsys core.FS, dir, base string, exts []string) string {
 	for _, ext := range exts {
 		if !strings.HasPrefix(ext, ".") {
 			ext = "." + ext
 		}
 		candidate := filepath.Join(dir, base+ext)
-		if fileExists(candidate) {
+		if fsys.Exists(candidate) {
 			return candidate
 		}
 	}
@@ -311,7 +361,7 @@ func findWithExts(dir, base string, exts []string) string {
 
 // ── discovery helpers ────────────────────────────────────────────────────────
 
-func collectSegments(pagesDir, pageDir string, exts []string) ([]core.PageSegment, error) {
+func collectSegments(fsys core.FS, pagesDir, pageDir string, exts []string) ([]core.PageSegment, error) {
 	absPagesDir, _ := filepath.Abs(pagesDir)
 	absPageDir, _ := filepath.Abs(pageDir)
 	rel, err := filepath.Rel(absPagesDir, absPageDir)
@@ -330,13 +380,13 @@ func collectSegments(pagesDir, pageDir string, exts []string) ([]core.PageSegmen
 	for _, d := range dirs {
 		var seg core.PageSegment
 		seg.Dir = d
-		if candidate := findWithExts(d, "layout", exts); candidate != "" {
-			if ok, _ := hasDefaultExport(candidate); ok {
+		if candidate := findWithExts(fsys, d, "layout", exts); candidate != "" {
+			if ok, _ := hasDefaultExport(fsys, candidate); ok {
 				seg.LayoutPath = candidate
 			}
 		}
-		if candidate := findWithExts(d, "error", exts); candidate != "" {
-			if ok, _ := hasDefaultExport(candidate); ok {
+		if candidate := findWithExts(fsys, d, "error", exts); candidate != "" {
+			if ok, _ := hasDefaultExport(fsys, candidate); ok {
 				seg.ErrorPath = candidate
 			}
 		}
@@ -347,13 +397,13 @@ func collectSegments(pagesDir, pageDir string, exts []string) ([]core.PageSegmen
 	return segments, nil
 }
 
-func discoverCompanions(pageDir string, exts []string) (loading, notFound string) {
+func discoverCompanions(fsys core.FS, pageDir string, exts []string) (loading, notFound string) {
 	for _, base := range []string{"loading", "not-found"} {
-		candidate := findWithExts(pageDir, base, exts)
+		candidate := findWithExts(fsys, pageDir, base, exts)
 		if candidate == "" {
 			continue
 		}
-		ok, _ := hasDefaultExport(candidate)
+		ok, _ := hasDefaultExport(fsys, candidate)
 		if !ok {
 			continue
 		}
@@ -372,7 +422,7 @@ type globalComponents struct {
 	ErrorPath    string
 }
 
-func discoverGlobalComponents(appDir string, exts []string) globalComponents {
+func discoverGlobalComponents(fsys core.FS, appDir string, exts []string) globalComponents {
 	pagesDir := filepath.Join(appDir, "app")
 	var gc globalComponents
 	for _, item := range []struct {
@@ -382,19 +432,22 @@ func discoverGlobalComponents(appDir string, exts []string) globalComponents {
 		{"global-not-found", &gc.NotFoundPath},
 		{"global-error", &gc.ErrorPath},
 	} {
-		candidate := findWithExts(pagesDir, item.base, exts)
+		candidate := findWithExts(fsys, pagesDir, item.base, exts)
 		if candidate == "" {
 			continue
 		}
-		if ok, _ := hasDefaultExport(candidate); ok {
+		if ok, _ := hasDefaultExport(fsys, candidate); ok {
 			*item.dest = candidate
 		}
 	}
 	return gc
 }
 
-func discoverClientComponents(appDir string, exts []string) ([]string, error) {
+func discoverClientComponents(fsys core.FS, appDir string, exts []string) ([]string, error) {
 	componentsDir := filepath.Join(appDir, "components")
+	if !fsys.Exists(componentsDir) {
+		return nil, nil
+	}
 	extSet := make(map[string]bool, len(exts))
 	for _, e := range exts {
 		if !strings.HasPrefix(e, ".") {
@@ -403,14 +456,11 @@ func discoverClientComponents(appDir string, exts []string) ([]string, error) {
 		extSet[e] = true
 	}
 	var paths []string
-	err := filepath.WalkDir(componentsDir, func(path string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		if d.IsDir() || !extSet[filepath.Ext(d.Name())] {
+	err := walkDir(fsys, componentsDir, func(path string, info core.FSFileInfo) error {
+		if info.IsDir || !extSet[filepath.Ext(info.Name)] {
 			return nil
 		}
-		ok, err := hasUseClient(path)
+		ok, err := hasUseClient(fsys, path)
 		if err != nil {
 			return err
 		}
@@ -420,40 +470,4 @@ func discoverClientComponents(appDir string, exts []string) ([]string, error) {
 		return nil
 	})
 	return paths, err
-}
-
-func hasDefaultExport(path string) (bool, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return false, err
-	}
-	defer func() { _ = f.Close() }()
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		if strings.HasPrefix(line, "export default function") ||
-			strings.HasPrefix(line, "export default async function") ||
-			strings.HasPrefix(line, "export default class") {
-			return true, nil
-		}
-	}
-	return false, sc.Err()
-}
-
-func hasUseClient(path string) (bool, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return false, err
-	}
-	defer func() { _ = f.Close() }()
-	sc := bufio.NewScanner(f)
-	for sc.Scan() {
-		line := strings.TrimSpace(sc.Text())
-		if line == "" {
-			continue
-		}
-		line = strings.TrimSuffix(line, ";")
-		return line == `"use client"` || line == `'use client'`, nil
-	}
-	return false, nil
 }
