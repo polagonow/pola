@@ -27,6 +27,8 @@ import (
 	_ "github.com/polagonow/pola/logger"
 	_ "github.com/polagonow/pola/middleware/logging"
 	_ "github.com/polagonow/pola/middleware/recovery"
+	_ "github.com/polagonow/pola/observability/metrics/prometheus"
+	_ "github.com/polagonow/pola/observability/tracing/otel"
 	_ "github.com/polagonow/pola/renderer"
 	_ "github.com/polagonow/pola/router"
 )
