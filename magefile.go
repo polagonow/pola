@@ -60,18 +60,18 @@ func Run() error {
 			"POLA_WEBAPP_PATH": "../../ui/apps/blog-e2e-react",
 		},
 		"go", "run",
-		"-C", "cmd/server",
+		"-C", "cmd/blog-e2e-server",
 		"-tags", runtimeTags(),
 		".",
 	)
 }
 
-// Bundle is Stage 1: pre-builds JS/CSS assets into cmd/server/public/ using
+// Bundle is Stage 1: pre-builds JS/CSS assets into cmd/blog-e2e-server/public/ using
 // the full runtime tags (including esbuild). The server exits immediately after
 // writing assets (POLA_BUILD_ONLY=true).
 func Bundle() error {
 	mg.Deps(Generate)
-	fmt.Println("→ [stage 1] bundling assets into cmd/server/public/")
+	fmt.Println("→ [stage 1] bundling assets into cmd/blog-e2e-server/public/")
 	return sh.RunWithV(
 		map[string]string{
 			"CGO_ENABLED":      cgoEnabled,
@@ -80,7 +80,7 @@ func Bundle() error {
 			"POLA_WEBAPP_PATH": "../../ui/apps/blog-e2e-react",
 		},
 		"go", "run",
-		"-C", "cmd/server",
+		"-C", "cmd/blog-e2e-server",
 		"-tags", runtimeTags(),
 		".",
 	)
@@ -99,8 +99,8 @@ func Compile() error {
 		"go", "build",
 		"-tags", tags,
 		"-ldflags", "-s -w",
-		"-o", "bin/pola",
-		"./cmd/server",
+		"-o", "bin/blog-e2e-server",
+		"./cmd/blog-e2e-server",
 	)
 }
 
@@ -108,6 +108,13 @@ func Compile() error {
 func Build() error {
 	mg.Deps(Compile)
 	return nil
+}
+
+// BuildCLI compiles the pola CLI binary into bin/.
+func BuildCLI() error {
+	fmt.Println("→ building pola CLI")
+	os.MkdirAll("bin", 0o755) //nolint:errcheck
+	return sh.RunV("go", "build", "-o", "bin/pola", "./cmd/pola/")
 }
 
 // Test runs unit tests only (fast).
