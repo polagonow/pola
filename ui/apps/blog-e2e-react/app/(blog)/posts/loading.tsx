@@ -1,31 +1,26 @@
 export default function Loading() {
   return (
-    <div className="card-grid">
+    <div className="grid gap-4">
       {[1, 2, 3].map((i) => (
-        <div key={i} className="card" style={{ opacity: 0.5 }}>
+        <div key={i} className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-6 py-5 transition-shadow hover:shadow-sm opacity-50">
           <div
+            className="bg-[var(--color-border)] rounded-sm mb-3"
             style={{
               height: ".75rem",
-              background: "var(--border)",
-              borderRadius: 4,
               width: "40%",
-              marginBottom: ".75rem",
             }}
           />
           <div
+            className="bg-[var(--color-border)] rounded-sm mb-2"
             style={{
               height: "1rem",
-              background: "var(--border)",
-              borderRadius: 4,
               width: "80%",
-              marginBottom: ".5rem",
             }}
           />
           <div
+            className="bg-[var(--color-border)] rounded-sm"
             style={{
               height: ".8rem",
-              background: "var(--border)",
-              borderRadius: 4,
               width: "60%",
             }}
           />

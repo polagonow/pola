@@ -1,5 +1,11 @@
 import di from "@pola/di";
 
+const statusClasses: Record<string, string> = {
+  active: "bg-green-100 text-green-800",
+  stable: "bg-blue-100 text-blue-800",
+  beta: "bg-yellow-100 text-yellow-800",
+};
+
 export default async function ProjectPage({
   params,
   searchParams,
@@ -13,66 +19,35 @@ export default async function ProjectPage({
 
   return (
     <div>
-      <div className="detail-header">
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: ".75rem",
-            marginBottom: ".75rem",
-          }}
-        >
-          <h1 style={{ fontSize: "1.8rem", fontWeight: 800 }}>{p.title}</h1>
-          <span className={`status status-${p.status}`}>{p.status}</span>
+      <div className="mb-6">
+        <div className="flex items-center gap-3 mb-3">
+          <h1 className="text-3xl font-extrabold">{p.title}</h1>
+          <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${statusClasses[p.status] ?? ""}`}>{p.status}</span>
         </div>
-        <p style={{ color: "var(--muted)", fontSize: "1rem" }}>
+        <p className="text-[var(--color-muted)] text-base">
           {p.description}
         </p>
       </div>
 
-      <div className="card" style={{ marginBottom: "1rem" }}>
-        <dl
-          style={{
-            display: "grid",
-            gridTemplateColumns: "max-content 1fr",
-            gap: ".5rem 1.5rem",
-          }}
-        >
-          <dt
-            style={{
-              fontWeight: 600,
-              color: "var(--muted)",
-              fontSize: ".85rem",
-            }}
-          >
+      <div className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-6 py-5 transition-shadow hover:shadow-sm mb-4">
+        <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-2">
+          <dt className="font-semibold text-[var(--color-muted)] text-sm">
             Stars
           </dt>
           <dd>★ {p.stars}</dd>
-          <dt
-            style={{
-              fontWeight: 600,
-              color: "var(--muted)",
-              fontSize: ".85rem",
-            }}
-          >
+          <dt className="font-semibold text-[var(--color-muted)] text-sm">
             Status
           </dt>
           <dd>
-            <span className={`status status-${p.status}`}>{p.status}</span>
+            <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-semibold ${statusClasses[p.status] ?? ""}`}>{p.status}</span>
           </dd>
-          <dt
-            style={{
-              fontWeight: 600,
-              color: "var(--muted)",
-              fontSize: ".85rem",
-            }}
-          >
+          <dt className="font-semibold text-[var(--color-muted)] text-sm">
             Stack
           </dt>
           <dd>
-            <div className="tech-list" style={{ margin: 0 }}>
+            <div className="flex flex-wrap gap-1.5 m-0">
               {p.tech.map((t) => (
-                <span key={t} className="tech">
+                <span key={t} className="bg-[var(--color-surface)] border border-[var(--color-border)] rounded px-2 py-0.5 text-xs font-mono">
                   {t}
                 </span>
               ))}

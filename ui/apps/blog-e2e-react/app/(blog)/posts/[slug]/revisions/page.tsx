@@ -16,45 +16,32 @@ export default async function RevisionsPage({
 
   return (
     <div>
-      <div className="detail-header">
-        <h1 style={{ fontSize: "1.4rem", fontWeight: 800 }}>
+      <div className="mb-6">
+        <h1 className="text-xl font-extrabold">
           Revision history
         </h1>
-        <p
-          style={{
-            color: "var(--muted)",
-            fontSize: ".9rem",
-            marginTop: ".25rem",
-          }}
-        >
+        <p className="text-[var(--color-muted)] text-sm mt-1">
           {post.title}
         </p>
       </div>
 
-      <div style={{ display: "flex", flexDirection: "column", gap: ".75rem" }}>
+      <div className="flex flex-col gap-3">
         {revisions.map((r) => (
           <a
             key={r.rev}
             href={`/posts/${params.slug}/revisions/${r.rev}`}
-            style={{ textDecoration: "none", color: "inherit" }}
+            className="no-underline text-inherit"
           >
-            <div
-              className="card"
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-              }}
-            >
+            <div className="bg-[var(--color-bg)] border border-[var(--color-border)] rounded-lg px-6 py-5 transition-shadow hover:shadow-sm flex justify-between items-center">
               <div>
-                <div style={{ fontWeight: 600, marginBottom: ".2rem" }}>
+                <div className="font-semibold mb-0.5">
                   {r.rev}
                 </div>
-                <div style={{ fontSize: ".9rem", color: "var(--muted)" }}>
+                <div className="text-sm text-[var(--color-muted)]">
                   {r.summary}
                 </div>
               </div>
-              <span className="meta">{r.date}</span>
+              <span className="text-sm text-[var(--color-muted)] flex flex-wrap gap-3">{r.date}</span>
             </div>
           </a>
         ))}
@@ -62,8 +49,7 @@ export default async function RevisionsPage({
 
       <a
         href={`/posts/${params.slug}`}
-        className="back-link"
-        style={{ marginTop: "1.5rem", display: "inline-block" }}
+        className="text-sm text-[var(--color-muted)] mt-6 inline-block hover:text-[var(--color-fg)]"
       >
         ← Back to post
       </a>

@@ -7,7 +7,7 @@ export default function PostLayout({
 }) {
   return (
     <article>
-      <a href="/posts" className="back-link">
+      <a href="/posts" className="text-sm text-[var(--color-muted)] hover:text-[var(--color-fg)] mb-4 inline-block">
         ← All posts
       </a>
       {children}

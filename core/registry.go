@@ -48,6 +48,7 @@ type PrebuildArtifacts struct {
 	Routes         []Route
 	BundleOutput   *BundleOutput
 	GlobalNotFound string // non-empty when a GlobalNotFound export exists
+	CSSURL         string // external stylesheet URL, or ""
 }
 
 var defaultPrebuildLoader func() (*PrebuildArtifacts, error)
@@ -125,10 +126,14 @@ var (
 	defaultLogger      func() Logger
 	defaultMetrics     func() Metrics
 	defaultTracer      func() Tracer
+	defaultCSS         func() CSS
 	defaultShell       func() HTMLShell
 	defaultPolyfills   func() PolyfillRegistry
 	defaultAssetServer func(publicDir string) AssetServer
 )
+
+// RegisterCSS registers the default CSS processor.
+func RegisterCSS(f func() CSS) { defaultCSS = f }
 
 // RegisterRenderer registers the default Renderer (called from init()).
 func RegisterRenderer(f func() Renderer) { defaultRenderer = f }
@@ -214,6 +219,9 @@ func (r *Registry) FillDefaults() error {
 		} else {
 			r.Tracer = noopTracer{}
 		}
+	}
+	if r.CSS == nil && defaultCSS != nil {
+		r.CSS = defaultCSS()
 	}
 	if r.Polyfills == nil {
 		if defaultPolyfills != nil {
