@@ -5,6 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/fs/osfs"
 )
 
 // writeFile creates a file at dir/name with the given content.
@@ -18,6 +21,10 @@ func writeFile(t *testing.T, dir, name, content string) string {
 }
 
 var defaultExts = []string{".tsx", ".jsx"}
+
+func testFS() core.FS {
+	return osfs.New(".")
+}
 
 // ── ScanRoutes ───────────────────────────────────────────────────────────────
 
@@ -39,7 +46,7 @@ func TestScanRoutes_Basic(t *testing.T) {
 	writeFile(t, pagesDir, "page.tsx", "export default function Page() { return null; }\n")
 
 	r := New()
-	routes, err := r.ScanRoutes(context.Background(), nil, appDir, defaultExts)
+	routes, err := r.ScanRoutes(context.Background(), testFS(), appDir, defaultExts)
 	if err != nil {
 		t.Fatalf("ScanRoutes: %v", err)
 	}
@@ -78,7 +85,7 @@ func TestScanRoutes_DynamicSegments(t *testing.T) {
 	}
 
 	r := New()
-	routes, err := r.ScanRoutes(context.Background(), nil, appDir, defaultExts)
+	routes, err := r.ScanRoutes(context.Background(), testFS(), appDir, defaultExts)
 	if err != nil {
 		t.Fatalf("ScanRoutes: %v", err)
 	}
@@ -120,7 +127,7 @@ func TestScanRoutes_RouteGroups(t *testing.T) {
 	}
 
 	r := New()
-	routes, err := r.ScanRoutes(context.Background(), nil, appDir, defaultExts)
+	routes, err := r.ScanRoutes(context.Background(), testFS(), appDir, defaultExts)
 	if err != nil {
 		t.Fatalf("ScanRoutes: %v", err)
 	}
@@ -150,7 +157,7 @@ func TestScanRoutes_MissingDefaultExport(t *testing.T) {
 	writeFile(t, dir, "page.tsx", "export function BadPage() { return null; }\n")
 
 	r := New()
-	_, err := r.ScanRoutes(context.Background(), nil, appDir, defaultExts)
+	_, err := r.ScanRoutes(context.Background(), testFS(), appDir, defaultExts)
 	if err == nil {
 		t.Fatal("expected error for missing default export, got nil")
 	}
@@ -174,7 +181,7 @@ func TestScanRoutes_MultipleExtensions(t *testing.T) {
 	}
 
 	r := New()
-	routes, err := r.ScanRoutes(context.Background(), nil, appDir, []string{".tsx", ".jsx"})
+	routes, err := r.ScanRoutes(context.Background(), testFS(), appDir, []string{".tsx", ".jsx"})
 	if err != nil {
 		t.Fatalf("ScanRoutes: %v", err)
 	}
@@ -198,7 +205,7 @@ func TestResolve_Static(t *testing.T) {
 	}
 
 	r := New()
-	if _, err := r.ScanRoutes(context.Background(), nil, appDir, defaultExts); err != nil {
+	if _, err := r.ScanRoutes(context.Background(), testFS(), appDir, defaultExts); err != nil {
 		t.Fatalf("ScanRoutes: %v", err)
 	}
 
@@ -228,7 +235,7 @@ func TestResolve_Dynamic(t *testing.T) {
 	writeFile(t, dir, "page.tsx", "export default function Page() { return null; }\n")
 
 	r := New()
-	if _, err := r.ScanRoutes(context.Background(), nil, appDir, defaultExts); err != nil {
+	if _, err := r.ScanRoutes(context.Background(), testFS(), appDir, defaultExts); err != nil {
 		t.Fatalf("ScanRoutes: %v", err)
 	}
 
@@ -254,7 +261,7 @@ func TestResolve_Sorting(t *testing.T) {
 	}
 
 	r := New()
-	if _, err := r.ScanRoutes(context.Background(), nil, appDir, defaultExts); err != nil {
+	if _, err := r.ScanRoutes(context.Background(), testFS(), appDir, defaultExts); err != nil {
 		t.Fatalf("ScanRoutes: %v", err)
 	}
 
@@ -283,7 +290,7 @@ func TestDiscoveryResult_ClientComponents(t *testing.T) {
 	writeFile(t, compDir, "Header.tsx", "export default function Header() {}\n")
 
 	r := New()
-	if _, err := r.ScanRoutes(context.Background(), nil, appDir, defaultExts); err != nil {
+	if _, err := r.ScanRoutes(context.Background(), testFS(), appDir, defaultExts); err != nil {
 		t.Fatalf("ScanRoutes: %v", err)
 	}
 
@@ -306,7 +313,7 @@ func TestDiscoveryResult_Pages(t *testing.T) {
 	writeFile(t, dir, "layout.tsx", "export default function Layout({children}: any) { return children; }\n")
 
 	r := New()
-	if _, err := r.ScanRoutes(context.Background(), nil, appDir, defaultExts); err != nil {
+	if _, err := r.ScanRoutes(context.Background(), testFS(), appDir, defaultExts); err != nil {
 		t.Fatalf("ScanRoutes: %v", err)
 	}
 
@@ -341,7 +348,7 @@ func TestHasUseClient(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			path := writeFile(t, dir, tc.name+".tsx", tc.content)
-			got, err := hasUseClient(path)
+			got, err := hasUseClient(testFS(), path)
 			if err != nil {
 				t.Fatalf("hasUseClient: %v", err)
 			}
@@ -371,7 +378,7 @@ func TestHasDefaultExport(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			path := writeFile(t, dir, tc.name+".tsx", tc.content)
-			got, err := hasDefaultExport(path)
+			got, err := hasDefaultExport(testFS(), path)
 			if err != nil {
 				t.Fatalf("hasDefaultExport: %v", err)
 			}

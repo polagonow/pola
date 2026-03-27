@@ -21,12 +21,21 @@ func New(root string) *OSFS { return &OSFS{root: root} }
 
 func (fs *OSFS) Name() string { return "osfs" }
 
+// resolve returns the OS path for a given FS path. Absolute paths are returned
+// as-is; relative paths are joined with the FS root.
+func (fs *OSFS) resolve(path string) string {
+	if filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(fs.root, path)
+}
+
 func (fs *OSFS) ReadFile(path string) ([]byte, error) {
-	return os.ReadFile(filepath.Join(fs.root, path))
+	return os.ReadFile(fs.resolve(path))
 }
 
 func (fs *OSFS) ReadDir(path string) ([]core.FSFileInfo, error) {
-	entries, err := os.ReadDir(filepath.Join(fs.root, path))
+	entries, err := os.ReadDir(fs.resolve(path))
 	if err != nil {
 		return nil, err
 	}
@@ -45,7 +54,7 @@ func (fs *OSFS) ReadDir(path string) ([]core.FSFileInfo, error) {
 }
 
 func (fs *OSFS) Exists(path string) bool {
-	_, err := os.Stat(filepath.Join(fs.root, path))
+	_, err := os.Stat(fs.resolve(path))
 	return err == nil
 }
 
