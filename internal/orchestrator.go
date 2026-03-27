@@ -203,10 +203,31 @@ func buildPageProps(r *http.Request, params map[string]any) map[string]any {
 	return map[string]any{"params": params, "searchParams": searchParams}
 }
 
+// allowedHeaders lists the HTTP headers that are safe to expose to JS server
+// components. Sensitive headers (Cookie, Authorization, Proxy-Authorization,
+// X-Forwarded-For, etc.) are intentionally excluded to prevent accidental
+// leakage through the RSC Flight stream.
+var allowedHeaders = map[string]struct{}{
+	"Accept":            {},
+	"Accept-Encoding":   {},
+	"Accept-Language":   {},
+	"Cache-Control":     {},
+	"Content-Language":  {},
+	"Content-Type":      {},
+	"Host":              {},
+	"If-Modified-Since": {},
+	"If-None-Match":     {},
+	"Range":             {},
+	"Referer":           {},
+	"User-Agent":        {},
+}
+
 func buildRequestContext(r *http.Request) map[string]any {
 	headers := make(map[string]string)
 	for k, v := range r.Header {
-		headers[k] = strings.Join(v, ", ")
+		if _, ok := allowedHeaders[http.CanonicalHeaderKey(k)]; ok {
+			headers[k] = strings.Join(v, ", ")
+		}
 	}
 	return map[string]any{
 		"url":     r.URL.String(),
