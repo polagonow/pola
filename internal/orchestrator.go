@@ -11,6 +11,11 @@ import (
 	"github.com/polagonow/pola/core"
 )
 
+// contextKey is an unexported type for context keys in this package.
+type contextKey int
+
+const routePatternKey contextKey = iota
+
 // requestHandler is an optional interface for renderers that want to own
 // the full HTTP response for certain requests (e.g. RSC Flight streaming).
 // Return handled=false to fall back to the HTML shell.
@@ -83,10 +88,9 @@ func (o *Orchestrator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	rw := &responseRecorder{ResponseWriter: w, code: http.StatusOK}
 	o.handler.ServeHTTP(rw, r)
 
-	route, _ := o.registry.Router.Resolve(r.Context(), r.URL.Path)
 	routeName := "unknown"
-	if route != nil {
-		routeName = route.Pattern
+	if pat, ok := r.Context().Value(routePatternKey).(string); ok && pat != "" {
+		routeName = pat
 	}
 	o.registry.Metrics.RecordRequest(routeName, r.Method, rw.code, time.Since(start))
 }
@@ -116,6 +120,12 @@ func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
 	ctx, routeSpan := o.registry.Tracer.StartSpan(ctx, "pola.route.resolve")
 	route, params := o.registry.Router.Resolve(ctx, r.URL.Path)
 	routeSpan.End()
+
+	// Store resolved route pattern for metrics (avoids re-resolving in ServeHTTP).
+	if route != nil {
+		ctx = context.WithValue(ctx, routePatternKey, route.Pattern)
+	}
+	*r = *r.WithContext(ctx)
 
 	if route == nil {
 		if o.notFoundRoute != nil {
