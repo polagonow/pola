@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
-	"sync"
 	"text/template"
 	"time"
 	"unsafe"
@@ -36,6 +35,7 @@ import (
 	"github.com/polagonow/pola/core/globals"
 	"github.com/polagonow/pola/engine/eventloop"
 	"github.com/polagonow/pola/engine/polyfill"
+	"github.com/polagonow/pola/internal/vmpool"
 )
 
 // ── JS templates ──────────────────────────────────────────────────────────────
@@ -510,7 +510,7 @@ func (h *mqjsStreamHandle) IsNil() bool { return h == nil }
 
 // ── SSRPool adapter ───────────────────────────────────────────────────────────
 
-type mqjsSSRPool struct{ pool *vmPool }
+type mqjsSSRPool struct{ pool *vmpool.Pool[*Runtime] }
 
 func (p *mqjsSSRPool) Acquire() (core.SSRRuntime, error) { return p.pool.Acquire() }
 func (p *mqjsSSRPool) Release(rt core.SSRRuntime) {
@@ -521,43 +521,12 @@ func (p *mqjsSSRPool) Release(rt core.SSRRuntime) {
 
 // ── vmPool ────────────────────────────────────────────────────────────────────
 
-type vmPool struct {
-	pool   sync.Pool
-	src    string
-	logger core.Logger
-}
-
-func newVMPool(serverBundle string, logger core.Logger) (*vmPool, error) {
-	p := &vmPool{src: serverBundle, logger: logger}
-	p.pool = sync.Pool{
-		New: func() any {
-			r, err := newRuntime(serverBundle, logger)
-			if err != nil {
-				panic(fmt.Sprintf("moderncquickjs: pool create: %v", err))
-			}
-			return r
-		},
-	}
-	// Eagerly create one Runtime to surface startup errors immediately.
-	r, err := newRuntime(serverBundle, logger)
-	if err != nil {
-		return nil, fmt.Errorf("moderncquickjs: pool create: %w", err)
-	}
-	p.pool.Put(r)
-	return p, nil
-}
-
-func (p *vmPool) Acquire() (rt *Runtime, err error) {
-	defer func() {
-		if r := recover(); r != nil {
-			err = fmt.Errorf("%v", r)
-		}
-	}()
-	return p.pool.Get().(*Runtime), nil
-}
-func (p *vmPool) Release(r *Runtime) {
-	_ = r.clearState()
-	p.pool.Put(r)
+func newVMPool(serverBundle string, logger core.Logger) (*vmpool.Pool[*Runtime], error) {
+	return vmpool.New(
+		vmpool.Config{MinSize: 1, MaxSize: 64},
+		func() (*Runtime, error) { return newRuntime(serverBundle, logger) },
+		func(r *Runtime) { _ = r.clearState() },
+	)
 }
 
 // Registered is true when the moderncquickjs build tag is active.
