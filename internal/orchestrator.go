@@ -29,7 +29,8 @@ type Orchestrator struct {
 	notFoundRoute *core.Route // GlobalNotFound export, or nil
 	cssURLs       []string   // external stylesheet URLs
 	dev           bool
-	devScript     string // hot-reload inline script, set in dev mode
+	devScript     string       // hot-reload inline script, set in dev mode
+	handler       http.Handler // middleware chain wrapping handle, built once
 }
 
 // NewOrchestrator creates a new Orchestrator from the given registry and build artifacts.
@@ -47,6 +48,12 @@ func NewOrchestrator(reg *core.Registry, routes []core.Route, shell core.HTMLShe
 	if dev {
 		o.devScript = ClientScript
 	}
+	// Build the middleware chain once at construction time instead of per request.
+	handler := http.Handler(http.HandlerFunc(o.handle))
+	for i := len(reg.Middleware) - 1; i >= 0; i-- {
+		handler = reg.Middleware[i].Wrap(handler)
+	}
+	o.handler = handler
 	return o
 }
 
@@ -72,15 +79,9 @@ func (o *Orchestrator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Apply middleware in order
-	handler := http.Handler(http.HandlerFunc(o.handle))
-	for i := len(o.registry.Middleware) - 1; i >= 0; i-- {
-		handler = o.registry.Middleware[i].Wrap(handler)
-	}
-
 	// Record metrics
 	rw := &responseRecorder{ResponseWriter: w, code: http.StatusOK}
-	handler.ServeHTTP(rw, r)
+	o.handler.ServeHTTP(rw, r)
 
 	route, _ := o.registry.Router.Resolve(r.Context(), r.URL.Path)
 	routeName := "unknown"
