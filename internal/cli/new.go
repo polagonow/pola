@@ -73,7 +73,7 @@ func runNew(_ *cobra.Command, args []string) error {
 		PolaLocalPath: polaLocalPath,
 	}
 
-	// Create the public directory (needed for embed.go).
+	// Create the public directory (needed for asset embedding during builds).
 	if err := os.MkdirAll(filepath.Join(targetDir, "public"), 0o755); err != nil {
 		return fmt.Errorf("create public dir: %w", err)
 	}

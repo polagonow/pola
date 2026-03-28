@@ -66,13 +66,7 @@ func runBuild(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("stub packages: %w", err)
 	}
 
-	// Verify embed.go exists.
-	embedPath := filepath.Join(projectDir, "embed.go")
-	if _, err := os.Stat(embedPath); os.IsNotExist(err) {
-		return fmt.Errorf("embed.go not found in %s — required for production builds", projectDir)
-	}
-
-	// Generate overlay (plugin imports + action bridge codegen).
+	// Generate overlay (plugin imports + action bridge codegen + embed).
 	overlayRes, err := generateOverlay(projectDir, buildFlags.css)
 	if err != nil {
 		return err
