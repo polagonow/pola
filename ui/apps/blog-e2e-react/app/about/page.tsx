@@ -1,4 +1,4 @@
-import di from "@pola/di";
+import { Blog } from "@pola/di";
 
 export default async function AboutPage({
   searchParams,
@@ -6,7 +6,7 @@ export default async function AboutPage({
   searchParams?: Record<string, string>;
 }) {
   if (searchParams?.error !== undefined)
-    await di.triggerError(searchParams.error || undefined);
+    await Blog.triggerError(searchParams.error || undefined);
   return (
     <div>
       <h1 className="text-3xl font-extrabold mb-3">

@@ -1,4 +1,4 @@
-import di from "@pola/di";
+import { Blog } from "@pola/di";
 
 import LikeButton from "@/components/LikeButton";
 
@@ -10,8 +10,8 @@ export default async function PostPage({
   searchParams?: Record<string, string>;
 }) {
   if (searchParams?.error !== undefined)
-    await di.triggerError(searchParams.error || undefined);
-  const post = await di.getPost(params.slug);
+    await Blog.triggerError(searchParams.error || undefined);
+  const post = await Blog.getPost(params.slug);
 
   return (
     <div>

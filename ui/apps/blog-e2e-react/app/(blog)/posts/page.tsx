@@ -1,4 +1,4 @@
-import di from "@pola/di";
+import { Blog } from "@pola/di";
 
 export default async function PostsPage({
   searchParams,
@@ -6,8 +6,8 @@ export default async function PostsPage({
   searchParams?: Record<string, string>;
 }) {
   if (searchParams?.error !== undefined)
-    await di.triggerError(searchParams.error || undefined);
-  const posts = await di.getPosts();
+    await Blog.triggerError(searchParams.error || undefined);
+  const posts = await Blog.getPosts();
   const tag = searchParams?.tag;
   const filtered = tag ? posts.filter((p) => p.tags.includes(tag)) : posts;
 
