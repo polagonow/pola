@@ -8,6 +8,7 @@ import { Server } from "@pola/di";
 
 async function ServerInfo() {
   const info = await Server.getServerInfo();
+
   return (
     <div style={{
       background: "var(--color-surface)",
