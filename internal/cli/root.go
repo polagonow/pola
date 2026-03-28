@@ -26,6 +26,7 @@ func init() {
 	rootCmd.AddCommand(newCmd)
 	rootCmd.AddCommand(serveCmd)
 	rootCmd.AddCommand(buildCmd)
+	rootCmd.AddCommand(generateCmd)
 }
 
 // Execute runs the root command.

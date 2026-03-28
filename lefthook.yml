@@ -5,15 +5,6 @@ pre-commit:
       glob: "**/*.go"
       root: "ui"
       run: go run mage.go lint
-    ui-lint:
-      root: "ui"
-      glob: "ui/**/*.{ts,tsx}"
-      run: pnpm exec eslint {staged_files}
-    ui-format-check:
-      root: "ui"
-      glob: "ui/**/*.{ts,tsx,json}"
-      run: pnpm exec prettier --check {staged_files}
-
 pre-push:
   commands:
     unit-test:

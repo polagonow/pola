@@ -1,9 +1,0 @@
-{
-  "name": "@pola/di",
-  "version": "0.0.1",
-  "private": true,
-  "description": "Bridge between Go services and React server components (auto-managed by the Pola runtime)",
-  "exports": {
-    ".": "./src/index.ts"
-  }
-}

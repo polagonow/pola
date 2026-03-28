@@ -6,6 +6,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/magefile/mage/mg"
@@ -32,14 +33,6 @@ func runtimeTags() string {
 	return strings.Join(tags, " ")
 }
 
-// binaryTags returns build tags for the production binary.
-// Excludes bundler and CSS plugins — both are build-time only; assets are
-// pre-built by Bundle and embedded. Only the VM, renderer, and router are
-// needed at runtime.
-func binaryTags() string {
-	return strings.Join([]string{"embed", polaVM, polaRenderer, polaRouter}, " ")
-}
-
 // Generate runs all code-generation steps (templ → Go).
 // Run and Bundle depend on this so it always executes before compilation.
 func Generate() error {
@@ -47,71 +40,41 @@ func Generate() error {
 	return sh.RunV("go", "tool", "templ", "generate", "./shell/...")
 }
 
-// Run starts the dev server.
-func Run() error {
-	mg.Deps(Generate)
+// Run starts the dev server for the blog-e2e-react example.
+func RunDemo() error {
+	mg.Deps(Generate, Build)
 	fmt.Printf("→ POLA_VM=%s POLA_BUNDLER=%s POLA_RENDERER=%s\n", polaVM, polaBundler, polaRenderer)
+	polaBin, _ := filepath.Abs("./bin/pola")
+	if err := os.Chdir("examples/blog-e2e-react"); err != nil {
+		return fmt.Errorf("chdir: %w", err)
+	}
 	return sh.RunWithV(
 		map[string]string{
-			"CGO_ENABLED":      cgoEnabled,
-			"POLA_DEV":         "true",
-			"POLA_METRICS":     polaMetrics,
-			"POLA_PPROF":       polaPprof,
-			"POLA_WEBAPP_PATH": "../../ui/apps/blog-e2e-react",
+			"CGO_ENABLED":  cgoEnabled,
+			"POLA_DEV":     "true",
+			"POLA_METRICS": polaMetrics,
+			"POLA_PPROF":   polaPprof,
 		},
-		"go", "run",
-		"-C", "cmd/blog-e2e-server",
-		"-tags", runtimeTags(),
-		".",
+		polaBin, "serve",
 	)
 }
 
-// Bundle is Stage 1: pre-builds JS/CSS assets into cmd/blog-e2e-server/public/ using
-// the full runtime tags (including esbuild). The server exits immediately after
-// writing assets (POLA_BUILD_ONLY=true).
-func Bundle() error {
-	mg.Deps(Generate)
-	fmt.Println("→ [stage 1] bundling assets into cmd/blog-e2e-server/public/")
-	return sh.RunWithV(
-		map[string]string{
-			"CGO_ENABLED":      cgoEnabled,
-			"POLA_BUILD_ONLY":  "true",
-			"POLA_PUBLIC_DIR":  "./public",
-			"POLA_WEBAPP_PATH": "../../ui/apps/blog-e2e-react",
-		},
-		"go", "run",
-		"-C", "cmd/blog-e2e-server",
-		"-tags", runtimeTags(),
-		".",
-	)
-}
-
-// Compile is Stage 2: compiles the production Go binary with the embed tag
-// but WITHOUT esbuild — assets were already written by Bundle. mg.Deps ensures
-// Bundle runs first (and is memoised so it never runs twice in one invocation).
-func Compile() error {
-	mg.Deps(Bundle)
-	tags := binaryTags()
-	fmt.Printf("→ [stage 2] compiling binary tags=%q CGO_ENABLED=%s\n", tags, cgoEnabled)
-	os.MkdirAll("bin", 0o755) //nolint:errcheck
+// Bundle pre-builds JS/CSS assets for the blog-e2e-react example.
+func BundleDemo() error {
+	mg.Deps(Generate, Build)
+	fmt.Println("→ bundling assets for examples/blog-e2e-react")
+	polaBin, _ := filepath.Abs("./bin/pola")
+	if err := os.Chdir("examples/blog-e2e-react"); err != nil {
+		return fmt.Errorf("chdir: %w", err)
+	}
 	return sh.RunWithV(
 		map[string]string{"CGO_ENABLED": cgoEnabled},
-		"go", "build",
-		"-tags", tags,
-		"-ldflags", "-s -w",
-		"-o", "bin/blog-e2e-server",
-		"./cmd/blog-e2e-server",
+		polaBin, "build",
 	)
 }
 
-// Build runs the full two-stage build: Bundle assets → Compile binary.
+// Build compiles the pola CLI binary into bin/.
 func Build() error {
-	mg.Deps(Compile)
-	return nil
-}
-
-// BuildCLI compiles the pola CLI binary into bin/.
-func BuildCLI() error {
 	fmt.Println("→ building pola CLI")
 	os.MkdirAll("bin", 0o755) //nolint:errcheck
 	return sh.RunV("go", "build", "-o", "bin/pola", "./cmd/pola/")
@@ -140,23 +103,7 @@ func Benchmark() error {
 
 // Lint runs golangci-lint and eslint.
 func Lint() error {
-	mg.Deps(UiLint)
 	return sh.RunV("golangci-lint", "run", "./...")
-}
-
-// UiLint runs eslint across the UI monorepo.
-func UiLint() error {
-	return sh.RunV("pnpm", "--dir", "ui", "run", "lint")
-}
-
-// UiFormat formats UI source files with prettier.
-func UiFormat() error {
-	return sh.RunV("pnpm", "--dir", "ui", "run", "format")
-}
-
-// UiFormatCheck checks UI formatting without writing.
-func UiFormatCheck() error {
-	return sh.RunV("pnpm", "--dir", "ui", "run", "format:check")
 }
 
 // InstallHooks installs lefthook git hooks.

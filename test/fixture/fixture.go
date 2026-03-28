@@ -81,7 +81,7 @@ func RegisterPolyfillVM(name string, factory func(t *testing.T) PolyfillFixture)
 // ── Public iteration helpers ──────────────────────────────────────────────────
 
 // AppDir is the path to the test application, relative to the e2e package root.
-const AppDir = "../../ui/apps/blog-e2e-react"
+const AppDir = "../../examples/blog-e2e-react"
 
 // ForEachApp runs fn as a sub-test for every registered AppFixture.
 func ForEachApp(t *testing.T, fn func(*testing.T, AppFixture)) {
@@ -231,6 +231,7 @@ func (i *testInjector) Capabilities() []core.InjectionCapability {
 	}
 	return caps
 }
+
 // asyncDIRuntime is the optional interface for runtimes that support
 // async (Promise + goroutine) dependency injection.
 type asyncDIRuntime interface {
