@@ -14,7 +14,9 @@
 package pola
 
 import (
+	"fmt"
 	"net/http"
+	"os"
 	"sync"
 
 	"github.com/polagonow/pola/core"
@@ -59,9 +61,19 @@ func buildDefault() {
 
 // Ready eagerly builds the default app. Call from main() before
 // ListenAndServe to avoid first-request latency. Safe to call multiple times.
+//
+// When POLA_BUILD_ONLY=true (set by `pola build` stage 1), Ready builds
+// the app (which triggers asset bundling) and then exits the process.
 func Ready() error {
 	defaultApp.once.Do(buildDefault)
-	return defaultApp.err
+	if defaultApp.err != nil {
+		return defaultApp.err
+	}
+	if defaultApp.env != nil && defaultApp.env.BuildOnly {
+		fmt.Println("Build-only mode: assets bundled, exiting.")
+		os.Exit(0)
+	}
+	return nil
 }
 
 // Addr returns the listen address from POLA_ADDRESS and PORT env vars
