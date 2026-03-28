@@ -173,20 +173,7 @@ func generateOverlay(projectDir, css string) (*overlayResult, error) {
 
 	replace := make(map[string]string)
 
-	// 1. Always generate plugin imports.
-	pluginsSrc := generatePluginImports(css)
-	pluginsPath := filepath.Join(tmpDir, "pola_plugins.go")
-	if err := os.WriteFile(pluginsPath, pluginsSrc, 0o644); err != nil {
-		return nil, fmt.Errorf("write plugins: %w", err)
-	}
-	absProjectDir, err := filepath.Abs(projectDir)
-	if err != nil {
-		return nil, fmt.Errorf("abs project dir: %w", err)
-	}
-	replace[filepath.Join(absProjectDir, "pola_plugins.go")] = pluginsPath
-
-	// 2. Optionally run action bridge codegen.
-	var tsOutPath string
+	// Determine actions directory.
 	actionsDir := generateFlags.actionsDir
 	if actionsDir == "" {
 		actionsDir = filepath.Join(projectDir, "actions")
@@ -195,7 +182,12 @@ func generateOverlay(projectDir, css string) (*overlayResult, error) {
 		actionsDir = filepath.Join(projectDir, actionsDir)
 	}
 
+	// 1. Run action bridge codegen if actions/ exists.
+	var tsOutPath string
+	var actionsImport string
+	hasActions := false
 	if info, err := os.Stat(actionsDir); err == nil && info.IsDir() {
+		hasActions = true
 		tsOut := generateFlags.tsOut
 		if tsOut == "" {
 			tsOut = filepath.Join(projectDir, "node_modules", "@pola", "di", "src", "generated.d.ts")
@@ -222,6 +214,25 @@ func generateOverlay(projectDir, css string) (*overlayResult, error) {
 	} else if verbose {
 		fmt.Println("No actions/ directory found, skipping codegen.")
 	}
+
+	// 2. Resolve the actions import path so pola_plugins.go can blank-import it.
+	if hasActions {
+		if modPath, err := readModulePath(projectDir); err == nil && modPath != "" {
+			actionsImport = modPath + "/actions"
+		}
+	}
+
+	// 3. Generate plugin imports (always).
+	pluginsSrc := generatePluginImports(css, actionsImport)
+	pluginsPath := filepath.Join(tmpDir, "pola_plugins.go")
+	if err := os.WriteFile(pluginsPath, pluginsSrc, 0o644); err != nil {
+		return nil, fmt.Errorf("write plugins: %w", err)
+	}
+	absProjectDir, err := filepath.Abs(projectDir)
+	if err != nil {
+		return nil, fmt.Errorf("abs project dir: %w", err)
+	}
+	replace[filepath.Join(absProjectDir, "pola_plugins.go")] = pluginsPath
 
 	// 3. Write unified overlay JSON.
 	overlay := map[string]any{
@@ -266,15 +277,37 @@ import (
 	_ "github.com/polagonow/pola/middleware/recovery"
 	_ "github.com/polagonow/pola/renderer"
 	_ "github.com/polagonow/pola/router"
+{{- if .ActionsImport}}
+	_ "{{.ActionsImport}}"
+{{- end}}
 )
 `))
 
 // generatePluginImports returns the source for pola_plugins.go containing
 // blank imports that trigger plugin self-registration via init() → di.Stage().
-func generatePluginImports(css string) []byte {
+func generatePluginImports(css, actionsImport string) []byte {
 	var buf strings.Builder
-	_ = pluginsTmpl.Execute(&buf, struct{ CSS bool }{
-		CSS: css != "" && css != "none",
+	_ = pluginsTmpl.Execute(&buf, struct {
+		CSS           bool
+		ActionsImport string
+	}{
+		CSS:           css != "" && css != "none",
+		ActionsImport: actionsImport,
 	})
 	return []byte(buf.String())
+}
+
+// readModulePath reads the module path from go.mod in the given directory.
+func readModulePath(dir string) (string, error) {
+	data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	if err != nil {
+		return "", err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "module ") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "module")), nil
+		}
+	}
+	return "", fmt.Errorf("module directive not found in go.mod")
 }
