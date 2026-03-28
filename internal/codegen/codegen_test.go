@@ -131,11 +131,11 @@ func (b *Blog) Vars() map[string]any {
 	if !strings.Contains(goStr, "package actions") {
 		t.Error("Go: missing package declaration")
 	}
-	if !strings.Contains(goStr, `"getPosts"`) {
-		t.Error("Go: missing getPosts registration")
+	if !strings.Contains(goStr, `"Blog.getPosts"`) {
+		t.Error("Go: missing Blog.getPosts registration")
 	}
-	if !strings.Contains(goStr, `"getPost"`) {
-		t.Error("Go: missing getPost registration")
+	if !strings.Contains(goStr, `"Blog.getPost"`) {
+		t.Error("Go: missing Blog.getPost registration")
 	}
 	if !strings.Contains(goStr, "generatedBridge") {
 		t.Error("Go: missing generatedBridge struct")
@@ -172,8 +172,14 @@ func (b *Blog) Vars() map[string]any {
 	if !strings.Contains(tsStr, "createPost(title: string, draft: boolean): Promise<Post | null>") {
 		t.Error("TS: missing createPost method")
 	}
-	if !strings.Contains(tsStr, `declare module "@pola/di"`) {
-		t.Error("TS: missing module declaration")
+	if !strings.Contains(tsStr, "interface BlogActions") {
+		t.Error("TS: missing BlogActions interface")
+	}
+	if !strings.Contains(tsStr, "export const Blog") {
+		t.Error("TS: missing Blog export")
+	}
+	if !strings.Contains(tsStr, `createAction("Blog")`) {
+		t.Error("TS: missing createAction call")
 	}
 }
 

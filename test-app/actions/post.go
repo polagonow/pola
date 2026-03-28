@@ -3,8 +3,8 @@ package actions
 // Post exposes functions and variables to JavaScript via the Pola bridge.
 //
 // How it works:
-//   - Each exported method becomes a callable function in JS: di.methodName()
-//   - Method names are automatically camelCased: GetItems → di.getItems()
+//   - Each exported method becomes a callable function in JS
+//   - Method names are automatically camelCased: GetItems → Post.getItems()
 //   - Parameters are positional and type-safe (string, int, bool, structs)
 //   - Return must be (T, error) or just error
 //   - The special Vars() method exposes read-only constants to JS
@@ -24,26 +24,26 @@ type Post struct {
 // 	Name  string `json:"name"`
 // }
 
-// GetAll returns all items. Becomes di.getAll() in JavaScript.
+// GetAll returns all items. Becomes Post.getAll() in JavaScript.
 //
-// Usage in React server component:
-//   import di from "@pola/di"
-//   const items = await di.getAll()  // typed as the return type
+// Usage in React:
+//   import { Post } from "@pola/di"
+//   const items = await Post.getAll()
 func (a *Post) GetAll() ([]map[string]any, error) {
 	// TODO: implement
 	return nil, nil
 }
 
-// GetByID returns a single item by ID. Becomes di.getByID(id) in JavaScript.
+// GetByID returns a single item by ID. Becomes Post.getByID(id) in JavaScript.
 //
-// Parameters are positional in JS: di.getByID("123")
+// Parameters are positional in JS: Post.getByID("123")
 func (a *Post) GetByID(id string) (map[string]any, error) {
 	// TODO: implement
 	return nil, nil
 }
 
-// Vars exposes read-only values to JavaScript as properties on the di object.
-// Each key becomes accessible as di.keyName in JS.
+// Vars exposes read-only values to JavaScript as properties on the action.
+// Each key becomes accessible as Post.keyName in JS.
 //
 // Use for: config values, feature flags, app name, environment info, etc.
 // These are injected once per VM init, not per-request.

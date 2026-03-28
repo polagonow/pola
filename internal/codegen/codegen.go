@@ -13,7 +13,7 @@ type RunResult struct {
 	// VirtualPath is the path the bridge should appear at in the overlay
 	// (i.e. inside the actions/ package).
 	VirtualPath string
-	// TSOutPath is the path to the generated .d.ts file.
+	// TSOutPath is the path to the generated .ts file.
 	TSOutPath string
 }
 

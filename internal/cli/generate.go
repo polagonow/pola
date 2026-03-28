@@ -93,11 +93,15 @@ func runGenerateAction(_ *cobra.Command, args []string) error {
 // %s exposes functions and variables to JavaScript via the Pola bridge.
 //
 // How it works:
-//   - Each exported method becomes a callable function in JS: di.methodName()
-//   - Method names are automatically camelCased: GetItems → di.getItems()
+//   - Each exported method becomes a callable function in JS
+//   - Method names are automatically camelCased: GetItems → %s.getItems()
 //   - Parameters are positional and type-safe (string, int, bool, structs)
 //   - Return must be (T, error) or just error
 //   - The special Vars() method exposes read-only constants to JS
+//
+// Usage in React:
+//   import { %s } from "@pola/di"
+//   const items = await %s.getAll()
 //
 // Run "pola generate" to regenerate the bridge after editing this file.
 
@@ -114,36 +118,27 @@ type %s struct {
 // 	Name  string `+"`"+`json:"name"`+"`"+`
 // }
 
-// GetAll returns all items. Becomes di.getAll() in JavaScript.
-//
-// Usage in React server component:
-//   import di from "@pola/di"
-//   const items = await di.getAll()  // typed as the return type
+// GetAll returns all items. Becomes %s.getAll() in JavaScript.
 func (a *%s) GetAll() ([]map[string]any, error) {
 	// TODO: implement
 	return nil, nil
 }
 
-// GetByID returns a single item by ID. Becomes di.getByID(id) in JavaScript.
-//
-// Parameters are positional in JS: di.getByID("123")
+// GetByID returns a single item by ID. Becomes %s.getByID(id) in JavaScript.
 func (a *%s) GetByID(id string) (map[string]any, error) {
 	// TODO: implement
 	return nil, nil
 }
 
-// Vars exposes read-only values to JavaScript as properties on the di object.
-// Each key becomes accessible as di.keyName in JS.
-//
-// Use for: config values, feature flags, app name, environment info, etc.
-// These are injected once per VM init, not per-request.
+// Vars exposes read-only values to JavaScript as properties on the action.
+// Each key becomes accessible as %s.keyName in JS.
 //
 // func (a *%s) Vars() map[string]any {
 // 	return map[string]any{
 // 		"appName": "My App",
 // 	}
 // }
-`, name, name, name, name, name, name)
+`, name, name, name, name, name, name, name, name, name, name, name, name)
 
 	if err := os.WriteFile(filePath, []byte(src), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", filePath, err)
@@ -190,7 +185,7 @@ func generateOverlay(projectDir, css string) (*overlayResult, error) {
 		hasActions = true
 		tsOut := generateFlags.tsOut
 		if tsOut == "" {
-			tsOut = filepath.Join(projectDir, "node_modules", "@pola", "di", "src", "generated.d.ts")
+			tsOut = filepath.Join(projectDir, "node_modules", "@pola", "di", "src", "generated.ts")
 		}
 		if !filepath.IsAbs(tsOut) {
 			tsOut = filepath.Join(projectDir, tsOut)

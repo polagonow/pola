@@ -8,16 +8,16 @@ import (
 
 // Server exposes server metadata and utilities to JavaScript via the Pola bridge.
 //
-// Each exported method becomes a callable function in JS: di.methodName()
-// Method names are automatically camelCased: GetServerInfo → di.getServerInfo()
+// Each exported method becomes a callable function in JS.
+// Method names are automatically camelCased: GetServerInfo → Server.getServerInfo()
 //
 // Usage in React:
 //
-//	import di from "@pola/di"
-//	const info = await di.getServerInfo()
+//	import { Server } from "@pola/di"
+//	const info = await Server.getServerInfo()
 type Server struct{}
 
-// GetServerInfo returns server metadata. Becomes di.getServerInfo() in JS.
+// GetServerInfo returns server metadata. Becomes Server.getServerInfo() in JS.
 func (s *Server) GetServerInfo() (map[string]any, error) {
 	return map[string]any{
 		"goVersion": runtime.Version(),
@@ -27,7 +27,7 @@ func (s *Server) GetServerInfo() (map[string]any, error) {
 	}, nil
 }
 
-// Greet returns a greeting message. Becomes di.greet(name) in JS.
+// Greet returns a greeting message. Becomes Server.greet(name) in JS.
 func (s *Server) Greet(name string) (map[string]any, error) {
 	if name == "" {
 		name = "World"

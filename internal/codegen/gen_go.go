@@ -52,7 +52,7 @@ func (g *generatedBridge) Capabilities() []core.InjectionCapability {
 	return []core.InjectionCapability{
 		{{- range .Actions}}
 		{{- range .Methods}}
-		{Name: "{{.JSName}}", Description: "{{$.StructNameFor .}}.{{.GoName}}"},
+		{Name: "{{$.StructNameFor .}}.{{.JSName}}", Description: "{{$.StructNameFor .}}.{{.GoName}}"},
 		{{- end}}
 		{{- end}}
 	}
@@ -63,7 +63,7 @@ func (g *generatedBridge) Inject(ctx context.Context, runtime core.JSRuntime) er
 		{{- range .Actions}}
 		{{- $action := .}}
 		{{- range .Methods}}
-		"{{.JSName}}": func(args []any) (any, error) {
+		"{{$action.StructName}}.{{.JSName}}": func(args []any) (any, error) {
 			{{- range $i, $p := .Params}}
 			var p{{$i}} {{goTypeShort $p.GoType}}
 			if len(args) > {{$i}} {
