@@ -1,7 +1,6 @@
 package codegen
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -9,20 +8,20 @@ import (
 
 // RunResult holds the output paths from a codegen run.
 type RunResult struct {
-	// OverlayPath is the path to the overlay JSON file that maps the
-	// generated bridge into the actions/ package. Empty if no actions found.
-	OverlayPath string
+	// BridgePath is the temp file path of the generated Go bridge.
+	BridgePath string
+	// VirtualPath is the path the bridge should appear at in the overlay
+	// (i.e. inside the actions/ package).
+	VirtualPath string
 	// TSOutPath is the path to the generated .d.ts file.
 	TSOutPath string
-	// TmpDir is the temp directory holding the generated bridge.
-	// The caller should defer os.RemoveAll(TmpDir) after the build completes.
-	TmpDir string
 }
 
 // Run is the top-level codegen entry point. It parses the actions directory,
-// generates the Go bridge to a temp dir (with an overlay JSON for -overlay flag),
-// and writes TypeScript declarations to tsOutPath.
-func Run(actionsDir, tsOutPath string) (*RunResult, error) {
+// generates the Go bridge into tmpDir, and writes TypeScript declarations to
+// tsOutPath. The caller is responsible for creating/cleaning up tmpDir and
+// building the overlay JSON.
+func Run(actionsDir, tsOutPath, tmpDir string) (*RunResult, error) {
 	result, err := Parse(actionsDir)
 	if err != nil {
 		return nil, fmt.Errorf("parse: %w", err)
@@ -38,39 +37,18 @@ func Run(actionsDir, tsOutPath string) (*RunResult, error) {
 		return nil, fmt.Errorf("generate go: %w", err)
 	}
 
-	// Write bridge to a temp dir (invisible to user).
-	tmpDir, err := os.MkdirTemp("", "pola-bridge-*")
-	if err != nil {
-		return nil, fmt.Errorf("create temp dir: %w", err)
-	}
-
+	// Write bridge to the caller-provided temp dir.
 	tmpBridgePath := filepath.Join(tmpDir, "generated_bridge.go")
 	if err := os.WriteFile(tmpBridgePath, goSrc, 0o644); err != nil {
 		return nil, fmt.Errorf("write bridge: %w", err)
 	}
 
-	// Create overlay JSON that maps the temp file into the actions/ package.
-	// Go's -overlay flag reads this to virtually inject the file.
+	// Compute the virtual path (where it should appear in the actions/ package).
 	absActionsDir, err := filepath.Abs(actionsDir)
 	if err != nil {
 		return nil, fmt.Errorf("abs actions dir: %w", err)
 	}
 	virtualPath := filepath.Join(absActionsDir, "generated_bridge.go")
-
-	overlay := map[string]any{
-		"Replace": map[string]string{
-			virtualPath: tmpBridgePath,
-		},
-	}
-	overlayJSON, err := json.Marshal(overlay)
-	if err != nil {
-		return nil, fmt.Errorf("marshal overlay: %w", err)
-	}
-
-	overlayPath := filepath.Join(tmpDir, "overlay.json")
-	if err := os.WriteFile(overlayPath, overlayJSON, 0o644); err != nil {
-		return nil, fmt.Errorf("write overlay: %w", err)
-	}
 
 	// Generate TypeScript declarations (this one goes to the user's project).
 	tsSrc, err := GenerateTS(result)
@@ -86,8 +64,8 @@ func Run(actionsDir, tsOutPath string) (*RunResult, error) {
 	}
 
 	return &RunResult{
-		OverlayPath: overlayPath,
+		BridgePath:  tmpBridgePath,
+		VirtualPath: virtualPath,
 		TSOutPath:   tsOutPath,
-		TmpDir:      tmpDir,
 	}, nil
 }

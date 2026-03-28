@@ -72,13 +72,13 @@ func runBuild(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("embed.go not found in %s — required for production builds", projectDir)
 	}
 
-	// Run action bridge codegen if actions/ directory exists.
-	codegenResult, err := runCodegen(projectDir)
+	// Generate overlay (plugin imports + action bridge codegen).
+	overlayRes, err := generateOverlay(projectDir, buildFlags.css)
 	if err != nil {
 		return err
 	}
-	if codegenResult != nil && codegenResult.TmpDir != "" {
-		defer os.RemoveAll(codegenResult.TmpDir)
+	if overlayRes != nil && overlayRes.TmpDir != "" {
+		defer os.RemoveAll(overlayRes.TmpDir)
 	}
 
 	// Run templ generate if templ files exist.
@@ -91,10 +91,10 @@ func runBuild(_ *cobra.Command, _ []string) error {
 		}
 	}
 
-	// Collect overlay args if codegen produced one.
+	// Collect overlay args.
 	var overlayArgs []string
-	if codegenResult != nil && codegenResult.OverlayPath != "" {
-		overlayArgs = []string{"-overlay", codegenResult.OverlayPath}
+	if overlayRes != nil && overlayRes.OverlayPath != "" {
+		overlayArgs = []string{"-overlay", overlayRes.OverlayPath}
 	}
 
 	// ── Stage 1: Bundle ──────────────────────────────────────────────────

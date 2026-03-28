@@ -89,12 +89,23 @@ func runNew(_ *cobra.Command, args []string) error {
 		_ = os.WriteFile(faviconPath, []byte{}, 0o644)
 	}
 
+	// Write a temporary pola_plugins.go so go mod tidy resolves plugin deps.
+	// This file is removed after tidy — at runtime it's injected via overlay.
+	pluginsPath := filepath.Join(targetDir, "pola_plugins.go")
+	pluginsSrc := generatePluginImports(newFlags.css)
+	if err := os.WriteFile(pluginsPath, pluginsSrc, 0o644); err != nil {
+		fmt.Printf("Warning: failed to write temp plugins file: %v\n", err)
+	}
+
 	// Run go mod tidy.
 	fmt.Println("Running go mod tidy...")
 	if err := runInDir(targetDir, "go", "mod", "tidy"); err != nil {
 		fmt.Printf("Warning: go mod tidy failed: %v\n", err)
 		fmt.Println("You may need to run 'go mod tidy' manually.")
 	}
+
+	// Remove the temporary plugins file — overlay handles it at serve/build time.
+	os.Remove(pluginsPath)
 
 	// Detect and run package manager install.
 	pm := newFlags.pm
