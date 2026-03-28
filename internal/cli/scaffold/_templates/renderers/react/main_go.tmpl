@@ -7,62 +7,12 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"runtime"
 	"syscall"
-	"time"
-
-	samberdo "github.com/samber/do/v2"
 
 	pola "github.com/polagonow/pola"
 	"github.com/polagonow/pola/core"
-	"github.com/polagonow/pola/core/di"
 	"github.com/polagonow/pola/core/env"
-	doinjection "github.com/polagonow/pola/injection/do"
 )
-
-func init() {
-	// Register Go services that are callable from React via the @pola/di bridge.
-	//
-	// In your React components you can call these as:
-	//   import di from "@pola/di";
-	//   const info = await di.getServerInfo();
-	//
-	// Each registered function receives a []any of arguments from the JS call
-	// and returns (any, error). The return value is serialised as JSON and
-	// delivered to the React component during server-side rendering.
-	di.Stage(func(i samberdo.Injector) {
-		injector := doinjection.New(i)
-		registerServices(injector)
-
-		ic := samberdo.MustInvoke[*di.InjectorCollector](i)
-		ic.Add(injector)
-	})
-}
-
-// registerServices wires Go functions into the DI bridge.
-// Add your own services here — they become available in React via `di.<name>()`.
-func registerServices(inj *doinjection.Injector) {
-	// Example: expose server metadata to the frontend.
-	inj.Register("getServerInfo", func(_ []any) (any, error) {
-		return map[string]any{
-			"goVersion": runtime.Version(),
-			"os":        runtime.GOOS,
-			"arch":      runtime.GOARCH,
-			"time":      time.Now().Format(time.RFC3339),
-		}, nil
-	})
-
-	// Example: a greeting function that accepts arguments from JS.
-	inj.Register("greet", func(args []any) (any, error) {
-		name := "World"
-		if len(args) > 0 {
-			name = fmt.Sprintf("%v", args[0])
-		}
-		return map[string]any{
-			"message": fmt.Sprintf("Hello, %s! 👋 This message was generated in Go.", name),
-		}, nil
-	})
-}
 
 func main() {
 	e, err := env.Load()
