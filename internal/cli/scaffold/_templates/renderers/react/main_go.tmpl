@@ -1,126 +1,16 @@
 package main
 
 import (
-	"context"
-	"fmt"
 	"log"
 	"net/http"
-	"os"
-	"os/signal"
-	"runtime"
-	"syscall"
-	"time"
 
-	samberdo "github.com/samber/do/v2"
-
-	pola "github.com/polagonow/pola"
-	"github.com/polagonow/pola/core"
-	"github.com/polagonow/pola/core/di"
-	"github.com/polagonow/pola/core/env"
-	doinjection "github.com/polagonow/pola/injection/do"
-
-	// plugins self-register via init() → di.Stage()
-	_ "github.com/polagonow/pola/bundler"
-	_ "github.com/polagonow/pola/cache"
-[[- if ne .CSS "none" ]]
-	_ "github.com/polagonow/pola/css"
-[[- end ]]
-	_ "github.com/polagonow/pola/engine"
-	_ "github.com/polagonow/pola/fs"
-	_ "github.com/polagonow/pola/logger"
-	_ "github.com/polagonow/pola/middleware/logging"
-	_ "github.com/polagonow/pola/middleware/recovery"
-	_ "github.com/polagonow/pola/renderer"
-	_ "github.com/polagonow/pola/router"
+	"github.com/polagonow/pola"
 )
 
-func init() {
-	// Register Go services that are callable from React via the @pola/di bridge.
-	//
-	// In your React components you can call these as:
-	//   import di from "@pola/di";
-	//   const info = await di.getServerInfo();
-	//
-	// Each registered function receives a []any of arguments from the JS call
-	// and returns (any, error). The return value is serialised as JSON and
-	// delivered to the React component during server-side rendering.
-	di.Stage(func(i samberdo.Injector) {
-		injector := doinjection.New(i)
-		registerServices(injector)
-
-		ic := samberdo.MustInvoke[*di.InjectorCollector](i)
-		ic.Add(injector)
-	})
-}
-
-// registerServices wires Go functions into the DI bridge.
-// Add your own services here — they become available in React via `di.<name>()`.
-func registerServices(inj *doinjection.Injector) {
-	// Example: expose server metadata to the frontend.
-	inj.Register("getServerInfo", func(_ []any) (any, error) {
-		return map[string]any{
-			"goVersion": runtime.Version(),
-			"os":        runtime.GOOS,
-			"arch":      runtime.GOARCH,
-			"time":      time.Now().Format(time.RFC3339),
-		}, nil
-	})
-
-	// Example: a greeting function that accepts arguments from JS.
-	inj.Register("greet", func(args []any) (any, error) {
-		name := "World"
-		if len(args) > 0 {
-			name = fmt.Sprintf("%v", args[0])
-		}
-		return map[string]any{
-			"message": fmt.Sprintf("Hello, %s! 👋 This message was generated in Go.", name),
-		}, nil
-	})
-}
-
 func main() {
-	e, err := env.Load()
-	if err != nil {
-		log.Fatalf("env: %v", err)
+	if err := pola.Ready(); err != nil {
+		log.Fatal(err)
 	}
-
-	// ── Build app ──────────────────────────────────────────────────────────
-	app, err := pola.New(
-		core.WithWebAppPath(e.WebAppPath),
-		core.WithPublicDir(e.PublicDir),
-		core.WithDev(e.Dev),
-	)
-	if err != nil {
-		log.Fatalf("pola: %v", err)
-	}
-
-	// Build-only mode: generate assets to disk and exit (used by pola build).
-	if os.Getenv("POLA_BUILD_ONLY") == "true" {
-		fmt.Println("pola: build complete")
-		return
-	}
-
-	// ── HTTP server ────────────────────────────────────────────────────────
-	addr := e.Address + ":" + e.Port
-
-	mux := http.NewServeMux()
-	mux.Handle("/", app)
-
-	srv := &http.Server{Addr: addr, Handler: mux}
-
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
-	defer stop()
-
-	fmt.Printf("[[ .AppName ]] listening on http://localhost%s\n", addr)
-
-	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("server: %v", err)
-		}
-	}()
-
-	<-ctx.Done()
-	if err := srv.Shutdown(context.Background()); err != nil {
-		log.Printf("shutdown: %v", err)
-	}
+	log.Printf("[[ .AppName ]] listening on http://%s\n", pola.Addr())
+	log.Fatal(http.ListenAndServe(pola.Addr(), nil))
 }

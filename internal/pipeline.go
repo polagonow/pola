@@ -152,7 +152,11 @@ func Build(cfg *core.Config) (*core.App, error) {
 
 	publicDir := cfg.PublicDir
 	if publicDir == "" {
-		publicDir = filepath.Join(absWebAppPath, "public")
+		publicDir = "./public"
+	}
+	publicDir, err = filepath.Abs(publicDir)
+	if err != nil {
+		return nil, fmt.Errorf("pola: resolve public dir: %w", err)
 	}
 	assetsURLPath := "/public/assets"
 
@@ -343,7 +347,7 @@ func buildFromPrebuilt(
 		}
 	}
 
-	// Resolve shell and asset server (embed.go registers the embedded asset server).
+	// Resolve shell and asset server (pola_embed.go is injected via overlay during builds).
 	shell, assets := resolveShellAndAssets(injector, "")
 
 	notFoundRoute := newNotFoundRoute(artifacts.GlobalNotFound)

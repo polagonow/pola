@@ -107,7 +107,7 @@ func NewHotReloader(cfg *core.Config, injector samberdo.Injector, initial *core.
 	}
 	publicDir := cfg.PublicDir
 	if publicDir == "" {
-		publicDir = webAppPath + "/public"
+		publicDir = "./public"
 	}
 
 	bundleInput := core.BundleInput{

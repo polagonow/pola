@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/polagonow/pola/internal/cli/buildtags"
+	"github.com/polagonow/pola/internal/cli/stubpkgs"
 	"github.com/spf13/cobra"
 )
 
@@ -53,6 +54,20 @@ func runServe(_ *cobra.Command, _ []string) error {
 		fmt.Printf("Project root: %s\n", projectDir)
 	}
 
+	// Stub @pola/actions and @pola/react into node_modules.
+	if err := stubpkgs.StubToNodeModules(projectDir); err != nil {
+		return fmt.Errorf("stub packages: %w", err)
+	}
+
+	// Generate overlay (plugin imports + action bridge codegen).
+	overlayRes, err := generateOverlay(projectDir, serveFlags.css)
+	if err != nil {
+		return err
+	}
+	if overlayRes != nil && overlayRes.TmpDir != "" {
+		defer os.RemoveAll(overlayRes.TmpDir)
+	}
+
 	// Run templ generate if templ files exist.
 	if hasTemplFiles(projectDir) {
 		fmt.Println("Generating templ components...")
@@ -71,7 +86,12 @@ func runServe(_ *cobra.Command, _ []string) error {
 	fmt.Printf("Starting dev server on port %s...\n", serveFlags.port)
 
 	// Build the go run command.
-	goArgs := []string{"run", "-tags", tags, "."}
+	goArgs := []string{"run"}
+	if overlayRes != nil && overlayRes.OverlayPath != "" {
+		goArgs = append(goArgs, "-overlay", overlayRes.OverlayPath)
+	}
+	goArgs = append(goArgs, "-tags", tags, ".")
+
 	cmd := exec.Command("go", goArgs...)
 	cmd.Dir = projectDir
 	cmd.Stdout = os.Stdout

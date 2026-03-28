@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/polagonow/pola/internal/cli/scaffold"
+	"github.com/polagonow/pola/internal/cli/stubpkgs"
 	"github.com/spf13/cobra"
 )
 
@@ -72,7 +73,7 @@ func runNew(_ *cobra.Command, args []string) error {
 		PolaLocalPath: polaLocalPath,
 	}
 
-	// Create the public directory (needed for embed.go).
+	// Create the public directory (needed for asset embedding during builds).
 	if err := os.MkdirAll(filepath.Join(targetDir, "public"), 0o755); err != nil {
 		return fmt.Errorf("create public dir: %w", err)
 	}
@@ -88,12 +89,23 @@ func runNew(_ *cobra.Command, args []string) error {
 		_ = os.WriteFile(faviconPath, []byte{}, 0o644)
 	}
 
+	// Write a temporary pola_plugins.go so go mod tidy resolves plugin deps.
+	// This file is removed after tidy — at runtime it's injected via overlay.
+	pluginsPath := filepath.Join(targetDir, "pola_plugins.go")
+	pluginsSrc := generatePluginImports(newFlags.css, appName+"/actions")
+	if err := os.WriteFile(pluginsPath, pluginsSrc, 0o644); err != nil {
+		fmt.Printf("Warning: failed to write temp plugins file: %v\n", err)
+	}
+
 	// Run go mod tidy.
 	fmt.Println("Running go mod tidy...")
 	if err := runInDir(targetDir, "go", "mod", "tidy"); err != nil {
 		fmt.Printf("Warning: go mod tidy failed: %v\n", err)
 		fmt.Println("You may need to run 'go mod tidy' manually.")
 	}
+
+	// Remove the temporary plugins file — overlay handles it at serve/build time.
+	os.Remove(pluginsPath)
 
 	// Detect and run package manager install.
 	pm := newFlags.pm
@@ -104,6 +116,11 @@ func runNew(_ *cobra.Command, args []string) error {
 	if err := runInDir(targetDir, pm, "install"); err != nil {
 		fmt.Printf("Warning: %s install failed: %v\n", pm, err)
 		fmt.Printf("You may need to run '%s install' manually.\n", pm)
+	}
+
+	// Stub @pola/actions and @pola/react into node_modules.
+	if err := stubpkgs.StubToNodeModules(targetDir); err != nil {
+		fmt.Printf("Warning: failed to stub @pola packages: %v\n", err)
 	}
 
 	// Print success message.
