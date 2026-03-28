@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 
 	"github.com/polagonow/pola/internal/cli/buildtags"
+	"github.com/polagonow/pola/internal/cli/stubpkgs"
 	"github.com/spf13/cobra"
 )
 
@@ -60,6 +61,11 @@ func runBuild(_ *cobra.Command, _ []string) error {
 		output = filepath.Join(projectDir, output)
 	}
 
+	// Stub @pola/di and @pola/react into node_modules.
+	if err := stubpkgs.StubToNodeModules(projectDir); err != nil {
+		return fmt.Errorf("stub packages: %w", err)
+	}
+
 	// Verify embed.go exists.
 	embedPath := filepath.Join(projectDir, "embed.go")
 	if _, err := os.Stat(embedPath); os.IsNotExist(err) {
@@ -67,7 +73,8 @@ func runBuild(_ *cobra.Command, _ []string) error {
 	}
 
 	// Run action bridge codegen if actions/ directory exists.
-	if err := runCodegen(projectDir); err != nil {
+	codegenResult, err := runCodegen(projectDir)
+	if err != nil {
 		return err
 	}
 
@@ -81,11 +88,21 @@ func runBuild(_ *cobra.Command, _ []string) error {
 		}
 	}
 
+	// Collect overlay args if codegen produced one.
+	var overlayArgs []string
+	if codegenResult != nil && codegenResult.OverlayPath != "" {
+		overlayArgs = []string{"-overlay", codegenResult.OverlayPath}
+	}
+
 	// ── Stage 1: Bundle ──────────────────────────────────────────────────
 	runtimeTags := buildtags.RuntimeTags(buildFlags.vm, buildFlags.bundler, buildFlags.renderer, buildFlags.router, buildFlags.css)
 	fmt.Printf("[stage 1] Bundling assets (tags: %s)...\n", runtimeTags)
 
-	bundleCmd := exec.Command("go", "run", "-tags", runtimeTags, ".")
+	bundleArgs := []string{"run"}
+	bundleArgs = append(bundleArgs, overlayArgs...)
+	bundleArgs = append(bundleArgs, "-tags", runtimeTags, ".")
+
+	bundleCmd := exec.Command("go", bundleArgs...)
 	bundleCmd.Dir = projectDir
 	bundleCmd.Stdout = os.Stdout
 	bundleCmd.Stderr = os.Stderr
@@ -109,12 +126,11 @@ func runBuild(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("create output dir: %w", err)
 	}
 
-	compileCmd := exec.Command("go", "build",
-		"-tags", binaryTags,
-		"-ldflags", "-s -w",
-		"-o", output,
-		".",
-	)
+	compileArgs := []string{"build"}
+	compileArgs = append(compileArgs, overlayArgs...)
+	compileArgs = append(compileArgs, "-tags", binaryTags, "-ldflags", "-s -w", "-o", output, ".")
+
+	compileCmd := exec.Command("go", compileArgs...)
 	compileCmd.Dir = projectDir
 	compileCmd.Stdout = os.Stdout
 	compileCmd.Stderr = os.Stderr

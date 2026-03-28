@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/polagonow/pola/internal/cli/scaffold"
+	"github.com/polagonow/pola/internal/cli/stubpkgs"
 	"github.com/spf13/cobra"
 )
 
@@ -104,6 +105,11 @@ func runNew(_ *cobra.Command, args []string) error {
 	if err := runInDir(targetDir, pm, "install"); err != nil {
 		fmt.Printf("Warning: %s install failed: %v\n", pm, err)
 		fmt.Printf("You may need to run '%s install' manually.\n", pm)
+	}
+
+	// Stub @pola/di and @pola/react into node_modules.
+	if err := stubpkgs.StubToNodeModules(targetDir); err != nil {
+		fmt.Printf("Warning: failed to stub @pola packages: %v\n", err)
 	}
 
 	// Print success message.
