@@ -14,6 +14,9 @@ type RunResult struct {
 	OverlayPath string
 	// TSOutPath is the path to the generated .d.ts file.
 	TSOutPath string
+	// TmpDir is the temp directory holding the generated bridge.
+	// The caller should defer os.RemoveAll(TmpDir) after the build completes.
+	TmpDir string
 }
 
 // Run is the top-level codegen entry point. It parses the actions directory,
@@ -85,5 +88,6 @@ func Run(actionsDir, tsOutPath string) (*RunResult, error) {
 	return &RunResult{
 		OverlayPath: overlayPath,
 		TSOutPath:   tsOutPath,
+		TmpDir:      tmpDir,
 	}, nil
 }

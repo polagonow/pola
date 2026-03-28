@@ -64,6 +64,9 @@ func runServe(_ *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+	if codegenResult != nil && codegenResult.TmpDir != "" {
+		defer os.RemoveAll(codegenResult.TmpDir)
+	}
 
 	// Run templ generate if templ files exist.
 	if hasTemplFiles(projectDir) {
