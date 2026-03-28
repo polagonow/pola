@@ -54,7 +54,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 		fmt.Printf("Project root: %s\n", projectDir)
 	}
 
-	// Stub @pola/di and @pola/react into node_modules.
+	// Stub @pola/actions and @pola/react into node_modules.
 	if err := stubpkgs.StubToNodeModules(projectDir); err != nil {
 		return fmt.Errorf("stub packages: %w", err)
 	}

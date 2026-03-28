@@ -17,22 +17,33 @@ import (
 //	const info = await Server.getServerInfo()
 type Server struct{}
 
+type ServerInfo struct {
+	GoVersion string `json:"goVersion"`
+	OS        string `json:"os"`
+	Arch      string `json:"arch"`
+	Time      string `json:"time"`
+}
+
+type Greeting struct {
+	Message string `json:"message"`
+}
+
 // GetServerInfo returns server metadata. Becomes Server.getServerInfo() in JS.
-func (s *Server) GetServerInfo() (map[string]any, error) {
-	return map[string]any{
-		"goVersion": runtime.Version(),
-		"os":        runtime.GOOS,
-		"arch":      runtime.GOARCH,
-		"time":      time.Now().Format(time.RFC3339),
+func (s *Server) GetServerInfo() (*ServerInfo, error) {
+	return &ServerInfo{
+		GoVersion: runtime.Version(),
+		OS:        runtime.GOOS,
+		Arch:      runtime.GOARCH,
+		Time:      time.Now().Format(time.RFC3339),
 	}, nil
 }
 
 // Greet returns a greeting message. Becomes Server.greet(name) in JS.
-func (s *Server) Greet(name string) (map[string]any, error) {
+func (s *Server) Greet(name string) (*Greeting, error) {
 	if name == "" {
 		name = "World"
 	}
-	return map[string]any{
-		"message": fmt.Sprintf("Hello, %s! This message was generated in Go.", name),
+	return &Greeting{
+		Message: fmt.Sprintf("Hello, %s! This message was generated in Go.", name),
 	}, nil
 }

@@ -1,4 +1,4 @@
-import { Blog } from "@pola/di";
+import { Blog } from "@pola/actions";
 
 const statusClasses: Record<string, string> = {
   active: "bg-green-100 text-green-800",

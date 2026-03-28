@@ -547,7 +547,7 @@ func newPolaWorkspacePlugin(absAppDir string) api.Plugin {
 	return api.Plugin{
 		Name: "pola-workspace",
 		Setup: func(build api.PluginBuild) {
-			build.OnResolve(api.OnResolveOptions{Filter: `^@pola/(react|di)(/.*)?$`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
+			build.OnResolve(api.OnResolveOptions{Filter: `^@pola/(react|actions)(/.*)?$`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
 				pkgRoot := findPolaPkgRoot(absAppDir)
 				if pkgRoot == "" {
 					return api.OnResolveResult{}, nil
@@ -568,8 +568,8 @@ func newPolaWorkspacePlugin(absAppDir string) api.Plugin {
 						return api.OnResolveResult{}, nil
 					}
 				}
-				if path == "@pola/di" {
-					return api.OnResolveResult{Path: filepath.Join(pkgRoot, "di", "src", "index.ts")}, nil
+				if path == "@pola/actions" {
+					return api.OnResolveResult{Path: filepath.Join(pkgRoot, "actions", "src", "index.ts")}, nil
 				}
 				return api.OnResolveResult{}, nil
 			})

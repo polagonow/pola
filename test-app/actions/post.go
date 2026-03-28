@@ -10,7 +10,7 @@ package actions
 //   - The special Vars() method exposes read-only constants to JS
 //
 // Usage in React:
-//   import { Post } from "@pola/di"
+//   import { Post } from "@pola/actions"
 //   const items = await Post.getAll()
 //
 // Run "pola generate" to regenerate the bridge after editing this file.

@@ -1,10 +1,10 @@
-import { Server } from "@pola/di";
+import { Server } from "@pola/actions";
 
 // This is a React Server Component. It runs on the server inside Go's JS
-// runtime. You can call Go functions directly using the @pola/di bridge.
+// runtime. You can call Go functions directly using the @pola/actions bridge.
 //
 // Actions are defined in the actions/ directory. Each Go struct becomes
-// a named export: import { Server } from "@pola/di"
+// a named export: import { Server } from "@pola/actions"
 
 async function ServerInfo() {
   const info = await Server.getServerInfo();
@@ -61,7 +61,7 @@ export default async function HomePage() {
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "1rem" }}>
         <Card
           title="Actions Bridge"
-          description="Define Go structs in actions/ and call them from React: import { Server } from '@pola/di'."
+          description="Define Go structs in actions/ and call them from React: import { Server } from '@pola/actions'."
         />
         <Card
           title="File-based Routing"

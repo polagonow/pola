@@ -1,4 +1,4 @@
-import { Blog } from "@pola/di";
+import { Blog } from "@pola/actions";
 
 import LikeButton from "@/components/LikeButton";
 
