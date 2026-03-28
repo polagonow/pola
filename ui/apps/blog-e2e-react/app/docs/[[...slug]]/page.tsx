@@ -1,4 +1,4 @@
-import { Blog } from "@pola/di";
+import { Blog } from "@pola/actions";
 
 const DOCS: Record<string, Record<string, string>> = {
   "getting-started": {

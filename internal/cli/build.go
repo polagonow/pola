@@ -61,7 +61,7 @@ func runBuild(_ *cobra.Command, _ []string) error {
 		output = filepath.Join(projectDir, output)
 	}
 
-	// Stub @pola/di and @pola/react into node_modules.
+	// Stub @pola/actions and @pola/react into node_modules.
 	if err := stubpkgs.StubToNodeModules(projectDir); err != nil {
 		return fmt.Errorf("stub packages: %w", err)
 	}

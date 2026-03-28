@@ -100,7 +100,7 @@ func runGenerateAction(_ *cobra.Command, args []string) error {
 //   - The special Vars() method exposes read-only constants to JS
 //
 // Usage in React:
-//   import { %s } from "@pola/di"
+//   import { %s } from "@pola/actions"
 //   const items = await %s.getAll()
 //
 // Run "pola generate" to regenerate the bridge after editing this file.
@@ -185,7 +185,7 @@ func generateOverlay(projectDir, css string) (*overlayResult, error) {
 		hasActions = true
 		tsOut := generateFlags.tsOut
 		if tsOut == "" {
-			tsOut = filepath.Join(projectDir, "node_modules", "@pola", "di", "src", "generated.ts")
+			tsOut = filepath.Join(projectDir, "node_modules", "@pola", "actions", "src", "generated.ts")
 		}
 		if !filepath.IsAbs(tsOut) {
 			tsOut = filepath.Join(projectDir, tsOut)

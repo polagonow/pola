@@ -118,7 +118,7 @@ func runNew(_ *cobra.Command, args []string) error {
 		fmt.Printf("You may need to run '%s install' manually.\n", pm)
 	}
 
-	// Stub @pola/di and @pola/react into node_modules.
+	// Stub @pola/actions and @pola/react into node_modules.
 	if err := stubpkgs.StubToNodeModules(targetDir); err != nil {
 		fmt.Printf("Warning: failed to stub @pola packages: %v\n", err)
 	}
