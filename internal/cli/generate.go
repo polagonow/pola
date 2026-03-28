@@ -1,0 +1,181 @@
+package cli
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+
+	"github.com/polagonow/pola/internal/codegen"
+	"github.com/spf13/cobra"
+)
+
+var generateFlags struct {
+	actionsDir string
+	tsOut      string
+}
+
+var generateCmd = &cobra.Command{
+	Use:   "generate",
+	Short: "Generate bridge code from actions/ directory",
+	Long: `Parse Go structs in the actions/ directory and generate:
+  - actions/generated_bridge.go (Go RuntimeInjector wiring)
+  - TypeScript declaration file (typed di imports)`,
+	RunE: runGenerate,
+	Example: `  pola generate
+  pola generate --actions-dir ./actions --ts-out ./ui/packages/di/src/generated.d.ts`,
+	Aliases: []string{"gen"},
+}
+
+var generateActionCmd = &cobra.Command{
+	Use:   "action [Name]",
+	Short: "Scaffold a new action struct",
+	Long:  "Create a new action file in the actions/ directory with boilerplate and comments.",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runGenerateAction,
+	Example: `  pola generate action Blog
+  pola generate action Products`,
+}
+
+func init() {
+	generateCmd.Flags().StringVar(&generateFlags.actionsDir, "actions-dir", "", "path to actions directory (default: ./actions)")
+	generateCmd.Flags().StringVar(&generateFlags.tsOut, "ts-out", "", "path to generated .d.ts file")
+	generateCmd.AddCommand(generateActionCmd)
+}
+
+func runGenerate(_ *cobra.Command, _ []string) error {
+	projectDir, err := findProjectRoot()
+	if err != nil {
+		return err
+	}
+	return runCodegen(projectDir)
+}
+
+func runGenerateAction(_ *cobra.Command, args []string) error {
+	name := args[0]
+	// Ensure PascalCase
+	if name[0] >= 'a' && name[0] <= 'z' {
+		name = string(name[0]-32) + name[1:]
+	}
+
+	projectDir, err := findProjectRoot()
+	if err != nil {
+		return err
+	}
+
+	actionsDir := filepath.Join(projectDir, "actions")
+	if err := os.MkdirAll(actionsDir, 0o755); err != nil {
+		return fmt.Errorf("create actions dir: %w", err)
+	}
+
+	filename := strings.ToLower(name) + ".go"
+	filePath := filepath.Join(actionsDir, filename)
+
+	if _, err := os.Stat(filePath); err == nil {
+		return fmt.Errorf("%s already exists", filePath)
+	}
+
+	src := fmt.Sprintf(`package actions
+
+// %s exposes functions and variables to JavaScript via the Pola bridge.
+//
+// How it works:
+//   - Each exported method becomes a callable function in JS: di.methodName()
+//   - Method names are automatically camelCased: GetItems → di.getItems()
+//   - Parameters are positional and type-safe (string, int, bool, structs)
+//   - Return must be (T, error) or just error
+//   - The special Vars() method exposes read-only constants to JS
+//
+// Run "pola generate" to regenerate the bridge after editing this file.
+
+// %s is your action struct. Add fields for dependencies (DB, services, etc.)
+// that will be resolved via dependency injection.
+type %s struct {
+	// DB *sql.DB  // example: injected database connection
+}
+
+// Example: a simple item type returned by your methods.
+// Struct fields map to TypeScript interfaces via json tags.
+// type Item struct {
+// 	ID    int    `+"`"+`json:"id"`+"`"+`
+// 	Name  string `+"`"+`json:"name"`+"`"+`
+// }
+
+// GetAll returns all items. Becomes di.getAll() in JavaScript.
+//
+// Usage in React server component:
+//   import di from "@pola/di"
+//   const items = await di.getAll()  // typed as the return type
+func (a *%s) GetAll() ([]map[string]any, error) {
+	// TODO: implement
+	return nil, nil
+}
+
+// GetByID returns a single item by ID. Becomes di.getByID(id) in JavaScript.
+//
+// Parameters are positional in JS: di.getByID("123")
+func (a *%s) GetByID(id string) (map[string]any, error) {
+	// TODO: implement
+	return nil, nil
+}
+
+// Vars exposes read-only values to JavaScript as properties on the di object.
+// Each key becomes accessible as di.keyName in JS.
+//
+// Use for: config values, feature flags, app name, environment info, etc.
+// These are injected once per VM init, not per-request.
+//
+// func (a *%s) Vars() map[string]any {
+// 	return map[string]any{
+// 		"appName": "My App",
+// 	}
+// }
+`, name, name, name, name, name, name)
+
+	if err := os.WriteFile(filePath, []byte(src), 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", filePath, err)
+	}
+
+	fmt.Printf("Created %s\n", filePath)
+	return nil
+}
+
+// runCodegen runs the codegen pipeline if an actions/ directory exists.
+// Returns nil if no actions/ directory is found (backward compatible).
+func runCodegen(projectDir string) error {
+	actionsDir := generateFlags.actionsDir
+	if actionsDir == "" {
+		actionsDir = filepath.Join(projectDir, "actions")
+	}
+	if !filepath.IsAbs(actionsDir) {
+		actionsDir = filepath.Join(projectDir, actionsDir)
+	}
+
+	// Skip if no actions/ directory.
+	if _, err := os.Stat(actionsDir); os.IsNotExist(err) {
+		if verbose {
+			fmt.Println("No actions/ directory found, skipping codegen.")
+		}
+		return nil
+	}
+
+	tsOut := generateFlags.tsOut
+	if tsOut == "" {
+		tsOut = filepath.Join(projectDir, "ui", "packages", "di", "src", "generated.d.ts")
+	}
+	if !filepath.IsAbs(tsOut) {
+		tsOut = filepath.Join(projectDir, tsOut)
+	}
+
+	fmt.Println("Generating action bridges...")
+	if err := codegen.Run(actionsDir, tsOut); err != nil {
+		return fmt.Errorf("codegen: %w", err)
+	}
+
+	if verbose {
+		fmt.Printf("Generated bridge: %s/generated_bridge.go\n", actionsDir)
+		fmt.Printf("Generated types: %s\n", tsOut)
+	}
+
+	return nil
+}

@@ -53,6 +53,11 @@ func runServe(_ *cobra.Command, _ []string) error {
 		fmt.Printf("Project root: %s\n", projectDir)
 	}
 
+	// Run action bridge codegen if actions/ directory exists.
+	if err := runCodegen(projectDir); err != nil {
+		return err
+	}
+
 	// Run templ generate if templ files exist.
 	if hasTemplFiles(projectDir) {
 		fmt.Println("Generating templ components...")

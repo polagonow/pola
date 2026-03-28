@@ -1,3 +1,5 @@
+/// <reference path="./generated.d.ts" />
+
 // @pola/di — bridge between Go services and React server components
 // __DEPENDENCY_INJECTION__ is injected by the Pola runtime per-request.
 // A Proxy is used so di.foo() always reads from the current global at call

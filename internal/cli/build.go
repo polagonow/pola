@@ -66,6 +66,11 @@ func runBuild(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("embed.go not found in %s — required for production builds", projectDir)
 	}
 
+	// Run action bridge codegen if actions/ directory exists.
+	if err := runCodegen(projectDir); err != nil {
+		return err
+	}
+
 	// Run templ generate if templ files exist.
 	if hasTemplFiles(projectDir) {
 		fmt.Println("Generating templ components...")
