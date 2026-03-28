@@ -91,12 +91,6 @@ func (sw *streamWriter) Flush() {
 	}
 }
 
-// IsStreamingRequest reports whether the request carries the RSC Flight
-// Content-Type header, meaning the client expects the raw stream.
-func IsStreamingRequest(r *http.Request) bool {
-	return r.Header.Get("Content-Type") == "text/x-component"
-}
-
 // prepareVM acquires a VM from the pool, applies injectors, sets the request
 // context, and marshals props. The caller must release the VM when done.
 func (r *Renderer) prepareVM(ctx context.Context, req core.RenderRequest) (core.SSRRuntime, string, error) {
