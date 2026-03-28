@@ -18,20 +18,6 @@ import (
 	"github.com/polagonow/pola/core/di"
 	"github.com/polagonow/pola/core/env"
 	doinjection "github.com/polagonow/pola/injection/do"
-
-	// plugins self-register via init() → di.Stage()
-	_ "github.com/polagonow/pola/bundler"
-	_ "github.com/polagonow/pola/cache"
-[[- if ne .CSS "none" ]]
-	_ "github.com/polagonow/pola/css"
-[[- end ]]
-	_ "github.com/polagonow/pola/engine"
-	_ "github.com/polagonow/pola/fs"
-	_ "github.com/polagonow/pola/logger"
-	_ "github.com/polagonow/pola/middleware/logging"
-	_ "github.com/polagonow/pola/middleware/recovery"
-	_ "github.com/polagonow/pola/renderer"
-	_ "github.com/polagonow/pola/router"
 )
 
 func init() {

@@ -59,13 +59,13 @@ func runServe(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("stub packages: %w", err)
 	}
 
-	// Run action bridge codegen if actions/ directory exists.
-	codegenResult, err := runCodegen(projectDir)
+	// Generate overlay (plugin imports + action bridge codegen).
+	overlayRes, err := generateOverlay(projectDir, serveFlags.css)
 	if err != nil {
 		return err
 	}
-	if codegenResult != nil && codegenResult.TmpDir != "" {
-		defer os.RemoveAll(codegenResult.TmpDir)
+	if overlayRes != nil && overlayRes.TmpDir != "" {
+		defer os.RemoveAll(overlayRes.TmpDir)
 	}
 
 	// Run templ generate if templ files exist.
@@ -87,8 +87,8 @@ func runServe(_ *cobra.Command, _ []string) error {
 
 	// Build the go run command.
 	goArgs := []string{"run"}
-	if codegenResult != nil && codegenResult.OverlayPath != "" {
-		goArgs = append(goArgs, "-overlay", codegenResult.OverlayPath)
+	if overlayRes != nil && overlayRes.OverlayPath != "" {
+		goArgs = append(goArgs, "-overlay", overlayRes.OverlayPath)
 	}
 	goArgs = append(goArgs, "-tags", tags, ".")
 
