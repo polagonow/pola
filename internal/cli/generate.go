@@ -52,6 +52,9 @@ func runGenerate(_ *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
+	if result != nil && result.TmpDir != "" {
+		defer os.RemoveAll(result.TmpDir)
+	}
 	if result != nil && result.OverlayPath != "" {
 		fmt.Printf("Overlay: %s\n", result.OverlayPath)
 		fmt.Println("Pass -overlay to go build/run to include the generated bridge.")
