@@ -301,7 +301,7 @@ func buildPagesBundle(
 		MinifyWhitespace:  true,
 		MinifyIdentifiers: true,
 		MinifySyntax:      true,
-		Plugins:           []api.Plugin{newAtAliasPlugin(absAppDir), newPolaWorkspacePlugin(absAppDir), useClientPlugin, newCSSStubPlugin()},
+		Plugins:           []api.Plugin{newAtAliasPlugin(absDir), newPolaWorkspacePlugin(absAppDir), useClientPlugin, newCSSStubPlugin()},
 		Conditions:        req.ServerBundleConditions,
 		Define:            defines,
 	})
@@ -385,7 +385,7 @@ func buildClientBundle(req core.BundleInput, absDir string, cssFiles []string) (
 		ChunkNames:        "chunks/[name]-[hash]",
 		AssetNames:        "[name]-[hash]",
 		Conditions:        []string{"browser", "import", "module", "default"},
-		Plugins:           []api.Plugin{newAtAliasPlugin(absAppDir), newPolaWorkspacePlugin(absAppDir), newAutoDedupePlugin(absAppDir), cssPlugin},
+		Plugins:           []api.Plugin{newAtAliasPlugin(absDir), newPolaWorkspacePlugin(absAppDir), newAutoDedupePlugin(absAppDir), cssPlugin},
 		Metafile:          true,
 		Define:            clientDefines,
 	})
@@ -517,21 +517,21 @@ func probeServerEntry(req core.BundleInput, absDir string) probeResult {
 		Conditions:    req.ServerBundleConditions,
 		External:      req.External,
 		Define:        defines,
-		Plugins:       []api.Plugin{newAtAliasPlugin(absAppDir), newPolaWorkspacePlugin(absAppDir), probePlugin, cssCollector},
+		Plugins:       []api.Plugin{newAtAliasPlugin(absDir), newPolaWorkspacePlugin(absAppDir), probePlugin, cssCollector},
 	})
 	return result
 }
 
 // ── esbuild plugins ──────────────────────────────────────────────────────────
 
-func newAtAliasPlugin(absAppDir string) api.Plugin {
+func newAtAliasPlugin(absProjectDir string) api.Plugin {
 	return api.Plugin{
 		Name: "at-alias",
 		Setup: func(build api.PluginBuild) {
 			build.OnResolve(api.OnResolveOptions{Filter: `^@/`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
 				rel := "." + args.Path[1:]
 				result := build.Resolve(rel, api.ResolveOptions{
-					ResolveDir: absAppDir,
+					ResolveDir: absProjectDir,
 					Kind:       args.Kind,
 				})
 				if len(result.Errors) > 0 {

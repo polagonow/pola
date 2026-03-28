@@ -34,26 +34,6 @@ type FlightWriter struct {
 	counter atomic.Int32
 }
 
-// NewFlightWriter wraps an http.ResponseWriter that must also implement
-// http.Flusher (it always does in net/http).
-func NewFlightWriter(w http.ResponseWriter) *FlightWriter {
-	fw := &FlightWriter{w: w}
-	if f, ok := w.(http.Flusher); ok {
-		fw.flusher = f
-	}
-	return fw
-}
-
-// NewFlightWriterBuffer creates a FlightWriter backed by any writer that
-// accepts both WriteString and Write calls (e.g. strings.Builder).
-// Used for collecting server-rendered output into memory.
-func NewFlightWriterBuffer(buf interface {
-	WriteString(string) (int, error)
-	Write([]byte) (int, error)
-}) *FlightWriter {
-	return &FlightWriter{w: buf}
-}
-
 // NextID returns a monotonically increasing chunk ID.
 func (fw *FlightWriter) NextID() int {
 	return int(fw.counter.Add(1)) - 1
@@ -85,7 +65,7 @@ func (fw *FlightWriter) WriteError(id int, msg string) error {
 
 // WriteModuleRef streams a client component reference chunk.
 // The React client uses this to resolve which JS bundle to load.
-func (fw *FlightWriter) WriteModuleRef(id int, ref ClientRef) error {
+func (fw *FlightWriter) WriteModuleRef(id int, ref core.ClientRef) error {
 	return fw.WriteChunk(id, ChunkModule, ref)
 }
 
@@ -113,29 +93,3 @@ func (fw *FlightWriter) Flush() {
 		fw.flusher.Flush()
 	}
 }
-
-// ClientRef is the wire representation of a Client Component reference.
-// The browser's RSC runtime resolves this to the actual React component
-// by looking up the manifest that the bundler produced at build time.
-type ClientRef = core.ClientRef
-
-// ClientManifest maps moduleId → ClientRef.
-type ClientManifest = core.ClientManifest
-
-// Node is the Go-side representation of a React virtual DOM node.
-// Server Components render these; they are then JSON-encoded into the
-// Flight payload that React's client runtime reconciles against the DOM.
-type Node struct {
-	Type  any            `json:"type"` // string tag or ClientRef
-	Key   *string        `json:"key,omitempty"`
-	Ref   *string        `json:"ref,omitempty"`
-	Props map[string]any `json:"props"`
-}
-
-// TextNode is a special sentinel for raw text content.
-type TextNode struct {
-	Text string
-}
-
-// NullNode represents React null (renders nothing).
-type NullNode struct{}
