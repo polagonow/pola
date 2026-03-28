@@ -71,7 +71,18 @@ func (g *generatedBridge) Inject(ctx context.Context, runtime core.JSRuntime) er
 			}
 			{{- end}}
 			{{- if .HasReturn}}
-			return g.{{fieldName $action.StructName}}.{{.GoName}}({{callArgs .Params}})
+			result, err := g.{{fieldName $action.StructName}}.{{.GoName}}({{callArgs .Params}})
+			if err != nil {
+				return nil, err
+			}
+			// JSON round-trip so struct json tags are respected by JS engines.
+			b, err := json.Marshal(result)
+			if err != nil {
+				return result, nil
+			}
+			var normalized any
+			_ = json.Unmarshal(b, &normalized)
+			return normalized, nil
 			{{- else}}
 			return nil, g.{{fieldName $action.StructName}}.{{.GoName}}({{callArgs .Params}})
 			{{- end}}
