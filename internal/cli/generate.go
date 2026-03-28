@@ -19,7 +19,7 @@ var generateCmd = &cobra.Command{
 	Use:   "generate",
 	Short: "Generate bridge code from actions/ directory",
 	Long: `Parse Go structs in the actions/ directory and generate:
-  - actions/generated_bridge.go (Go RuntimeInjector wiring)
+  - Go RuntimeInjector wiring (injected via -overlay, not written to your project)
   - TypeScript declaration file (typed di imports)`,
 	RunE: runGenerate,
 	Example: `  pola generate
@@ -48,12 +48,19 @@ func runGenerate(_ *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	return runCodegen(projectDir)
+	result, err := runCodegen(projectDir)
+	if err != nil {
+		return err
+	}
+	if result != nil && result.OverlayPath != "" {
+		fmt.Printf("Overlay: %s\n", result.OverlayPath)
+		fmt.Println("Pass -overlay to go build/run to include the generated bridge.")
+	}
+	return nil
 }
 
 func runGenerateAction(_ *cobra.Command, args []string) error {
 	name := args[0]
-	// Ensure PascalCase
 	if name[0] >= 'a' && name[0] <= 'z' {
 		name = string(name[0]-32) + name[1:]
 	}
@@ -141,8 +148,8 @@ func (a *%s) GetByID(id string) (map[string]any, error) {
 }
 
 // runCodegen runs the codegen pipeline if an actions/ directory exists.
-// Returns nil if no actions/ directory is found (backward compatible).
-func runCodegen(projectDir string) error {
+// Returns the RunResult (with overlay path) or nil if no actions/ directory found.
+func runCodegen(projectDir string) (*codegen.RunResult, error) {
 	actionsDir := generateFlags.actionsDir
 	if actionsDir == "" {
 		actionsDir = filepath.Join(projectDir, "actions")
@@ -156,26 +163,31 @@ func runCodegen(projectDir string) error {
 		if verbose {
 			fmt.Println("No actions/ directory found, skipping codegen.")
 		}
-		return nil
+		return nil, nil
 	}
 
 	tsOut := generateFlags.tsOut
 	if tsOut == "" {
-		tsOut = filepath.Join(projectDir, "ui", "packages", "di", "src", "generated.d.ts")
+		tsOut = filepath.Join(projectDir, "node_modules", "@pola", "di", "src", "generated.d.ts")
 	}
 	if !filepath.IsAbs(tsOut) {
 		tsOut = filepath.Join(projectDir, tsOut)
 	}
 
 	fmt.Println("Generating action bridges...")
-	if err := codegen.Run(actionsDir, tsOut); err != nil {
-		return fmt.Errorf("codegen: %w", err)
+	result, err := codegen.Run(actionsDir, tsOut)
+	if err != nil {
+		return nil, fmt.Errorf("codegen: %w", err)
 	}
 
-	if verbose {
-		fmt.Printf("Generated bridge: %s/generated_bridge.go\n", actionsDir)
-		fmt.Printf("Generated types: %s\n", tsOut)
+	if verbose && result != nil {
+		if result.OverlayPath != "" {
+			fmt.Printf("Generated overlay: %s\n", result.OverlayPath)
+		}
+		if result.TSOutPath != "" {
+			fmt.Printf("Generated types: %s\n", result.TSOutPath)
+		}
 	}
 
-	return nil
+	return result, nil
 }

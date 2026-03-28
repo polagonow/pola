@@ -548,8 +548,8 @@ func newPolaWorkspacePlugin(absAppDir string) api.Plugin {
 		Name: "pola-workspace",
 		Setup: func(build api.PluginBuild) {
 			build.OnResolve(api.OnResolveOptions{Filter: `^@pola/(react|di)(/.*)?$`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
-				uiRoot := findUIRoot(absAppDir)
-				if uiRoot == "" {
+				pkgRoot := findPolaPkgRoot(absAppDir)
+				if pkgRoot == "" {
 					return api.OnResolveResult{}, nil
 				}
 				path := args.Path
@@ -559,17 +559,17 @@ func newPolaWorkspacePlugin(absAppDir string) api.Plugin {
 					case "", "/":
 						return api.OnResolveResult{}, nil
 					case "/client", "/Client":
-						return api.OnResolveResult{Path: filepath.Join(uiRoot, "packages", "react", "components", "Client.tsx")}, nil
+						return api.OnResolveResult{Path: filepath.Join(pkgRoot, "react", "components", "Client.tsx")}, nil
 					case "/error-boundary", "/ErrorBoundary":
-						return api.OnResolveResult{Path: filepath.Join(uiRoot, "packages", "react", "components", "ErrorBoundary.tsx")}, nil
+						return api.OnResolveResult{Path: filepath.Join(pkgRoot, "react", "components", "ErrorBoundary.tsx")}, nil
 					case "/types/page":
-						return api.OnResolveResult{Path: filepath.Join(uiRoot, "packages", "react", "types", "page.ts")}, nil
+						return api.OnResolveResult{Path: filepath.Join(pkgRoot, "react", "types", "page.ts")}, nil
 					default:
 						return api.OnResolveResult{}, nil
 					}
 				}
 				if path == "@pola/di" {
-					return api.OnResolveResult{Path: filepath.Join(uiRoot, "packages", "di", "src", "index.ts")}, nil
+					return api.OnResolveResult{Path: filepath.Join(pkgRoot, "di", "src", "index.ts")}, nil
 				}
 				return api.OnResolveResult{}, nil
 			})
@@ -598,13 +598,14 @@ func newAutoDedupePlugin(absAppDir string) api.Plugin {
 	}
 }
 
-func findUIRoot(absAppDir string) string {
+// findPolaPkgRoot walks up from absAppDir looking for node_modules/@pola.
+// Returns the path to the @pola directory (e.g. /project/node_modules/@pola).
+func findPolaPkgRoot(absAppDir string) string {
 	dir := absAppDir
 	for range 10 {
-		if filepath.Base(dir) == "ui" {
-			if st, err := os.Stat(filepath.Join(dir, "packages")); err == nil && st.IsDir() {
-				return dir
-			}
+		candidate := filepath.Join(dir, "node_modules", "@pola")
+		if st, err := os.Stat(candidate); err == nil && st.IsDir() {
+			return candidate
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {

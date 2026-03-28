@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"github.com/polagonow/pola/internal/cli/buildtags"
+	"github.com/polagonow/pola/internal/cli/stubpkgs"
 	"github.com/spf13/cobra"
 )
 
@@ -53,8 +54,14 @@ func runServe(_ *cobra.Command, _ []string) error {
 		fmt.Printf("Project root: %s\n", projectDir)
 	}
 
+	// Stub @pola/di and @pola/react into node_modules.
+	if err := stubpkgs.StubToNodeModules(projectDir); err != nil {
+		return fmt.Errorf("stub packages: %w", err)
+	}
+
 	// Run action bridge codegen if actions/ directory exists.
-	if err := runCodegen(projectDir); err != nil {
+	codegenResult, err := runCodegen(projectDir)
+	if err != nil {
 		return err
 	}
 
@@ -76,7 +83,12 @@ func runServe(_ *cobra.Command, _ []string) error {
 	fmt.Printf("Starting dev server on port %s...\n", serveFlags.port)
 
 	// Build the go run command.
-	goArgs := []string{"run", "-tags", tags, "."}
+	goArgs := []string{"run"}
+	if codegenResult != nil && codegenResult.OverlayPath != "" {
+		goArgs = append(goArgs, "-overlay", codegenResult.OverlayPath)
+	}
+	goArgs = append(goArgs, "-tags", tags, ".")
+
 	cmd := exec.Command("go", goArgs...)
 	cmd.Dir = projectDir
 	cmd.Stdout = os.Stdout
