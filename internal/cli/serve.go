@@ -97,7 +97,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = append(os.Environ(),
-		"POLA_DEV=true",
+		"POLA_ENV=development",
 		"PORT="+serveFlags.port,
 		"POLA_WEBAPP_PATH="+serveFlags.appPath,
 	)

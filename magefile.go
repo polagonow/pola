@@ -50,10 +50,11 @@ func RunDemo() error {
 	}
 	return sh.RunWithV(
 		map[string]string{
-			"CGO_ENABLED":  cgoEnabled,
-			"POLA_DEV":     "true",
-			"POLA_METRICS": polaMetrics,
-			"POLA_PPROF":   polaPprof,
+			"CGO_ENABLED":      cgoEnabled,
+			"POLA_ENV":         "development",
+			"POLA_METRICS":     polaMetrics,
+			"POLA_PPROF":       polaPprof,
+			"POLA_WEBAPP_PATH": "../../ui/apps/blog-e2e-react",
 		},
 		polaBin, "serve",
 	)

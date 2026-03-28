@@ -55,7 +55,7 @@ func buildDefault() {
 	defaultApp.app, defaultApp.err = New(
 		core.WithWebAppPath(e.WebAppPath),
 		core.WithPublicDir(e.PublicDir),
-		core.WithDev(e.Dev),
+		core.WithDev(e.IsDev()),
 	)
 }
 
