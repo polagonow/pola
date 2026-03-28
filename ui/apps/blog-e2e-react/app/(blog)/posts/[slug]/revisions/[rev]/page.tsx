@@ -1,4 +1,4 @@
-import di from "@pola/di";
+import { Blog } from "@pola/di";
 
 export default async function RevisionPage({
   params,
@@ -8,10 +8,10 @@ export default async function RevisionPage({
   searchParams?: Record<string, string>;
 }) {
   if (searchParams?.error !== undefined)
-    await di.triggerError(searchParams.error || undefined);
+    await Blog.triggerError(searchParams.error || undefined);
   const [post, revision] = await Promise.all([
-    di.getPost(params.slug),
-    di.getRevision(params.slug, params.rev),
+    Blog.getPost(params.slug),
+    Blog.getRevision(params.slug, params.rev),
   ]);
 
   return (

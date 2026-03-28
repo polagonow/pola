@@ -1,4 +1,4 @@
-import di from "@pola/di";
+import { Blog } from "@pola/di";
 
 export default async function ProfilePage({
   searchParams,
@@ -6,8 +6,8 @@ export default async function ProfilePage({
   searchParams?: Record<string, string>;
 }) {
   if (searchParams?.error !== undefined)
-    await di.triggerError(searchParams.error || undefined);
-  const profile = await di.getProfile(searchParams?.id);
+    await Blog.triggerError(searchParams.error || undefined);
+  const profile = await Blog.getProfile(searchParams?.id);
   const initials = profile.name
     .split(" ")
     .map((n: string) => n[0])

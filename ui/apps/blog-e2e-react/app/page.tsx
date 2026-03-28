@@ -1,4 +1,4 @@
-import di from "@pola/di";
+import { Blog } from "@pola/di";
 
 const statusClasses: Record<string, string> = {
   active: "bg-green-100 text-green-800",
@@ -11,7 +11,7 @@ function Tag({ label }: { label: string }) {
 }
 
 async function FeaturedPosts() {
-  const posts = await di.getPosts();
+  const posts = await Blog.getPosts();
   return (
     <div className="grid gap-4">
       {posts.slice(0, 2).map((post) => (
@@ -40,7 +40,7 @@ async function FeaturedPosts() {
 }
 
 async function FeaturedProjects() {
-  const projects = await di.getProjects();
+  const projects = await Blog.getProjects();
   return (
     <div className="grid grid-cols-2 gap-4 max-sm:grid-cols-1">
       {projects.slice(0, 2).map((p) => (
@@ -75,7 +75,7 @@ export default async function HomePage({
   searchParams?: Record<string, string>;
 }) {
   if (searchParams?.error !== undefined)
-    await di.triggerError(searchParams.error || undefined);
+    await Blog.triggerError(searchParams.error || undefined);
   return (
     <div>
       <div className="py-12 pb-8">

@@ -1,4 +1,4 @@
-import di from "@pola/di";
+import { Blog } from "@pola/di";
 
 const statusClasses: Record<string, string> = {
   active: "bg-green-100 text-green-800",
@@ -14,8 +14,8 @@ export default async function ProjectPage({
   searchParams?: Record<string, string>;
 }) {
   if (searchParams?.error !== undefined)
-    await di.triggerError(searchParams.error || undefined);
-  const p = await di.getProject(params.id);
+    await Blog.triggerError(searchParams.error || undefined);
+  const p = await Blog.getProject(params.id);
 
   return (
     <div>
