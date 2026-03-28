@@ -9,6 +9,8 @@ import (
 	"net/http"
 
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/core/globals"
+	"github.com/polagonow/pola/shell"
 )
 
 // Renderer implements the React SSR renderer.
@@ -169,11 +171,37 @@ func (r *Renderer) WithShell(shell core.HTMLShell) *Renderer {
 func (r *Renderer) GenerateEntry(discovery core.DiscoveryResult) (string, error) {
 	gen := &EntryGenerator{}
 	return gen.Generate(EntryGenConfig{
-		Pages:              discovery.Pages,
-		AppDir:             discovery.AppDir,
-		GlobalErrorPath:    discovery.GlobalError,
-		GlobalNotFoundPath: discovery.GlobalNotFound,
+		Pages:                 discovery.Pages,
+		AppDir:                discovery.AppDir,
+		GlobalErrorPath:       discovery.GlobalError,
+		GlobalNotFoundPath:    discovery.GlobalNotFound,
+		RootLayoutReturnsHTML: discovery.RootLayoutReturnsHTML,
 	})
+}
+
+// ExtractDocumentProps calls __extractShell__ on a VM to get the root
+// layout's HTML, then parses it with golang.org/x/net/html to extract
+// document-level properties. Returns nil when the root layout doesn't
+// return <html> or extraction fails.
+func (r *Renderer) ExtractDocumentProps() (*core.DocumentProps, error) {
+	if r.pool == nil {
+		return nil, nil
+	}
+	vm, err := r.pool.Acquire()
+	if err != nil {
+		return nil, fmt.Errorf("react renderer: acquire VM for shell extraction: %w", err)
+	}
+	defer r.pool.Release(vm)
+
+	result, err := vm.Call(globals.ExtractShellFn)
+	if err != nil {
+		return nil, nil // __extractShell__ not defined or failed — not an error
+	}
+	htmlStr, ok := result.(string)
+	if !ok || htmlStr == "" {
+		return nil, nil
+	}
+	return shell.ExtractDocumentProps(htmlStr)
 }
 
 // BundleConditions returns the esbuild conditions for the React RSC server pass.

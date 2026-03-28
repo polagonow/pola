@@ -63,6 +63,10 @@ type DiscoveryResult struct {
 	ClientComponents []string // absolute paths of "use client" files
 	GlobalNotFound   string   // abs path to global-not-found.tsx, or ""
 	GlobalError      string   // abs path to global-error.tsx, or ""
+
+	// RootLayoutReturnsHTML is true when the root layout file contains <html,
+	// indicating it returns a full HTML document (Next.js-style).
+	RootLayoutReturnsHTML bool
 }
 
 // Route maps a URL pattern to a Server Component export name.
@@ -71,6 +75,22 @@ type DiscoveryResult struct {
 type Route struct {
 	Pattern string
 	Export  string
+}
+
+// DocumentProps holds the document-level properties extracted from the root
+// layout when it returns <html>. This gives users the same DX as Next.js
+// App Router where the root layout controls the full HTML document.
+type DocumentProps struct {
+	// HTMLAttributes are rendered on the <html> element (e.g. {"lang": "fr", "dir": "rtl"}).
+	HTMLAttributes map[string]string `json:"htmlAttributes,omitempty"`
+	// BodyAttributes are rendered on the <body> element (e.g. {"class": "dark"}).
+	BodyAttributes map[string]string `json:"bodyAttributes,omitempty"`
+	// HeadElements are raw HTML strings injected into <head> (e.g. font preconnect links).
+	HeadElements []string `json:"headElements,omitempty"`
+	// BodyPrefix is HTML rendered before the root div (e.g. a header/nav from the root layout).
+	BodyPrefix string `json:"bodyPrefix,omitempty"`
+	// BodySuffix is HTML rendered after the root div (e.g. a footer from the root layout).
+	BodySuffix string `json:"bodySuffix,omitempty"`
 }
 
 // ShellParams holds the dynamic values needed to render the HTML shell.
@@ -95,6 +115,11 @@ type ShellParams struct {
 	// When nil the shell emits no title, meta, or link tags beyond
 	// the built-in charset and viewport declarations.
 	Metadata *Metadata
+
+	// DocumentProps holds document-level properties extracted from the root
+	// layout (html/body attributes, head elements, body prefix/suffix).
+	// When nil the shell uses default attributes (lang="en").
+	DocumentProps *DocumentProps
 }
 
 // RenderOpts controls a single page render.

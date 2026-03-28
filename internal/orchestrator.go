@@ -38,8 +38,9 @@ type Orchestrator struct {
 	shell         core.HTMLShell
 	assets        core.AssetServer
 	bundleOutput  *core.BundleOutput
-	notFoundRoute *core.Route  // GlobalNotFound export, or nil
-	cssURLs       []string     // external stylesheet URLs
+	notFoundRoute *core.Route        // GlobalNotFound export, or nil
+	cssURLs       []string           // external stylesheet URLs
+	documentProps *core.DocumentProps // extracted from root layout, or nil
 	dev           bool
 	devScript     string       // hot-reload inline script, set in dev mode
 	handler       http.Handler // middleware chain wrapping handle, built once
@@ -61,6 +62,7 @@ func NewOrchestrator(
 	bundleOutput *core.BundleOutput,
 	notFoundRoute *core.Route,
 	cssURLs []string,
+	documentProps *core.DocumentProps,
 	dev bool,
 ) *Orchestrator {
 	o := &Orchestrator{
@@ -78,6 +80,7 @@ func NewOrchestrator(
 		bundleOutput:  bundleOutput,
 		notFoundRoute: notFoundRoute,
 		cssURLs:       cssURLs,
+		documentProps: documentProps,
 		dev:           dev,
 	}
 	if dev {
@@ -207,7 +210,8 @@ func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
 // The client-side JS (Client.tsx) then fetches RSC Flight data separately.
 func (o *Orchestrator) serveHTML(w http.ResponseWriter, _ *http.Request) {
 	params := core.ShellParams{
-		Metadata: defaultMetadata(),
+		Metadata:      defaultMetadata(),
+		DocumentProps: o.documentProps,
 	}
 	if o.bundleOutput != nil {
 		params.ImportURLs = o.bundleOutput.ImportURLs

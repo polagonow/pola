@@ -18,11 +18,12 @@ import (
 // prebuildMeta is the JSON schema for prebuild-meta.json written during mage Bundle
 // and read back at startup in embed mode.
 type prebuildMeta struct {
-	Routes         []core.Route      `json:"routes"`
-	ClientEntryURL string            `json:"clientEntryURL"`
-	ImportURLs     map[string]string `json:"importURLs"`
-	GlobalNotFound string            `json:"globalNotFound"`
-	CSSURLs        []string          `json:"cssURLs,omitempty"`
+	Routes         []core.Route        `json:"routes"`
+	ClientEntryURL string              `json:"clientEntryURL"`
+	ImportURLs     map[string]string   `json:"importURLs"`
+	GlobalNotFound string              `json:"globalNotFound"`
+	CSSURLs        []string            `json:"cssURLs,omitempty"`
+	DocumentProps  *core.DocumentProps `json:"documentProps,omitempty"`
 }
 
 // entryGenerator is the optional interface a Renderer may implement to produce
@@ -229,12 +230,25 @@ func Build(cfg *core.Config) (*core.App, error) {
 		}
 	}
 
+	// ── 6.6. Extract document props from root layout ────────────────────
+	var docProps *core.DocumentProps
+	if extractor, ok := renderer.(interface {
+		ExtractDocumentProps() (*core.DocumentProps, error)
+	}); ok {
+		dp, err := extractor.ExtractDocumentProps()
+		if err != nil {
+			logger.Warn("pola: extract document props", "err", err)
+		} else {
+			docProps = dp
+		}
+	}
+
 	// ── 7. Resolve shell and asset server ─────────────────────────────────
 	shell, assets := resolveShellAndAssets(injector, publicDir)
 
 	// ── 8. Wire orchestrator ───────────────────────────────────────────────
 	notFoundRoute := newNotFoundRoute(discovery.GlobalNotFound)
-	orch := NewOrchestrator(renderer, router, logger, metrics, tracer, pprof, middleware, injectors, routes, shell, assets, bundleOutput, notFoundRoute, cssURLs, cfg.Dev)
+	orch := NewOrchestrator(renderer, router, logger, metrics, tracer, pprof, middleware, injectors, routes, shell, assets, bundleOutput, notFoundRoute, cssURLs, docProps, cfg.Dev)
 
 	// ── 6.6. Copy static public files ────────────────────────────────────────
 	srcPublic := filepath.Join(absWebAppPath, "public")
@@ -250,6 +264,7 @@ func Build(cfg *core.Config) (*core.App, error) {
 			ImportURLs:     bundleOutput.ImportURLs,
 			GlobalNotFound: discovery.GlobalNotFound,
 			CSSURLs:        bundleOutput.CSSURLs,
+			DocumentProps:  docProps,
 		}
 		if b, err := json.Marshal(meta); err == nil {
 			_ = os.WriteFile(filepath.Join(publicDir, "prebuild-meta.json"), b, 0o644)
@@ -351,7 +366,7 @@ func buildFromPrebuilt(
 	shell, assets := resolveShellAndAssets(injector, "")
 
 	notFoundRoute := newNotFoundRoute(artifacts.GlobalNotFound)
-	orch := NewOrchestrator(renderer, router, logger, metrics, tracer, pprof, middleware, injectors, artifacts.Routes, shell, assets, artifacts.BundleOutput, notFoundRoute, artifacts.CSSURLs, false)
+	orch := NewOrchestrator(renderer, router, logger, metrics, tracer, pprof, middleware, injectors, artifacts.Routes, shell, assets, artifacts.BundleOutput, notFoundRoute, artifacts.CSSURLs, artifacts.DocumentProps, false)
 	app := newApp(cfg, injector, orch)
 	app.SetArtifacts(artifacts.BundleOutput)
 	return app, nil

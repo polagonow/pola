@@ -37,7 +37,7 @@ func New(innerHTML string) *Shell {
 // It implements core.HTMLShell.
 func (s *Shell) Render(p core.ShellParams) string {
 	var buf strings.Builder
-	_ = page(s.innerHTML, ImportMap(p.ImportURLs), p.Scripts, p.ClientScript, p.Stylesheets, p.Metadata).
+	_ = page(s.innerHTML, ImportMap(p.ImportURLs), p.Scripts, p.ClientScript, p.Stylesheets, p.Metadata, p.DocumentProps).
 		Render(context.Background(), &buf)
 	return buf.String()
 }
@@ -127,6 +127,54 @@ func inlineScript(sc string) templ.Component {
 
 // itoa converts an int to its decimal string representation.
 func itoa(n int) string { return fmt.Sprint(n) }
+
+// htmlAttrs returns the templ.Attributes for the <html> element.
+// Defaults lang to "en" when not specified.
+func htmlAttrs(dp *core.DocumentProps) templ.Attributes {
+	attrs := templ.Attributes{"lang": "en"}
+	if dp != nil {
+		for k, v := range dp.HTMLAttributes {
+			attrs[k] = v
+		}
+	}
+	return attrs
+}
+
+// bodyAttrs returns the templ.Attributes for the <body> element.
+func bodyAttrs(dp *core.DocumentProps) templ.Attributes {
+	if dp == nil || len(dp.BodyAttributes) == 0 {
+		return nil
+	}
+	attrs := make(templ.Attributes, len(dp.BodyAttributes))
+	for k, v := range dp.BodyAttributes {
+		attrs[k] = v
+	}
+	return attrs
+}
+
+// customHeadElements renders extra <head> elements extracted from the root layout.
+func customHeadElements(dp *core.DocumentProps) templ.Component {
+	if dp == nil || len(dp.HeadElements) == 0 {
+		return templ.NopComponent
+	}
+	return templ.Raw(strings.Join(dp.HeadElements, "\n"))
+}
+
+// bodyPrefix returns the HTML to render before the root div.
+func bodyPrefix(dp *core.DocumentProps) string {
+	if dp == nil {
+		return ""
+	}
+	return dp.BodyPrefix
+}
+
+// bodySuffix returns the HTML to render after the scripts.
+func bodySuffix(dp *core.DocumentProps) string {
+	if dp == nil {
+		return ""
+	}
+	return dp.BodySuffix
+}
 
 // sortedKeys returns the keys of m in sorted order.
 func sortedKeys[V any](m map[string]V) []string {
