@@ -2,22 +2,18 @@
 // It is renderer-agnostic: the only renderer-specific piece is the body
 // content (e.g. `<div id="root"></div>` for React), which is supplied at
 // construction time via New().
-//
-// The HTML template is written in templ (https://templ.guide/); run
-// `go tool templ generate` after editing shell.templ to regenerate shell_templ.go.
 package shell
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
+	"html/template"
 	"strings"
 
-	"github.com/a-h/templ"
 	"github.com/polagonow/pola/core"
 )
 
-// Shell implements core.HTMLShell using templ-generated components.
+// Shell implements core.HTMLShell using Go html/template.
 type Shell struct {
 	innerHTML string
 }
@@ -36,10 +32,35 @@ func New(innerHTML string) *Shell {
 // It implements core.HTMLShell.
 func (s *Shell) Render(p core.ShellParams) string {
 	mergeDocumentMeta(&p)
-	var buf strings.Builder
-	_ = page(s.innerHTML, ImportMap(p.ImportURLs), p.Scripts, p.ClientScript, p.Stylesheets, p.Metadata, p.DocumentProps).
-		Render(context.Background(), &buf)
-	return buf.String()
+
+	scripts := make([]template.JS, len(p.Scripts))
+	for i, sc := range p.Scripts {
+		scripts[i] = template.JS(sc)
+	}
+
+	d := &pageData{
+		HTMLOpen:           template.HTML("<html" + string(renderAttrs(htmlAttrsMap(p.DocumentProps))) + ">"),
+		Charset:            charset(p.DocumentProps),
+		Viewport:           viewport(p.DocumentProps),
+		MetaBlock:          template.HTML(core.RenderMetaHTML(p.Metadata)),
+		CustomHeadElements: customHeadElements(p.DocumentProps),
+		HasStylesheets:     len(p.Stylesheets) > 0,
+		StyleBlock:         template.HTML("<style>" + styles + "</style>"),
+		Stylesheets:        p.Stylesheets,
+		ImportMap:          template.HTML(ImportMap(p.ImportURLs)),
+		BodyOpen:           template.HTML("<body" + string(renderAttrs(bodyAttrsMap(p.DocumentProps))) + ">"),
+		BodyPrefix:         template.HTML(bodyPrefix(p.DocumentProps)),
+		InnerHTML:          template.HTML(s.innerHTML),
+		Scripts:            scripts,
+		ClientScript:       p.ClientScript,
+		BodySuffix:         template.HTML(bodySuffix(p.DocumentProps)),
+	}
+
+	html, err := renderPage(d)
+	if err != nil {
+		return "<!-- shell render error: " + err.Error() + " -->"
+	}
+	return html
 }
 
 // ImportMap generates a <script type="importmap"> block from a module-ID →
@@ -55,23 +76,6 @@ func ImportMap(importURLs map[string]string) string {
 	// json.Marshal escapes <, >, & to \uXXXX by default, so "</script>"
 	// sequences in keys/values cannot break out of the script tag.
 	return fmt.Sprintf(`<script type="importmap">%s</script>`, payload)
-}
-
-// styleBlock returns the embedded CSS wrapped in a <style> tag.
-// Used from shell.templ because templ does not process expressions inside <style> content.
-func styleBlock() templ.Component {
-	return templ.Raw("<style>" + styles + "</style>")
-}
-
-// inlineScript wraps a trusted JS string in a <script> tag.
-// Used from shell.templ because templ does not process expressions inside <script> content.
-func inlineScript(sc string) templ.Component {
-	return templ.Raw("<script>" + sc + "</script>")
-}
-
-// renderMetaBlock renders all metadata as HTML using the reflection-based renderer.
-func renderMetaBlock(m *core.Metadata) templ.Component {
-	return templ.Raw(core.RenderMetaHTML(m))
 }
 
 // charset returns the document charset, defaulting to "UTF-8".
@@ -145,10 +149,10 @@ func mergeDocumentMeta(params *core.ShellParams) {
 	}
 }
 
-// htmlAttrs returns the templ.Attributes for the <html> element.
+// htmlAttrsMap returns the attribute map for the <html> element.
 // Defaults lang to "en" when not specified.
-func htmlAttrs(dp *core.DocumentProps) templ.Attributes {
-	attrs := templ.Attributes{"lang": "en"}
+func htmlAttrsMap(dp *core.DocumentProps) map[string]string {
+	attrs := map[string]string{"lang": "en"}
 	if dp != nil {
 		for k, v := range dp.HTMLAttributes {
 			attrs[k] = v
@@ -157,24 +161,36 @@ func htmlAttrs(dp *core.DocumentProps) templ.Attributes {
 	return attrs
 }
 
-// bodyAttrs returns the templ.Attributes for the <body> element.
-func bodyAttrs(dp *core.DocumentProps) templ.Attributes {
+// bodyAttrsMap returns the attribute map for the <body> element.
+func bodyAttrsMap(dp *core.DocumentProps) map[string]string {
 	if dp == nil || len(dp.BodyAttributes) == 0 {
 		return nil
 	}
-	attrs := make(templ.Attributes, len(dp.BodyAttributes))
-	for k, v := range dp.BodyAttributes {
-		attrs[k] = v
+	return dp.BodyAttributes
+}
+
+// renderAttrs formats a map as HTML element attributes (e.g. ` lang="en" dir="ltr"`).
+func renderAttrs(attrs map[string]string) template.HTML {
+	if len(attrs) == 0 {
+		return ""
 	}
-	return attrs
+	var buf strings.Builder
+	for k, v := range attrs {
+		buf.WriteString(" ")
+		buf.WriteString(k)
+		buf.WriteString(`="`)
+		buf.WriteString(template.HTMLEscapeString(v))
+		buf.WriteString(`"`)
+	}
+	return template.HTML(buf.String())
 }
 
 // customHeadElements renders extra <head> elements extracted from the root layout.
-func customHeadElements(dp *core.DocumentProps) templ.Component {
+func customHeadElements(dp *core.DocumentProps) template.HTML {
 	if dp == nil || len(dp.HeadElements) == 0 {
-		return templ.NopComponent
+		return ""
 	}
-	return templ.Raw(strings.Join(dp.HeadElements, "\n"))
+	return template.HTML(strings.Join(dp.HeadElements, "\n"))
 }
 
 // bodyPrefix returns the HTML to render before the root div.
