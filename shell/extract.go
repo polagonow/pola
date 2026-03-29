@@ -35,7 +35,7 @@ func ExtractDocumentProps(htmlStr string) (*core.DocumentProps, error) {
 	dp.HTMLAttributes = collectAttrs(htmlNode)
 
 	if headNode := findElement(htmlNode, "head"); headNode != nil {
-		dp.HeadElements = renderChildren(headNode)
+		classifyHeadElements(headNode, dp)
 	}
 
 	if bodyNode := findElement(htmlNode, "body"); bodyNode != nil {
@@ -88,6 +88,65 @@ func renderChildren(n *html.Node) []string {
 		}
 	}
 	return elems
+}
+
+// classifyHeadElements walks <head> children and classifies them into
+// structured DocumentProps fields. Meta tags with name/charset/viewport are
+// extracted as overrides; everything else is kept as raw HTML in HeadElements.
+func classifyHeadElements(headNode *html.Node, dp *core.DocumentProps) {
+	for c := headNode.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type == html.TextNode {
+			continue
+		}
+		if c.Type != html.ElementNode {
+			continue
+		}
+		switch c.Data {
+		case "title":
+			dp.Title = textContent(c)
+		case "meta":
+			if charset := attrVal(c, "charset"); charset != "" {
+				dp.Charset = charset
+			} else if name := attrVal(c, "name"); name == "viewport" {
+				dp.Viewport = attrVal(c, "content")
+			} else if name != "" {
+				if dp.MetaOverrides == nil {
+					dp.MetaOverrides = make(map[string]string)
+				}
+				dp.MetaOverrides[name] = attrVal(c, "content")
+			} else {
+				// <meta property="og:..." etc> — keep as raw HTML
+				dp.HeadElements = append(dp.HeadElements, renderNode(c))
+			}
+		default:
+			// <link>, <script>, <style>, etc — keep as raw HTML
+			s := strings.TrimSpace(renderNode(c))
+			if s != "" {
+				dp.HeadElements = append(dp.HeadElements, s)
+			}
+		}
+	}
+}
+
+// attrVal returns the value of the named attribute, or "" if not present.
+func attrVal(n *html.Node, key string) string {
+	for _, a := range n.Attr {
+		if a.Key == key {
+			return a.Val
+		}
+	}
+	return ""
+}
+
+// textContent returns the concatenated text content of a node's children.
+func textContent(n *html.Node) string {
+	var sb strings.Builder
+	for c := n.FirstChild; c != nil; c = c.NextSibling {
+		if c.Type == html.TextNode {
+			sb.WriteString(c.Data)
+		}
+	}
+	return sb.String()
 }
 
 // splitOnPlaceholder renders all body children to HTML, then splits the

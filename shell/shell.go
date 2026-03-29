@@ -36,6 +36,7 @@ func New(innerHTML string) *Shell {
 // Render returns the complete HTML document for a page shell.
 // It implements core.HTMLShell.
 func (s *Shell) Render(p core.ShellParams) string {
+	mergeDocumentMeta(&p)
 	var buf strings.Builder
 	_ = page(s.innerHTML, ImportMap(p.ImportURLs), p.Scripts, p.ClientScript, p.Stylesheets, p.Metadata, p.DocumentProps).
 		Render(context.Background(), &buf)
@@ -127,6 +128,77 @@ func inlineScript(sc string) templ.Component {
 
 // itoa converts an int to its decimal string representation.
 func itoa(n int) string { return fmt.Sprint(n) }
+
+// charset returns the document charset, defaulting to "UTF-8".
+func charset(dp *core.DocumentProps) string {
+	if dp != nil && dp.Charset != "" {
+		return dp.Charset
+	}
+	return "UTF-8"
+}
+
+// viewport returns the viewport meta content, defaulting to the standard responsive value.
+func viewport(dp *core.DocumentProps) string {
+	if dp != nil && dp.Viewport != "" {
+		return dp.Viewport
+	}
+	return "width=device-width,initial-scale=1"
+}
+
+// mergeDocumentMeta applies DocumentProps overrides as fallbacks into Metadata.
+// This deduplicates head elements: structured tags (title, description, etc.)
+// extracted from the root layout are merged into the Metadata system rather
+// than rendered as raw HTML alongside the framework's own meta tags.
+func mergeDocumentMeta(params *core.ShellParams) {
+	dp := params.DocumentProps
+	if dp == nil {
+		return
+	}
+	m := params.Metadata
+	if m == nil {
+		m = &core.Metadata{}
+		params.Metadata = m
+	}
+	if dp.Title != "" && resolveTitle(m.Title) == "" {
+		m.Title = core.Title{Default: dp.Title}
+	}
+	for name, content := range dp.MetaOverrides {
+		c := content // capture for pointer
+		switch name {
+		case "description":
+			if m.Description == nil {
+				m.Description = &c
+			}
+		case "generator":
+			if m.Generator == nil {
+				m.Generator = &c
+			}
+		case "creator":
+			if m.Creator == nil {
+				m.Creator = &c
+			}
+		case "publisher":
+			if m.Publisher == nil {
+				m.Publisher = &c
+			}
+		case "referrer":
+			if m.Referrer == nil {
+				m.Referrer = &c
+			}
+		case "application-name":
+			if m.ApplicationName == nil {
+				m.ApplicationName = &c
+			}
+		default:
+			if m.Other == nil {
+				m.Other = make(map[string]string)
+			}
+			if _, exists := m.Other[name]; !exists {
+				m.Other[name] = c
+			}
+		}
+	}
+}
 
 // htmlAttrs returns the templ.Attributes for the <html> element.
 // Defaults lang to "en" when not specified.
