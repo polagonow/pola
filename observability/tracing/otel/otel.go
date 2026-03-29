@@ -6,18 +6,18 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/samber/do/v2"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	samberdo "github.com/samber/do/v2"
 
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/core/di"
 )
 
 func init() {
-	di.Stage(func(i samberdo.Injector) {
-		samberdo.Provide(i, func(_ samberdo.Injector) (core.Tracer, error) {
+	di.Stage(func(i do.Injector) {
+		do.Provide(i, func(_ do.Injector) (core.Tracer, error) {
 			return New(), nil
 		})
 	})

@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	samberdo "github.com/samber/do/v2"
+	"github.com/samber/do/v2"
 
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/core/di"
@@ -69,15 +69,15 @@ func newNotFoundRoute(globalNotFound string) *core.Route {
 
 // resolveShellAndAssets resolves HTMLShell and AssetServer from the DI container,
 // falling back to noop implementations when none are registered.
-func resolveShellAndAssets(injector samberdo.Injector, publicDir string) (core.HTMLShell, core.AssetServer) {
+func resolveShellAndAssets(injector do.Injector, publicDir string) (core.HTMLShell, core.AssetServer) {
 	var shell core.HTMLShell
-	if s, err := samberdo.Invoke[core.HTMLShell](injector); err == nil {
+	if s, err := do.Invoke[core.HTMLShell](injector); err == nil {
 		shell = s
 	} else {
 		shell = noopShell{}
 	}
 	var assets core.AssetServer
-	if factory, err := samberdo.Invoke[core.AssetServerFactory](injector); err == nil {
+	if factory, err := do.Invoke[core.AssetServerFactory](injector); err == nil {
 		assets = factory(publicDir)
 	} else {
 		assets = noopAssetServer{}
@@ -91,35 +91,35 @@ func Build(cfg *core.Config) (*core.App, error) {
 	injector := di.Build()
 
 	// ── 1. Resolve required services ────────────────────────────────────
-	renderer, err := samberdo.Invoke[core.Renderer](injector)
+	renderer, err := do.Invoke[core.Renderer](injector)
 	if err != nil {
 		return nil, fmt.Errorf("pola: no Renderer registered; import _ \"github.com/polagonow/pola/renderer/react\"")
 	}
-	router, err := samberdo.Invoke[core.Router](injector)
+	router, err := do.Invoke[core.Router](injector)
 	if err != nil {
 		return nil, fmt.Errorf("pola: no Router registered; import _ \"github.com/polagonow/pola/router/nextjs\"")
 	}
 	// Bundler and FS are optional in embed/prebuild mode (no esbuild tag).
-	bundler, _ := samberdo.Invoke[core.Bundler](injector)
-	fsys, _ := samberdo.Invoke[core.FS](injector)
-	logger, err := samberdo.Invoke[core.Logger](injector)
+	bundler, _ := do.Invoke[core.Bundler](injector)
+	fsys, _ := do.Invoke[core.FS](injector)
+	logger, err := do.Invoke[core.Logger](injector)
 	if err != nil {
 		return nil, fmt.Errorf("pola: no Logger registered; import _ \"github.com/polagonow/pola/logger/slog\"")
 	}
-	engine, err := samberdo.Invoke[core.JSEngine](injector)
+	engine, err := do.Invoke[core.JSEngine](injector)
 	if err != nil {
 		return nil, fmt.Errorf("pola: no JSEngine registered; import _ \"github.com/polagonow/pola/engine\" with a build tag (goja, quickjsgo, etc.)")
 	}
 
 	// Optional services — nil when not registered.
-	metrics, _ := samberdo.Invoke[core.Metrics](injector)
-	tracer, _ := samberdo.Invoke[core.Tracer](injector)
-	css, _ := samberdo.Invoke[core.CSS](injector)
-	pprof, _ := samberdo.Invoke[core.Pprof](injector)
+	metrics, _ := do.Invoke[core.Metrics](injector)
+	tracer, _ := do.Invoke[core.Tracer](injector)
+	css, _ := do.Invoke[core.CSS](injector)
+	pprof, _ := do.Invoke[core.Pprof](injector)
 
 	// Slice collectors
-	middleware := samberdo.MustInvoke[*di.MiddlewareCollector](injector).All()
-	injectors := samberdo.MustInvoke[*di.InjectorCollector](injector).All()
+	middleware := do.MustInvoke[*di.MiddlewareCollector](injector).All()
+	injectors := do.MustInvoke[*di.InjectorCollector](injector).All()
 
 	// Propagate logger to all components that accept it.
 	for _, c := range []any{engine, bundler, renderer, router, css} {
@@ -129,7 +129,7 @@ func Build(cfg *core.Config) (*core.App, error) {
 	}
 
 	// ── Prebuild fast-path (embed mode) ───────────────────────────────────
-	if loader, err := samberdo.Invoke[core.PrebuildLoader](injector); err == nil {
+	if loader, err := do.Invoke[core.PrebuildLoader](injector); err == nil {
 		return buildFromPrebuilt(cfg, injector, loader, renderer, router, engine, logger, metrics, tracer, pprof, middleware, injectors)
 	}
 
@@ -333,7 +333,7 @@ type routeLoader interface {
 // It skips route scanning, entry generation, and JS bundling.
 func buildFromPrebuilt(
 	cfg *core.Config,
-	injector samberdo.Injector,
+	injector do.Injector,
 	loader core.PrebuildLoader,
 	renderer core.Renderer,
 	router core.Router,

@@ -15,15 +15,15 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	samberdo "github.com/samber/do/v2"
+	"github.com/samber/do/v2"
 
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/core/di"
 )
 
 func init() {
-	di.Stage(func(i samberdo.Injector) {
-		samberdo.Provide(i, func(_ samberdo.Injector) (core.CSS, error) {
+	di.Stage(func(i do.Injector) {
+		do.Provide(i, func(_ do.Injector) (core.CSS, error) {
 			return New(), nil
 		})
 	})
