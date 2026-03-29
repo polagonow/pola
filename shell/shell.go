@@ -11,7 +11,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"slices"
 	"strings"
 
 	"github.com/a-h/templ"
@@ -58,62 +57,6 @@ func ImportMap(importURLs map[string]string) string {
 	return fmt.Sprintf(`<script type="importmap">%s</script>`, payload)
 }
 
-// resolveTitle returns the string to use inside <title>, applying NextJS-style
-// template substitution (%s → page title). Returns "" when all fields are empty.
-func resolveTitle(t core.Title) string {
-	if t.Absolute != "" {
-		return t.Absolute
-	}
-	if t.Default != "" && t.Template != "" {
-		return strings.Replace(t.Template, "%s", t.Default, 1)
-	}
-	if t.Default != "" {
-		return t.Default
-	}
-	return t.Template
-}
-
-// renderRobotsContent builds the comma-separated robots directive string.
-func renderRobotsContent(r *core.Robots) string {
-	var parts []string
-
-	addBool := func(trueVal, falseVal string, v *bool) {
-		if v == nil {
-			return
-		}
-		if *v {
-			parts = append(parts, trueVal)
-		} else {
-			parts = append(parts, falseVal)
-		}
-	}
-	addNoOnly := func(directive string, v *bool) {
-		if v != nil && *v {
-			parts = append(parts, directive)
-		}
-	}
-
-	addBool("index", "noindex", r.Index)
-	addBool("follow", "nofollow", r.Follow)
-	addNoOnly("noarchive", r.NoArchive)
-	addNoOnly("nosnippet", r.NoSnippet)
-	addNoOnly("noimageindex", r.NoImageIndex)
-	addNoOnly("nocache", r.NoCache)
-	addNoOnly("notranslate", r.NoTranslate)
-
-	if r.MaxSnippet != nil {
-		parts = append(parts, fmt.Sprintf("max-snippet:%d", *r.MaxSnippet))
-	}
-	if r.MaxImagePreview != nil {
-		parts = append(parts, fmt.Sprintf("max-image-preview:%s", *r.MaxImagePreview))
-	}
-	if r.MaxVideoPreview != nil {
-		parts = append(parts, fmt.Sprintf("max-video-preview:%d", *r.MaxVideoPreview))
-	}
-
-	return strings.Join(parts, ", ")
-}
-
 // styleBlock returns the embedded CSS wrapped in a <style> tag.
 // Used from shell.templ because templ does not process expressions inside <style> content.
 func styleBlock() templ.Component {
@@ -126,8 +69,10 @@ func inlineScript(sc string) templ.Component {
 	return templ.Raw("<script>" + sc + "</script>")
 }
 
-// itoa converts an int to its decimal string representation.
-func itoa(n int) string { return fmt.Sprint(n) }
+// renderMetaBlock renders all metadata as HTML using the reflection-based renderer.
+func renderMetaBlock(m *core.Metadata) templ.Component {
+	return templ.Raw(core.RenderMetaHTML(m))
+}
 
 // charset returns the document charset, defaulting to "UTF-8".
 func charset(dp *core.DocumentProps) string {
@@ -159,7 +104,7 @@ func mergeDocumentMeta(params *core.ShellParams) {
 		m = &core.Metadata{}
 		params.Metadata = m
 	}
-	if dp.Title != "" && resolveTitle(m.Title) == "" {
+	if dp.Title != "" && core.ResolveTitle(m.Title) == "" {
 		m.Title = core.Title{Default: dp.Title}
 	}
 	for name, content := range dp.MetaOverrides {
@@ -246,14 +191,4 @@ func bodySuffix(dp *core.DocumentProps) string {
 		return ""
 	}
 	return dp.BodySuffix
-}
-
-// sortedKeys returns the keys of m in sorted order.
-func sortedKeys[V any](m map[string]V) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	slices.Sort(keys)
-	return keys
 }
