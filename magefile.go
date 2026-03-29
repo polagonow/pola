@@ -75,6 +75,7 @@ func BundleDemo() error {
 
 // Build compiles the pola CLI binary into bin/.
 func Build() error {
+	mg.Deps(Generate)
 	fmt.Println("→ building pola CLI")
 	os.MkdirAll("bin", 0o755) //nolint:errcheck
 	return sh.RunV("go", "build", "-o", "bin/pola", "./cmd/pola/")

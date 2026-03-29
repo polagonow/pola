@@ -1,5 +1,7 @@
 package core
 
+import "strings"
+
 // Title holds the document title. Resolution order:
 //  1. Absolute — rendered verbatim; Template is ignored.
 //  2. Default + Template — Template's %s is replaced by Default.
@@ -10,6 +12,21 @@ type Title struct {
 	Absolute string
 	Default  string
 	Template string // use %s as the page-title placeholder
+}
+
+// ResolveTitle returns the string to use inside <title>, applying NextJS-style
+// template substitution (%s → page title). Returns "" when all fields are empty.
+func ResolveTitle(t Title) string {
+	if t.Absolute != "" {
+		return t.Absolute
+	}
+	if t.Default != "" && t.Template != "" {
+		return strings.Replace(t.Template, "%s", t.Default, 1)
+	}
+	if t.Default != "" {
+		return t.Default
+	}
+	return t.Template
 }
 
 // Author represents a document author.
@@ -41,24 +58,24 @@ type Icons struct {
 
 // OpenGraphImage represents a set of og:image meta tags.
 type OpenGraphImage struct {
-	URL       string
-	SecureURL *string // og:image:secure_url
-	Type      *string // og:image:type  e.g. "image/jpeg"
-	Width     *int
-	Height    *int
-	Alt       *string // og:image:alt
+	URL       string  `meta:"property=og:image"`
+	SecureURL *string `meta:"property=og:image:secure_url"`
+	Type      *string `meta:"property=og:image:type"`
+	Alt       *string `meta:"property=og:image:alt"`
+	Width     *int    `meta:"property=og:image:width"`
+	Height    *int    `meta:"property=og:image:height"`
 }
 
 // OpenGraph holds Open Graph protocol metadata.
 // When Type is nil the renderer defaults to "website".
 type OpenGraph struct {
-	Title       *string
-	Description *string
-	URL         *string
-	SiteName    *string
-	Images      []OpenGraphImage
-	Locale      *string // e.g. "en_US"
-	Type        *string // "website", "article", "book", "profile", …
+	Type        *string          `meta:"property=og:type" default:"website"`
+	Title       *string          `meta:"property=og:title"`
+	Description *string          `meta:"property=og:description"`
+	URL         *string          `meta:"property=og:url"`
+	SiteName    *string          `meta:"property=og:site_name"`
+	Locale      *string          `meta:"property=og:locale"`
+	Images      []OpenGraphImage // rendered via slice-of-struct recursion
 }
 
 // Twitter card type constants.
@@ -71,12 +88,12 @@ const (
 
 // TwitterMeta holds Twitter Card metadata.
 type TwitterMeta struct {
-	Card        *string  // one of the TwitterCard* constants
-	Site        *string  // @username of the website
-	Creator     *string  // @username of the content creator
-	Title       *string
-	Description *string
-	Images      []string // twitter:image URLs
+	Card        *string  `meta:"name=twitter:card"`
+	Site        *string  `meta:"name=twitter:site"`
+	Creator     *string  `meta:"name=twitter:creator"`
+	Title       *string  `meta:"name=twitter:title"`
+	Description *string  `meta:"name=twitter:description"`
+	Images      []string `meta:"name=twitter:image"`
 }
 
 // Robots controls search-engine crawling and indexing directives.
@@ -102,37 +119,37 @@ type AlternateURLs struct {
 
 // Verification holds site-verification meta tag values.
 type Verification struct {
-	Google *string
-	Yandex *string
-	Yahoo  *string
-	Me     *string // rendered as <link rel="me" href="...">
+	Google *string `meta:"name=google-site-verification"`
+	Yandex *string `meta:"name=yandex-verification"`
+	Yahoo  *string `meta:"name=y_key"`
+	Me     *string `link:"rel=me"`
 }
 
 // Metadata is the top-level SEO metadata struct, mirroring the NextJS
 // Metadata type. Nil pointer fields are silently omitted from the rendered HTML.
 type Metadata struct {
-	Title           Title
-	Description     *string
-	ApplicationName *string
-	Authors         []Author
-	Generator       *string
-	Keywords        []string
-	Referrer        *string // referrer policy value
-	Creator         *string
-	Publisher       *string
+	Title           Title // custom: ResolveTitle()
+	Description     *string `meta:"name=description"`
+	ApplicationName *string `meta:"name=application-name"`
+	Authors         []Author // custom: mixed meta+link per element
+	Generator       *string  `meta:"name=generator"`
+	Keywords        []string `meta:"name=keywords" sep:", "`
+	Referrer        *string  `meta:"name=referrer"`
+	Creator         *string  `meta:"name=creator"`
+	Publisher       *string  `meta:"name=publisher"`
 
 	// SEO
-	Robots       *Robots
-	Alternates   *AlternateURLs
-	Verification *Verification
+	Robots     *Robots        // custom: HeadRenderer
+	Alternates *AlternateURLs // custom: HeadRenderer
+	Verification *Verification // tagged sub-struct
 
 	// Icons
-	Icons *Icons
+	Icons *Icons // custom: HeadRenderer
 
 	// Social
-	OpenGraph *OpenGraph
-	Twitter   *TwitterMeta
+	OpenGraph *OpenGraph   // tagged sub-struct + Images recursion
+	Twitter   *TwitterMeta // tagged sub-struct
 
 	// Other renders as <meta name="KEY" content="VALUE"> for each entry.
-	Other map[string]string
+	Other map[string]string `meta:"name=*"`
 }

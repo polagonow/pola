@@ -50,6 +50,14 @@ const (
 	RunMicrotasksFn = "__runMicrotasks__"
 )
 
+// Shell extraction (document props from root layout).
+const (
+	// ExtractShellFn is the global function that calls the root layout component,
+	// serializes its React element tree to HTML, and returns it as a string.
+	// Used at startup to extract document-level props (html/body attrs, head elements).
+	ExtractShellFn = "__extractShell__"
+)
+
 // Client component manifest injected as a bundler define.
 const (
 	// ClientManifest is injected into the server bundle by the bundler (esbuild

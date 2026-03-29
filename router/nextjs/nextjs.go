@@ -119,15 +119,19 @@ func (r *Router) ScanRoutes(ctx context.Context, fsys core.FS, appDir string, ex
 		clientComponents = append(clientComponents, gc.ErrorPath)
 	}
 
+	// Check if root layout returns <html> (Next.js-style document control).
+	rootLayoutReturnsHTML := detectRootLayoutHTML(fsys, pagesDir, exts)
+
 	r.mu.Lock()
 	r.routes = routes
 	r.sorted = false
 	r.discovery = core.DiscoveryResult{
-		AppDir:           appDir,
-		Pages:            pages,
-		ClientComponents: clientComponents,
-		GlobalNotFound:   gc.NotFoundPath,
-		GlobalError:      gc.ErrorPath,
+		AppDir:                appDir,
+		Pages:                 pages,
+		ClientComponents:      clientComponents,
+		GlobalNotFound:        gc.NotFoundPath,
+		GlobalError:           gc.ErrorPath,
+		RootLayoutReturnsHTML: rootLayoutReturnsHTML,
 	}
 	r.mu.Unlock()
 
@@ -441,6 +445,20 @@ func discoverGlobalComponents(fsys core.FS, appDir string, exts []string) global
 		}
 	}
 	return gc
+}
+
+// detectRootLayoutHTML checks whether the root layout file contains "<html"
+// in its source, indicating it returns a full HTML document (Next.js-style).
+func detectRootLayoutHTML(fsys core.FS, pagesDir string, exts []string) bool {
+	layoutPath := findWithExts(fsys, pagesDir, "layout", exts)
+	if layoutPath == "" {
+		return false
+	}
+	data, err := fsys.ReadFile(layoutPath)
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(data), "<html")
 }
 
 func discoverClientComponents(fsys core.FS, appDir string, exts []string) ([]string, error) {
