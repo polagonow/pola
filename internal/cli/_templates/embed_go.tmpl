@@ -39,11 +39,12 @@ func init() {
 					return nil, fmt.Errorf("embed: read prebuild-meta.json: %w", err)
 				}
 				var meta struct {
-					Routes         []core.Route      `json:"routes"`
-					ClientEntryURL string            `json:"clientEntryURL"`
-					ImportURLs     map[string]string `json:"importURLs"`
-					GlobalNotFound string            `json:"globalNotFound"`
-					CSSURLs        []string          `json:"cssURLs"`
+					Routes         []core.Route        `json:"routes"`
+					ClientEntryURL string              `json:"clientEntryURL"`
+					ImportURLs     map[string]string   `json:"importURLs"`
+					GlobalNotFound string              `json:"globalNotFound"`
+					CSSURLs        []string            `json:"cssURLs"`
+					DocumentProps  *core.DocumentProps `json:"documentProps,omitempty"`
 				}
 				if err := json.Unmarshal(metaBytes, &meta); err != nil {
 					return nil, fmt.Errorf("embed: parse prebuild-meta.json: %w", err)
@@ -63,6 +64,7 @@ func init() {
 					},
 					GlobalNotFound: meta.GlobalNotFound,
 					CSSURLs:        meta.CSSURLs,
+					DocumentProps:  meta.DocumentProps,
 				}, nil
 			}, nil
 		})
