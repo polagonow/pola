@@ -12,8 +12,8 @@ templ page(innerHTML string, importMap string, scripts []string, clientScript st
 	<!DOCTYPE html>
 	<html { htmlAttrs(dp)... }>
 		<head>
-			<meta charset="UTF-8"/>
-			<meta name="viewport" content="width=device-width,initial-scale=1"/>
+			<meta charset={ charset(dp) }/>
+			<meta name="viewport" content={ viewport(dp) }/>
 			@headMeta(m)
 			@customHeadElements(dp)
 			if len(stylesheets) == 0 {

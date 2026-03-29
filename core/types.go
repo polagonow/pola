@@ -85,8 +85,16 @@ type DocumentProps struct {
 	HTMLAttributes map[string]string `json:"htmlAttributes,omitempty"`
 	// BodyAttributes are rendered on the <body> element (e.g. {"class": "dark"}).
 	BodyAttributes map[string]string `json:"bodyAttributes,omitempty"`
-	// HeadElements are raw HTML strings injected into <head> (e.g. font preconnect links).
+	// HeadElements are raw HTML strings for non-meta head content (links, scripts, styles, og tags).
 	HeadElements []string `json:"headElements,omitempty"`
+	// Title from the root layout's <title> element, used as fallback when page Metadata.Title is empty.
+	Title string `json:"title,omitempty"`
+	// Charset from <meta charset>, overrides the framework default ("UTF-8").
+	Charset string `json:"charset,omitempty"`
+	// Viewport from <meta name="viewport">, overrides the framework default.
+	Viewport string `json:"viewport,omitempty"`
+	// MetaOverrides maps <meta name="X"> to content values, used as fallbacks for Metadata fields.
+	MetaOverrides map[string]string `json:"metaOverrides,omitempty"`
 	// BodyPrefix is HTML rendered before the root div (e.g. a header/nav from the root layout).
 	BodyPrefix string `json:"bodyPrefix,omitempty"`
 	// BodySuffix is HTML rendered after the root div (e.g. a footer from the root layout).
