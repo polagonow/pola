@@ -359,6 +359,13 @@ function __elementToHTML__(el: any): string {
   let attrs = '';
   for (const [k, v] of Object.entries(props)) {
     if (k === 'children' || k === 'key' || k === 'ref' || k === 'dangerouslySetInnerHTML' || v == null || v === false) continue;
+    if (k === 'style' && typeof v === 'object') {
+      const css = Object.entries(v as Record<string,any>)
+        .map(([p, val]) => p.replace(/[A-Z]/g, m => '-' + m.toLowerCase()) + ':' + val)
+        .join(';');
+      attrs += ' style="' + css.replace(/"/g, '&quot;') + '"';
+      continue;
+    }
     const name = attrMap[k] || k;
     if (v === true) { attrs += ' ' + name; continue; }
     attrs += ' ' + name + '="' + String(v).replace(/"/g, '&quot;') + '"';
