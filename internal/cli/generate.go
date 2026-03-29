@@ -190,7 +190,10 @@ func generateOverlay(projectDir, css string) (*overlayResult, error) {
 	}
 
 	// 3. Generate plugin imports (always).
-	pluginsSrc := generatePluginImports(css, actionsImport)
+	pluginsSrc, err := generatePluginImports(css, actionsImport)
+	if err != nil {
+		return nil, fmt.Errorf("generate plugins: %w", err)
+	}
 	pluginsPath := filepath.Join(tmpDir, "pola_plugins.go")
 	if err := os.WriteFile(pluginsPath, pluginsSrc, 0o644); err != nil {
 		return nil, fmt.Errorf("write plugins: %w", err)
@@ -237,16 +240,19 @@ func generateOverlay(projectDir, css string) (*overlayResult, error) {
 
 // generatePluginImports returns the source for pola_plugins.go containing
 // blank imports that trigger plugin self-registration via init() → di.Stage().
-func generatePluginImports(css, actionsImport string) []byte {
+func generatePluginImports(css, actionsImport string) ([]byte, error) {
 	var buf strings.Builder
-	_ = pluginsTmpl.Execute(&buf, struct {
+	err := pluginsTmpl.Execute(&buf, struct {
 		CSS           bool
 		ActionsImport string
 	}{
 		CSS:           css != "" && css != "none",
 		ActionsImport: actionsImport,
 	})
-	return []byte(buf.String())
+	if err != nil {
+		return nil, fmt.Errorf("execute plugins template: %w", err)
+	}
+	return []byte(buf.String()), nil
 }
 
 // readModulePath reads the module path from go.mod in the given directory.
