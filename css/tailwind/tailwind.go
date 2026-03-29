@@ -51,14 +51,14 @@ var _ core.CSS = (*Tailwind)(nil)
 func (t *Tailwind) Name() string { return "tailwind" }
 
 // Process runs tailwindcss to process inputPath → outputPath.
-// In production mode (POLA_DEV != "true") it minifies the output.
+// In production mode (POLA_ENV != "development") it minifies the output.
 func (t *Tailwind) Process(ctx context.Context, inputPath, outputPath string) error {
 	bin, binArgs := t.resolvedBin(inputPath)
 	args := append(binArgs, "-i", inputPath, "-o", outputPath)
 	if t.ConfigPath != "" {
 		args = append(args, "--config", t.ConfigPath)
 	}
-	if os.Getenv("POLA_DEV") != "true" {
+	if os.Getenv("POLA_ENV") != "development" {
 		args = append(args, "--minify")
 	}
 	cmd := exec.CommandContext(ctx, bin, args...)
