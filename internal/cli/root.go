@@ -2,6 +2,9 @@
 package cli
 
 import (
+	"fmt"
+	"os"
+
 	"github.com/spf13/cobra"
 )
 
@@ -9,6 +12,7 @@ import (
 var version = "dev"
 
 var verbose bool
+var cwd string
 
 var rootCmd = &cobra.Command{
 	Use:   "pola",
@@ -19,10 +23,26 @@ var rootCmd = &cobra.Command{
 	},
 	SilenceUsage: true,
 	Version:      version,
+	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
+		if cwd == "" {
+			return nil
+		}
+		// For "new", the --cwd directory may not exist yet; create it.
+		if cmd.Name() == "new" {
+			if err := os.MkdirAll(cwd, 0o755); err != nil {
+				return fmt.Errorf("create directory %q: %w", cwd, err)
+			}
+		}
+		if err := os.Chdir(cwd); err != nil {
+			return fmt.Errorf("change directory to %q: %w", cwd, err)
+		}
+		return nil
+	},
 }
 
 func init() {
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false, "enable verbose output")
+	rootCmd.PersistentFlags().StringVar(&cwd, "cwd", "", "run as if pola was started in this directory")
 	rootCmd.AddCommand(newCmd)
 	rootCmd.AddCommand(serveCmd)
 	rootCmd.AddCommand(buildCmd)
