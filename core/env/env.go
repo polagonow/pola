@@ -11,7 +11,7 @@ type Env struct {
 	Router      string `env:"POLA_ROUTER"       envDefault:"nextjs"`
 	CSS         string `env:"POLA_CSS"          envDefault:"none"`
 	WebAppPath  string `env:"POLA_WEBAPP_PATH"  envDefault:"./app"`
-	Dev         bool   `env:"POLA_DEV"          envDefault:"false"`
+	Env         string `env:"POLA_ENV"           envDefault:"production"`
 	EmbedAssets bool   `env:"POLA_EMBED"        envDefault:"true"`
 
 	MetricsEnabled bool   `env:"POLA_METRICS"       envDefault:"false"`
@@ -29,6 +29,9 @@ type Env struct {
 
 	Address string `env:"POLA_ADDRESS" envDefault:""`
 }
+
+// IsDev reports whether the environment is set to development mode.
+func (e *Env) IsDev() bool { return e.Env == "development" }
 
 // Load parses POLA_* environment variables into an Env struct.
 func Load() (*Env, error) {

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+{{- .HTMLOpen}}
+<head>
+  <meta charset="{{.Charset}}">
+  <meta name="viewport" content="{{.Viewport}}">
+  {{- .MetaBlock}}
+  {{- .CustomHeadElements}}
+  {{- if not .HasStylesheets}}
+  {{- .StyleBlock}}
+  {{- end}}
+  {{- range .Stylesheets}}
+  <link rel="stylesheet" href="{{.}}">
+  {{- end}}
+  {{- .ImportMap}}
+</head>
+{{- .BodyOpen}}
+  {{- .BodyPrefix}}
+  {{- .InnerHTML}}
+  {{- range .Scripts}}
+  <script>{{.}}</script>
+  {{- end}}
+  <script type="module" src="{{.ClientScript}}"></script>
+  {{- .BodySuffix}}
+</body>
+</html>

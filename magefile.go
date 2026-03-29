@@ -33,16 +33,9 @@ func runtimeTags() string {
 	return strings.Join(tags, " ")
 }
 
-// Generate runs all code-generation steps (templ → Go).
-// Run and Bundle depend on this so it always executes before compilation.
-func Generate() error {
-	fmt.Println("→ generating templ components")
-	return sh.RunV("go", "tool", "templ", "generate", "./shell/...")
-}
-
 // Run starts the dev server for the blog-e2e-react example.
 func RunDemo() error {
-	mg.Deps(Generate, Build)
+	mg.Deps(Build)
 	fmt.Printf("→ POLA_VM=%s POLA_BUNDLER=%s POLA_RENDERER=%s\n", polaVM, polaBundler, polaRenderer)
 	polaBin, _ := filepath.Abs("./bin/pola")
 	if err := os.Chdir("examples/blog-e2e-react"); err != nil {
@@ -50,10 +43,11 @@ func RunDemo() error {
 	}
 	return sh.RunWithV(
 		map[string]string{
-			"CGO_ENABLED":  cgoEnabled,
-			"POLA_DEV":     "true",
-			"POLA_METRICS": polaMetrics,
-			"POLA_PPROF":   polaPprof,
+			"CGO_ENABLED":      cgoEnabled,
+			"POLA_ENV":         "development",
+			"POLA_METRICS":     polaMetrics,
+			"POLA_PPROF":       polaPprof,
+			"POLA_WEBAPP_PATH": "../../examples/blog-e2e-react",
 		},
 		polaBin, "serve",
 	)
@@ -61,7 +55,7 @@ func RunDemo() error {
 
 // Bundle pre-builds JS/CSS assets for the blog-e2e-react example.
 func BundleDemo() error {
-	mg.Deps(Generate, Build)
+	mg.Deps(Build)
 	fmt.Println("→ bundling assets for examples/blog-e2e-react")
 	polaBin, _ := filepath.Abs("./bin/pola")
 	if err := os.Chdir("examples/blog-e2e-react"); err != nil {
@@ -75,7 +69,6 @@ func BundleDemo() error {
 
 // Build compiles the pola CLI binary into bin/.
 func Build() error {
-	mg.Deps(Generate)
 	fmt.Println("→ building pola CLI")
 	os.MkdirAll("bin", 0o755) //nolint:errcheck
 	return sh.RunV("go", "build", "-o", "bin/pola", "./cmd/pola/")

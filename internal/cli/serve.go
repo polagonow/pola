@@ -68,16 +68,6 @@ func runServe(_ *cobra.Command, _ []string) error {
 		defer os.RemoveAll(overlayRes.TmpDir)
 	}
 
-	// Run templ generate if templ files exist.
-	if hasTemplFiles(projectDir) {
-		fmt.Println("Generating templ components...")
-		if err := runInDir(projectDir, "go", "tool", "templ", "generate", "./shell/..."); err != nil {
-			if verbose {
-				fmt.Printf("Warning: templ generate failed: %v\n", err)
-			}
-		}
-	}
-
 	tags := buildtags.RuntimeTags(serveFlags.vm, serveFlags.bundler, serveFlags.renderer, serveFlags.router, serveFlags.css)
 	if verbose {
 		fmt.Printf("Build tags: %s\n", tags)
@@ -97,7 +87,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	cmd.Env = append(os.Environ(),
-		"POLA_DEV=true",
+		"POLA_ENV=development",
 		"PORT="+serveFlags.port,
 		"POLA_WEBAPP_PATH="+serveFlags.appPath,
 	)
@@ -145,24 +135,6 @@ func findProjectRoot() (string, error) {
 
 	// Fall back to cwd.
 	return os.Getwd()
-}
-
-// hasTemplFiles checks if there are any .templ files in the project.
-func hasTemplFiles(dir string) bool {
-	shellDir := filepath.Join(dir, "shell")
-	if _, err := os.Stat(shellDir); os.IsNotExist(err) {
-		return false
-	}
-	entries, err := os.ReadDir(shellDir)
-	if err != nil {
-		return false
-	}
-	for _, e := range entries {
-		if filepath.Ext(e.Name()) == ".templ" {
-			return true
-		}
-	}
-	return false
 }
 
 func envOr(key, fallback string) string {

@@ -75,16 +75,6 @@ func runBuild(_ *cobra.Command, _ []string) error {
 		defer os.RemoveAll(overlayRes.TmpDir)
 	}
 
-	// Run templ generate if templ files exist.
-	if hasTemplFiles(projectDir) {
-		fmt.Println("Generating templ components...")
-		if err := runInDir(projectDir, "go", "tool", "templ", "generate", "./shell/..."); err != nil {
-			if verbose {
-				fmt.Printf("Warning: templ generate failed: %v\n", err)
-			}
-		}
-	}
-
 	// Collect overlay args.
 	var overlayArgs []string
 	if overlayRes != nil && overlayRes.OverlayPath != "" {
