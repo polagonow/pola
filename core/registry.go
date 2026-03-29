@@ -43,8 +43,9 @@ type BuildArtifacts struct {
 type PrebuildArtifacts struct {
 	Routes         []Route
 	BundleOutput   *BundleOutput
-	GlobalNotFound string   // non-empty when a GlobalNotFound export exists
-	CSSURLs        []string // external stylesheet URLs
+	GlobalNotFound string         // non-empty when a GlobalNotFound export exists
+	CSSURLs        []string       // external stylesheet URLs
+	DocumentProps  *DocumentProps // document-level props from root layout, or nil
 }
 
 // App is the fully-wired Pola application. It implements http.Handler.

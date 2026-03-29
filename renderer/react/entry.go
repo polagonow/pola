@@ -17,6 +17,12 @@ type EntryGenConfig struct {
 	GlobalErrorPath    string
 	GlobalNotFoundPath string
 	ManifestJSON       string // injected as a JS define value
+
+	// RootLayoutReturnsHTML is true when the root layout contains <html,
+	// indicating it returns a full HTML document. When set, the entry
+	// generator emits __extractShell__ and excludes the root layout from
+	// RSC wrapping (it becomes the document shell instead).
+	RootLayoutReturnsHTML bool
 }
 
 var renderBlockTmpl = template.Must(template.New("renderBlock").Parse(
@@ -164,6 +170,12 @@ outer:
 		}
 		for i := len(p.Segments) - 1; i >= 0; i-- {
 			seg := p.Segments[i]
+			// When the root layout returns <html>, skip the root-level
+			// segment (index 0) from RSC wrapping — it becomes the
+			// document shell instead.
+			if cfg.RootLayoutReturnsHTML && i == 0 && isRootSegment(absPagesDir, seg) {
+				continue
+			}
 			if seg.ErrorPath != "" {
 				abs, _ := filepath.Abs(seg.ErrorPath)
 				errAlias := LayoutAlias(absPagesDir, abs) + "Error"
@@ -204,6 +216,12 @@ outer:
 		globals.ClientManifest,
 	})
 	entry.WriteString(renderBlockBuf.String())
+
+	// When the root layout returns <html>, generate __extractShell__ to
+	// serialize the root layout's React element tree to an HTML string.
+	if cfg.RootLayoutReturnsHTML {
+		entry.WriteString(shellExtractorJS)
+	}
 
 	return entry.String(), nil
 }
@@ -311,3 +329,64 @@ func stripParens(s string) string {
 	}
 	return s
 }
+
+// isRootSegment returns true when the segment's directory is the pages root.
+func isRootSegment(absPagesDir string, seg core.PageSegment) bool {
+	absDir, _ := filepath.Abs(seg.Dir)
+	return absDir == absPagesDir
+}
+
+// shellExtractorJS is appended to the generated server entry when the root
+// layout returns <html>. It provides a minimal React element → HTML serializer
+// and a __extractShell__ global that the Go pipeline calls at startup.
+const shellExtractorJS = `
+function __elementToHTML__(el: any): string {
+  if (el == null || el === false || el === true) return '';
+  if (typeof el === 'string' || typeof el === 'number') return String(el);
+  if (Array.isArray(el)) return el.map(__elementToHTML__).join('');
+  if (typeof el === 'object' && el.type == null && el.props == null) return '';
+  if (typeof el.type === 'function') {
+    try { return __elementToHTML__(el.type(el.props || {})); } catch { return ''; }
+  }
+  if (typeof el.type === 'symbol' || typeof el.type !== 'string') {
+    // Fragment or other special types — just render children
+    const c = el.props?.children;
+    return c != null ? __elementToHTML__(c) : '';
+  }
+  const tag = el.type as string;
+  const props = el.props || {};
+  const attrMap: Record<string,string> = { className: 'class', htmlFor: 'for', tabIndex: 'tabindex', autoFocus: 'autofocus' };
+  let attrs = '';
+  for (const [k, v] of Object.entries(props)) {
+    if (k === 'children' || k === 'key' || k === 'ref' || k === 'dangerouslySetInnerHTML' || v == null || v === false) continue;
+    if (k === 'style' && typeof v === 'object') {
+      const css = Object.entries(v as Record<string,any>)
+        .map(([p, val]) => p.replace(/[A-Z]/g, m => '-' + m.toLowerCase()) + ':' + val)
+        .join(';');
+      attrs += ' style="' + css.replace(/"/g, '&quot;') + '"';
+      continue;
+    }
+    const name = attrMap[k] || k;
+    if (v === true) { attrs += ' ' + name; continue; }
+    attrs += ' ' + name + '="' + String(v).replace(/"/g, '&quot;') + '"';
+  }
+  const voidTags = new Set(['meta','link','br','hr','img','input','area','base','col','embed','source','track','wbr']);
+  if (voidTags.has(tag)) return '<' + tag + attrs + '/>';
+  let children = '';
+  if (props.dangerouslySetInnerHTML?.__html) {
+    children = props.dangerouslySetInnerHTML.__html;
+  } else if (props.children != null) {
+    children = __elementToHTML__(props.children);
+  }
+  return '<' + tag + attrs + '>' + children + '</' + tag + '>';
+}
+
+(globalThis as any).__extractShell__ = function(): string | null {
+  try {
+    if (typeof IndexLayout !== 'function') return null;
+    const tree = IndexLayout({ children: '<!--POLA_CHILDREN-->' });
+    if (!tree || tree.type !== 'html') return null;
+    return __elementToHTML__(tree);
+  } catch(e) { return null; }
+};
+`

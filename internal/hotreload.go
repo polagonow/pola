@@ -161,7 +161,15 @@ func NewHotReloader(cfg *core.Config, injector samberdo.Injector, initial *core.
 					cssURLs = newOutput.CSSURLs
 				}
 
-				orch := NewOrchestrator(renderer, router, logger, metrics, tracer, pprof, mws, injs, nil, shell, assets, newOutput, h.notFoundRoute, cssURLs, true)
+				// Re-extract document props from the (potentially updated) root layout.
+				var docProps *core.DocumentProps
+				if extractor, ok := renderer.(interface {
+					ExtractDocumentProps() (*core.DocumentProps, error)
+				}); ok {
+					docProps, _ = extractor.ExtractDocumentProps()
+				}
+
+				orch := NewOrchestrator(renderer, router, logger, metrics, tracer, pprof, mws, injs, nil, shell, assets, newOutput, h.notFoundRoute, cssURLs, docProps, true)
 
 				newApp := newApp(cfg, injector, orch)
 				newApp.SetArtifacts(newOutput)
