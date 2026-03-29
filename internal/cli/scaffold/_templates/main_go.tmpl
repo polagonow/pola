@@ -1,0 +1,21 @@
+package main
+
+import (
+	"log"
+	"net/http"
+
+	"github.com/polagonow/pola"
+	// "github.com/polagonow/pola/core"
+)
+
+func main() {
+	if err := pola.Ready(
+		// core.WithWebAppPath("app"),
+		// core.WithPublicDir("public"),
+		// core.WithHTTPPath("/"),
+	); err != nil {
+		log.Fatal(err)
+	}
+	log.Printf("[[ .AppName ]] listening on http://%s\n", pola.Addr())
+	log.Fatal(http.ListenAndServe(pola.Addr(), nil))
+}
