@@ -10,7 +10,7 @@ import (
 	"io/fs"
 	"net/http"
 
-	samberdo "github.com/samber/do/v2"
+	"github.com/samber/do/v2"
 
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/core/di"
@@ -25,14 +25,14 @@ func init() {
 		panic("embed: sub public: " + err.Error())
 	}
 
-	di.Stage(func(i samberdo.Injector) {
-		samberdo.Override(i, func(_ samberdo.Injector) (core.AssetServerFactory, error) {
+	di.Stage(func(i do.Injector) {
+		do.Override(i, func(_ do.Injector) (core.AssetServerFactory, error) {
 			return func(_ string) core.AssetServer {
 				return &embedAssetServer{sub: sub}
 			}, nil
 		})
 
-		samberdo.Override(i, func(_ samberdo.Injector) (core.PrebuildLoader, error) {
+		do.Override(i, func(_ do.Injector) (core.PrebuildLoader, error) {
 			return func() (*core.PrebuildArtifacts, error) {
 				metaBytes, err := fs.ReadFile(sub, "prebuild-meta.json")
 				if err != nil {

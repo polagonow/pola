@@ -7,7 +7,7 @@ import (
 	"sync"
 
 	lru "github.com/hashicorp/golang-lru/v2"
-	samberdo "github.com/samber/do/v2"
+	"github.com/samber/do/v2"
 
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/core/di"
@@ -84,8 +84,8 @@ func (c *Cache) Clear(_ context.Context) error {
 }
 
 func init() {
-	di.Stage(func(i samberdo.Injector) {
-		samberdo.Provide(i, func(_ samberdo.Injector) (core.Cache, error) {
+	di.Stage(func(i do.Injector) {
+		do.Provide(i, func(_ do.Injector) (core.Cache, error) {
 			return MustNew(defaultSize), nil
 		})
 	})

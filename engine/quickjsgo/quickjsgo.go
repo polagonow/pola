@@ -22,7 +22,7 @@ import (
 	"text/template"
 
 	quickjs "github.com/buke/quickjs-go"
-	samberdo "github.com/samber/do/v2"
+	"github.com/samber/do/v2"
 
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/core/di"
@@ -50,7 +50,6 @@ globalThis.{{.RenderAsyncFn}} = async function(exportName, propsJSON) {
 	}
 };
 `))
-
 
 	renderAsyncJS string
 )
@@ -491,8 +490,8 @@ func exportValue(v *quickjs.Value) any {
 var Registered = true
 
 func init() {
-	di.Stage(func(i samberdo.Injector) {
-		samberdo.Provide(i, func(_ samberdo.Injector) (core.JSEngine, error) {
+	di.Stage(func(i do.Injector) {
+		do.Provide(i, func(_ do.Injector) (core.JSEngine, error) {
 			return NewEngine(), nil
 		})
 	})

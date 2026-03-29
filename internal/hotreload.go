@@ -10,7 +10,7 @@ import (
 	"sync/atomic"
 
 	"github.com/gorilla/websocket"
-	samberdo "github.com/samber/do/v2"
+	"github.com/samber/do/v2"
 
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/core/di"
@@ -54,7 +54,7 @@ type liveApp struct {
 // via WebSocket.
 type HotReloader struct {
 	cfg           *core.Config
-	injector      samberdo.Injector
+	injector      do.Injector
 	bus           *di.EventBus
 	notFoundRoute *core.Route
 	current       atomic.Pointer[liveApp]
@@ -64,9 +64,9 @@ type HotReloader struct {
 // NewHotReloader creates a HotReloader for the given config and initial app.
 // It listens on the bundler's Watch channel for rebuild events and notifies
 // connected browsers via WebSocket.
-func NewHotReloader(cfg *core.Config, injector samberdo.Injector, initial *core.App, notFoundRoute *core.Route) (*HotReloader, error) {
-	bus := samberdo.MustInvoke[*di.EventBus](injector)
-	logger := samberdo.MustInvoke[core.Logger](injector)
+func NewHotReloader(cfg *core.Config, injector do.Injector, initial *core.App, notFoundRoute *core.Route) (*HotReloader, error) {
+	bus := do.MustInvoke[*di.EventBus](injector)
+	logger := do.MustInvoke[core.Logger](injector)
 
 	h := &HotReloader{
 		cfg:           cfg,
@@ -80,18 +80,18 @@ func NewHotReloader(cfg *core.Config, injector samberdo.Injector, initial *core.
 	h.current.Store(live)
 
 	// Start watching via bundler's Watch channel.
-	bundler, err := samberdo.Invoke[core.Bundler](injector)
+	bundler, err := do.Invoke[core.Bundler](injector)
 	if err != nil {
 		// No bundler — fall back to no-op watch.
 		return h, nil
 	}
 
 	// Reconstruct the bundle input for watch mode.
-	renderer, _ := samberdo.Invoke[core.Renderer](injector)
-	router, _ := samberdo.Invoke[core.Router](injector)
-	fsys, _ := samberdo.Invoke[core.FS](injector)
-	css, _ := samberdo.Invoke[core.CSS](injector)
-	engine, _ := samberdo.Invoke[core.JSEngine](injector)
+	renderer, _ := do.Invoke[core.Renderer](injector)
+	router, _ := do.Invoke[core.Router](injector)
+	fsys, _ := do.Invoke[core.FS](injector)
+	css, _ := do.Invoke[core.CSS](injector)
+	engine, _ := do.Invoke[core.JSEngine](injector)
 	_ = router
 	_ = fsys
 
@@ -149,11 +149,11 @@ func NewHotReloader(cfg *core.Config, injector samberdo.Injector, initial *core.
 				}
 
 				// Rebuild orchestrator with new output.
-				metrics, _ := samberdo.Invoke[core.Metrics](injector)
-				tracer, _ := samberdo.Invoke[core.Tracer](injector)
-				pprof, _ := samberdo.Invoke[core.Pprof](injector)
-				mws := samberdo.MustInvoke[*di.MiddlewareCollector](injector).All()
-				injs := samberdo.MustInvoke[*di.InjectorCollector](injector).All()
+				metrics, _ := do.Invoke[core.Metrics](injector)
+				tracer, _ := do.Invoke[core.Tracer](injector)
+				pprof, _ := do.Invoke[core.Pprof](injector)
+				mws := do.MustInvoke[*di.MiddlewareCollector](injector).All()
+				injs := do.MustInvoke[*di.InjectorCollector](injector).All()
 				shell, assets := resolveShellAndAssets(injector, publicDir)
 
 				var cssURLs []string

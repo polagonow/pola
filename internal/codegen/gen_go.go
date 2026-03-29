@@ -18,7 +18,7 @@ import (
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/core/di"
 	"github.com/polagonow/pola/core/globals"
-	samberdo "github.com/samber/do/v2"
+	"github.com/samber/do/v2"
 )
 
 // Ensure unused imports are valid.
@@ -29,13 +29,13 @@ var (
 )
 
 func init() {
-	di.Stage(func(i samberdo.Injector) {
+	di.Stage(func(i do.Injector) {
 		g := &generatedBridge{
 			{{- range .Actions}}
 			{{fieldName .StructName}}: &{{.StructName}}{},
 			{{- end}}
 		}
-		ic := samberdo.MustInvoke[*di.InjectorCollector](i)
+		ic := do.MustInvoke[*di.InjectorCollector](i)
 		ic.Add(g)
 	})
 }

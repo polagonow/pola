@@ -1,11 +1,11 @@
+//go:build goja && esbuild && react && nextjs
+
 // Package combo registers bundler+renderer+engine combinations for the e2e test suite.
 // Each file registers one combination via fixture.Register.
 //
 // To add a new combination: create a new file here, implement AppFixture,
 // and call fixture.Register from init().
 // Tests automatically run every registered fixture.
-//
-//go:build goja && esbuild && react && nextjs
 package combo
 
 import (
@@ -13,9 +13,9 @@ import (
 	"testing"
 
 	gojalib "github.com/dop251/goja"
-	samberdo "github.com/samber/do/v2"
+	"github.com/samber/do/v2"
 
-	pola "github.com/polagonow/pola"
+	"github.com/polagonow/pola"
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/core/di"
 	"github.com/polagonow/pola/engine/polyfill"
@@ -34,8 +34,8 @@ import (
 
 func init() {
 	// Register test injector for DI-backed service calls in e2e tests.
-	di.Stage(func(i samberdo.Injector) {
-		ic := samberdo.MustInvoke[*di.InjectorCollector](i)
+	di.Stage(func(i do.Injector) {
+		ic := do.MustInvoke[*di.InjectorCollector](i)
 		ic.Add(fixture.SharedInjector())
 	})
 	fixture.Register(&esbuildReactGojaFixture{})

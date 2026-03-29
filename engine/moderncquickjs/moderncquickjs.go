@@ -31,7 +31,7 @@ import (
 	lib "modernc.org/libquickjs"
 	mquickjs "modernc.org/quickjs"
 
-	samberdo "github.com/samber/do/v2"
+	"github.com/samber/do/v2"
 
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/core/di"
@@ -83,14 +83,13 @@ globalThis.{{.ClearRenderStreamFn}} = function() {
 	return result;
 };`))
 
-
 	renderHelpersJS string
 )
 
 func init() {
 	var b strings.Builder
 	if err := renderHelpersJSTmpl.Execute(&b, struct {
-		StartRenderFn, RSCStreamVar, RenderFn, RSCDecoderVar          string
+		StartRenderFn, RSCStreamVar, RenderFn, RSCDecoderVar            string
 		PullOnceFn, DrainMicrotasksFn, OutputChunk, ClearRenderStreamFn string
 	}{
 		globals.StartRenderFn, globals.RSCStreamVar, globals.RenderFn, globals.RSCDecoderVar,
@@ -536,8 +535,8 @@ func newVMPool(serverBundle string, logger core.Logger) (*vmpool.Pool[*Runtime],
 var Registered = true
 
 func init() {
-	di.Stage(func(i samberdo.Injector) {
-		samberdo.Provide(i, func(_ samberdo.Injector) (core.JSEngine, error) {
+	di.Stage(func(i do.Injector) {
+		do.Provide(i, func(_ do.Injector) (core.JSEngine, error) {
 			return NewEngine(), nil
 		})
 	})

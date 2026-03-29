@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	samberdo "github.com/samber/do/v2"
+	"github.com/samber/do/v2"
 )
 
 // Config holds resolved configuration for a Pola application.
@@ -51,7 +51,7 @@ type PrebuildArtifacts struct {
 // App is the fully-wired Pola application. It implements http.Handler.
 type App struct {
 	cfg       Config
-	injector  samberdo.Injector
+	injector  do.Injector
 	handler   http.Handler
 	artifacts BuildArtifacts
 }
@@ -66,7 +66,7 @@ func New(opts ...Option) (*App, error) {
 
 // NewApp constructs an App with all fields populated. Called exclusively by
 // internal/pipeline to avoid import cycles — end users should call pola.New.
-func NewApp(cfg *Config, injector samberdo.Injector, handler http.Handler) *App {
+func NewApp(cfg *Config, injector do.Injector, handler http.Handler) *App {
 	a := &App{
 		injector: injector,
 		handler:  handler,
@@ -93,7 +93,7 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // Cache resolves the cache from the DI container on demand.
 func (a *App) Cache() Cache {
-	cache, err := samberdo.Invoke[Cache](a.injector)
+	cache, err := do.Invoke[Cache](a.injector)
 	if err != nil {
 		return nil
 	}
@@ -104,7 +104,7 @@ func (a *App) Cache() Cache {
 func (a *App) Build(ctx context.Context) error { return nil }
 
 // Injector returns the DI container for advanced usage.
-func (a *App) Injector() samberdo.Injector { return a.injector }
+func (a *App) Injector() do.Injector { return a.injector }
 
 // NewPolyfillRegistry returns a default in-memory polyfill registry.
 func NewPolyfillRegistry() PolyfillRegistry {

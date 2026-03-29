@@ -6,16 +6,16 @@ import (
 	"net/http"
 	"runtime/debug"
 
-	samberdo "github.com/samber/do/v2"
+	"github.com/samber/do/v2"
 
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/core/di"
 )
 
 func init() {
-	di.Stage(func(i samberdo.Injector) {
-		mc := samberdo.MustInvoke[*di.MiddlewareCollector](i)
-		log := samberdo.MustInvoke[core.Logger](i)
+	di.Stage(func(i do.Injector) {
+		mc := do.MustInvoke[*di.MiddlewareCollector](i)
+		log := do.MustInvoke[core.Logger](i)
 		mc.Add(New(log))
 	})
 }
