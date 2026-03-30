@@ -9,9 +9,11 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/polagonow/pola/internal/cli/buildtags"
 	"github.com/polagonow/pola/internal/cli/stubpkgs"
+	"github.com/polagonow/pola/internal/watcher"
 	"github.com/spf13/cobra"
 )
 
@@ -46,6 +48,9 @@ func init() {
 	serveCmd.Flags().StringVar(&serveFlags.appPath, "app-path", envOr("POLA_WEBAPP_PATH", "./app"), "path to the web app directory")
 }
 
+// goWatchExts are the file extensions that trigger a Go process restart.
+var goWatchExts = []string{".go", ".tmpl"}
+
 func runServe(_ *cobra.Command, _ []string) error {
 	projectDir, err := findProjectRoot()
 	if err != nil {
@@ -61,15 +66,6 @@ func runServe(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("stub packages: %w", err)
 	}
 
-	// Generate overlay (plugin imports + action bridge codegen).
-	overlayRes, err := generateOverlay(projectDir, serveFlags.css)
-	if err != nil {
-		return err
-	}
-	if overlayRes != nil && overlayRes.TmpDir != "" {
-		defer os.RemoveAll(overlayRes.TmpDir)
-	}
-
 	tags := buildtags.RuntimeTags(serveFlags.vm, serveFlags.bundler, serveFlags.renderer, serveFlags.router, serveFlags.css)
 	if verbose {
 		fmt.Printf("Build tags: %s\n", tags)
@@ -77,7 +73,70 @@ func runServe(_ *cobra.Command, _ []string) error {
 
 	printStartupBanner(projectDir, serveFlags.port)
 
-	// Build the go run command.
+	// Forward OS signals.
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
+	// Restart loop: on .go/.tmpl file change → kill → regenerate overlay → respawn.
+	for {
+		// Generate overlay (plugin imports + action bridge codegen).
+		overlayRes, err := generateOverlay(projectDir, serveFlags.css)
+		if err != nil {
+			return err
+		}
+
+		cmd := buildGoRunCmd(projectDir, overlayRes, tags)
+		if err := cmd.Start(); err != nil {
+			cleanupOverlay(overlayRes)
+			return fmt.Errorf("start server: %w", err)
+		}
+
+		// Start polling .go and .tmpl files for changes.
+		restartCh := make(chan struct{}, 1)
+		poller := watcher.New(func() {
+			select {
+			case restartCh <- struct{}{}:
+			default:
+			}
+		})
+		poller.SetPaths(collectGoFiles(projectDir))
+		poller.Start()
+
+		doneCh := make(chan error, 1)
+		go func() {
+			doneCh <- cmd.Wait()
+		}()
+
+		select {
+		case sig := <-sigCh:
+			// User pressed Ctrl+C — forward signal to process group and exit.
+			poller.Stop()
+			killProcessGroup(cmd)
+			cleanupOverlay(overlayRes)
+			_ = sig
+			return <-doneCh
+
+		case err := <-doneCh:
+			// Process exited on its own (crash, compile error, etc.).
+			poller.Stop()
+			cleanupOverlay(overlayRes)
+			return err
+
+		case <-restartCh:
+			// .go or .tmpl file changed — kill process group, cleanup, restart.
+			poller.Stop()
+			killProcessGroup(cmd)
+			<-doneCh
+			cleanupOverlay(overlayRes)
+			fmt.Println("\n  \033[36m↻ Go files changed, restarting...\033[0m\n")
+			// Brief pause to let the OS release the listen port.
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+}
+
+// buildGoRunCmd creates the exec.Cmd for `go run` with overlay and tags.
+func buildGoRunCmd(projectDir string, overlayRes *overlayResult, tags string) *exec.Cmd {
 	goArgs := []string{"run"}
 	if overlayRes != nil && overlayRes.OverlayPath != "" {
 		goArgs = append(goArgs, "-overlay", overlayRes.OverlayPath)
@@ -88,6 +147,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 	cmd.Dir = projectDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 	cmd.Env = append(os.Environ(),
 		"POLA_ENV=development",
 		"PORT="+serveFlags.port,
@@ -96,28 +156,37 @@ func runServe(_ *cobra.Command, _ []string) error {
 		"GONOSUMDB=*",
 		"GOFLAGS=-mod=mod",
 	)
+	return cmd
+}
 
-	// Start the process.
-	if err := cmd.Start(); err != nil {
-		return fmt.Errorf("start server: %w", err)
+// killProcessGroup sends SIGTERM to the entire process group (the go run
+// process and any child it spawned). Uses negative PID to target the group.
+func killProcessGroup(cmd *exec.Cmd) {
+	if cmd.Process == nil {
+		return
 	}
+	_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
+}
 
-	// Forward signals to child process.
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-
-	doneCh := make(chan error, 1)
-	go func() {
-		doneCh <- cmd.Wait()
-	}()
-
-	select {
-	case sig := <-sigCh:
-		_ = cmd.Process.Signal(sig)
-		return <-doneCh
-	case err := <-doneCh:
-		return err
+// cleanupOverlay removes the temporary overlay directory.
+func cleanupOverlay(res *overlayResult) {
+	if res != nil && res.TmpDir != "" {
+		os.RemoveAll(res.TmpDir)
 	}
+}
+
+// collectGoFiles returns .go and .tmpl file paths in projectDir, plus go.mod
+// and go.sum for dependency change detection.
+func collectGoFiles(projectDir string) []string {
+	paths := watcher.CollectPaths(projectDir, goWatchExts)
+	// Also watch go.mod and go.sum for dependency changes.
+	for _, name := range []string{"go.mod", "go.sum"} {
+		p := filepath.Join(projectDir, name)
+		if _, err := os.Stat(p); err == nil {
+			paths = append(paths, p)
+		}
+	}
+	return paths
 }
 
 // findProjectRoot walks up from cwd looking for a go.mod file.

@@ -25,6 +25,7 @@ import (
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/core/di"
 	"github.com/polagonow/pola/core/globals"
+	"github.com/polagonow/pola/internal/watcher"
 )
 
 func init() {
@@ -148,13 +149,13 @@ func (b *Bundler) Watch(ctx context.Context, req core.BundleInput) (<-chan *core
 	outputCh := make(chan *core.BundleOutput, 1)
 	triggerCh := make(chan struct{}, 1)
 
-	poller := newFilePoller(func() {
+	poller := watcher.New(func() {
 		select {
 		case triggerCh <- struct{}{}:
 		default:
 		}
 	})
-	poller.SetPaths(collectSourcePaths(req.AppDir))
+	poller.SetPaths(watcher.CollectPaths(req.AppDir, []string{".ts", ".tsx", ".js", ".jsx", ".css"}))
 	poller.Start()
 
 	go func() {
@@ -177,7 +178,7 @@ func (b *Bundler) Watch(ctx context.Context, req core.BundleInput) (<-chan *core
 					continue
 				}
 				// Refresh watched paths — new files may have appeared.
-				poller.SetPaths(collectSourcePaths(req.AppDir))
+				poller.SetPaths(watcher.CollectPaths(req.AppDir, []string{".ts", ".tsx", ".js", ".jsx", ".css"}))
 				// Replace any unread previous output so consumer always
 				// gets the latest build.
 				select {
@@ -196,30 +197,6 @@ func (b *Bundler) Watch(ctx context.Context, req core.BundleInput) (<-chan *core
 	return outputCh, nil
 }
 
-// collectSourcePaths walks appDir and returns all source file paths that should
-// be watched for changes (.ts, .tsx, .js, .jsx, .css), excluding node_modules,
-// public, and dot-directories.
-func collectSourcePaths(appDir string) []string {
-	var paths []string
-	_ = filepath.WalkDir(appDir, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			return nil
-		}
-		name := d.Name()
-		if d.IsDir() {
-			if name == "node_modules" || name == "public" || strings.HasPrefix(name, ".") {
-				return filepath.SkipDir
-			}
-			return nil
-		}
-		switch filepath.Ext(name) {
-		case ".ts", ".tsx", ".js", ".jsx", ".css":
-			paths = append(paths, path)
-		}
-		return nil
-	})
-	return paths
-}
 
 // ── manifest (inlined from bundler/manifest) ─────────────────────────────────
 

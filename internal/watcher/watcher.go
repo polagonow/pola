@@ -1,10 +1,14 @@
-//go:build esbuild
-
-package esbuild
+// Package watcher provides a polling-based file watcher that replicates
+// esbuild's two-tier scanning algorithm: recently-changed files are checked
+// every 100ms tick, while remaining files are randomly sampled so the full
+// set is covered every ~2 seconds.
+package watcher
 
 import (
 	"math/rand/v2"
 	"os"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 )
@@ -27,10 +31,10 @@ type modEntry struct {
 	missing bool   // true if the file did not exist at last check
 }
 
-// filePoller implements esbuild's two-tier polling watch algorithm.
+// Poller implements esbuild's two-tier polling watch algorithm.
 // Recent files (up to 16) are checked every 100ms tick. The remaining
 // files are randomly sampled so the full set is scanned every ~2 seconds.
-type filePoller struct {
+type Poller struct {
 	mu          sync.Mutex
 	items       map[string]modEntry // path → last-known state
 	recentPaths []string            // up to maxRecentItems recently-changed paths
@@ -41,10 +45,10 @@ type filePoller struct {
 	done        chan struct{}
 }
 
-// newFilePoller creates a poller that calls onChange when any watched file
+// New creates a Poller that calls onChange when any watched file
 // is modified. Call SetPaths to specify watched files, then Start.
-func newFilePoller(onChange func()) *filePoller {
-	return &filePoller{
+func New(onChange func()) *Poller {
+	return &Poller{
 		items:     make(map[string]modEntry),
 		recentSet: make(map[string]bool),
 		onChange:  onChange,
@@ -53,7 +57,7 @@ func newFilePoller(onChange func()) *filePoller {
 }
 
 // SetPaths replaces the set of watched file paths. Safe to call while polling.
-func (p *filePoller) SetPaths(paths []string) {
+func (p *Poller) SetPaths(paths []string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -84,12 +88,12 @@ func (p *filePoller) SetPaths(paths []string) {
 }
 
 // Start launches the polling goroutine.
-func (p *filePoller) Start() {
+func (p *Poller) Start() {
 	go p.run()
 }
 
 // Stop signals the polling goroutine to exit.
-func (p *filePoller) Stop() {
+func (p *Poller) Stop() {
 	select {
 	case <-p.done:
 	default:
@@ -97,7 +101,7 @@ func (p *filePoller) Stop() {
 	}
 }
 
-func (p *filePoller) run() {
+func (p *Poller) run() {
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
@@ -114,7 +118,7 @@ func (p *filePoller) run() {
 }
 
 // poll runs a single polling iteration. Returns true if any file changed.
-func (p *filePoller) poll() bool {
+func (p *Poller) poll() bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -147,7 +151,7 @@ func (p *filePoller) poll() bool {
 
 // checkPath stats a file and compares against the stored modEntry.
 // Returns true if the file has changed. Caller must hold p.mu.
-func (p *filePoller) checkPath(path string) bool {
+func (p *Poller) checkPath(path string) bool {
 	prev, ok := p.items[path]
 	if !ok {
 		return false
@@ -184,7 +188,7 @@ func (p *filePoller) checkPath(path string) bool {
 }
 
 // snapshot captures the current state of a file.
-func (p *filePoller) snapshot(path string) modEntry {
+func (p *Poller) snapshot(path string) modEntry {
 	info, err := os.Stat(path)
 	if err != nil {
 		return modEntry{missing: true}
@@ -205,7 +209,7 @@ func (p *filePoller) snapshot(path string) modEntry {
 
 // promoteToRecent adds a path to the recent list (checked every tick).
 // Caller must hold p.mu.
-func (p *filePoller) promoteToRecent(path string) {
+func (p *Poller) promoteToRecent(path string) {
 	if p.recentSet[path] {
 		return
 	}
@@ -224,7 +228,7 @@ func (p *filePoller) promoteToRecent(path string) {
 
 // itemsPerIter returns how many non-recent items to check this tick.
 // Matches esbuild: max(minItemsPerIter, ceil(total / maxIntervalsBeforeUpdate)).
-func (p *filePoller) itemsPerIter() int {
+func (p *Poller) itemsPerIter() int {
 	total := len(p.scanOrder)
 	if total == 0 {
 		return 0
@@ -241,7 +245,7 @@ func (p *filePoller) itemsPerIter() int {
 
 // rebuildScanOrder rebuilds scanOrder from items that are not in the recent set
 // and shuffles it. Caller must hold p.mu.
-func (p *filePoller) rebuildScanOrder() {
+func (p *Poller) rebuildScanOrder() {
 	p.scanOrder = p.scanOrder[:0]
 	for path := range p.items {
 		if !p.recentSet[path] {
@@ -253,9 +257,41 @@ func (p *filePoller) rebuildScanOrder() {
 }
 
 // shuffleScanOrder performs a Fisher-Yates shuffle on scanOrder.
-func (p *filePoller) shuffleScanOrder() {
+func (p *Poller) shuffleScanOrder() {
 	for i := len(p.scanOrder) - 1; i > 0; i-- {
 		j := rand.IntN(i + 1)
 		p.scanOrder[i], p.scanOrder[j] = p.scanOrder[j], p.scanOrder[i]
 	}
+}
+
+// CollectPaths walks dir and returns all file paths whose extension matches
+// one of exts. Directories named node_modules, vendor, public, or starting
+// with "." are excluded.
+func CollectPaths(dir string, exts []string) []string {
+	extSet := make(map[string]bool, len(exts))
+	for _, e := range exts {
+		extSet[e] = true
+	}
+	var paths []string
+	_ = filepath.WalkDir(dir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		name := d.Name()
+		if d.IsDir() {
+			switch name {
+			case "node_modules", "vendor", "public":
+				return filepath.SkipDir
+			}
+			if strings.HasPrefix(name, ".") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		if extSet[filepath.Ext(name)] {
+			paths = append(paths, path)
+		}
+		return nil
+	})
+	return paths
 }
