@@ -6,7 +6,7 @@
 //	import "github.com/polagonow/pola"
 //
 //	func main() {
-//	    if err := pola.Ready(); err != nil {
+//	    if err := pola.Ready(core.WithWebAppPath("app")); err != nil {
 //	        log.Fatal(err)
 //	    }
 //	    log.Fatal(http.ListenAndServe(pola.Addr(), nil))
@@ -30,11 +30,9 @@ var defaultApp struct {
 	app  *core.App
 	env  *env.Env
 	err  error
+	opts []core.Option
 }
 
-func init() {
-	http.Handle("/", http.HandlerFunc(serve))
-}
 
 func serve(w http.ResponseWriter, r *http.Request) {
 	defaultApp.once.Do(buildDefault)
@@ -52,19 +50,35 @@ func buildDefault() {
 		return
 	}
 	defaultApp.env = e
-	defaultApp.app, defaultApp.err = New(
+	opts := []core.Option{
 		core.WithWebAppPath(e.WebAppPath),
 		core.WithPublicDir(e.PublicDir),
 		core.WithDev(e.IsDev()),
-	)
+	}
+	opts = append(opts, defaultApp.opts...)
+	// Resolve config to determine the HTTP path.
+	cfg := &core.Config{}
+	for _, opt := range opts {
+		opt(cfg)
+	}
+	path := "/"
+	if cfg.HTTPPath != "" {
+		path = cfg.HTTPPath
+	}
+	http.Handle(path, http.HandlerFunc(serve))
+	defaultApp.app, defaultApp.err = New(opts...)
 }
 
 // Ready eagerly builds the default app. Call from main() before
 // ListenAndServe to avoid first-request latency. Safe to call multiple times.
 //
+// Optional core.Option overrides are applied after environment-derived
+// defaults, so they take precedence.
+//
 // When POLA_BUILD_ONLY=true (set by `pola build` stage 1), Ready builds
 // the app (which triggers asset bundling) and then exits the process.
-func Ready() error {
+func Ready(opts ...core.Option) error {
+	defaultApp.opts = opts
 	defaultApp.once.Do(buildDefault)
 	if defaultApp.err != nil {
 		return defaultApp.err
