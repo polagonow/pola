@@ -5,13 +5,13 @@ import (
 	"net/http"
 	"reflect"
 
-	"github.com/samber/do/v2"
+	"github.com/polagonow/pola/core"
 )
 
-// Initializer is optionally implemented by route structs to receive the DI
-// injector during Build(). Users resolve their own dependencies type-safely.
+// Initializer is optionally implemented by route structs to receive the
+// registry during Build(). Users resolve their own dependencies type-safely.
 type Initializer interface {
-	Init(injector do.Injector) error
+	Init(registry *core.Registry) error
 }
 
 // Pather is optionally implemented by route structs to override the
