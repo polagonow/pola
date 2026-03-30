@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/patternmatch"
 )
 
 // ── compilePattern ──────────────────────────────────────────────────────────
@@ -14,27 +15,27 @@ func TestCompilePattern(t *testing.T) {
 		pattern    string
 		isStatic   bool
 		paramNames []string
-		segments   []segmentKind
+		segments   []patternmatch.SegmentKind
 	}{
-		{"/", true, nil, []segmentKind{segStatic}},
-		{"/about", true, nil, []segmentKind{segStatic}},
-		{"/a/b/c", true, nil, []segmentKind{segStatic, segStatic, segStatic}},
-		{"/posts/:slug", false, []string{"slug"}, []segmentKind{segStatic, segDynamic}},
-		{"/users/:id/posts/:postId", false, []string{"id", "postId"}, []segmentKind{segStatic, segDynamic, segStatic, segDynamic}},
-		{"/shop/:...path", false, []string{"path"}, []segmentKind{segStatic, segCatchAll}},
-		{"/docs/:...slug?", false, []string{"slug"}, []segmentKind{segStatic, segOptCatchAll}},
-		{"/posts/:slug/tags/:...rest", false, []string{"slug", "rest"}, []segmentKind{segStatic, segDynamic, segStatic, segCatchAll}},
+		{"/", true, nil, []patternmatch.SegmentKind{patternmatch.SegStatic}},
+		{"/about", true, nil, []patternmatch.SegmentKind{patternmatch.SegStatic}},
+		{"/a/b/c", true, nil, []patternmatch.SegmentKind{patternmatch.SegStatic, patternmatch.SegStatic, patternmatch.SegStatic}},
+		{"/posts/:slug", false, []string{"slug"}, []patternmatch.SegmentKind{patternmatch.SegStatic, patternmatch.SegDynamic}},
+		{"/users/:id/posts/:postId", false, []string{"id", "postId"}, []patternmatch.SegmentKind{patternmatch.SegStatic, patternmatch.SegDynamic, patternmatch.SegStatic, patternmatch.SegDynamic}},
+		{"/shop/:...path", false, []string{"path"}, []patternmatch.SegmentKind{patternmatch.SegStatic, patternmatch.SegCatchAll}},
+		{"/docs/:...slug?", false, []string{"slug"}, []patternmatch.SegmentKind{patternmatch.SegStatic, patternmatch.SegOptCatchAll}},
+		{"/posts/:slug/tags/:...rest", false, []string{"slug", "rest"}, []patternmatch.SegmentKind{patternmatch.SegStatic, patternmatch.SegDynamic, patternmatch.SegStatic, patternmatch.SegCatchAll}},
 	}
 	for _, tc := range cases {
 		cr := compilePattern(core.Route{Pattern: tc.pattern})
-		if cr.isStatic != tc.isStatic {
-			t.Errorf("compilePattern(%q).isStatic = %v, want %v", tc.pattern, cr.isStatic, tc.isStatic)
+		if cr.compiled.IsStatic != tc.isStatic {
+			t.Errorf("compilePattern(%q).IsStatic = %v, want %v", tc.pattern, cr.compiled.IsStatic, tc.isStatic)
 		}
-		if !reflect.DeepEqual(cr.paramNames, tc.paramNames) {
-			t.Errorf("compilePattern(%q).paramNames = %v, want %v", tc.pattern, cr.paramNames, tc.paramNames)
+		if !reflect.DeepEqual(cr.compiled.ParamNames, tc.paramNames) {
+			t.Errorf("compilePattern(%q).ParamNames = %v, want %v", tc.pattern, cr.compiled.ParamNames, tc.paramNames)
 		}
-		if !reflect.DeepEqual(cr.segments, tc.segments) {
-			t.Errorf("compilePattern(%q).segments = %v, want %v", tc.pattern, cr.segments, tc.segments)
+		if !reflect.DeepEqual(cr.compiled.Segments, tc.segments) {
+			t.Errorf("compilePattern(%q).Segments = %v, want %v", tc.pattern, cr.compiled.Segments, tc.segments)
 		}
 	}
 }
@@ -122,15 +123,12 @@ func TestSortCompiledRoutes_SegmentBySegment(t *testing.T) {
 }
 
 func TestSortCompiledRoutes_SameScoreDifferentSegments(t *testing.T) {
-	// These two routes have equal total score under the old system (+1 each)
-	// but segment-by-segment sorting correctly orders them.
 	routes := []*compiledRoute{
 		compilePattern(core.Route{Pattern: "/:slug/details", Export: "SlugDetails"}),
 		compilePattern(core.Route{Pattern: "/api/:id", Export: "ApiId"}),
 	}
 	sortCompiledRoutes(routes)
 
-	// /api/:id should come first because segment 0 is static vs dynamic.
 	if routes[0].Export != "ApiId" {
 		t.Errorf("expected ApiId first, got %s", routes[0].Export)
 	}
@@ -221,28 +219,16 @@ func TestMatchPattern_CatchAll(t *testing.T) {
 		path      string
 		wantMatch bool
 		wantKey   string
-		wantVal   any // string | []string | nil (key absent)
+		wantVal   any
 	}{
-		// optional catch-all: matches zero segments (key absent)
 		{"/docs/:...slug?", "/docs", true, "slug", nil},
-		// optional catch-all: one segment
 		{"/docs/:...slug?", "/docs/getting-started", true, "slug", []string{"getting-started"}},
-		// optional catch-all: two segments
 		{"/docs/:...slug?", "/docs/getting-started/installation", true, "slug", []string{"getting-started", "installation"}},
-		// optional catch-all: three segments
 		{"/docs/:...slug?", "/docs/a/b/c", true, "slug", []string{"a", "b", "c"}},
-
-		// required catch-all: zero segments → no match
 		{"/shop/:...path", "/shop", false, "", nil},
-		// required catch-all: one segment
 		{"/shop/:...path", "/shop/clothes", true, "path", []string{"clothes"}},
-		// required catch-all: two segments
 		{"/shop/:...path", "/shop/a/b", true, "path", []string{"a", "b"}},
-
-		// mix of static prefix + catch-all
 		{"/posts/:slug/tags/:...rest", "/posts/my-post/tags/go/react", true, "rest", []string{"go", "react"}},
-
-		// regular single-param still works
 		{"/posts/:slug", "/posts/hello", true, "slug", "hello"},
 		{"/posts/:slug", "/posts/hello/extra", false, "", nil},
 	}
@@ -297,19 +283,16 @@ func TestMatchPattern_RootPattern(t *testing.T) {
 // ── routeScore ────────────────────────────────────────────────────────────────
 
 func TestRouteScore(t *testing.T) {
-	// routeScore counts static segments as +1, :... as -10, :...? as -20.
-	// strings.Split("/x/y", "/") = ["","x","y"] so every pattern has at least
-	// one empty static segment from the leading slash.
 	cases := []struct {
 		pattern string
 		want    int
 	}{
-		{"/", 2},                 // ["",""] → 2 static
-		{"/about", 2},            // ["","about"] → 2 static
-		{"/a/b/c", 4},            // ["","a","b","c"] → 4 static
-		{"/posts/:slug", 2},      // ["","posts",":slug"] → 2 static + 1 neutral = 2
-		{"/posts/:...path", -8},  // ["","posts",":...path"] → 2 static - 10 = -8
-		{"/docs/:...slug?", -18}, // ["","docs",":...slug?"] → 2 static - 20 = -18
+		{"/", 2},
+		{"/about", 2},
+		{"/a/b/c", 4},
+		{"/posts/:slug", 2},
+		{"/posts/:...path", -8},
+		{"/docs/:...slug?", -18},
 	}
 	for _, tc := range cases {
 		got := routeScore(tc.pattern)
@@ -330,7 +313,6 @@ func TestSortRoutes_Priority(t *testing.T) {
 	}
 	sortRoutes(routes)
 
-	// Static first, then dynamic, then catch-all, then optional catch-all.
 	if routes[0].Export != "DocsIntro" {
 		t.Errorf("first route should be DocsIntro (static), got %s", routes[0].Export)
 	}

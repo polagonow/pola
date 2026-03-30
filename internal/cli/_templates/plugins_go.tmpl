@@ -2,6 +2,8 @@
 package main
 
 import (
+	_ "github.com/joho/godotenv/autoload"
+
 	_ "github.com/polagonow/pola/bundler"
 	_ "github.com/polagonow/pola/cache"
 {{- if .CSS}}
@@ -16,5 +18,10 @@ import (
 	_ "github.com/polagonow/pola/router"
 {{- if .ActionsImport}}
 	_ "{{.ActionsImport}}"
+{{- end}}
+
+	// API routes — blank imports register handlers via init().
+{{- range .RouteImports}}
+	_ "{{.}}"
 {{- end}}
 )

@@ -121,6 +121,20 @@ func Build(cfg *core.Config) (*core.App, error) {
 	middleware := do.MustInvoke[*di.MiddlewareCollector](injector).All()
 	injectors := do.MustInvoke[*di.InjectorCollector](injector).All()
 
+	// ── 1.5. Build API routes ───────────────────────────────────────────
+	var apiRouter core.APIRouter
+	if ar, err := do.Invoke[core.APIRouter](injector); err == nil {
+		type builder interface {
+			Build(do.Injector) error
+		}
+		if b, ok := ar.(builder); ok {
+			if buildErr := b.Build(injector); buildErr != nil {
+				return nil, fmt.Errorf("pola: build api routes: %w", buildErr)
+			}
+		}
+		apiRouter = ar
+	}
+
 	// Propagate logger to all components that accept it.
 	for _, c := range []any{engine, bundler, renderer, router, css} {
 		if la, ok := c.(core.LogAware); ok {
@@ -248,7 +262,7 @@ func Build(cfg *core.Config) (*core.App, error) {
 
 	// ── 8. Wire orchestrator ───────────────────────────────────────────────
 	notFoundRoute := newNotFoundRoute(discovery.GlobalNotFound)
-	orch := NewOrchestrator(renderer, router, logger, metrics, tracer, pprof, middleware, injectors, routes, shell, assets, bundleOutput, notFoundRoute, cssURLs, docProps, cfg.Dev)
+	orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, middleware, injectors, routes, shell, assets, bundleOutput, notFoundRoute, cssURLs, docProps, cfg.Dev)
 
 	// ── 6.6. Copy static public files ────────────────────────────────────────
 	srcPublic := filepath.Join(absWebAppPath, "public")
@@ -366,7 +380,20 @@ func buildFromPrebuilt(
 	shell, assets := resolveShellAndAssets(injector, "")
 
 	notFoundRoute := newNotFoundRoute(artifacts.GlobalNotFound)
-	orch := NewOrchestrator(renderer, router, logger, metrics, tracer, pprof, middleware, injectors, artifacts.Routes, shell, assets, artifacts.BundleOutput, notFoundRoute, artifacts.CSSURLs, artifacts.DocumentProps, false)
+	// In prebuild/embed mode, API routes are still compiled into the binary.
+	var apiRouter core.APIRouter
+	if ar, err := do.Invoke[core.APIRouter](injector); err == nil {
+		type builder interface {
+			Build(do.Injector) error
+		}
+		if b, ok := ar.(builder); ok {
+			if buildErr := b.Build(injector); buildErr != nil {
+				return nil, fmt.Errorf("pola: build api routes: %w", buildErr)
+			}
+		}
+		apiRouter = ar
+	}
+	orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, middleware, injectors, artifacts.Routes, shell, assets, artifacts.BundleOutput, notFoundRoute, artifacts.CSSURLs, artifacts.DocumentProps, false)
 	app := newApp(cfg, injector, orch)
 	app.SetArtifacts(artifacts.BundleOutput)
 	return app, nil

@@ -6,7 +6,7 @@
 //	import "github.com/polagonow/pola"
 //
 //	func main() {
-//	    if err := pola.Ready(core.WithWebAppPath("app")); err != nil {
+//	    if err := pola.Ready(core.WithWebAppDir("app")); err != nil {
 //	        log.Fatal(err)
 //	    }
 //	    log.Fatal(http.ListenAndServe(pola.Addr(), nil))
@@ -33,7 +33,6 @@ var defaultApp struct {
 	opts []core.Option
 }
 
-
 func serve(w http.ResponseWriter, r *http.Request) {
 	defaultApp.once.Do(buildDefault)
 	if defaultApp.err != nil {
@@ -51,7 +50,7 @@ func buildDefault() {
 	}
 	defaultApp.env = e
 	opts := []core.Option{
-		core.WithWebAppPath(e.WebAppPath),
+		core.WithWebAppDir(e.WebAppPath),
 		core.WithPublicDir(e.PublicDir),
 		core.WithDev(e.IsDev()),
 	}
@@ -104,7 +103,7 @@ func Addr() string {
 // Use this for explicit control over configuration; otherwise, use
 // Ready() + http.DefaultServeMux for the zero-config path.
 //
-//	app, err := pola.New(core.WithWebAppPath("./app"), core.WithDev(true))
+//	app, err := pola.New(core.WithWebAppDir("./app"), core.WithDev(true))
 //	http.ListenAndServe(":8080", app)
 func New(opts ...core.Option) (*core.App, error) {
 	cfg := &core.Config{}
