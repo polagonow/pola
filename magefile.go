@@ -71,12 +71,14 @@ func BundleDemo() error {
 func Build() error {
 	fmt.Println("→ building pola CLI")
 	os.MkdirAll("bin", 0o755) //nolint:errcheck
-	return sh.RunV("go", "build", "-o", "bin/pola", "./cmd/pola/")
+	version := gitVersion()
+	ldflags := fmt.Sprintf("-s -w -X github.com/polagonow/pola/internal/cli.version=%s", version)
+	return sh.RunV("go", "build", "-trimpath", "-ldflags", ldflags, "-o", "bin/pola", "./cmd/pola/")
 }
 
-// Test runs unit tests only (fast).
+// Test runs unit tests only (fast) with race detection.
 func Test() error {
-	return sh.RunV("go", "test", "-tags", runtimeTags(), "./...")
+	return sh.RunV("go", "test", "-race", "-tags", runtimeTags(), "./...")
 }
 
 // TestE2E runs end-to-end tests (slow, builds bundles).
@@ -108,6 +110,37 @@ func InstallHooks() error {
 // Clean removes compiled outputs.
 func Clean() error {
 	return sh.RunV("rm", "-rf", "bin/", "public/assets/")
+}
+
+// Cover runs tests with coverage profiling.
+func Cover() error {
+	return sh.RunV("go", "test", "-tags", runtimeTags(), "-coverprofile=coverage.out", "-covermode=atomic", "./...")
+}
+
+// Vet runs go vet with the active build tags.
+func Vet() error {
+	return sh.RunV("go", "vet", "-tags", runtimeTags(), "./...")
+}
+
+// Verify checks that module dependencies have not been tampered with.
+func Verify() error {
+	return sh.RunV("go", "mod", "verify")
+}
+
+// Tidy ensures go.mod and go.sum are up to date, and fails if they drift.
+func Tidy() error {
+	if err := sh.RunV("go", "mod", "tidy"); err != nil {
+		return err
+	}
+	return sh.RunV("git", "diff", "--exit-code", "go.mod", "go.sum")
+}
+
+func gitVersion() string {
+	s, _ := sh.Output("git", "describe", "--tags", "--always", "--dirty")
+	if s == "" {
+		return "dev"
+	}
+	return s
 }
 
 func envOr(key, fallback string) string {
