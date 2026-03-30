@@ -7,6 +7,159 @@ import (
 	"github.com/polagonow/pola/core"
 )
 
+// ── compilePattern ──────────────────────────────────────────────────────────
+
+func TestCompilePattern(t *testing.T) {
+	cases := []struct {
+		pattern    string
+		isStatic   bool
+		paramNames []string
+		segments   []segmentKind
+	}{
+		{"/", true, nil, []segmentKind{segStatic}},
+		{"/about", true, nil, []segmentKind{segStatic}},
+		{"/a/b/c", true, nil, []segmentKind{segStatic, segStatic, segStatic}},
+		{"/posts/:slug", false, []string{"slug"}, []segmentKind{segStatic, segDynamic}},
+		{"/users/:id/posts/:postId", false, []string{"id", "postId"}, []segmentKind{segStatic, segDynamic, segStatic, segDynamic}},
+		{"/shop/:...path", false, []string{"path"}, []segmentKind{segStatic, segCatchAll}},
+		{"/docs/:...slug?", false, []string{"slug"}, []segmentKind{segStatic, segOptCatchAll}},
+		{"/posts/:slug/tags/:...rest", false, []string{"slug", "rest"}, []segmentKind{segStatic, segDynamic, segStatic, segCatchAll}},
+	}
+	for _, tc := range cases {
+		cr := compilePattern(core.Route{Pattern: tc.pattern})
+		if cr.isStatic != tc.isStatic {
+			t.Errorf("compilePattern(%q).isStatic = %v, want %v", tc.pattern, cr.isStatic, tc.isStatic)
+		}
+		if !reflect.DeepEqual(cr.paramNames, tc.paramNames) {
+			t.Errorf("compilePattern(%q).paramNames = %v, want %v", tc.pattern, cr.paramNames, tc.paramNames)
+		}
+		if !reflect.DeepEqual(cr.segments, tc.segments) {
+			t.Errorf("compilePattern(%q).segments = %v, want %v", tc.pattern, cr.segments, tc.segments)
+		}
+	}
+}
+
+// ── matchCompiled ───────────────────────────────────────────────────────────
+
+func TestMatchCompiled_Basic(t *testing.T) {
+	cases := []struct {
+		pattern   string
+		path      string
+		wantMatch bool
+		wantKey   string
+		wantVal   any
+	}{
+		{"/about", "/about", true, "", nil},
+		{"/about", "/contact", false, "", nil},
+		{"/posts/:slug", "/posts/hello", true, "slug", "hello"},
+		{"/posts/:slug", "/posts/hello/extra", false, "", nil},
+		{"/shop/:...path", "/shop/a/b", true, "path", []string{"a", "b"}},
+		{"/shop/:...path", "/shop", false, "", nil},
+		{"/docs/:...slug?", "/docs", true, "slug", nil},
+		{"/docs/:...slug?", "/docs/a/b", true, "slug", []string{"a", "b"}},
+		{"/", "/", true, "", nil},
+	}
+	for _, tc := range cases {
+		cr := compilePattern(core.Route{Pattern: tc.pattern})
+		params, ok := matchCompiled(cr, tc.path)
+		if ok != tc.wantMatch {
+			t.Errorf("matchCompiled(%q, %q) = %v, want %v", tc.pattern, tc.path, ok, tc.wantMatch)
+			continue
+		}
+		if !ok || tc.wantKey == "" {
+			continue
+		}
+		if tc.wantVal == nil {
+			if _, exists := params[tc.wantKey]; exists {
+				t.Errorf("matchCompiled(%q, %q): expected key %q absent", tc.pattern, tc.path, tc.wantKey)
+			}
+		} else if !reflect.DeepEqual(params[tc.wantKey], tc.wantVal) {
+			t.Errorf("matchCompiled(%q, %q) params[%q] = %#v, want %#v", tc.pattern, tc.path, tc.wantKey, params[tc.wantKey], tc.wantVal)
+		}
+	}
+}
+
+func TestMatchCompiled_URIDecoding(t *testing.T) {
+	cases := []struct {
+		pattern string
+		path    string
+		key     string
+		want    any
+	}{
+		{"/posts/:slug", "/posts/hello%20world", "slug", "hello world"},
+		{"/posts/:slug", "/posts/caf%C3%A9", "slug", "café"},
+		{"/shop/:...path", "/shop/a%20b/c%20d", "path", []string{"a b", "c d"}},
+	}
+	for _, tc := range cases {
+		cr := compilePattern(core.Route{Pattern: tc.pattern})
+		params, ok := matchCompiled(cr, tc.path)
+		if !ok {
+			t.Errorf("matchCompiled(%q, %q): expected match", tc.pattern, tc.path)
+			continue
+		}
+		if !reflect.DeepEqual(params[tc.key], tc.want) {
+			t.Errorf("matchCompiled(%q, %q) params[%q] = %#v, want %#v", tc.pattern, tc.path, tc.key, params[tc.key], tc.want)
+		}
+	}
+}
+
+// ── sortCompiledRoutes ──────────────────────────────────────────────────────
+
+func TestSortCompiledRoutes_SegmentBySegment(t *testing.T) {
+	routes := []*compiledRoute{
+		compilePattern(core.Route{Pattern: "/docs/:...slug?", Export: "DocsOptional"}),
+		compilePattern(core.Route{Pattern: "/docs/:...slug", Export: "DocsCatchAll"}),
+		compilePattern(core.Route{Pattern: "/docs/:id", Export: "DocsId"}),
+	}
+	sortCompiledRoutes(routes)
+
+	want := []string{"DocsId", "DocsCatchAll", "DocsOptional"}
+	for i, w := range want {
+		if routes[i].Export != w {
+			t.Errorf("position %d: got %s, want %s", i, routes[i].Export, w)
+		}
+	}
+}
+
+func TestSortCompiledRoutes_SameScoreDifferentSegments(t *testing.T) {
+	// These two routes have equal total score under the old system (+1 each)
+	// but segment-by-segment sorting correctly orders them.
+	routes := []*compiledRoute{
+		compilePattern(core.Route{Pattern: "/:slug/details", Export: "SlugDetails"}),
+		compilePattern(core.Route{Pattern: "/api/:id", Export: "ApiId"}),
+	}
+	sortCompiledRoutes(routes)
+
+	// /api/:id should come first because segment 0 is static vs dynamic.
+	if routes[0].Export != "ApiId" {
+		t.Errorf("expected ApiId first, got %s", routes[0].Export)
+	}
+	if routes[1].Export != "SlugDetails" {
+		t.Errorf("expected SlugDetails second, got %s", routes[1].Export)
+	}
+}
+
+// ── normalizePath ───────────────────────────────────────────────────────────
+
+func TestNormalizePath(t *testing.T) {
+	cases := []struct {
+		input string
+		want  string
+	}{
+		{"/", "/"},
+		{"/about", "/about"},
+		{"/about/", "/about"},
+		{"/a/b/c/", "/a/b/c"},
+		{"", ""},
+	}
+	for _, tc := range cases {
+		got := normalizePath(tc.input)
+		if got != tc.want {
+			t.Errorf("normalizePath(%q) = %q, want %q", tc.input, got, tc.want)
+		}
+	}
+}
+
 // ── MatchPattern ─────────────────────────────────────────────────────────────
 
 func TestMatchPattern_Static(t *testing.T) {

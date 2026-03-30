@@ -90,6 +90,9 @@ func runServe(_ *cobra.Command, _ []string) error {
 		"POLA_ENV=development",
 		"PORT="+serveFlags.port,
 		"POLA_WEBAPP_PATH="+serveFlags.appPath,
+		"GONOSUMCHECK=*",
+		"GONOSUMDB=*",
+		"GOFLAGS=-mod=mod",
 	)
 
 	// Start the process.
