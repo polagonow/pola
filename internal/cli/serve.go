@@ -13,7 +13,7 @@ import (
 
 	"github.com/polagonow/pola/internal/cli/buildtags"
 	"github.com/polagonow/pola/internal/cli/stubpkgs"
-	"github.com/polagonow/pola/internal/watcher"
+	"github.com/polagonow/pola/watcher"
 	"github.com/spf13/cobra"
 )
 

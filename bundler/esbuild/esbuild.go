@@ -25,7 +25,7 @@ import (
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/core/di"
 	"github.com/polagonow/pola/core/globals"
-	"github.com/polagonow/pola/internal/watcher"
+	"github.com/polagonow/pola/watcher"
 )
 
 func init() {
