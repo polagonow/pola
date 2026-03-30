@@ -9,10 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/samber/do/v2"
-
 	"github.com/polagonow/pola/core"
-	"github.com/polagonow/pola/core/di"
 )
 
 // prebuildMeta is the JSON schema for prebuild-meta.json written during mage Bundle
@@ -67,17 +64,17 @@ func newNotFoundRoute(globalNotFound string) *core.Route {
 	return &core.Route{Export: "GlobalNotFound", Pattern: "/*"}
 }
 
-// resolveShellAndAssets resolves HTMLShell and AssetServer from the DI container,
+// resolveShellAndAssets resolves HTMLShell and AssetServer from the registry,
 // falling back to noop implementations when none are registered.
-func resolveShellAndAssets(injector do.Injector, publicDir string) (core.HTMLShell, core.AssetServer) {
+func resolveShellAndAssets(registry *core.Registry, publicDir string) (core.HTMLShell, core.AssetServer) {
 	var shell core.HTMLShell
-	if s, err := do.Invoke[core.HTMLShell](injector); err == nil {
+	if s, err := core.Invoke[core.HTMLShell](registry); err == nil {
 		shell = s
 	} else {
 		shell = noopShell{}
 	}
 	var assets core.AssetServer
-	if factory, err := do.Invoke[core.AssetServerFactory](injector); err == nil {
+	if factory, err := core.Invoke[core.AssetServerFactory](registry); err == nil {
 		assets = factory(publicDir)
 	} else {
 		assets = noopAssetServer{}
@@ -93,9 +90,8 @@ func Build(ctx context.Context, builder *core.AppBuilder) (*core.App, error) {
 	}
 
 	// Register framework-internal singletons needed by hotreload.
-	injector := registry.Injector()
-	do.Provide(injector, func(_ do.Injector) (*di.EventBus, error) {
-		return di.NewEventBus(), nil
+	core.Provide[*EventBus](registry, func() (*EventBus, error) {
+		return NewEventBus(), nil
 	})
 
 	return buildWithRegistry(builder.Config(), registry)
@@ -103,34 +99,32 @@ func Build(ctx context.Context, builder *core.AppBuilder) (*core.App, error) {
 
 // buildWithRegistry is the core pipeline implementation.
 func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, error) {
-	injector := registry.Injector()
-
 	// ── 1. Resolve required services ────────────────────────────────────
-	renderer, err := do.Invoke[core.Renderer](injector)
+	renderer, err := core.Invoke[core.Renderer](registry)
 	if err != nil {
 		return nil, fmt.Errorf("pola: no Renderer registered — use react.Plugin()")
 	}
-	router, err := do.Invoke[core.Router](injector)
+	router, err := core.Invoke[core.Router](registry)
 	if err != nil {
 		return nil, fmt.Errorf("pola: no Router registered — use nextjs.Plugin()")
 	}
 	// Bundler and FS are optional in embed/prebuild mode.
-	bundler, _ := do.Invoke[core.Bundler](injector)
-	fsys, _ := do.Invoke[core.FS](injector)
-	logger, err := do.Invoke[core.Logger](injector)
+	bundler, _ := core.Invoke[core.Bundler](registry)
+	fsys, _ := core.Invoke[core.FS](registry)
+	logger, err := core.Invoke[core.Logger](registry)
 	if err != nil {
 		return nil, fmt.Errorf("pola: no Logger registered — use slog.Plugin()")
 	}
-	engine, err := do.Invoke[core.JSEngine](injector)
+	engine, err := core.Invoke[core.JSEngine](registry)
 	if err != nil {
 		return nil, fmt.Errorf("pola: no JSEngine registered — use goja.Plugin()")
 	}
 
 	// Optional services — nil when not registered.
-	metrics, _ := do.Invoke[core.Metrics](injector)
-	tracer, _ := do.Invoke[core.Tracer](injector)
-	css, _ := do.Invoke[core.CSS](injector)
-	pprof, _ := do.Invoke[core.Pprof](injector)
+	metrics, _ := core.Invoke[core.Metrics](registry)
+	tracer, _ := core.Invoke[core.Tracer](registry)
+	css, _ := core.Invoke[core.CSS](registry)
+	pprof, _ := core.Invoke[core.Pprof](registry)
 
 	// Middleware and injectors from Registry.
 	middleware := registry.Middleware()
@@ -138,12 +132,12 @@ func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, er
 
 	// ── 1.5. Build API routes ───────────────────────────────────────────
 	var apiRouter core.APIRouter
-	if ar, err := do.Invoke[core.APIRouter](injector); err == nil {
+	if ar, err := core.Invoke[core.APIRouter](registry); err == nil {
 		type builder interface {
-			Build(do.Injector) error
+			Build(*core.Registry) error
 		}
 		if b, ok := ar.(builder); ok {
-			if buildErr := b.Build(injector); buildErr != nil {
+			if buildErr := b.Build(registry); buildErr != nil {
 				return nil, fmt.Errorf("pola: build api routes: %w", buildErr)
 			}
 		}
@@ -158,7 +152,7 @@ func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, er
 	}
 
 	// ── Prebuild fast-path (embed mode) ───────────────────────────────────
-	if loader, err := do.Invoke[core.PrebuildLoader](injector); err == nil {
+	if loader, err := core.Invoke[core.PrebuildLoader](registry); err == nil {
 		return buildFromPrebuilt(cfg, registry, loader, renderer, router, engine, logger, metrics, tracer, pprof, middleware, runtimeInjectors)
 	}
 
@@ -273,7 +267,7 @@ func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, er
 	}
 
 	// ── 7. Resolve shell and asset server ─────────────────────────────────
-	shell, assets := resolveShellAndAssets(injector, publicDir)
+	shell, assets := resolveShellAndAssets(registry, publicDir)
 
 	// ── 8. Wire orchestrator ───────────────────────────────────────────────
 	notFoundRoute := newNotFoundRoute(discovery.GlobalNotFound)
@@ -387,17 +381,17 @@ func buildFromPrebuilt(
 	}
 
 	// Resolve shell and asset server.
-	shell, assets := resolveShellAndAssets(registry.Injector(), "")
+	shell, assets := resolveShellAndAssets(registry, "")
 
 	notFoundRoute := newNotFoundRoute(artifacts.GlobalNotFound)
 	// In prebuild/embed mode, API routes are still compiled into the binary.
 	var apiRouter core.APIRouter
-	if ar, err := do.Invoke[core.APIRouter](registry.Injector()); err == nil {
+	if ar, err := core.Invoke[core.APIRouter](registry); err == nil {
 		type builder interface {
-			Build(do.Injector) error
+			Build(*core.Registry) error
 		}
 		if b, ok := ar.(builder); ok {
-			if buildErr := b.Build(registry.Injector()); buildErr != nil {
+			if buildErr := b.Build(registry); buildErr != nil {
 				return nil, fmt.Errorf("pola: build api routes: %w", buildErr)
 			}
 		}
