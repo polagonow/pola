@@ -417,6 +417,81 @@ func TestRoutePattern(t *testing.T) {
 	}
 }
 
+func TestResolve_TrailingSlash(t *testing.T) {
+	appDir := t.TempDir()
+	for _, route := range []string{"about", "contact"} {
+		dir := filepath.Join(appDir, "app", route)
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, dir, "page.tsx", "export default function Page() { return null; }\n")
+	}
+	dynamicDir := filepath.Join(appDir, "app", "posts", "[slug]")
+	if err := os.MkdirAll(dynamicDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, dynamicDir, "page.tsx", "export default function Page() { return null; }\n")
+
+	r := New()
+	if _, err := r.ScanRoutes(context.Background(), testFS(), appDir, defaultExts); err != nil {
+		t.Fatalf("ScanRoutes: %v", err)
+	}
+
+	// Static route with trailing slash.
+	route, params := r.Resolve(context.Background(), "/about/")
+	if route == nil {
+		t.Fatal("expected match for /about/")
+	}
+	if route.Pattern != "/about" {
+		t.Errorf("pattern=%q want /about", route.Pattern)
+	}
+	if len(params) != 0 {
+		t.Errorf("expected no params, got %v", params)
+	}
+
+	// Dynamic route with trailing slash.
+	route, params = r.Resolve(context.Background(), "/posts/hello/")
+	if route == nil {
+		t.Fatal("expected match for /posts/hello/")
+	}
+	if params["slug"] != "hello" {
+		t.Errorf("slug=%v want hello", params["slug"])
+	}
+}
+
+func TestResolve_StaticFastPath(t *testing.T) {
+	// Verify static routes are resolved via O(1) map, not dynamic iteration.
+	r := New()
+	r.LoadRoutes([]core.Route{
+		{Pattern: "/:id", Export: "Dynamic"},
+		{Pattern: "/about", Export: "About"},
+		{Pattern: "/contact", Export: "Contact"},
+	})
+
+	route, params := r.Resolve(context.Background(), "/about")
+	if route == nil {
+		t.Fatal("expected match for /about")
+	}
+	if route.Export != "About" {
+		t.Errorf("export=%q want About", route.Export)
+	}
+	if len(params) != 0 {
+		t.Errorf("expected no params for static route, got %v", params)
+	}
+
+	// Dynamic should still work.
+	route, params = r.Resolve(context.Background(), "/42")
+	if route == nil {
+		t.Fatal("expected match for /42")
+	}
+	if route.Export != "Dynamic" {
+		t.Errorf("export=%q want Dynamic", route.Export)
+	}
+	if params["id"] != "42" {
+		t.Errorf("id=%v want 42", params["id"])
+	}
+}
+
 // ── pageExport ────────────────────────────────────────────────────────────────
 
 func TestPageExport(t *testing.T) {

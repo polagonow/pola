@@ -16,10 +16,12 @@ import (
 // Router is a Next.js-style file-system router that discovers routes by scanning
 // the app directory for page files. It implements core.Router.
 type Router struct {
-	mu        sync.Mutex
-	routes    []core.Route
-	sorted    bool
-	discovery core.DiscoveryResult
+	mu            sync.Mutex
+	routes        []core.Route            // raw list for callers that need it
+	staticRoutes  map[string]*compiledRoute // exact-match O(1) lookup
+	dynamicRoutes []*compiledRoute          // sorted by segment specificity
+	sorted        bool
+	discovery     core.DiscoveryResult
 }
 
 // New returns a new Router with no routes registered yet.
@@ -124,7 +126,7 @@ func (r *Router) ScanRoutes(ctx context.Context, fsys core.FS, appDir string, ex
 
 	r.mu.Lock()
 	r.routes = routes
-	r.sorted = false
+	r.compileAndPartition(routes)
 	r.discovery = core.DiscoveryResult{
 		AppDir:                appDir,
 		Pages:                 pages,
@@ -138,20 +140,45 @@ func (r *Router) ScanRoutes(ctx context.Context, fsys core.FS, appDir string, ex
 	return routes, nil
 }
 
+// compileAndPartition compiles routes into static (map) and dynamic (sorted slice)
+// buckets. Must be called with r.mu held.
+func (r *Router) compileAndPartition(routes []core.Route) {
+	r.staticRoutes = make(map[string]*compiledRoute, len(routes))
+	r.dynamicRoutes = nil
+	for _, rt := range routes {
+		cr := compilePattern(rt)
+		if cr.isStatic {
+			r.staticRoutes[rt.Pattern] = cr
+		} else {
+			r.dynamicRoutes = append(r.dynamicRoutes, cr)
+		}
+	}
+	r.sorted = false
+}
+
 // Resolve matches path against the registered routes and returns the matching
 // route and extracted URL parameters. Returns (nil, nil) when no route matches.
 func (r *Router) Resolve(_ context.Context, path string) (*core.Route, map[string]any) {
+	path = normalizePath(path)
+
 	r.mu.Lock()
 	if !r.sorted {
-		sortRoutes(r.routes)
+		sortCompiledRoutes(r.dynamicRoutes)
 		r.sorted = true
 	}
-	routes := r.routes
+	static := r.staticRoutes
+	dynamic := r.dynamicRoutes
 	r.mu.Unlock()
 
-	for i := range routes {
-		if params, ok := MatchPattern(routes[i].Pattern, path); ok {
-			return &routes[i], params
+	// O(1) lookup for static routes.
+	if cr, ok := static[path]; ok {
+		return &cr.Route, map[string]any{}
+	}
+
+	// Linear scan of sorted dynamic routes.
+	for _, cr := range dynamic {
+		if params, ok := matchCompiled(cr, path); ok {
+			return &cr.Route, params
 		}
 	}
 	return nil, nil
@@ -163,7 +190,7 @@ func (r *Router) Resolve(_ context.Context, path string) (*core.Route, map[strin
 func (r *Router) LoadRoutes(routes []core.Route) {
 	r.mu.Lock()
 	r.routes = routes
-	r.sorted = false
+	r.compileAndPartition(routes)
 	r.mu.Unlock()
 }
 
