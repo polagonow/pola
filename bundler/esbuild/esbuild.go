@@ -1,14 +1,9 @@
-//go:build esbuild
-
 // Package esbuild implements the Pola core.Bundler interface using esbuild.
 //
 // Build this package with the "esbuild" build tag:
 //
 //	go build -tags esbuild ./...
 //
-// The init function registered under the esbuild build tag calls
-// di.Stage so the framework can resolve the default bundler
-// without a direct import cycle.
 package esbuild
 
 import (
@@ -20,21 +15,11 @@ import (
 	"strings"
 
 	"github.com/evanw/esbuild/pkg/api"
-	"github.com/samber/do/v2"
 
 	"github.com/polagonow/pola/core"
-	"github.com/polagonow/pola/core/di"
 	"github.com/polagonow/pola/core/globals"
 	"github.com/polagonow/pola/watcher"
 )
-
-func init() {
-	di.Stage(func(i do.Injector) {
-		do.Provide(i, func(_ do.Injector) (core.Bundler, error) {
-			return New(), nil
-		})
-	})
-}
 
 // Bundler implements core.Bundler using the two-pass esbuild pipeline.
 type Bundler struct{}

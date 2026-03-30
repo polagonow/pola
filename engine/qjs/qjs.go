@@ -1,5 +1,3 @@
-//go:build qjs
-
 // Package qjs provides a QuickJS-backed JSEngine implementation for the Pola
 // framework using github.com/fastschema/qjs (CGo-free, Wazero-based).
 //

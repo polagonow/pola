@@ -1,5 +1,3 @@
-//go:build v8go
-
 // Package v8go provides a V8-backed JSEngine implementation for the Pola
 // framework using rogchap.com/v8go (CGo-based).
 //

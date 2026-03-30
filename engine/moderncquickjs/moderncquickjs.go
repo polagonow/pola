@@ -1,5 +1,3 @@
-//go:build moderncquickjs
-
 // Package moderncquickjs provides a modernc.org/quickjs-backed JSEngine for the
 // Pola framework. Pure-Go QuickJS (no CGo) via modernc.org/quickjs.
 //
@@ -31,10 +29,7 @@ import (
 	lib "modernc.org/libquickjs"
 	mquickjs "modernc.org/quickjs"
 
-	"github.com/samber/do/v2"
-
 	"github.com/polagonow/pola/core"
-	"github.com/polagonow/pola/core/di"
 	"github.com/polagonow/pola/core/globals"
 	"github.com/polagonow/pola/engine/eventloop"
 	"github.com/polagonow/pola/engine/polyfill"
@@ -533,11 +528,3 @@ func newVMPool(serverBundle string, logger core.Logger) (*vmpool.Pool[*Runtime],
 
 // Registered is true when the moderncquickjs build tag is active.
 var Registered = true
-
-func init() {
-	di.Stage(func(i do.Injector) {
-		do.Provide(i, func(_ do.Injector) (core.JSEngine, error) {
-			return NewEngine(), nil
-		})
-	})
-}

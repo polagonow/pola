@@ -9,10 +9,8 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/samber/do/v2"
 
 	"github.com/polagonow/pola/core"
-	"github.com/polagonow/pola/core/di"
 )
 
 // Metrics is a Prometheus-backed metrics collector.
@@ -73,10 +71,3 @@ func (m *Metrics) Handler() http.Handler {
 	return promhttp.HandlerFor(m.reg, promhttp.HandlerOpts{})
 }
 
-func init() {
-	di.Stage(func(i do.Injector) {
-		do.Provide(i, func(_ do.Injector) (core.Metrics, error) {
-			return New(), nil
-		})
-	})
-}

@@ -143,8 +143,8 @@ func (b *Blog) Vars() map[string]any {
 	if !strings.Contains(goStr, "collectVars") {
 		t.Error("Go: missing collectVars (Blog has Vars)")
 	}
-	if !strings.Contains(goStr, "di.Stage") {
-		t.Error("Go: missing di.Stage call")
+	if !strings.Contains(goStr, "func Plugin()") {
+		t.Error("Go: missing Plugin() function")
 	}
 
 	// Test TS generation

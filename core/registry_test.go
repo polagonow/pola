@@ -6,7 +6,6 @@ import (
 	"github.com/samber/do/v2"
 
 	"github.com/polagonow/pola/core"
-	"github.com/polagonow/pola/core/di"
 )
 
 func TestPolyfillRegistry(t *testing.T) {
@@ -30,28 +29,26 @@ func TestPolyfillRegistryMissing(t *testing.T) {
 	}
 }
 
-func TestDIBuildMissingServicesError(t *testing.T) {
-	injector := di.Build()
+func TestRegistryProvideAndInvoke(t *testing.T) {
+	r := core.NewRegistry()
+	core.ProvideValue[string](r, "hello")
 
-	// Unregistered services should return errors, not noops.
-	if _, err := do.Invoke[core.Logger](injector); err == nil {
-		t.Fatal("expected error for unregistered Logger")
+	val, err := do.Invoke[string](r.Injector())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
 	}
-	if _, err := do.Invoke[core.Metrics](injector); err == nil {
-		t.Fatal("expected error for unregistered Metrics")
+	if val != "hello" {
+		t.Fatalf("expected %q, got %q", "hello", val)
 	}
-	if _, err := do.Invoke[core.Tracer](injector); err == nil {
-		t.Fatal("expected error for unregistered Tracer")
-	}
+}
 
-	// Framework-internal singletons should always be available.
-	if _, err := do.Invoke[*di.MiddlewareCollector](injector); err != nil {
-		t.Fatalf("MiddlewareCollector should be registered: %v", err)
+func TestRegistryMiddlewareAndInjectors(t *testing.T) {
+	r := core.NewRegistry()
+
+	if len(r.Middleware()) != 0 {
+		t.Fatal("expected no middleware initially")
 	}
-	if _, err := do.Invoke[*di.InjectorCollector](injector); err != nil {
-		t.Fatalf("InjectorCollector should be registered: %v", err)
-	}
-	if _, err := do.Invoke[*di.EventBus](injector); err != nil {
-		t.Fatalf("EventBus should be registered: %v", err)
+	if len(r.RuntimeInjectors()) != 0 {
+		t.Fatal("expected no injectors initially")
 	}
 }

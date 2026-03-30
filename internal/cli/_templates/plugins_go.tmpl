@@ -4,24 +4,64 @@ package main
 import (
 	_ "github.com/joho/godotenv/autoload"
 
-	_ "github.com/polagonow/pola/bundler"
-	_ "github.com/polagonow/pola/cache"
+	"{{.PolaPackage}}"
+	"{{.PolaPackage}}/core"
+	"{{.PolaPackage}}/engine/{{.Engine}}"
+	"{{.PolaPackage}}/logger/slog"
+	"{{.PolaPackage}}/middleware/logging"
+	"{{.PolaPackage}}/middleware/recovery"
+	"{{.PolaPackage}}/renderer/{{.Renderer}}"
+	"{{.PolaPackage}}/router/{{.Router}}"
+{{- if not .Embed}}
+	"{{.PolaPackage}}/bundler/{{.Bundler}}"
+	"{{.PolaPackage}}/fs/osfs"
 {{- if .CSS}}
-	_ "github.com/polagonow/pola/css"
+	"{{.PolaPackage}}/css/{{.CSS}}"
 {{- end}}
-	_ "github.com/polagonow/pola/engine"
-	_ "github.com/polagonow/pola/fs"
-	_ "github.com/polagonow/pola/logger"
-	_ "github.com/polagonow/pola/middleware/logging"
-	_ "github.com/polagonow/pola/middleware/recovery"
-	_ "github.com/polagonow/pola/renderer"
-	_ "github.com/polagonow/pola/router"
+{{- end}}
+{{- if .Cache}}
+	"{{.PolaPackage}}/cache/{{.Cache}}"
+{{- end}}
+{{- if .HasRoutes}}
+	"{{.PolaPackage}}/routes"
+{{- end}}
 {{- if .ActionsImport}}
-	_ "{{.ActionsImport}}"
+	"{{.ActionsImport}}"
 {{- end}}
-
-	// API routes — blank imports register handlers via init().
 {{- range .RouteImports}}
 	_ "{{.}}"
 {{- end}}
 )
+
+// PolaPlugins is the set of plugins for this application.
+var PolaPlugins = []core.Plugin{
+	{{.Engine}}.Plugin(),
+	{{.Renderer}}.Plugin(),
+	{{.Router}}.Plugin(),
+	slog.Plugin(),
+	logging.Plugin(),
+	recovery.Plugin(),
+{{- if not .Embed}}
+	{{.Bundler}}.Plugin(),
+	osfs.Plugin(),
+{{- if .CSS}}
+	{{.CSS}}.Plugin(),
+{{- end}}
+{{- end}}
+{{- if .Embed}}
+	embedPlugin(),
+{{- end}}
+{{- if .Cache}}
+	{{.Cache}}.Plugin(),
+{{- end}}
+{{- if .HasRoutes}}
+	routes.Plugin(),
+{{- end}}
+{{- if .ActionsImport}}
+	actions.Plugin(),
+{{- end}}
+}
+
+func init() {
+	pola.Use(PolaPlugins...)
+}

@@ -64,6 +64,7 @@ func runNew(_ *cobra.Command, args []string) error {
 	data := scaffold.Data{
 		AppName:       appName,
 		ModulePath:    appName,
+		PolaPackage:   "github.com/polagonow/pola",
 		Renderer:      newFlags.renderer,
 		Bundler:       newFlags.bundler,
 		Router:        newFlags.router,
@@ -92,7 +93,15 @@ func runNew(_ *cobra.Command, args []string) error {
 	// Write a temporary pola_plugins.go so go mod tidy resolves plugin deps.
 	// This file is removed after tidy — at runtime it's injected via overlay.
 	pluginsPath := filepath.Join(targetDir, "pola_plugins.go")
-	pluginsSrc, err := generatePluginImports(newFlags.css, appName+"/actions", []routePackageInfo{
+	pluginsSrc, err := generatePluginImports(pluginOpts{
+		Engine:   newFlags.vm,
+		Bundler:  newFlags.bundler,
+		Renderer: newFlags.renderer,
+		Router:   newFlags.router,
+		CSS:      newFlags.css,
+		Cache:    "memory",
+		Dev:      true,
+	}, appName+"/actions", []routePackageInfo{
 		{ImportPath: appName + "/routes/health"},
 	})
 	if err != nil {

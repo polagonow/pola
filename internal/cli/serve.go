@@ -11,7 +11,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/polagonow/pola/internal/cli/buildtags"
 	"github.com/polagonow/pola/internal/cli/stubpkgs"
 	"github.com/polagonow/pola/watcher"
 	"github.com/spf13/cobra"
@@ -66,11 +65,6 @@ func runServe(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("stub packages: %w", err)
 	}
 
-	tags := buildtags.RuntimeTags(serveFlags.vm, serveFlags.bundler, serveFlags.renderer, serveFlags.router, serveFlags.css)
-	if verbose {
-		fmt.Printf("Build tags: %s\n", tags)
-	}
-
 	printStartupBanner(projectDir, serveFlags.port)
 
 	// Forward OS signals.
@@ -80,12 +74,20 @@ func runServe(_ *cobra.Command, _ []string) error {
 	// Restart loop: on .go/.tmpl file change → kill → regenerate overlay → respawn.
 	for {
 		// Generate overlay (plugin imports + action bridge codegen).
-		overlayRes, err := generateOverlay(projectDir, serveFlags.css)
+		overlayRes, err := generateOverlay(projectDir, pluginOpts{
+			Engine:   serveFlags.vm,
+			Bundler:  serveFlags.bundler,
+			Renderer: serveFlags.renderer,
+			Router:   serveFlags.router,
+			CSS:      serveFlags.css,
+			Cache:    "memory",
+			Dev:      true,
+		})
 		if err != nil {
 			return err
 		}
 
-		cmd := buildGoRunCmd(projectDir, overlayRes, tags)
+		cmd := buildGoRunCmd(projectDir, overlayRes)
 		if err := cmd.Start(); err != nil {
 			cleanupOverlay(overlayRes)
 			return fmt.Errorf("start server: %w", err)
@@ -135,13 +137,13 @@ func runServe(_ *cobra.Command, _ []string) error {
 	}
 }
 
-// buildGoRunCmd creates the exec.Cmd for `go run` with overlay and tags.
-func buildGoRunCmd(projectDir string, overlayRes *overlayResult, tags string) *exec.Cmd {
+// buildGoRunCmd creates the exec.Cmd for `go run` with overlay.
+func buildGoRunCmd(projectDir string, overlayRes *overlayResult) *exec.Cmd {
 	goArgs := []string{"run"}
 	if overlayRes != nil && overlayRes.OverlayPath != "" {
 		goArgs = append(goArgs, "-overlay", overlayRes.OverlayPath)
 	}
-	goArgs = append(goArgs, "-tags", tags, ".")
+	goArgs = append(goArgs, ".")
 
 	cmd := exec.Command("go", goArgs...)
 	cmd.Dir = projectDir

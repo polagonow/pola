@@ -10,10 +10,8 @@ import (
 	"time"
 
 	"github.com/fsnotify/fsnotify"
-	"github.com/samber/do/v2"
 
 	"github.com/polagonow/pola/core"
-	"github.com/polagonow/pola/core/di"
 )
 
 // OSFS is an FS rooted at a directory on the OS filesystem.
@@ -106,19 +104,6 @@ func (fs *OSFS) Watch(path string, onChange func(string)) error {
 		}
 	}()
 	return nil
-}
-
-func init() {
-	di.Stage(func(i do.Injector) {
-		do.Provide(i, func(_ do.Injector) (core.FS, error) {
-			return New("."), nil
-		})
-		do.Provide(i, func(_ do.Injector) (core.AssetServerFactory, error) {
-			return func(publicDir string) core.AssetServer {
-				return &osAssetServer{dir: publicDir}
-			}, nil
-		})
-	})
 }
 
 type osAssetServer struct{ dir string }

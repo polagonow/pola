@@ -30,10 +30,24 @@ var pluginsTmpl = template.Must(
 	template.New("plugins_go.tmpl").ParseFS(generateTemplates, "_templates/plugins_go.tmpl"),
 )
 
-// embedSrc is the generated source for pola_embed.go, injected via overlay
+// embedTmpl is the template for pola_embed.go, injected via overlay
 // during production builds. It embeds the public/ directory and registers the
-// asset server and prebuild loader via DI.
-var embedSrc, _ = fs.ReadFile(generateTemplates, "_templates/embed_go.tmpl")
+// asset server and prebuild loader as a plugin.
+var embedTmpl = template.Must(
+	template.New("embed_go.tmpl").ParseFS(generateTemplates, "_templates/embed_go.tmpl"),
+)
+
+// pluginOpts holds parameters for plugin generation.
+type pluginOpts struct {
+	Engine   string
+	Bundler  string
+	Renderer string
+	Router   string
+	CSS      string
+	Cache string
+	Dev   bool
+	Embed bool
+}
 
 var generateFlags struct {
 	actionsDir string
@@ -49,7 +63,7 @@ var generateCmd = &cobra.Command{
 	RunE: runGenerate,
 	Example: `  pola generate
   pola generate --actions-dir ./actions --ts-out ./ui/packages/di/src/generated.d.ts`,
-	Aliases: []string{"gen"},
+	Aliases: []string{"gen", "g"},
 }
 
 var generateActionCmd = &cobra.Command{
@@ -94,8 +108,16 @@ func runGenerate(_ *cobra.Command, _ []string) error {
 	if err != nil {
 		return err
 	}
-	// Use "tailwind" as default CSS for standalone generate (no CSS flag here).
-	result, err := generateOverlay(projectDir, envOr("POLA_CSS", "tailwind"))
+	// Use defaults for standalone generate.
+	result, err := generateOverlay(projectDir, pluginOpts{
+		Engine:   envOr("POLA_VM", "goja"),
+		Bundler:  envOr("POLA_BUNDLER", "esbuild"),
+		Renderer: envOr("POLA_RENDERER", "react"),
+		Router:   envOr("POLA_ROUTER", "nextjs"),
+		CSS:      envOr("POLA_CSS", "tailwind"),
+		Cache:    envOr("POLA_CACHE", "memory"),
+		Dev:      true,
+	})
 	if err != nil {
 		return err
 	}
@@ -228,12 +250,12 @@ type overlayResult struct {
 }
 
 // generateOverlay creates a unified overlay containing:
-//  1. pola_plugins.go — blank imports for plugin self-registration (always)
+//  1. pola_plugins.go — explicit Plugin() calls (always)
 //  2. generated_bridge.go — action bridge codegen (if actions/ exists)
 //  3. pola_embed.go — asset embedding for production builds (//go:build embed)
 //
 // The caller should defer os.RemoveAll(result.TmpDir) after the build completes.
-func generateOverlay(projectDir, css string) (*overlayResult, error) {
+func generateOverlay(projectDir string, opts pluginOpts) (*overlayResult, error) {
 	tmpDir, err := os.MkdirTemp("", "pola-overlay-*")
 	if err != nil {
 		return nil, fmt.Errorf("create temp dir: %w", err)
@@ -308,7 +330,7 @@ func generateOverlay(projectDir, css string) (*overlayResult, error) {
 	}
 
 	// 4. Generate plugin imports (always).
-	pluginsSrc, err := generatePluginImports(css, actionsImport, routePkgs)
+	pluginsSrc, err := generatePluginImports(opts, actionsImport, routePkgs)
 	if err != nil {
 		return nil, fmt.Errorf("generate plugins: %w", err)
 	}
@@ -322,12 +344,18 @@ func generateOverlay(projectDir, css string) (*overlayResult, error) {
 	}
 	replace[filepath.Join(absProjectDir, "pola_plugins.go")] = pluginsPath
 
-	// 5. Generate embed file (asset embedding for production builds).
-	embedPath := filepath.Join(tmpDir, "pola_embed.go")
-	if err := os.WriteFile(embedPath, embedSrc, 0o644); err != nil {
-		return nil, fmt.Errorf("write embed: %w", err)
+	// 5. Generate embed file (only for production embed builds).
+	if opts.Embed {
+		var embedBuf strings.Builder
+		if err := embedTmpl.Execute(&embedBuf, struct{ PolaPackage string }{"github.com/polagonow/pola"}); err != nil {
+			return nil, fmt.Errorf("execute embed template: %w", err)
+		}
+		embedPath := filepath.Join(tmpDir, "pola_embed.go")
+		if err := os.WriteFile(embedPath, []byte(embedBuf.String()), 0o644); err != nil {
+			return nil, fmt.Errorf("write embed: %w", err)
+		}
+		replace[filepath.Join(absProjectDir, "pola_embed.go")] = embedPath
 	}
-	replace[filepath.Join(absProjectDir, "pola_embed.go")] = embedPath
 
 	// 6. Write unified overlay JSON.
 	overlay := map[string]any{
@@ -357,20 +385,41 @@ func generateOverlay(projectDir, css string) (*overlayResult, error) {
 }
 
 // generatePluginImports returns the source for pola_plugins.go containing
-// blank imports that trigger plugin self-registration via init() → di.Stage().
-func generatePluginImports(css, actionsImport string, routePkgs []routePackageInfo) ([]byte, error) {
+// explicit Plugin() calls and a PolaPlugins variable.
+func generatePluginImports(opts pluginOpts, actionsImport string, routePkgs []routePackageInfo) ([]byte, error) {
 	routeImports := make([]string, len(routePkgs))
 	for i, rp := range routePkgs {
 		routeImports[i] = rp.ImportPath
 	}
 
+	hasCSS := opts.CSS != "" && opts.CSS != "none"
+	hasCache := opts.Cache != "" && opts.Cache != "none"
+
 	var buf strings.Builder
 	err := pluginsTmpl.Execute(&buf, struct {
-		CSS           bool
+		PolaPackage   string
+		Engine        string
+		Bundler       string
+		Renderer      string
+		Router        string
+		CSS           string
+		Cache         string
+		Dev           bool
+		Embed         bool
+		HasRoutes     bool
 		ActionsImport string
 		RouteImports  []string
 	}{
-		CSS:           css != "" && css != "none",
+		PolaPackage:   "github.com/polagonow/pola",
+		Engine:        opts.Engine,
+		Bundler:       opts.Bundler,
+		Renderer:      opts.Renderer,
+		Router:        opts.Router,
+		CSS:           condStr(hasCSS, opts.CSS, ""),
+		Cache:         condStr(hasCache, opts.Cache, ""),
+		Dev:           opts.Dev,
+		Embed:         opts.Embed,
+		HasRoutes:     len(routePkgs) > 0,
 		ActionsImport: actionsImport,
 		RouteImports:  routeImports,
 	})
@@ -378,6 +427,13 @@ func generatePluginImports(css, actionsImport string, routePkgs []routePackageIn
 		return nil, fmt.Errorf("execute plugins template: %w", err)
 	}
 	return []byte(buf.String()), nil
+}
+
+func condStr(cond bool, a, b string) string {
+	if cond {
+		return a
+	}
+	return b
 }
 
 // routePackageInfo holds metadata about a discovered route package.

@@ -6,10 +6,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/polagonow/pola/core"
-	"github.com/polagonow/pola/core/di"
-	"github.com/polagonow/pola/core/globals"
-	"github.com/samber/do/v2"
+	"{{.PolaPackage}}/core"
+	"{{.PolaPackage}}/core/globals"
 )
 
 // Ensure unused imports are valid.
@@ -19,16 +17,19 @@ var (
 	_ = fmt.Sprintf
 )
 
-func init() {
-	di.Stage(func(i do.Injector) {
-		g := &generatedBridge{
-			{{- range .Actions}}
-			{{fieldName .StructName}}: &{{.StructName}}{},
-			{{- end}}
-		}
-		ic := do.MustInvoke[*di.InjectorCollector](i)
-		ic.Add(g)
-	})
+// Plugin returns the actions bridge plugin.
+func Plugin() core.Plugin {
+	return core.PluginFunc{
+		PluginName: "actions",
+		Fn: func(r *core.Registry) {
+			g := &generatedBridge{
+				{{- range .Actions}}
+				{{fieldName .StructName}}: &{{.StructName}}{},
+				{{- end}}
+			}
+			r.AddInjector(g)
+		},
+	}
 }
 
 type generatedBridge struct {

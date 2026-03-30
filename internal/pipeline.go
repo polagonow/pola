@@ -85,30 +85,45 @@ func resolveShellAndAssets(injector do.Injector, publicDir string) (core.HTMLShe
 	return shell, assets
 }
 
-// Build runs the full build pipeline and returns a ready App.
-func Build(cfg *core.Config) (*core.App, error) {
-	// ── 0. Build DI container ───────────────────────────────────────────
-	injector := di.Build()
+// Build runs the full build pipeline from an AppBuilder.
+func Build(ctx context.Context, builder *core.AppBuilder) (*core.App, error) {
+	registry, err := builder.BuildRegistry(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("pola: build registry: %w", err)
+	}
+
+	// Register framework-internal singletons needed by hotreload.
+	injector := registry.Injector()
+	do.Provide(injector, func(_ do.Injector) (*di.EventBus, error) {
+		return di.NewEventBus(), nil
+	})
+
+	return buildWithRegistry(builder.Config(), registry)
+}
+
+// buildWithRegistry is the core pipeline implementation.
+func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, error) {
+	injector := registry.Injector()
 
 	// ── 1. Resolve required services ────────────────────────────────────
 	renderer, err := do.Invoke[core.Renderer](injector)
 	if err != nil {
-		return nil, fmt.Errorf("pola: no Renderer registered; import _ \"github.com/polagonow/pola/renderer/react\"")
+		return nil, fmt.Errorf("pola: no Renderer registered — use react.Plugin()")
 	}
 	router, err := do.Invoke[core.Router](injector)
 	if err != nil {
-		return nil, fmt.Errorf("pola: no Router registered; import _ \"github.com/polagonow/pola/router/nextjs\"")
+		return nil, fmt.Errorf("pola: no Router registered — use nextjs.Plugin()")
 	}
-	// Bundler and FS are optional in embed/prebuild mode (no esbuild tag).
+	// Bundler and FS are optional in embed/prebuild mode.
 	bundler, _ := do.Invoke[core.Bundler](injector)
 	fsys, _ := do.Invoke[core.FS](injector)
 	logger, err := do.Invoke[core.Logger](injector)
 	if err != nil {
-		return nil, fmt.Errorf("pola: no Logger registered; import _ \"github.com/polagonow/pola/logger/slog\"")
+		return nil, fmt.Errorf("pola: no Logger registered — use slog.Plugin()")
 	}
 	engine, err := do.Invoke[core.JSEngine](injector)
 	if err != nil {
-		return nil, fmt.Errorf("pola: no JSEngine registered; import _ \"github.com/polagonow/pola/engine\" with a build tag (goja, quickjsgo, etc.)")
+		return nil, fmt.Errorf("pola: no JSEngine registered — use goja.Plugin()")
 	}
 
 	// Optional services — nil when not registered.
@@ -117,9 +132,9 @@ func Build(cfg *core.Config) (*core.App, error) {
 	css, _ := do.Invoke[core.CSS](injector)
 	pprof, _ := do.Invoke[core.Pprof](injector)
 
-	// Slice collectors
-	middleware := do.MustInvoke[*di.MiddlewareCollector](injector).All()
-	injectors := do.MustInvoke[*di.InjectorCollector](injector).All()
+	// Middleware and injectors from Registry.
+	middleware := registry.Middleware()
+	runtimeInjectors := registry.RuntimeInjectors()
 
 	// ── 1.5. Build API routes ───────────────────────────────────────────
 	var apiRouter core.APIRouter
@@ -144,15 +159,15 @@ func Build(cfg *core.Config) (*core.App, error) {
 
 	// ── Prebuild fast-path (embed mode) ───────────────────────────────────
 	if loader, err := do.Invoke[core.PrebuildLoader](injector); err == nil {
-		return buildFromPrebuilt(cfg, injector, loader, renderer, router, engine, logger, metrics, tracer, pprof, middleware, injectors)
+		return buildFromPrebuilt(cfg, registry, loader, renderer, router, engine, logger, metrics, tracer, pprof, middleware, runtimeInjectors)
 	}
 
 	// If no prebuild loader, bundler and FS are required.
 	if bundler == nil {
-		return nil, fmt.Errorf("pola: no Bundler registered; import _ \"github.com/polagonow/pola/bundler/esbuild\"")
+		return nil, fmt.Errorf("pola: no Bundler registered — use esbuild.Plugin()")
 	}
 	if fsys == nil {
-		return nil, fmt.Errorf("pola: no FS registered; import _ \"github.com/polagonow/pola/fs/osfs\"")
+		return nil, fmt.Errorf("pola: no FS registered — use osfs.Plugin()")
 	}
 
 	// ── Resolve paths ─────────────────────────────────────────────────────
@@ -262,9 +277,9 @@ func Build(cfg *core.Config) (*core.App, error) {
 
 	// ── 8. Wire orchestrator ───────────────────────────────────────────────
 	notFoundRoute := newNotFoundRoute(discovery.GlobalNotFound)
-	orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, middleware, injectors, routes, shell, assets, bundleOutput, notFoundRoute, cssURLs, docProps, cfg.Dev)
+	orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, middleware, runtimeInjectors, routes, shell, assets, bundleOutput, notFoundRoute, cssURLs, docProps, cfg.Dev)
 
-	// ── 6.6. Copy static public files ────────────────────────────────────────
+	// ── Copy static public files ────────────────────────────────────────
 	srcPublic := filepath.Join(absWebAppPath, "public")
 	if srcPublic != publicDir {
 		copyPublicStatics(srcPublic, publicDir)
@@ -286,27 +301,22 @@ func Build(cfg *core.Config) (*core.App, error) {
 	}
 
 	// ── 10. Return App ─────────────────────────────────────────────────────
-	app := newApp(cfg, injector, orch)
+	app := newApp(cfg, registry, orch)
 	app.SetArtifacts(bundleOutput)
 
 	// In dev mode wrap the app in a hot-reloader so file changes trigger a
 	// full rebuild and browser reload via WebSocket.
 	if cfg.Dev {
-		hr, err := NewHotReloader(cfg, injector, app, notFoundRoute)
+		hr, err := NewHotReloader(cfg, registry, app, notFoundRoute)
 		if err != nil {
 			return nil, fmt.Errorf("pola: hotreload: %w", err)
 		}
-		devApp := newApp(cfg, injector, hr.Handler())
+		devApp := newApp(cfg, registry, hr.Handler())
 		devApp.SetArtifacts(bundleOutput)
 		return devApp, nil
 	}
 
 	return app, nil
-}
-
-// New creates and builds a Pola application from the given config.
-func New(cfg *core.Config) (*core.App, error) {
-	return Build(cfg)
 }
 
 // copyPublicStatics copies non-asset static files from srcDir to dstDir,
@@ -347,7 +357,7 @@ type routeLoader interface {
 // It skips route scanning, entry generation, and JS bundling.
 func buildFromPrebuilt(
 	cfg *core.Config,
-	injector do.Injector,
+	registry *core.Registry,
 	loader core.PrebuildLoader,
 	renderer core.Renderer,
 	router core.Router,
@@ -376,25 +386,25 @@ func buildFromPrebuilt(
 		}
 	}
 
-	// Resolve shell and asset server (pola_embed.go is injected via overlay during builds).
-	shell, assets := resolveShellAndAssets(injector, "")
+	// Resolve shell and asset server.
+	shell, assets := resolveShellAndAssets(registry.Injector(), "")
 
 	notFoundRoute := newNotFoundRoute(artifacts.GlobalNotFound)
 	// In prebuild/embed mode, API routes are still compiled into the binary.
 	var apiRouter core.APIRouter
-	if ar, err := do.Invoke[core.APIRouter](injector); err == nil {
+	if ar, err := do.Invoke[core.APIRouter](registry.Injector()); err == nil {
 		type builder interface {
 			Build(do.Injector) error
 		}
 		if b, ok := ar.(builder); ok {
-			if buildErr := b.Build(injector); buildErr != nil {
+			if buildErr := b.Build(registry.Injector()); buildErr != nil {
 				return nil, fmt.Errorf("pola: build api routes: %w", buildErr)
 			}
 		}
 		apiRouter = ar
 	}
 	orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, middleware, injectors, artifacts.Routes, shell, assets, artifacts.BundleOutput, notFoundRoute, artifacts.CSSURLs, artifacts.DocumentProps, false)
-	app := newApp(cfg, injector, orch)
+	app := newApp(cfg, registry, orch)
 	app.SetArtifacts(artifacts.BundleOutput)
 	return app, nil
 }
