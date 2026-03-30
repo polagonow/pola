@@ -4,6 +4,7 @@
 package main
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -14,14 +15,14 @@ import (
 )
 
 var (
-	polaVM       = envOr("POLA_VM", "goja")
-	polaBundler  = envOr("POLA_BUNDLER", "esbuild")
-	polaRenderer = envOr("POLA_RENDERER", "react")
-	polaRouter   = envOr("POLA_ROUTER", "nextjs")
-	polaCSS      = envOr("POLA_CSS", "tailwind")
-	cgoEnabled   = envOr("CGO_ENABLED", "1")
-	polaMetrics  = envOr("POLA_METRICS", "false")
-	polaPprof    = envOr("POLA_PPROF", "false")
+	polaVM       = cmp.Or(os.Getenv("POLA_VM"), "goja")
+	polaBundler  = cmp.Or(os.Getenv("POLA_BUNDLER"), "esbuild")
+	polaRenderer = cmp.Or(os.Getenv("POLA_RENDERER"), "react")
+	polaRouter   = cmp.Or(os.Getenv("POLA_ROUTER"), "nextjs")
+	polaCSS      = cmp.Or(os.Getenv("POLA_CSS"), "tailwind")
+	cgoEnabled   = cmp.Or(os.Getenv("CGO_ENABLED"), "1")
+	polaMetrics  = cmp.Or(os.Getenv("POLA_METRICS"), "false")
+	polaPprof    = cmp.Or(os.Getenv("POLA_PPROF"), "false")
 )
 
 // runtimeTags returns build tags for dev/bundle runs (includes bundler).
@@ -143,9 +144,3 @@ func gitVersion() string {
 	return s
 }
 
-func envOr(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
-}

@@ -3,6 +3,7 @@ package core
 import (
 	"fmt"
 	"html"
+	"maps"
 	"reflect"
 	"slices"
 	"strconv"
@@ -310,7 +311,7 @@ func (a *AlternateURLs) RenderHead(w *strings.Builder) {
 	if a.Canonical != nil {
 		writeLink(w, "canonical", *a.Canonical)
 	}
-	for _, lang := range SortedKeys(a.Languages) {
+	for _, lang := range slices.Sorted(maps.Keys(a.Languages)) {
 		w.WriteString(`<link rel="alternate" hreflang="`)
 		w.WriteString(html.EscapeString(lang))
 		w.WriteString(`" href="`)
@@ -353,12 +354,3 @@ func writeIconLinks(w *strings.Builder, rel string, icons []Icon) {
 	}
 }
 
-// SortedKeys returns the keys of m in sorted order.
-func SortedKeys[V any](m map[string]V) []string {
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	slices.Sort(keys)
-	return keys
-}
