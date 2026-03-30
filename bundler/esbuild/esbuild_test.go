@@ -54,12 +54,91 @@ func TestBuild_Name(t *testing.T) {
 	}
 }
 
-// TestBuild_Watch_Stub verifies that Watch returns an error (stub).
-func TestBuild_Watch_Stub(t *testing.T) {
+// TestWatch_ReturnsInitialOutput verifies that Watch returns a channel
+// and the first value is a valid BundleOutput.
+func TestWatch_ReturnsInitialOutput(t *testing.T) {
+	appDir := t.TempDir()
+	outDir := filepath.Join(appDir, "public", "assets")
+	if err := os.MkdirAll(outDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	serverEntry := `(globalThis as any).__render__ = function() { return null; };`
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
 	b := New()
-	_, err := b.Watch(context.Background(), core.BundleInput{})
+	ch, err := b.Watch(ctx, core.BundleInput{
+		AppDir:                 appDir,
+		OutDir:                 outDir,
+		AssetsURLPath:          "/public/assets",
+		ServerEntryContent:     serverEntry,
+		ServerBundleConditions: []string{"react-server", "browser", "module", "default"},
+	})
+	if err != nil {
+		t.Fatalf("Watch: %v", err)
+	}
+	if ch == nil {
+		t.Fatal("expected non-nil channel")
+	}
+
+	out := <-ch
+	if out == nil {
+		t.Fatal("expected non-nil initial BundleOutput")
+	}
+	if len(out.ServerBundle) == 0 {
+		t.Error("expected non-empty ServerBundle")
+	}
+}
+
+// TestWatch_CancelClosesChannel verifies that canceling the context closes the channel.
+func TestWatch_CancelClosesChannel(t *testing.T) {
+	appDir := t.TempDir()
+	outDir := filepath.Join(appDir, "public", "assets")
+	if err := os.MkdirAll(outDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	serverEntry := `(globalThis as any).__render__ = function() { return null; };`
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	b := New()
+	ch, err := b.Watch(ctx, core.BundleInput{
+		AppDir:                 appDir,
+		OutDir:                 outDir,
+		AssetsURLPath:          "/public/assets",
+		ServerEntryContent:     serverEntry,
+		ServerBundleConditions: []string{"react-server", "browser", "module", "default"},
+	})
+	if err != nil {
+		t.Fatalf("Watch: %v", err)
+	}
+
+	// Drain initial output.
+	<-ch
+
+	// Cancel and verify channel closes.
+	cancel()
+	_, ok := <-ch
+	if ok {
+		t.Error("expected channel to be closed after context cancel")
+	}
+}
+
+// TestWatch_InitialBuildError verifies that Watch returns an error when the
+// initial build fails.
+func TestWatch_InitialBuildError(t *testing.T) {
+	b := New()
+	_, err := b.Watch(context.Background(), core.BundleInput{
+		AppDir:                 "/nonexistent",
+		OutDir:                 "/nonexistent/out",
+		ServerEntryContent:     `import "totally-bogus-nonexistent-pkg";`,
+		ServerBundleConditions: []string{"browser"},
+	})
 	if err == nil {
-		t.Error("expected Watch to return an error (not yet implemented)")
+		t.Error("expected Watch to return an error for bad input")
 	}
 }
 

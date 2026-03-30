@@ -2,7 +2,6 @@ package internal
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -89,11 +88,9 @@ func NewHotReloader(cfg *core.Config, injector do.Injector, initial *core.App, n
 	// Reconstruct the bundle input for watch mode.
 	renderer, _ := do.Invoke[core.Renderer](injector)
 	router, _ := do.Invoke[core.Router](injector)
-	fsys, _ := do.Invoke[core.FS](injector)
 	css, _ := do.Invoke[core.CSS](injector)
 	engine, _ := do.Invoke[core.JSEngine](injector)
-	_ = router
-	_ = fsys
+	fsys, _ := do.Invoke[core.FS](injector)
 
 	output := initial.Artifacts().Output
 	if output == nil {
@@ -109,22 +106,56 @@ func NewHotReloader(cfg *core.Config, injector do.Injector, initial *core.App, n
 	if publicDir == "" {
 		publicDir = "./public"
 	}
+	absWebAppPath, _ := filepath.Abs(webAppPath)
+	absPublicDir, _ := filepath.Abs(publicDir)
+
+	// Discover client components and generate server entry — these are
+	// required for the bundler to produce a working ClientEntryURL and
+	// ServerBundle. Without them the watch rebuild produces empty output.
+	var clientComponents []string
+	var serverEntryContent string
+	if router != nil && fsys != nil && renderer != nil {
+		exts := renderer.FileExtensions()
+		if _, scanErr := router.ScanRoutes(context.Background(), fsys, absWebAppPath, exts); scanErr == nil {
+			if dp, ok := router.(interface {
+				DiscoveryResult() core.DiscoveryResult
+			}); ok {
+				disc := dp.DiscoveryResult()
+				clientComponents = disc.ClientComponents
+			}
+			if eg, ok := renderer.(interface {
+				GenerateEntry(core.DiscoveryResult) (string, error)
+			}); ok {
+				if dp, ok2 := router.(interface {
+					DiscoveryResult() core.DiscoveryResult
+				}); ok2 {
+					serverEntryContent, _ = eg.GenerateEntry(dp.DiscoveryResult())
+				}
+			}
+		}
+	}
 
 	bundleInput := core.BundleInput{
-		AppDir:        webAppPath,
-		OutDir:        publicDir + "/assets",
-		AssetsURLPath: "/public/assets",
-		Dev:           true,
-		CSSProcessor:  css,
+		AppDir:             absWebAppPath,
+		OutDir:             filepath.Join(absPublicDir, "assets"),
+		AssetsURLPath:      "/public/assets",
+		ClientComponents:   clientComponents,
+		ServerEntryContent: serverEntryContent,
+		Dev:                true,
+		CSSProcessor:       css,
+	}
+	// Add renderer-specific bundle configuration (conditions, client entry).
+	if bc, ok := renderer.(interface {
+		BundleConditions() []string
+		ClientEntry() string
+	}); ok {
+		bundleInput.ServerBundleConditions = bc.BundleConditions()
+		bundleInput.ClientEntry = bc.ClientEntry()
 	}
 
 	watchCh, watchErr := bundler.Watch(h.contextFromDone(), bundleInput)
 	if watchErr != nil {
-		logger.Warn("hotreload: bundler watch not available, falling back to full rebuild", "err", watchErr)
-		// Fall back to FS-based watching if bundler.Watch is not implemented.
-		if fsys != nil {
-			return h.fallbackFSWatch(cfg, logger, fsys, renderer)
-		}
+		logger.Warn("hotreload: bundler watch not available", "err", watchErr)
 		return h, nil
 	}
 
@@ -197,66 +228,6 @@ func (h *HotReloader) contextFromDone() context.Context {
 		cancel()
 	}()
 	return ctx
-}
-
-// fallbackFSWatch sets up FS-based file watching when the bundler doesn't
-// support Watch. It does a full rebuild on file changes.
-func (h *HotReloader) fallbackFSWatch(cfg *core.Config, logger core.Logger, fsys core.FS, renderer core.Renderer) (*HotReloader, error) {
-	var exts []string
-	if renderer != nil {
-		exts = renderer.FileExtensions()
-	}
-	exts = append(exts, ".css")
-
-	webAppPath := cfg.WebAppPath
-	if webAppPath == "" {
-		webAppPath = "./app"
-	}
-
-	if err := fsys.Watch(webAppPath, func(path string) {
-		if !isSourceFile(path, webAppPath, exts) {
-			return
-		}
-		logger.Info("hotreload: file changed, rebuilding", "path", path)
-		newApp, err := Build(cfg)
-		if err != nil {
-			logger.Error("hotreload: build error", "err", err)
-			return
-		}
-		h.current.Store(&liveApp{app: newApp, handler: newApp})
-		logger.Info("hotreload: rebuild complete")
-		h.bus.Publish("update", []byte("reload"))
-	}); err != nil {
-		return nil, fmt.Errorf("hotreload: fs watch: %w", err)
-	}
-
-	return h, nil
-}
-
-// isSourceFile returns true when path has one of the watched extensions and
-// is not inside an excluded directory.
-func isSourceFile(path, appDir string, exts []string) bool {
-	ext := strings.ToLower(filepath.Ext(path))
-	matched := false
-	for _, e := range exts {
-		if ext == e {
-			matched = true
-			break
-		}
-	}
-	if !matched {
-		return false
-	}
-	rel, err := filepath.Rel(appDir, path)
-	if err != nil {
-		return false
-	}
-	for _, seg := range strings.Split(rel, string(filepath.Separator)) {
-		if seg == "node_modules" || seg == "public" || strings.HasPrefix(seg, ".") {
-			return false
-		}
-	}
-	return true
 }
 
 // Handler returns an http.Handler that serves WebSocket at /__dev__/hot
