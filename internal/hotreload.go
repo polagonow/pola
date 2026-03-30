@@ -92,8 +92,6 @@ func NewHotReloader(cfg *core.Config, injector do.Injector, initial *core.App, n
 	fsys, _ := do.Invoke[core.FS](injector)
 	css, _ := do.Invoke[core.CSS](injector)
 	engine, _ := do.Invoke[core.JSEngine](injector)
-	_ = router
-	_ = fsys
 
 	output := initial.Artifacts().Output
 	if output == nil {
@@ -109,13 +107,51 @@ func NewHotReloader(cfg *core.Config, injector do.Injector, initial *core.App, n
 	if publicDir == "" {
 		publicDir = "./public"
 	}
+	absWebAppPath, _ := filepath.Abs(webAppPath)
+	absPublicDir, _ := filepath.Abs(publicDir)
+
+	// Discover client components and generate server entry — these are
+	// required for the bundler to produce a working ClientEntryURL and
+	// ServerBundle. Without them the watch rebuild produces empty output.
+	var clientComponents []string
+	var serverEntryContent string
+	if router != nil && fsys != nil && renderer != nil {
+		exts := renderer.FileExtensions()
+		if _, scanErr := router.ScanRoutes(context.Background(), fsys, absWebAppPath, exts); scanErr == nil {
+			if dp, ok := router.(interface {
+				DiscoveryResult() core.DiscoveryResult
+			}); ok {
+				disc := dp.DiscoveryResult()
+				clientComponents = disc.ClientComponents
+			}
+			if eg, ok := renderer.(interface {
+				GenerateEntry(core.DiscoveryResult) (string, error)
+			}); ok {
+				if dp, ok2 := router.(interface {
+					DiscoveryResult() core.DiscoveryResult
+				}); ok2 {
+					serverEntryContent, _ = eg.GenerateEntry(dp.DiscoveryResult())
+				}
+			}
+		}
+	}
 
 	bundleInput := core.BundleInput{
-		AppDir:        webAppPath,
-		OutDir:        publicDir + "/assets",
-		AssetsURLPath: "/public/assets",
-		Dev:           true,
-		CSSProcessor:  css,
+		AppDir:             absWebAppPath,
+		OutDir:             filepath.Join(absPublicDir, "assets"),
+		AssetsURLPath:      "/public/assets",
+		ClientComponents:   clientComponents,
+		ServerEntryContent: serverEntryContent,
+		Dev:                true,
+		CSSProcessor:       css,
+	}
+	// Add renderer-specific bundle configuration (conditions, client entry).
+	if bc, ok := renderer.(interface {
+		BundleConditions() []string
+		ClientEntry() string
+	}); ok {
+		bundleInput.ServerBundleConditions = bc.BundleConditions()
+		bundleInput.ClientEntry = bc.ClientEntry()
 	}
 
 	watchCh, watchErr := bundler.Watch(h.contextFromDone(), bundleInput)

@@ -134,10 +134,91 @@ func (b *Bundler) Build(_ context.Context, req core.BundleInput) (*core.BundleOu
 	}, nil
 }
 
-// Watch stubs esbuild incremental watch mode.
-// TODO: implement using esbuild's context-based rebuild API.
-func (b *Bundler) Watch(_ context.Context, _ core.BundleInput) (<-chan *core.BundleOutput, error) {
-	return nil, fmt.Errorf("esbuild: Watch not yet implemented")
+// Watch polls the app directory for file changes using esbuild's two-tier
+// polling algorithm (100ms interval, recent files always checked, remaining
+// files randomly sampled). When a change is detected the full Build pipeline
+// is re-run and the new BundleOutput is sent on the returned channel.
+// The channel is closed when ctx is canceled.
+func (b *Bundler) Watch(ctx context.Context, req core.BundleInput) (<-chan *core.BundleOutput, error) {
+	initial, err := b.Build(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("esbuild: watch initial build: %w", err)
+	}
+
+	outputCh := make(chan *core.BundleOutput, 1)
+	triggerCh := make(chan struct{}, 1)
+
+	poller := newFilePoller(func() {
+		select {
+		case triggerCh <- struct{}{}:
+		default:
+		}
+	})
+	poller.SetPaths(collectSourcePaths(req.AppDir))
+	poller.Start()
+
+	go func() {
+		defer close(outputCh)
+		defer poller.Stop()
+
+		select {
+		case outputCh <- initial:
+		case <-ctx.Done():
+			return
+		}
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-triggerCh:
+				out, buildErr := b.Build(ctx, req)
+				if buildErr != nil {
+					continue
+				}
+				// Refresh watched paths — new files may have appeared.
+				poller.SetPaths(collectSourcePaths(req.AppDir))
+				// Replace any unread previous output so consumer always
+				// gets the latest build.
+				select {
+				case <-outputCh:
+				default:
+				}
+				select {
+				case outputCh <- out:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+
+	return outputCh, nil
+}
+
+// collectSourcePaths walks appDir and returns all source file paths that should
+// be watched for changes (.ts, .tsx, .js, .jsx, .css), excluding node_modules,
+// public, and dot-directories.
+func collectSourcePaths(appDir string) []string {
+	var paths []string
+	_ = filepath.WalkDir(appDir, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		name := d.Name()
+		if d.IsDir() {
+			if name == "node_modules" || name == "public" || strings.HasPrefix(name, ".") {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+		switch filepath.Ext(name) {
+		case ".ts", ".tsx", ".js", ".jsx", ".css":
+			paths = append(paths, path)
+		}
+		return nil
+	})
+	return paths
 }
 
 // ── manifest (inlined from bundler/manifest) ─────────────────────────────────
