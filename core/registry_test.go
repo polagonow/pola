@@ -3,8 +3,6 @@ package core_test
 import (
 	"testing"
 
-	"github.com/samber/do/v2"
-
 	"github.com/polagonow/pola/core"
 )
 
@@ -33,7 +31,7 @@ func TestRegistryProvideAndInvoke(t *testing.T) {
 	r := core.NewRegistry()
 	core.ProvideValue[string](r, "hello")
 
-	val, err := do.Invoke[string](r.Injector())
+	val, err := core.Invoke[string](r)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -9,10 +9,8 @@ import (
 	"sync/atomic"
 
 	"github.com/gorilla/websocket"
-	"github.com/samber/do/v2"
 
 	"github.com/polagonow/pola/core"
-	"github.com/polagonow/pola/core/di"
 )
 
 // ClientScript is the browser-side WebSocket listener that triggers a page
@@ -54,7 +52,7 @@ type liveApp struct {
 type HotReloader struct {
 	cfg           *core.Config
 	registry      *core.Registry
-	bus           *di.EventBus
+	bus           *EventBus
 	notFoundRoute *core.Route
 	current       atomic.Pointer[liveApp]
 	done          chan struct{}
@@ -64,9 +62,8 @@ type HotReloader struct {
 // It listens on the bundler's Watch channel for rebuild events and notifies
 // connected browsers via WebSocket.
 func NewHotReloader(cfg *core.Config, registry *core.Registry, initial *core.App, notFoundRoute *core.Route) (*HotReloader, error) {
-	injector := registry.Injector()
-	bus := do.MustInvoke[*di.EventBus](injector)
-	logger := do.MustInvoke[core.Logger](injector)
+	bus := core.MustInvoke[*EventBus](registry)
+	logger := core.MustInvoke[core.Logger](registry)
 
 	h := &HotReloader{
 		cfg:           cfg,
@@ -80,18 +77,18 @@ func NewHotReloader(cfg *core.Config, registry *core.Registry, initial *core.App
 	h.current.Store(live)
 
 	// Start watching via bundler's Watch channel.
-	bundler, err := do.Invoke[core.Bundler](injector)
+	bundler, err := core.Invoke[core.Bundler](registry)
 	if err != nil {
 		// No bundler — fall back to no-op watch.
 		return h, nil
 	}
 
 	// Reconstruct the bundle input for watch mode.
-	renderer, _ := do.Invoke[core.Renderer](injector)
-	router, _ := do.Invoke[core.Router](injector)
-	css, _ := do.Invoke[core.CSS](injector)
-	engine, _ := do.Invoke[core.JSEngine](injector)
-	fsys, _ := do.Invoke[core.FS](injector)
+	renderer, _ := core.Invoke[core.Renderer](registry)
+	router, _ := core.Invoke[core.Router](registry)
+	css, _ := core.Invoke[core.CSS](registry)
+	engine, _ := core.Invoke[core.JSEngine](registry)
+	fsys, _ := core.Invoke[core.FS](registry)
 
 	output := initial.Artifacts().Output
 	if output == nil {
@@ -181,13 +178,13 @@ func NewHotReloader(cfg *core.Config, registry *core.Registry, initial *core.App
 				}
 
 				// Rebuild orchestrator with new output.
-				metrics, _ := do.Invoke[core.Metrics](injector)
-				tracer, _ := do.Invoke[core.Tracer](injector)
-				pprof, _ := do.Invoke[core.Pprof](injector)
+				metrics, _ := core.Invoke[core.Metrics](registry)
+				tracer, _ := core.Invoke[core.Tracer](registry)
+				pprof, _ := core.Invoke[core.Pprof](registry)
 
 				mws := registry.Middleware()
 				injs := registry.RuntimeInjectors()
-				shell, assets := resolveShellAndAssets(injector, publicDir)
+				shell, assets := resolveShellAndAssets(registry, publicDir)
 
 				var cssURLs []string
 				if newOutput != nil {
@@ -204,7 +201,7 @@ func NewHotReloader(cfg *core.Config, registry *core.Registry, initial *core.App
 
 				// Resolve API router for hot-reload rebuild.
 				var apiRouter core.APIRouter
-				if ar, err := do.Invoke[core.APIRouter](injector); err == nil {
+				if ar, err := core.Invoke[core.APIRouter](registry); err == nil {
 					apiRouter = ar
 				}
 				orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, mws, injs, nil, shell, assets, newOutput, h.notFoundRoute, cssURLs, docProps, true)
@@ -254,7 +251,7 @@ func (h *HotReloader) Close() error {
 // ── WebSocket server ──────────────────────────────────────────────────────────
 
 type wsServer struct {
-	bus *di.EventBus
+	bus *EventBus
 }
 
 func (s *wsServer) ServeHTTP(w http.ResponseWriter, r *http.Request) {

@@ -16,8 +16,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/patternmatch"
-	"github.com/samber/do/v2"
 )
 
 // ── Global registration (called from user init() functions) ─────────────────
@@ -71,7 +71,7 @@ func New() *Router {
 
 // Build drains all registered route structs, resolves DI dependencies,
 // discovers RESTful methods via reflection, and compiles the routing table.
-func (r *Router) Build(injector do.Injector) error {
+func (r *Router) Build(registry *core.Registry) error {
 	handlers := drain()
 	if len(handlers) == 0 {
 		return nil
@@ -89,7 +89,7 @@ func (r *Router) Build(injector do.Injector) error {
 	for _, h := range handlers {
 		// Resolve DI if the struct implements Initializer.
 		if init, ok := h.(Initializer); ok {
-			if err := init.Init(injector); err != nil {
+			if err := init.Init(registry); err != nil {
 				typeName := reflect.TypeOf(h).Elem().Name()
 				return fmt.Errorf("routes: Init() failed for %s: %w", typeName, err)
 			}

@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/patternmatch"
-	"github.com/samber/do/v2"
 )
 
 // usersRoute simulates a route struct for /users.
@@ -148,13 +148,11 @@ func TestRouter_DynamicRoutes(t *testing.T) {
 }
 
 func TestRouter_InitInterface(t *testing.T) {
-	injector := do.New()
-	do.Provide(injector, func(_ do.Injector) (string, error) {
-		return "injected-value", nil
-	})
+	registry := core.NewRegistry()
+	core.ProvideValue[string](registry, "injected-value")
 
 	route := &initRoute{}
-	if err := route.Init(injector); err != nil {
+	if err := route.Init(registry); err != nil {
 		t.Fatalf("Init: %v", err)
 	}
 	if route.Value != "injected-value" {
@@ -166,8 +164,8 @@ type initRoute struct {
 	Value string
 }
 
-func (r *initRoute) Init(injector do.Injector) error {
-	r.Value = do.MustInvoke[string](injector)
+func (r *initRoute) Init(registry *core.Registry) error {
+	r.Value = core.MustInvoke[string](registry)
 	return nil
 }
 
@@ -264,8 +262,8 @@ func TestRouter_CustomPath_ValidationError(t *testing.T) {
 	pending = append(pending, &badPathRoute{})
 
 	router := New()
-	injector := do.New()
-	err := router.Build(injector)
+	registry := core.NewRegistry()
+	err := router.Build(registry)
 	if err == nil {
 		t.Fatal("expected error for path without leading '/'")
 	}

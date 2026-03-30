@@ -54,10 +54,6 @@ func NewRegistry() *Registry {
 	}
 }
 
-// Injector returns the underlying do.Injector for backward compatibility
-// with code that resolves services via do.Invoke[T].
-func (r *Registry) Injector() do.Injector { return r.injector }
-
 // Provide registers a singleton service by its concrete type.
 func Provide[T any](r *Registry, fn func() (T, error)) {
 	do.Provide(r.injector, func(_ do.Injector) (T, error) {
@@ -68,6 +64,16 @@ func Provide[T any](r *Registry, fn func() (T, error)) {
 // ProvideValue registers a pre-constructed singleton value.
 func ProvideValue[T any](r *Registry, val T) {
 	do.ProvideValue(r.injector, val)
+}
+
+// Invoke resolves a service by type from the registry.
+func Invoke[T any](r *Registry) (T, error) {
+	return do.Invoke[T](r.injector)
+}
+
+// MustInvoke resolves a service by type, panicking on error.
+func MustInvoke[T any](r *Registry) T {
+	return do.MustInvoke[T](r.injector)
 }
 
 // AddMiddleware appends a middleware to the registry.
@@ -146,7 +152,7 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // Cache resolves the cache from the DI container on demand.
 func (a *App) Cache() Cache {
-	cache, err := do.Invoke[Cache](a.registry.Injector())
+	cache, err := Invoke[Cache](a.registry)
 	if err != nil {
 		return nil
 	}
