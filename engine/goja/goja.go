@@ -19,7 +19,7 @@ import (
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/core/globals"
 	"github.com/polagonow/pola/engine/polyfill"
-	"github.com/polagonow/pola/internal/vmpool"
+	"github.com/polagonow/pola/vmpool"
 
 	gojalib "github.com/dop251/goja"
 	"github.com/dop251/goja_nodejs/eventloop"

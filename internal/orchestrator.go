@@ -14,7 +14,10 @@ import (
 // contextKey is an unexported type for context keys in this package.
 type contextKey int
 
-const routePatternKey contextKey = iota
+const (
+	routePatternKey contextKey = iota
+	apiParamsKey
+)
 
 // requestHandler is an optional interface for renderers that want to own
 // the full HTTP response for certain requests (e.g. RSC Flight streaming).
@@ -28,6 +31,7 @@ type requestHandler interface {
 type Orchestrator struct {
 	renderer      core.Renderer
 	router        core.Router
+	apiRouter     core.APIRouter // may be nil; Go API route handlers
 	logger        core.Logger
 	metrics       core.Metrics
 	tracer        core.Tracer
@@ -50,6 +54,7 @@ type Orchestrator struct {
 func NewOrchestrator(
 	renderer core.Renderer,
 	router core.Router,
+	apiRouter core.APIRouter,
 	logger core.Logger,
 	metrics core.Metrics,
 	tracer core.Tracer,
@@ -68,6 +73,7 @@ func NewOrchestrator(
 	o := &Orchestrator{
 		renderer:      renderer,
 		router:        router,
+		apiRouter:     apiRouter,
 		logger:        logger,
 		metrics:       metrics,
 		tracer:        tracer,
@@ -175,6 +181,20 @@ func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
 		ctx = context.WithValue(ctx, routePatternKey, route.Pattern)
 	}
 	*r = *r.WithContext(ctx)
+
+	// API route integration: pages always win for GET requests.
+	// For non-GET requests, or GET requests without a matching page, try API routes.
+	isPageGET := route != nil && r.Method == http.MethodGet
+	if !isPageGET && o.apiRouter != nil {
+		if handler, apiParams, ok := o.apiRouter.Match(r); ok {
+			if apiParams != nil {
+				ctx = context.WithValue(ctx, apiParamsKey, apiParams)
+				*r = *r.WithContext(ctx)
+			}
+			handler(w, r)
+			return
+		}
+	}
 
 	if route == nil {
 		if o.notFoundRoute != nil {

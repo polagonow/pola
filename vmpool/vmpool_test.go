@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/polagonow/pola/internal/vmpool"
+	"github.com/polagonow/pola/vmpool"
 )
 
 type fakeVM struct{ id int }

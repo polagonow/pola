@@ -17,4 +17,9 @@ import (
 {{- if .ActionsImport}}
 	_ "{{.ActionsImport}}"
 {{- end}}
+
+	// API routes — blank imports register handlers via init().
+{{- range .RouteImports}}
+	_ "{{.}}"
+{{- end}}
 )

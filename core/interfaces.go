@@ -137,6 +137,14 @@ type Pprof interface {
 	Handler() http.Handler
 }
 
+// APIRouter matches HTTP requests to Go API route handlers.
+// Routes and frontend pages share the same URL namespace. The orchestrator
+// checks API routes for non-GET requests or when no frontend page exists.
+type APIRouter interface {
+	// Match returns the handler and extracted params for the request, or false if no match.
+	Match(r *http.Request) (http.HandlerFunc, map[string]any, bool)
+}
+
 // LogAware is an optional interface implemented by components that accept a Logger.
 // The pipeline calls SetLogger on all registered components after FillDefaults.
 type LogAware interface {

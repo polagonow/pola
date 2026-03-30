@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"text/template"
 
@@ -19,6 +20,10 @@ var generateTemplates embed.FS
 
 var actionTmpl = template.Must(
 	template.New("action_go.tmpl").Delims("[[", "]]").ParseFS(generateTemplates, "_templates/action_go.tmpl"),
+)
+
+var routeTmpl = template.Must(
+	template.New("route_go.tmpl").Delims("[[", "]]").ParseFS(generateTemplates, "_templates/route_go.tmpl"),
 )
 
 var pluginsTmpl = template.Must(
@@ -57,10 +62,31 @@ var generateActionCmd = &cobra.Command{
   pola generate action Products`,
 }
 
+var generateRouteCmd = &cobra.Command{
+	Use:   "route [Name]",
+	Short: "Scaffold a new route handler",
+	Long:  "Create a new route file in the routes/ directory with HTTP method stubs.",
+	Args:  cobra.ExactArgs(1),
+	RunE:  runGenerateRoute,
+	Example: `  pola generate route Posts
+  pola generate route Posts --actions GET,POST
+  pola generate route Posts/Comments --actions GET,POST,DELETE`,
+}
+
+var routeActions string
+
+// validHTTPMethods is the set of HTTP methods accepted by --actions.
+var validHTTPMethods = map[string]bool{
+	"GET": true, "POST": true, "PUT": true, "PATCH": true, "DELETE": true,
+	"HEAD": true, "OPTIONS": true, "CONNECT": true, "TRACE": true,
+}
+
 func init() {
 	generateCmd.Flags().StringVar(&generateFlags.actionsDir, "actions-dir", "", "path to actions directory (default: ./actions)")
 	generateCmd.Flags().StringVar(&generateFlags.tsOut, "ts-out", "", "path to generated .d.ts file")
+	generateRouteCmd.Flags().StringVar(&routeActions, "actions", "GET", "comma-separated HTTP methods (e.g. GET,POST,DELETE)")
 	generateCmd.AddCommand(generateActionCmd)
+	generateCmd.AddCommand(generateRouteCmd)
 }
 
 func runGenerate(_ *cobra.Command, _ []string) error {
@@ -117,6 +143,81 @@ func runGenerateAction(_ *cobra.Command, args []string) error {
 
 	fmt.Printf("Created %s\n", filePath)
 	return nil
+}
+
+func runGenerateRoute(_ *cobra.Command, args []string) error {
+	name := args[0]
+
+	// Split on "/" for nested routes: Posts/Comments → ["posts", "comments"].
+	segments := strings.Split(name, "/")
+	for i, s := range segments {
+		segments[i] = strings.ToLower(s)
+	}
+	pkgName := segments[len(segments)-1]
+
+	// Parse and validate HTTP methods.
+	methods, err := parseActions(routeActions)
+	if err != nil {
+		return err
+	}
+
+	projectDir, err := findProjectRoot()
+	if err != nil {
+		return err
+	}
+
+	targetDir := filepath.Join(append([]string{projectDir, "routes"}, segments...)...)
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+		return fmt.Errorf("create route dir: %w", err)
+	}
+
+	filePath := filepath.Join(targetDir, "route.go")
+	if _, err := os.Stat(filePath); err == nil {
+		return fmt.Errorf("%s already exists", filePath)
+	}
+
+	var buf strings.Builder
+	if err := routeTmpl.Execute(&buf, struct {
+		Package string
+		Methods []string
+	}{
+		Package: pkgName,
+		Methods: methods,
+	}); err != nil {
+		return fmt.Errorf("execute route template: %w", err)
+	}
+
+	if err := os.WriteFile(filePath, []byte(buf.String()), 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", filePath, err)
+	}
+
+	fmt.Printf("Created %s\n", filePath)
+	return nil
+}
+
+// parseActions splits and validates the --actions flag value.
+func parseActions(raw string) ([]string, error) {
+	parts := strings.Split(raw, ",")
+	seen := make(map[string]bool, len(parts))
+	var methods []string
+	for _, p := range parts {
+		m := strings.TrimSpace(strings.ToUpper(p))
+		if m == "" {
+			continue
+		}
+		if !validHTTPMethods[m] {
+			return nil, fmt.Errorf("unknown HTTP method %q; valid methods: GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS, CONNECT, TRACE", m)
+		}
+		if seen[m] {
+			continue
+		}
+		seen[m] = true
+		methods = append(methods, m)
+	}
+	if len(methods) == 0 {
+		methods = []string{"GET"}
+	}
+	return methods, nil
 }
 
 // overlayResult holds the output from generateOverlay.
@@ -189,8 +290,25 @@ func generateOverlay(projectDir, css string) (*overlayResult, error) {
 		}
 	}
 
-	// 3. Generate plugin imports (always).
-	pluginsSrc, err := generatePluginImports(css, actionsImport)
+	// 3. Discover route packages under routes/.
+	var routePkgs []routePackageInfo
+	if modPath, err := readModulePath(projectDir); err == nil && modPath != "" {
+		routePkgs = discoverRoutePackages(projectDir, modPath)
+	}
+
+	// 3b. Generate pola_route_init.go overlay for each route package.
+	for i, rp := range routePkgs {
+		src := generateRouteInit(rp.PkgName)
+		initPath := filepath.Join(tmpDir, fmt.Sprintf("pola_route_init_%d.go", i))
+		if err := os.WriteFile(initPath, src, 0o644); err != nil {
+			os.RemoveAll(tmpDir)
+			return nil, fmt.Errorf("write route init for %s: %w", rp.PkgName, err)
+		}
+		replace[filepath.Join(rp.AbsDir, "pola_route_init.go")] = initPath
+	}
+
+	// 4. Generate plugin imports (always).
+	pluginsSrc, err := generatePluginImports(css, actionsImport, routePkgs)
 	if err != nil {
 		return nil, fmt.Errorf("generate plugins: %w", err)
 	}
@@ -204,14 +322,14 @@ func generateOverlay(projectDir, css string) (*overlayResult, error) {
 	}
 	replace[filepath.Join(absProjectDir, "pola_plugins.go")] = pluginsPath
 
-	// 4. Generate embed file (asset embedding for production builds).
+	// 5. Generate embed file (asset embedding for production builds).
 	embedPath := filepath.Join(tmpDir, "pola_embed.go")
 	if err := os.WriteFile(embedPath, embedSrc, 0o644); err != nil {
 		return nil, fmt.Errorf("write embed: %w", err)
 	}
 	replace[filepath.Join(absProjectDir, "pola_embed.go")] = embedPath
 
-	// 5. Write unified overlay JSON.
+	// 6. Write unified overlay JSON.
 	overlay := map[string]any{
 		"Replace": replace,
 	}
@@ -240,19 +358,82 @@ func generateOverlay(projectDir, css string) (*overlayResult, error) {
 
 // generatePluginImports returns the source for pola_plugins.go containing
 // blank imports that trigger plugin self-registration via init() → di.Stage().
-func generatePluginImports(css, actionsImport string) ([]byte, error) {
+func generatePluginImports(css, actionsImport string, routePkgs []routePackageInfo) ([]byte, error) {
+	routeImports := make([]string, len(routePkgs))
+	for i, rp := range routePkgs {
+		routeImports[i] = rp.ImportPath
+	}
+
 	var buf strings.Builder
 	err := pluginsTmpl.Execute(&buf, struct {
 		CSS           bool
 		ActionsImport string
+		RouteImports  []string
 	}{
 		CSS:           css != "" && css != "none",
 		ActionsImport: actionsImport,
+		RouteImports:  routeImports,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("execute plugins template: %w", err)
 	}
 	return []byte(buf.String()), nil
+}
+
+// routePackageInfo holds metadata about a discovered route package.
+type routePackageInfo struct {
+	ImportPath string // e.g. "test-app/routes/kampala/uganda"
+	AbsDir     string // e.g. "/abs/path/routes/kampala/uganda"
+	PkgName    string // e.g. "uganda"
+}
+
+// discoverRoutePackages walks the routes/ directory and returns metadata
+// for every sub-package that contains at least one .go file.
+func discoverRoutePackages(projectDir, modPath string) []routePackageInfo {
+	routesDir := filepath.Join(projectDir, "routes")
+	info, err := os.Stat(routesDir)
+	if err != nil || !info.IsDir() {
+		return nil
+	}
+
+	var pkgs []routePackageInfo
+	filepath.WalkDir(routesDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || !d.IsDir() {
+			return nil
+		}
+		// Check if this directory has any .go files.
+		entries, err := os.ReadDir(path)
+		if err != nil {
+			return nil
+		}
+		for _, e := range entries {
+			if !e.IsDir() && strings.HasSuffix(e.Name(), ".go") {
+				rel, _ := filepath.Rel(projectDir, path)
+				absDir, _ := filepath.Abs(path)
+				pkgs = append(pkgs, routePackageInfo{
+					ImportPath: modPath + "/" + filepath.ToSlash(rel),
+					AbsDir:     absDir,
+					PkgName:    filepath.Base(path),
+				})
+				break
+			}
+		}
+		return nil
+	})
+
+	sort.Slice(pkgs, func(i, j int) bool {
+		return pkgs[i].ImportPath < pkgs[j].ImportPath
+	})
+	return pkgs
+}
+
+// generateRouteInit returns the source for a pola_route_init.go file that
+// registers the Route struct in the given package via init().
+func generateRouteInit(pkgName string) []byte {
+	return []byte(fmt.Sprintf(
+		"// Code generated by pola; DO NOT EDIT.\npackage %s\n\nimport \"github.com/polagonow/pola/routes\"\n\nfunc init() { routes.Register(&Route{}) }\n",
+		pkgName,
+	))
 }
 
 // readModulePath reads the module path from go.mod in the given directory.

@@ -92,7 +92,9 @@ func runNew(_ *cobra.Command, args []string) error {
 	// Write a temporary pola_plugins.go so go mod tidy resolves plugin deps.
 	// This file is removed after tidy — at runtime it's injected via overlay.
 	pluginsPath := filepath.Join(targetDir, "pola_plugins.go")
-	pluginsSrc, err := generatePluginImports(newFlags.css, appName+"/actions")
+	pluginsSrc, err := generatePluginImports(newFlags.css, appName+"/actions", []routePackageInfo{
+		{ImportPath: appName + "/routes/health"},
+	})
 	if err != nil {
 		return fmt.Errorf("generate plugins: %w", err)
 	}
