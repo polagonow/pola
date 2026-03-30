@@ -2,6 +2,8 @@
 package main
 
 import (
+	_ "github.com/joho/godotenv/autoload"
+
 	_ "github.com/polagonow/pola/bundler"
 	_ "github.com/polagonow/pola/cache"
 {{- if .CSS}}

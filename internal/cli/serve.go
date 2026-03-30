@@ -2,10 +2,12 @@ package cli
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"github.com/polagonow/pola/internal/cli/buildtags"
@@ -24,14 +26,14 @@ var serveFlags struct {
 }
 
 var serveCmd = &cobra.Command{
-	Use:   "serve",
+	Use:   "dev",
 	Short: "Start the development server",
 	Long:  "Run the Pola app in development mode with hot reload.",
 	RunE:  runServe,
-	Example: `  pola serve
-  pola serve --port 8080
-  pola serve --vm goja --css tailwind`,
-	Aliases: []string{"dev"},
+	Example: `  pola dev
+  pola dev --port 8080
+  pola dev --vm goja --css tailwind`,
+	Aliases: []string{"serve"},
 }
 
 func init() {
@@ -73,7 +75,7 @@ func runServe(_ *cobra.Command, _ []string) error {
 		fmt.Printf("Build tags: %s\n", tags)
 	}
 
-	fmt.Printf("Starting dev server on port %s...\n", serveFlags.port)
+	printStartupBanner(projectDir, serveFlags.port)
 
 	// Build the go run command.
 	goArgs := []string{"run"}
@@ -145,4 +147,67 @@ func envOr(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+// printStartupBanner displays a Next.js-style startup banner.
+func printStartupBanner(projectDir, port string) {
+	fmt.Printf("\n  \033[1mPola %s\033[0m\n\n", version)
+	fmt.Printf("  - Local:        http://localhost:%s\n", port)
+
+	if ip := outboundIP(); ip != "" {
+		fmt.Printf("  - Network:      http://%s:%s\n", ip, port)
+	}
+
+	if envFiles := detectEnvFiles(projectDir); len(envFiles) > 0 {
+		fmt.Printf("  - Environments: %s\n", strings.Join(envFiles, ", "))
+	}
+
+	fmt.Println()
+}
+
+// outboundIP returns the first non-loopback IPv4 address, or "" if none found.
+func outboundIP() string {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return ""
+	}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagUp == 0 || iface.Flags&net.FlagLoopback != 0 {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			var ip net.IP
+			switch v := addr.(type) {
+			case *net.IPNet:
+				ip = v.IP
+			case *net.IPAddr:
+				ip = v.IP
+			}
+			if ip != nil && ip.To4() != nil && !ip.IsLoopback() {
+				return ip.String()
+			}
+		}
+	}
+	return ""
+}
+
+// detectEnvFiles checks for common .env files in the project directory.
+func detectEnvFiles(projectDir string) []string {
+	candidates := []string{
+		".env",
+		".env.local",
+		".env.development",
+		".env.development.local",
+	}
+	var found []string
+	for _, name := range candidates {
+		if _, err := os.Stat(filepath.Join(projectDir, name)); err == nil {
+			found = append(found, name)
+		}
+	}
+	return found
 }
