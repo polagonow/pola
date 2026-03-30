@@ -12,6 +12,7 @@ import (
 type Config struct {
 	WebAppPath string
 	PublicDir  string
+	HTTPPath   string // URL path prefix; defaults to "/"
 	Dev        bool
 }
 
@@ -26,6 +27,11 @@ func WithWebAppPath(path string) Option {
 // WithPublicDir sets where compiled assets are written.
 func WithPublicDir(dir string) Option {
 	return func(c *Config) { c.PublicDir = dir }
+}
+
+// WithHTTPPath sets the URL path prefix the app is served under (default "/").
+func WithHTTPPath(path string) Option {
+	return func(c *Config) { c.HTTPPath = path }
 }
 
 // WithDev enables development mode with hot reload.
