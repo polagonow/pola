@@ -147,7 +147,7 @@ func (r *Router) compileAndPartition(routes []core.Route) {
 	r.dynamicRoutes = nil
 	for _, rt := range routes {
 		cr := compilePattern(rt)
-		if cr.isStatic {
+		if cr.compiled.IsStatic {
 			r.staticRoutes[rt.Pattern] = cr
 		} else {
 			r.dynamicRoutes = append(r.dynamicRoutes, cr)

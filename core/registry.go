@@ -19,8 +19,8 @@ type Config struct {
 // Option configures a Pola application.
 type Option func(*Config)
 
-// WithWebAppPath sets the path to the frontend app directory.
-func WithWebAppPath(path string) Option {
+// WithWebAppDir sets the path to the frontend app directory.
+func WithWebAppDir(path string) Option {
 	return func(c *Config) { c.WebAppPath = path }
 }
 

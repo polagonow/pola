@@ -169,7 +169,12 @@ func NewHotReloader(cfg *core.Config, injector do.Injector, initial *core.App, n
 					docProps, _ = extractor.ExtractDocumentProps()
 				}
 
-				orch := NewOrchestrator(renderer, router, logger, metrics, tracer, pprof, mws, injs, nil, shell, assets, newOutput, h.notFoundRoute, cssURLs, docProps, true)
+				// Resolve API router for hot-reload rebuild.
+			var apiRouter core.APIRouter
+			if ar, err := do.Invoke[core.APIRouter](injector); err == nil {
+				apiRouter = ar
+			}
+			orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, mws, injs, nil, shell, assets, newOutput, h.notFoundRoute, cssURLs, docProps, true)
 
 				newApp := newApp(cfg, injector, orch)
 				newApp.SetArtifacts(newOutput)
