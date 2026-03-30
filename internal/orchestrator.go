@@ -308,7 +308,7 @@ var allowedHeaders = map[string]struct{}{
 func buildRequestContext(r *http.Request) map[string]any {
 	headers := make(map[string]string)
 	for k, v := range r.Header {
-		if _, ok := allowedHeaders[http.CanonicalHeaderKey(k)]; ok {
+		if _, ok := allowedHeaders[k]; ok {
 			headers[k] = strings.Join(v, ", ")
 		}
 	}

@@ -93,7 +93,7 @@ func (t *Tailwind) resolvedBin(inputPath string) (string, []string) {
 	}
 	// Walk up from inputPath looking for node_modules/.bin/tailwindcss.
 	dir := filepath.Dir(inputPath)
-	for range 10 {
+	for {
 		candidate := filepath.Join(dir, "node_modules", ".bin", "tailwindcss")
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate, nil

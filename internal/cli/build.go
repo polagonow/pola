@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 	"os/exec"
@@ -35,13 +36,13 @@ var buildCmd = &cobra.Command{
 
 func init() {
 	buildCmd.Flags().StringVarP(&buildFlags.output, "output", "o", "", "output binary path (default: ./bin/<app-name>)")
-	buildCmd.Flags().StringVar(&buildFlags.renderer, "renderer", envOr("POLA_RENDERER", "react"), "view renderer")
-	buildCmd.Flags().StringVar(&buildFlags.bundler, "bundler", envOr("POLA_BUNDLER", "esbuild"), "JS bundler")
-	buildCmd.Flags().StringVar(&buildFlags.router, "router", envOr("POLA_ROUTER", "nextjs"), "router style")
-	buildCmd.Flags().StringVar(&buildFlags.css, "css", envOr("POLA_CSS", "tailwind"), "CSS processor")
-	buildCmd.Flags().StringVar(&buildFlags.vm, "vm", envOr("POLA_VM", "goja"), "JS engine")
-	buildCmd.Flags().StringVar(&buildFlags.cgo, "cgo", envOr("CGO_ENABLED", "1"), "CGO_ENABLED value")
-	buildCmd.Flags().StringVar(&buildFlags.appPath, "app-path", envOr("POLA_WEBAPP_PATH", "./app"), "path to the web app directory")
+	buildCmd.Flags().StringVar(&buildFlags.renderer, "renderer", cmp.Or(os.Getenv("POLA_RENDERER"), "react"), "view renderer")
+	buildCmd.Flags().StringVar(&buildFlags.bundler, "bundler", cmp.Or(os.Getenv("POLA_BUNDLER"), "esbuild"), "JS bundler")
+	buildCmd.Flags().StringVar(&buildFlags.router, "router", cmp.Or(os.Getenv("POLA_ROUTER"), "nextjs"), "router style")
+	buildCmd.Flags().StringVar(&buildFlags.css, "css", cmp.Or(os.Getenv("POLA_CSS"), "tailwind"), "CSS processor")
+	buildCmd.Flags().StringVar(&buildFlags.vm, "vm", cmp.Or(os.Getenv("POLA_VM"), "goja"), "JS engine")
+	buildCmd.Flags().StringVar(&buildFlags.cgo, "cgo", cmp.Or(os.Getenv("CGO_ENABLED"), "1"), "CGO_ENABLED value")
+	buildCmd.Flags().StringVar(&buildFlags.appPath, "app-path", cmp.Or(os.Getenv("POLA_WEBAPP_PATH"), "./app"), "path to the web app directory")
 }
 
 func runBuild(_ *cobra.Command, _ []string) error {

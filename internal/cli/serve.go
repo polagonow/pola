@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"fmt"
 	"net"
 	"os"
@@ -38,13 +39,13 @@ var serveCmd = &cobra.Command{
 }
 
 func init() {
-	serveCmd.Flags().StringVarP(&serveFlags.port, "port", "p", envOr("PORT", "3000"), "server port")
-	serveCmd.Flags().StringVar(&serveFlags.renderer, "renderer", envOr("POLA_RENDERER", "react"), "view renderer")
-	serveCmd.Flags().StringVar(&serveFlags.bundler, "bundler", envOr("POLA_BUNDLER", "esbuild"), "JS bundler")
-	serveCmd.Flags().StringVar(&serveFlags.router, "router", envOr("POLA_ROUTER", "nextjs"), "router style")
-	serveCmd.Flags().StringVar(&serveFlags.css, "css", envOr("POLA_CSS", "tailwind"), "CSS processor")
-	serveCmd.Flags().StringVar(&serveFlags.vm, "vm", envOr("POLA_VM", "goja"), "JS engine")
-	serveCmd.Flags().StringVar(&serveFlags.appPath, "app-path", envOr("POLA_WEBAPP_PATH", "./app"), "path to the web app directory")
+	serveCmd.Flags().StringVarP(&serveFlags.port, "port", "p", cmp.Or(os.Getenv("PORT"), "3000"), "server port")
+	serveCmd.Flags().StringVar(&serveFlags.renderer, "renderer", cmp.Or(os.Getenv("POLA_RENDERER"), "react"), "view renderer")
+	serveCmd.Flags().StringVar(&serveFlags.bundler, "bundler", cmp.Or(os.Getenv("POLA_BUNDLER"), "esbuild"), "JS bundler")
+	serveCmd.Flags().StringVar(&serveFlags.router, "router", cmp.Or(os.Getenv("POLA_ROUTER"), "nextjs"), "router style")
+	serveCmd.Flags().StringVar(&serveFlags.css, "css", cmp.Or(os.Getenv("POLA_CSS"), "tailwind"), "CSS processor")
+	serveCmd.Flags().StringVar(&serveFlags.vm, "vm", cmp.Or(os.Getenv("POLA_VM"), "goja"), "JS engine")
+	serveCmd.Flags().StringVar(&serveFlags.appPath, "app-path", cmp.Or(os.Getenv("POLA_WEBAPP_PATH"), "./app"), "path to the web app directory")
 }
 
 // goWatchExts are the file extensions that trigger a Go process restart.
@@ -213,12 +214,6 @@ func findProjectRoot() (string, error) {
 	return os.Getwd()
 }
 
-func envOr(key, fallback string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return fallback
-}
 
 // printStartupBanner displays a Next.js-style startup banner.
 func printStartupBanner(projectDir, port string) {
