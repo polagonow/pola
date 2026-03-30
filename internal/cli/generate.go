@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"cmp"
 	"embed"
 	"encoding/json"
 	"fmt"
@@ -110,12 +111,12 @@ func runGenerate(_ *cobra.Command, _ []string) error {
 	}
 	// Use defaults for standalone generate.
 	result, err := generateOverlay(projectDir, pluginOpts{
-		Engine:   envOr("POLA_VM", "goja"),
-		Bundler:  envOr("POLA_BUNDLER", "esbuild"),
-		Renderer: envOr("POLA_RENDERER", "react"),
-		Router:   envOr("POLA_ROUTER", "nextjs"),
-		CSS:      envOr("POLA_CSS", "tailwind"),
-		Cache:    envOr("POLA_CACHE", "memory"),
+		Engine:   cmp.Or(os.Getenv("POLA_VM"), "goja"),
+		Bundler:  cmp.Or(os.Getenv("POLA_BUNDLER"), "esbuild"),
+		Renderer: cmp.Or(os.Getenv("POLA_RENDERER"), "react"),
+		Router:   cmp.Or(os.Getenv("POLA_ROUTER"), "nextjs"),
+		CSS:      cmp.Or(os.Getenv("POLA_CSS"), "tailwind"),
+		Cache:    cmp.Or(os.Getenv("POLA_CACHE"), "memory"),
 		Dev:      true,
 	})
 	if err != nil {

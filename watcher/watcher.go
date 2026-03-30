@@ -5,6 +5,7 @@
 package watcher
 
 import (
+	"bytes"
 	"math/rand/v2"
 	"os"
 	"path/filepath"
@@ -168,15 +169,8 @@ func (p *Poller) checkPath(path string) bool {
 			changed = true
 		} else if cur.content != nil && prev.content != nil {
 			// Both within safety gap — compare content.
-			if len(cur.content) != len(prev.content) {
+			if !bytes.Equal(cur.content, prev.content) {
 				changed = true
-			} else {
-				for i := range cur.content {
-					if cur.content[i] != prev.content[i] {
-						changed = true
-						break
-					}
-				}
 			}
 		}
 	}
@@ -258,10 +252,9 @@ func (p *Poller) rebuildScanOrder() {
 
 // shuffleScanOrder performs a Fisher-Yates shuffle on scanOrder.
 func (p *Poller) shuffleScanOrder() {
-	for i := len(p.scanOrder) - 1; i > 0; i-- {
-		j := rand.IntN(i + 1)
+	rand.Shuffle(len(p.scanOrder), func(i, j int) {
 		p.scanOrder[i], p.scanOrder[j] = p.scanOrder[j], p.scanOrder[i]
-	}
+	})
 }
 
 // CollectPaths walks dir and returns all file paths whose extension matches

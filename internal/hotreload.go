@@ -220,6 +220,7 @@ func NewHotReloader(cfg *core.Config, registry *core.Registry, initial *core.App
 }
 
 // contextFromDone returns a context.Context that cancels when h.done is closed.
+// The caller must ensure Close() is called to avoid a goroutine leak.
 func (h *HotReloader) contextFromDone() context.Context {
 	ctx, cancel := context.WithCancel(context.Background())
 	go func() {

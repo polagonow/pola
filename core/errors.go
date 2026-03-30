@@ -1,24 +1,27 @@
 package core
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // ErrNoRenderer is returned when no renderer is configured.
-var ErrNoRenderer = fmt.Errorf("pola: no Renderer registered; import a renderer plugin")
+var ErrNoRenderer = errors.New("pola: no Renderer registered; import a renderer plugin")
 
 // ErrNoRouter is returned when no router is configured.
-var ErrNoRouter = fmt.Errorf("pola: no Router registered; import a router plugin")
+var ErrNoRouter = errors.New("pola: no Router registered; import a router plugin")
 
 // ErrNoBundler is returned when no bundler is configured.
-var ErrNoBundler = fmt.Errorf("pola: no Bundler registered; import a bundler plugin")
+var ErrNoBundler = errors.New("pola: no Bundler registered; import a bundler plugin")
 
 // ErrNoEngine is returned when no JS engine is configured.
-var ErrNoEngine = fmt.Errorf("pola: no JSEngine registered; import an engine plugin")
+var ErrNoEngine = errors.New("pola: no JSEngine registered; import an engine plugin")
 
 // ErrNoFS is returned when no file system is configured.
-var ErrNoFS = fmt.Errorf("pola: no FS registered; import a fs plugin")
+var ErrNoFS = errors.New("pola: no FS registered; import a fs plugin")
 
 // ErrWebAppPathRequired is returned when WebAppPath is empty.
-var ErrWebAppPathRequired = fmt.Errorf("pola: Config.WebAppPath must be set")
+var ErrWebAppPathRequired = errors.New("pola: Config.WebAppPath must be set")
 
 // BuildError wraps a build pipeline error.
 type BuildError struct {

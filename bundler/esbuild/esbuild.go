@@ -41,7 +41,10 @@ func (b *Bundler) Build(_ context.Context, req core.BundleInput) (*core.BundleOu
 		return nil, fmt.Errorf("esbuild: abs cwd: %w", err)
 	}
 
-	absAppDir, _ := filepath.Abs(req.AppDir)
+	absAppDir, err := filepath.Abs(req.AppDir)
+	if err != nil {
+		return nil, fmt.Errorf("esbuild: abs appdir: %w", err)
+	}
 
 	// Probe: auto-discover "use client" files and CSS imports referenced from
 	// the server entry (framework packages, third-party libraries, etc.).
@@ -78,8 +81,13 @@ func (b *Bundler) Build(_ context.Context, req core.BundleInput) (*core.BundleOu
 	if err != nil {
 		return nil, fmt.Errorf("esbuild: manifest: %w", err)
 	}
-	manifestJSON, _ := json.MarshalIndent(mfst, "", "  ")
-	_ = os.WriteFile(filepath.Join(req.OutDir, "manifest.json"), manifestJSON, 0o644)
+	manifestJSON, err := json.MarshalIndent(mfst, "", "  ")
+	if err != nil {
+		return nil, fmt.Errorf("esbuild: marshal manifest: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(req.OutDir, "manifest.json"), manifestJSON, 0o644); err != nil {
+		return nil, fmt.Errorf("esbuild: write manifest: %w", err)
+	}
 
 	// Pass 2 — Pages bundle (server conditions, CJS).
 	manifestDefine, err := json.Marshal(mfst)
@@ -202,7 +210,10 @@ func buildManifest(
 	if assetsURLPath == "" {
 		assetsURLPath = "/public/assets"
 	}
-	absAppDir, _ := filepath.Abs(appDir)
+	absAppDir, err := filepath.Abs(appDir)
+	if err != nil {
+		return nil, nil, fmt.Errorf("esbuild: abs appdir: %w", err)
+	}
 	m := make(map[string]manifestEntry)
 	importURLs := make(map[string]string)
 
@@ -362,7 +373,10 @@ func buildClientBundle(req core.BundleInput, absDir string, cssFiles []string) (
 	if err != nil {
 		return nil, "", "", nil, fmt.Errorf("esbuild: abs outdir: %w", err)
 	}
-	absAppDir, _ := filepath.Abs(req.AppDir)
+	absAppDir, err := filepath.Abs(req.AppDir)
+	if err != nil {
+		return nil, "", "", nil, fmt.Errorf("esbuild: abs appdir: %w", err)
+	}
 
 	var entries []string
 	entryBase := ""
@@ -645,7 +659,7 @@ func newAutoDedupePlugin(absAppDir string) api.Plugin {
 // Returns the path to the @pola directory (e.g. /project/node_modules/@pola).
 func findPolaPkgRoot(absAppDir string) string {
 	dir := absAppDir
-	for range 10 {
+	for {
 		candidate := filepath.Join(dir, "node_modules", "@pola")
 		if st, err := os.Stat(candidate); err == nil && st.IsDir() {
 			return candidate
