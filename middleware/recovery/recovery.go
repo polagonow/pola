@@ -6,19 +6,8 @@ import (
 	"net/http"
 	"runtime/debug"
 
-	"github.com/samber/do/v2"
-
 	"github.com/polagonow/pola/core"
-	"github.com/polagonow/pola/core/di"
 )
-
-func init() {
-	di.Stage(func(i do.Injector) {
-		mc := do.MustInvoke[*di.MiddlewareCollector](i)
-		log := do.MustInvoke[core.Logger](i)
-		mc.Add(New(log))
-	})
-}
 
 type mw struct{ log core.Logger }
 

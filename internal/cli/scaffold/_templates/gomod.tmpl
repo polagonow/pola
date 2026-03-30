@@ -2,7 +2,7 @@ module [[ .ModulePath ]]
 
 go 1.25.0
 
-require github.com/polagonow/pola v0.0.0
+require [[ .PolaPackage ]] v0.0.0
 [[ if .PolaLocalPath ]]
-replace github.com/polagonow/pola => [[ .PolaLocalPath ]]
+replace [[ .PolaPackage ]] => [[ .PolaLocalPath ]]
 [[ end ]]

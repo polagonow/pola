@@ -9,6 +9,7 @@ import (
 
 type goTemplData struct {
 	PackageName string
+	PolaPackage string
 	Actions     []ActionDef
 }
 
@@ -68,6 +69,7 @@ func GenerateGo(result *ParseResult) ([]byte, error) {
 
 	data := goTemplData{
 		PackageName: result.PackageName,
+		PolaPackage: "github.com/polagonow/pola",
 		Actions:     result.Actions,
 	}
 

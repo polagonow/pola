@@ -18,6 +18,7 @@ var templates embed.FS
 type Data struct {
 	AppName       string
 	ModulePath    string
+	PolaPackage   string // e.g. "github.com/polagonow/pola"
 	Renderer      string
 	Bundler       string
 	Router        string

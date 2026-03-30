@@ -39,6 +39,53 @@ func WithDev(dev bool) Option {
 	return func(c *Config) { c.Dev = dev }
 }
 
+// Registry is the explicit service registration API.
+// It wraps do.Injector internally so existing resolution code keeps working.
+type Registry struct {
+	injector   do.Injector
+	middleware []Middleware
+	injectors  []RuntimeInjector
+}
+
+// NewRegistry creates a new empty Registry backed by a do.Injector.
+func NewRegistry() *Registry {
+	return &Registry{
+		injector: do.New(),
+	}
+}
+
+// Injector returns the underlying do.Injector for backward compatibility
+// with code that resolves services via do.Invoke[T].
+func (r *Registry) Injector() do.Injector { return r.injector }
+
+// Provide registers a singleton service by its concrete type.
+func Provide[T any](r *Registry, fn func() (T, error)) {
+	do.Provide(r.injector, func(_ do.Injector) (T, error) {
+		return fn()
+	})
+}
+
+// ProvideValue registers a pre-constructed singleton value.
+func ProvideValue[T any](r *Registry, val T) {
+	do.ProvideValue(r.injector, val)
+}
+
+// AddMiddleware appends a middleware to the registry.
+func (r *Registry) AddMiddleware(m Middleware) {
+	r.middleware = append(r.middleware, m)
+}
+
+// Middleware returns all registered middleware in registration order.
+func (r *Registry) Middleware() []Middleware { return r.middleware }
+
+// AddInjector appends a RuntimeInjector to the registry.
+func (r *Registry) AddInjector(inj RuntimeInjector) {
+	r.injectors = append(r.injectors, inj)
+}
+
+// Injectors returns all registered RuntimeInjectors in registration order.
+func (r *Registry) RuntimeInjectors() []RuntimeInjector { return r.injectors }
+
 // BuildArtifacts holds the outputs produced during the build pipeline.
 type BuildArtifacts struct {
 	Output *BundleOutput
@@ -57,7 +104,7 @@ type PrebuildArtifacts struct {
 // App is the fully-wired Pola application. It implements http.Handler.
 type App struct {
 	cfg       Config
-	injector  do.Injector
+	registry  *Registry
 	handler   http.Handler
 	artifacts BuildArtifacts
 }
@@ -72,9 +119,9 @@ func New(opts ...Option) (*App, error) {
 
 // NewApp constructs an App with all fields populated. Called exclusively by
 // internal/pipeline to avoid import cycles — end users should call pola.New.
-func NewApp(cfg *Config, injector do.Injector, handler http.Handler) *App {
+func NewApp(cfg *Config, registry *Registry, handler http.Handler) *App {
 	a := &App{
-		injector: injector,
+		registry: registry,
 		handler:  handler,
 	}
 	if cfg != nil {
@@ -99,7 +146,7 @@ func (a *App) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // Cache resolves the cache from the DI container on demand.
 func (a *App) Cache() Cache {
-	cache, err := do.Invoke[Cache](a.injector)
+	cache, err := do.Invoke[Cache](a.registry.Injector())
 	if err != nil {
 		return nil
 	}
@@ -109,8 +156,8 @@ func (a *App) Cache() Cache {
 // Build runs the build pipeline explicitly (called by New internally).
 func (a *App) Build(ctx context.Context) error { return nil }
 
-// Injector returns the DI container for advanced usage.
-func (a *App) Injector() do.Injector { return a.injector }
+// Registry returns the service registry.
+func (a *App) Registry() *Registry { return a.registry }
 
 // NewPolyfillRegistry returns a default in-memory polyfill registry.
 func NewPolyfillRegistry() PolyfillRegistry {

@@ -1,5 +1,3 @@
-//go:build quickjsgo
-
 // Package quickjsgo provides a QuickJS-backed JSEngine for the Pola framework
 // using github.com/buke/quickjs-go.
 //
@@ -22,10 +20,8 @@ import (
 	"text/template"
 
 	quickjs "github.com/buke/quickjs-go"
-	"github.com/samber/do/v2"
 
 	"github.com/polagonow/pola/core"
-	"github.com/polagonow/pola/core/di"
 	"github.com/polagonow/pola/core/globals"
 	"github.com/polagonow/pola/engine/polyfill"
 	"github.com/polagonow/pola/vmpool"
@@ -488,11 +484,3 @@ func exportValue(v *quickjs.Value) any {
 
 // Registered is true when the quickjsgo build tag is active.
 var Registered = true
-
-func init() {
-	di.Stage(func(i do.Injector) {
-		do.Provide(i, func(_ do.Injector) (core.JSEngine, error) {
-			return NewEngine(), nil
-		})
-	})
-}

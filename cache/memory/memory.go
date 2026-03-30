@@ -7,10 +7,8 @@ import (
 	"sync"
 
 	lru "github.com/hashicorp/golang-lru/v2"
-	"github.com/samber/do/v2"
 
 	"github.com/polagonow/pola/core"
-	"github.com/polagonow/pola/core/di"
 )
 
 const defaultSize = 1024
@@ -83,10 +81,3 @@ func (c *Cache) Clear(_ context.Context) error {
 	return nil
 }
 
-func init() {
-	di.Stage(func(i do.Injector) {
-		do.Provide(i, func(_ do.Injector) (core.Cache, error) {
-			return MustNew(defaultSize), nil
-		})
-	})
-}

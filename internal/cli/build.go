@@ -6,7 +6,6 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/polagonow/pola/internal/cli/buildtags"
 	"github.com/polagonow/pola/internal/cli/stubpkgs"
 	"github.com/spf13/cobra"
 )
@@ -66,28 +65,34 @@ func runBuild(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("stub packages: %w", err)
 	}
 
-	// Generate overlay (plugin imports + action bridge codegen + embed).
-	overlayRes, err := generateOverlay(projectDir, buildFlags.css)
-	if err != nil {
-		return err
-	}
-	if overlayRes != nil && overlayRes.TmpDir != "" {
-		defer os.RemoveAll(overlayRes.TmpDir)
-	}
-
-	// Collect overlay args.
-	var overlayArgs []string
-	if overlayRes != nil && overlayRes.OverlayPath != "" {
-		overlayArgs = []string{"-overlay", overlayRes.OverlayPath}
+	baseOpts := pluginOpts{
+		Engine:   buildFlags.vm,
+		Bundler:  buildFlags.bundler,
+		Renderer: buildFlags.renderer,
+		Router:   buildFlags.router,
+		CSS:      buildFlags.css,
+		Cache:    "memory",
 	}
 
 	// ── Stage 1: Bundle ──────────────────────────────────────────────────
-	runtimeTags := buildtags.RuntimeTags(buildFlags.vm, buildFlags.bundler, buildFlags.renderer, buildFlags.router, buildFlags.css)
-	fmt.Printf("[stage 1] Bundling assets (tags: %s)...\n", runtimeTags)
+	// Full runtime with bundler, osfs, css — needed to produce assets.
+	fmt.Println("[stage 1] Bundling assets...")
+
+	stage1Opts := baseOpts
+	stage1Opts.Dev = false
+	stage1Opts.Embed = false
+
+	stage1Overlay, err := generateOverlay(projectDir, stage1Opts)
+	if err != nil {
+		return err
+	}
+	defer cleanupOverlay(stage1Overlay)
 
 	bundleArgs := []string{"run"}
-	bundleArgs = append(bundleArgs, overlayArgs...)
-	bundleArgs = append(bundleArgs, "-tags", runtimeTags, ".")
+	if stage1Overlay != nil && stage1Overlay.OverlayPath != "" {
+		bundleArgs = append(bundleArgs, "-overlay", stage1Overlay.OverlayPath)
+	}
+	bundleArgs = append(bundleArgs, ".")
 
 	bundleCmd := exec.Command("go", bundleArgs...)
 	bundleCmd.Dir = projectDir
@@ -105,8 +110,18 @@ func runBuild(_ *cobra.Command, _ []string) error {
 	}
 
 	// ── Stage 2: Compile ─────────────────────────────────────────────────
-	binaryTags := buildtags.BinaryTags(buildFlags.vm, buildFlags.renderer, buildFlags.router)
-	fmt.Printf("[stage 2] Compiling binary (tags: %s)...\n", binaryTags)
+	// Embed mode: no bundler/osfs/css, assets embedded via //go:embed.
+	fmt.Println("[stage 2] Compiling binary...")
+
+	stage2Opts := baseOpts
+	stage2Opts.Dev = false
+	stage2Opts.Embed = true
+
+	stage2Overlay, err := generateOverlay(projectDir, stage2Opts)
+	if err != nil {
+		return err
+	}
+	defer cleanupOverlay(stage2Overlay)
 
 	// Ensure output directory exists.
 	if err := os.MkdirAll(filepath.Dir(output), 0o755); err != nil {
@@ -114,8 +129,10 @@ func runBuild(_ *cobra.Command, _ []string) error {
 	}
 
 	compileArgs := []string{"build"}
-	compileArgs = append(compileArgs, overlayArgs...)
-	compileArgs = append(compileArgs, "-tags", binaryTags, "-ldflags", "-s -w", "-o", output, ".")
+	if stage2Overlay != nil && stage2Overlay.OverlayPath != "" {
+		compileArgs = append(compileArgs, "-overlay", stage2Overlay.OverlayPath)
+	}
+	compileArgs = append(compileArgs, "-ldflags", "-s -w", "-o", output, ".")
 
 	compileCmd := exec.Command("go", compileArgs...)
 	compileCmd.Dir = projectDir

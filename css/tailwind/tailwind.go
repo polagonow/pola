@@ -1,5 +1,3 @@
-//go:build tailwind
-
 // Package tailwind provides a CSS plugin that runs the TailwindCSS CLI.
 // It supports both standalone binary and npx execution modes.
 //
@@ -15,19 +13,8 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/samber/do/v2"
-
 	"github.com/polagonow/pola/core"
-	"github.com/polagonow/pola/core/di"
 )
-
-func init() {
-	di.Stage(func(i do.Injector) {
-		do.Provide(i, func(_ do.Injector) (core.CSS, error) {
-			return New(), nil
-		})
-	})
-}
 
 // Tailwind runs the tailwindcss CLI to process CSS.
 type Tailwind struct {
