@@ -1,5 +1,3 @@
-//go:build goja && esbuild && react && nextjs
-
 // Package combo registers bundler+renderer+engine combinations for the e2e test suite.
 // Each file registers one combination via fixture.Register.
 //
@@ -9,35 +7,51 @@
 package combo
 
 import (
+	"context"
 	"sync"
 	"testing"
 
 	gojalib "github.com/dop251/goja"
-	"github.com/samber/do/v2"
 
 	"github.com/polagonow/pola"
+	"github.com/polagonow/pola/bundler/esbuild"
+	"github.com/polagonow/pola/cache/memory"
 	"github.com/polagonow/pola/core"
-	"github.com/polagonow/pola/core/di"
+	"github.com/polagonow/pola/engine/goja"
 	"github.com/polagonow/pola/engine/polyfill"
+	"github.com/polagonow/pola/fs/osfs"
+	"github.com/polagonow/pola/logger/slog"
+	"github.com/polagonow/pola/middleware/logging"
+	"github.com/polagonow/pola/middleware/recovery"
+	"github.com/polagonow/pola/observability/metrics/prometheus"
+	"github.com/polagonow/pola/observability/tracing/otel"
+	"github.com/polagonow/pola/renderer/react"
+	"github.com/polagonow/pola/router/nextjs"
 	"github.com/polagonow/pola/test/fixture"
-
-	// Plugins self-register via init() → di.Stage().
-	_ "github.com/polagonow/pola/bundler/esbuild"
-	_ "github.com/polagonow/pola/engine/goja"
-	_ "github.com/polagonow/pola/fs/osfs"
-	_ "github.com/polagonow/pola/logger/slog"
-	_ "github.com/polagonow/pola/observability/metrics/prometheus"
-	_ "github.com/polagonow/pola/observability/tracing/otel"
-	_ "github.com/polagonow/pola/renderer/react"
-	_ "github.com/polagonow/pola/router/nextjs"
 )
 
-func init() {
+var testPlugins = []core.Plugin{
+	goja.Plugin(),
+	esbuild.Plugin(),
+	react.Plugin(),
+	nextjs.Plugin(),
+	osfs.Plugin(),
+	slog.Plugin(),
+	logging.Plugin(),
+	recovery.Plugin(),
+	memory.Plugin(),
+	prometheus.Plugin(),
+	otel.Plugin(),
 	// Register test injector for DI-backed service calls in e2e tests.
-	di.Stage(func(i do.Injector) {
-		ic := do.MustInvoke[*di.InjectorCollector](i)
-		ic.Add(fixture.SharedInjector())
-	})
+	core.PluginFunc{
+		PluginName: "test-fixture",
+		Fn: func(r *core.Registry) {
+			r.AddInjector(fixture.SharedInjector())
+		},
+	},
+}
+
+func init() {
 	fixture.Register(&esbuildReactGojaFixture{})
 }
 
@@ -55,7 +69,9 @@ func (f *esbuildReactGojaFixture) BundlerName() string  { return "esbuild" }
 func (f *esbuildReactGojaFixture) GetApp(t *testing.T) *core.App {
 	t.Helper()
 	f.once.Do(func() {
-		f.app, f.err = pola.New(core.WithWebAppDir(fixture.AppDir))
+		builder := pola.NewApp(core.WithWebAppDir(fixture.AppDir))
+		builder.Use(testPlugins...)
+		f.app, f.err = pola.BuildApp(context.Background(), builder)
 	})
 	if f.err != nil {
 		t.Fatalf("%s: build failed: %v", f.Name(), f.err)

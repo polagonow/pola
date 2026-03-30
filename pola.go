@@ -1,12 +1,9 @@
 // Package pola is the main entry point for the Pola web framework.
 //
-// Import this package to automatically register a handler on
-// http.DefaultServeMux — the same pattern as net/http/pprof:
-//
-//	import "github.com/polagonow/pola"
+// Usage:
 //
 //	func main() {
-//	    if err := pola.Ready(core.WithWebAppDir("app")); err != nil {
+//	    if err := pola.Ready(); err != nil {
 //	        log.Fatal(err)
 //	    }
 //	    log.Fatal(http.ListenAndServe(pola.Addr(), nil))
@@ -14,6 +11,7 @@
 package pola
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"os"
@@ -26,11 +24,18 @@ import (
 
 // defaultApp holds the lazily-built default application instance.
 var defaultApp struct {
-	once sync.Once
-	app  *core.App
-	env  *env.Env
-	err  error
-	opts []core.Option
+	once    sync.Once
+	app     *core.App
+	env     *env.Env
+	err     error
+	plugins []core.Plugin
+	opts    []core.Option
+}
+
+// Use registers plugins for the default app. Call before Ready().
+// The generated pola_plugins.go calls this automatically.
+func Use(plugins ...core.Plugin) {
+	defaultApp.plugins = append(defaultApp.plugins, plugins...)
 }
 
 func serve(w http.ResponseWriter, r *http.Request) {
@@ -65,7 +70,10 @@ func buildDefault() {
 		path = cfg.HTTPPath
 	}
 	http.Handle(path, http.HandlerFunc(serve))
-	defaultApp.app, defaultApp.err = New(opts...)
+
+	builder := core.NewAppBuilder(opts...)
+	builder.Use(defaultApp.plugins...)
+	defaultApp.app, defaultApp.err = internal.Build(context.Background(), builder)
 }
 
 // Ready eagerly builds the default app. Call from main() before
@@ -99,16 +107,16 @@ func Addr() string {
 	return defaultApp.env.Address + ":" + defaultApp.env.Port
 }
 
-// New creates and builds a Pola application from the given options.
-// Use this for explicit control over configuration; otherwise, use
-// Ready() + http.DefaultServeMux for the zero-config path.
+// NewApp creates an AppBuilder for explicit plugin-based construction.
 //
-//	app, err := pola.New(core.WithWebAppDir("./app"), core.WithDev(true))
-//	http.ListenAndServe(":8080", app)
-func New(opts ...core.Option) (*core.App, error) {
-	cfg := &core.Config{}
-	for _, opt := range opts {
-		opt(cfg)
-	}
-	return internal.Build(cfg)
+//	builder := pola.NewApp(core.WithDev(true))
+//	builder.Use(plugins...)
+//	app, err := pola.BuildApp(ctx, builder)
+func NewApp(opts ...core.Option) *core.AppBuilder {
+	return core.NewAppBuilder(opts...)
+}
+
+// BuildApp builds an App from an AppBuilder.
+func BuildApp(ctx context.Context, builder *core.AppBuilder) (*core.App, error) {
+	return internal.Build(ctx, builder)
 }

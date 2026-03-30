@@ -1,5 +1,3 @@
-//go:build sobek
-
 // Package sobek provides a Sobek-backed JSEngine implementation for the Pola
 // framework. Sobek (github.com/grafana/sobek) is a fork of Goja with the same
 // API surface. This implementation uses a channel-based event loop to serialise

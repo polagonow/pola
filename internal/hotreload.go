@@ -53,7 +53,7 @@ type liveApp struct {
 // via WebSocket.
 type HotReloader struct {
 	cfg           *core.Config
-	injector      do.Injector
+	registry      *core.Registry
 	bus           *di.EventBus
 	notFoundRoute *core.Route
 	current       atomic.Pointer[liveApp]
@@ -63,13 +63,14 @@ type HotReloader struct {
 // NewHotReloader creates a HotReloader for the given config and initial app.
 // It listens on the bundler's Watch channel for rebuild events and notifies
 // connected browsers via WebSocket.
-func NewHotReloader(cfg *core.Config, injector do.Injector, initial *core.App, notFoundRoute *core.Route) (*HotReloader, error) {
+func NewHotReloader(cfg *core.Config, registry *core.Registry, initial *core.App, notFoundRoute *core.Route) (*HotReloader, error) {
+	injector := registry.Injector()
 	bus := do.MustInvoke[*di.EventBus](injector)
 	logger := do.MustInvoke[core.Logger](injector)
 
 	h := &HotReloader{
 		cfg:           cfg,
-		injector:      injector,
+		registry:      registry,
 		bus:           bus,
 		notFoundRoute: notFoundRoute,
 		done:          make(chan struct{}),
@@ -183,8 +184,9 @@ func NewHotReloader(cfg *core.Config, injector do.Injector, initial *core.App, n
 				metrics, _ := do.Invoke[core.Metrics](injector)
 				tracer, _ := do.Invoke[core.Tracer](injector)
 				pprof, _ := do.Invoke[core.Pprof](injector)
-				mws := do.MustInvoke[*di.MiddlewareCollector](injector).All()
-				injs := do.MustInvoke[*di.InjectorCollector](injector).All()
+
+				mws := registry.Middleware()
+				injs := registry.RuntimeInjectors()
 				shell, assets := resolveShellAndAssets(injector, publicDir)
 
 				var cssURLs []string
@@ -201,13 +203,13 @@ func NewHotReloader(cfg *core.Config, injector do.Injector, initial *core.App, n
 				}
 
 				// Resolve API router for hot-reload rebuild.
-			var apiRouter core.APIRouter
-			if ar, err := do.Invoke[core.APIRouter](injector); err == nil {
-				apiRouter = ar
-			}
-			orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, mws, injs, nil, shell, assets, newOutput, h.notFoundRoute, cssURLs, docProps, true)
+				var apiRouter core.APIRouter
+				if ar, err := do.Invoke[core.APIRouter](injector); err == nil {
+					apiRouter = ar
+				}
+				orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, mws, injs, nil, shell, assets, newOutput, h.notFoundRoute, cssURLs, docProps, true)
 
-				newApp := newApp(cfg, injector, orch)
+				newApp := newApp(cfg, registry, orch)
 				newApp.SetArtifacts(newOutput)
 				h.current.Store(&liveApp{app: newApp, handler: newApp})
 
