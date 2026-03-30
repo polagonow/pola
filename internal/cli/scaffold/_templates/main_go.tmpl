@@ -5,15 +5,10 @@ import (
 	"net/http"
 
 	"github.com/polagonow/pola"
-	// "github.com/polagonow/pola/core"
 )
 
 func main() {
-	if err := pola.Ready(
-		// core.WithWebAppDir("app"),
-		// core.WithPublicDir("public"),
-		// core.WithHTTPPath("/"),
-	); err != nil {
+	if err := pola.Ready(); err != nil {
 		log.Fatal(err)
 	}
 	log.Printf("[[ .AppName ]] listening on http://%s\n", pola.Addr())

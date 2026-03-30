@@ -25,6 +25,7 @@ import (
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/core/di"
 	"github.com/polagonow/pola/core/globals"
+	"github.com/polagonow/pola/watcher"
 )
 
 func init() {
@@ -134,11 +135,68 @@ func (b *Bundler) Build(_ context.Context, req core.BundleInput) (*core.BundleOu
 	}, nil
 }
 
-// Watch stubs esbuild incremental watch mode.
-// TODO: implement using esbuild's context-based rebuild API.
-func (b *Bundler) Watch(_ context.Context, _ core.BundleInput) (<-chan *core.BundleOutput, error) {
-	return nil, fmt.Errorf("esbuild: Watch not yet implemented")
+// Watch polls the app directory for file changes using esbuild's two-tier
+// polling algorithm (100ms interval, recent files always checked, remaining
+// files randomly sampled). When a change is detected the full Build pipeline
+// is re-run and the new BundleOutput is sent on the returned channel.
+// The channel is closed when ctx is canceled.
+func (b *Bundler) Watch(ctx context.Context, req core.BundleInput) (<-chan *core.BundleOutput, error) {
+	initial, err := b.Build(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("esbuild: watch initial build: %w", err)
+	}
+
+	outputCh := make(chan *core.BundleOutput, 1)
+	triggerCh := make(chan struct{}, 1)
+
+	poller := watcher.New(func() {
+		select {
+		case triggerCh <- struct{}{}:
+		default:
+		}
+	})
+	poller.SetPaths(watcher.CollectPaths(req.AppDir, []string{".ts", ".tsx", ".js", ".jsx", ".css"}))
+	poller.Start()
+
+	go func() {
+		defer close(outputCh)
+		defer poller.Stop()
+
+		select {
+		case outputCh <- initial:
+		case <-ctx.Done():
+			return
+		}
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-triggerCh:
+				out, buildErr := b.Build(ctx, req)
+				if buildErr != nil {
+					continue
+				}
+				// Refresh watched paths — new files may have appeared.
+				poller.SetPaths(watcher.CollectPaths(req.AppDir, []string{".ts", ".tsx", ".js", ".jsx", ".css"}))
+				// Replace any unread previous output so consumer always
+				// gets the latest build.
+				select {
+				case <-outputCh:
+				default:
+				}
+				select {
+				case outputCh <- out:
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}()
+
+	return outputCh, nil
 }
+
 
 // ── manifest (inlined from bundler/manifest) ─────────────────────────────────
 
