@@ -4,11 +4,13 @@ package internal
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/core/globals"
 )
 
 // contextKey is an unexported type for context keys in this package.
@@ -36,6 +38,7 @@ type Orchestrator struct {
 	metrics       core.Metrics
 	tracer        core.Tracer
 	pprof         core.Pprof // may be nil
+	cache         core.Cache // may be nil; render cache
 	middleware    []core.Middleware
 	injectors     []core.RuntimeInjector
 	routes        []core.Route
@@ -59,6 +62,7 @@ func NewOrchestrator(
 	metrics core.Metrics,
 	tracer core.Tracer,
 	pprof core.Pprof,
+	cache core.Cache,
 	middleware []core.Middleware,
 	injectors []core.RuntimeInjector,
 	routes []core.Route,
@@ -78,6 +82,7 @@ func NewOrchestrator(
 		metrics:       metrics,
 		tracer:        tracer,
 		pprof:         pprof,
+		cache:         cache,
 		middleware:    middleware,
 		injectors:     injectors,
 		routes:        routes,
@@ -207,10 +212,14 @@ func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
 			if o.tryRendererServe(ctx, w, r, req, http.StatusNotFound) {
 				return
 			}
+			// Inline SSR data for not-found pages too.
+			w.WriteHeader(http.StatusNotFound)
+			o.serveHTMLWithSSRData(ctx, w, r, &req)
+			return
 		}
 		// HTML 404: client shell bootstraps, then fetches the not-found component.
 		w.WriteHeader(http.StatusNotFound)
-		o.serveHTML(w, r)
+		o.serveHTML(w, r, nil)
 		return
 	}
 
@@ -223,12 +232,69 @@ func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
 	if o.tryRendererServe(ctx, w, r, req, http.StatusOK) {
 		return
 	}
-	o.serveHTML(w, r)
+	o.serveHTMLWithSSRData(ctx, w, r, &req)
 }
 
+// serveHTMLWithSSRData serves the HTML shell with cached SSR data inlined
+// when available. If no cache hit, it serves the empty shell immediately
+// and the client streams Flight data via a second request — preserving
+// Suspense streaming (the original non-blocking design).
+//
+// After serving the empty shell, a background goroutine renders the page
+// and populates the cache so the next request gets instant inlined data.
+func (o *Orchestrator) serveHTMLWithSSRData(ctx context.Context, w http.ResponseWriter, r *http.Request, req *core.RenderRequest) {
+	cacheKey := req.Route.Pattern + "?" + r.URL.RawQuery
+
+	// Serve cached SSR data inline if available — instant, no blocking.
+	if o.cache != nil {
+		if cached, ok, _ := o.cache.Get(ctx, "ssr:"+cacheKey); ok {
+			o.serveHTML(w, r, cached)
+			return
+		}
+	}
+
+	// No cache: serve the empty shell immediately. The client will fetch
+	// Flight data in a streaming second request (original behavior).
+	o.serveHTML(w, r, nil)
+
+	// Warm the cache in the background for the next visitor.
+	if o.cache != nil && req.Route.Revalidate > 0 {
+		sr, ok := o.renderer.(core.StreamRenderer)
+		if ok {
+			bgReq := *req
+			go o.warmCache(context.Background(), sr, bgReq, cacheKey)
+		}
+	}
+}
+
+// warmCache renders a page in the background and stores the result in the
+// cache. Errors are logged but do not affect the current request.
+func (o *Orchestrator) warmCache(ctx context.Context, sr core.StreamRenderer, req core.RenderRequest, cacheKey string) {
+	bw := &bufferWriter{}
+	if err := sr.RenderToWriter(ctx, req, bw); err != nil {
+		o.logger.Error("pola: cache warm render", "err", err)
+		return
+	}
+	if len(bw.buf) > 0 {
+		_ = o.cache.Set(ctx, "ssr:"+cacheKey, bw.buf, core.CacheOptions{
+			TTL: req.Route.Revalidate,
+		})
+	}
+}
+
+// bufferWriter collects SSR output into an in-memory buffer for caching.
+type bufferWriter struct{ buf []byte }
+
+func (bw *bufferWriter) WriteRaw(p []byte) (int, error) {
+	bw.buf = append(bw.buf, p...)
+	return len(p), nil
+}
+func (bw *bufferWriter) Flush() {}
+
 // serveHTML returns the HTML shell for initial page loads.
-// The client-side JS (Client.tsx) then fetches RSC Flight data separately.
-func (o *Orchestrator) serveHTML(w http.ResponseWriter, _ *http.Request) {
+// When ssrData is non-nil, it is inlined as self.__POLA_SSR_DATA__ so the
+// client can render immediately without a second fetch.
+func (o *Orchestrator) serveHTML(w http.ResponseWriter, _ *http.Request, ssrData []byte) {
 	params := core.ShellParams{
 		Metadata:      defaultMetadata(),
 		DocumentProps: o.documentProps,
@@ -242,6 +308,10 @@ func (o *Orchestrator) serveHTML(w http.ResponseWriter, _ *http.Request) {
 	}
 	if o.devScript != "" {
 		params.Scripts = append(params.Scripts, o.devScript)
+	}
+	if len(ssrData) > 0 {
+		escaped, _ := json.Marshal(string(ssrData))
+		params.Scripts = append(params.Scripts, "self."+globals.SSRData+"="+string(escaped))
 	}
 	html := o.shell.Render(params)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

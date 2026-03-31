@@ -46,9 +46,9 @@ func TestShellRenderInlineScripts(t *testing.T) {
 	s := shell.New(reactRoot)
 	out := s.Render(core.ShellParams{
 		ClientScript: "/public/assets/client.js",
-		Scripts:      []string{"self.__flight_data=[]"},
+		Scripts:      []string{"self.__POLA_SSR_DATA__=[]"},
 	})
-	if !strings.Contains(out, "self.__flight_data=[]") {
+	if !strings.Contains(out, "self.__POLA_SSR_DATA__=[]") {
 		t.Error("Render() output missing inline script content")
 	}
 }

@@ -204,7 +204,7 @@ func NewHotReloader(cfg *core.Config, registry *core.Registry, initial *core.App
 				if ar, err := core.Invoke[core.APIRouter](registry); err == nil {
 					apiRouter = ar
 				}
-				orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, mws, injs, nil, shell, assets, newOutput, h.notFoundRoute, cssURLs, docProps, true)
+				orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, nil, mws, WrapInjectorsWithMemo(injs), nil, shell, assets, newOutput, h.notFoundRoute, cssURLs, docProps, true)
 
 				newApp := newApp(cfg, registry, orch)
 				newApp.SetArtifacts(newOutput)

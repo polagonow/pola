@@ -270,8 +270,14 @@ func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, er
 	shell, assets := resolveShellAndAssets(registry, publicDir)
 
 	// ── 8. Wire orchestrator ───────────────────────────────────────────────
+	// Resolve optional cache for render result caching.
+	renderCache, _ := core.Invoke[core.Cache](registry)
+
+	// Wrap injectors with per-request memoization to deduplicate Go calls.
+	memoInjectors := WrapInjectorsWithMemo(runtimeInjectors)
+
 	notFoundRoute := newNotFoundRoute(discovery.GlobalNotFound)
-	orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, middleware, runtimeInjectors, routes, shell, assets, bundleOutput, notFoundRoute, cssURLs, docProps, cfg.Dev)
+	orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, renderCache, middleware, memoInjectors, routes, shell, assets, bundleOutput, notFoundRoute, cssURLs, docProps, cfg.Dev)
 
 	// ── Copy static public files ────────────────────────────────────────
 	srcPublic := filepath.Join(absWebAppPath, "public")
@@ -383,6 +389,12 @@ func buildFromPrebuilt(
 	// Resolve shell and asset server.
 	shell, assets := resolveShellAndAssets(registry, "")
 
+	// Resolve optional cache for render result caching.
+	renderCache, _ := core.Invoke[core.Cache](registry)
+
+	// Wrap injectors with per-request memoization.
+	memoInjectors := WrapInjectorsWithMemo(injectors)
+
 	notFoundRoute := newNotFoundRoute(artifacts.GlobalNotFound)
 	// In prebuild/embed mode, API routes are still compiled into the binary.
 	var apiRouter core.APIRouter
@@ -397,7 +409,7 @@ func buildFromPrebuilt(
 		}
 		apiRouter = ar
 	}
-	orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, middleware, injectors, artifacts.Routes, shell, assets, artifacts.BundleOutput, notFoundRoute, artifacts.CSSURLs, artifacts.DocumentProps, false)
+	orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, renderCache, middleware, memoInjectors, artifacts.Routes, shell, assets, artifacts.BundleOutput, notFoundRoute, artifacts.CSSURLs, artifacts.DocumentProps, false)
 	app := newApp(cfg, registry, orch)
 	app.SetArtifacts(artifacts.BundleOutput)
 	return app, nil

@@ -47,6 +47,14 @@ type Renderer interface {
 	Capabilities() []Capability
 }
 
+// StreamRenderer is an optional interface for renderers that can stream
+// SSR output into a provided StreamWriter. The orchestrator uses this to
+// progressively flush SSR data into the HTML response as it becomes
+// available — keeping Suspense streaming intact rather than buffering.
+type StreamRenderer interface {
+	RenderToWriter(ctx context.Context, req RenderRequest, w StreamWriter) error
+}
+
 // Router scans for routes and resolves requests.
 type Router interface {
 	Name() string

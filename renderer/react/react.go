@@ -122,9 +122,9 @@ func (r *Renderer) prepareVM(ctx context.Context, req core.RenderRequest) (core.
 	return vm, string(propsJSON), nil
 }
 
-// RenderToWriter acquires a VM, performs a full RSC Flight render, and
-// streams all chunks to w. This is the primary render path used by the
-// Pola pipeline when it has a concrete StreamWriter available.
+// RenderToWriter implements core.StreamRenderer. It acquires a VM, performs
+// a full RSC Flight render, and streams all chunks to w. The orchestrator
+// uses this to progressively flush SSR data into the HTML response.
 func (r *Renderer) RenderToWriter(ctx context.Context, req core.RenderRequest, w core.StreamWriter) error {
 	if r.pool == nil {
 		return fmt.Errorf("react renderer: VM pool not configured")
