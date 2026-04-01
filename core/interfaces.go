@@ -203,6 +203,29 @@ type BundleLoader interface {
 	LoadBundle(engine JSEngine, bundle []byte) error
 }
 
+// BundlePluginProvider supplies bundler-native plugins for each build pass.
+// Plugins are typed as []any because the core package cannot depend on a
+// specific bundler (e.g. esbuild). The concrete bundler type-asserts them
+// to its native plugin type.
+//
+// Register a BundlePluginProvider in the Registry when a renderer needs
+// bundler-specific build plugins (e.g. React's workspace resolver, auto-dedupe,
+// or "use client" probe). The pipeline resolves it separately from the Renderer.
+type BundlePluginProvider interface {
+	// ClientPlugins returns bundler-native plugins for the client bundle pass.
+	ClientPlugins(appDir string) []any
+	// ServerPlugins returns bundler-native plugins for the server bundle pass.
+	ServerPlugins(appDir string) []any
+	// ProbePlugins returns bundler-native plugins for the probe pass that
+	// discovers client boundaries. Return nil to skip the probe entirely.
+	ProbePlugins(appDir string) []any
+	// ClientModuleStub returns a function that generates stub source code for
+	// client component files in the server bundle. The function receives the
+	// absolute file path and the computed module ID. Return nil to use an
+	// empty stub.
+	ClientModuleStub() func(absPath, moduleID string) string
+}
+
 // HTMLShell renders the initial HTML document.
 type HTMLShell interface {
 	Render(p ShellParams) string

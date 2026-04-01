@@ -10,7 +10,11 @@ import (
 	"{{.PolaPackage}}/logger/slog"
 	"{{.PolaPackage}}/middleware/logging"
 	"{{.PolaPackage}}/middleware/recovery"
+{{- if not .Embed}}
+	{{.Renderer}}{{.Bundler}} "{{.PolaPackage}}/renderer/{{.Renderer}}/{{.Bundler}}"
+{{- else}}
 	"{{.PolaPackage}}/renderer/{{.Renderer}}"
+{{- end}}
 	"{{.PolaPackage}}/router/{{.Router}}"
 {{- if not .Embed}}
 	"{{.PolaPackage}}/bundler/{{.Bundler}}"
@@ -36,7 +40,11 @@ import (
 // PolaPlugins is the set of plugins for this application.
 var PolaPlugins = []core.Plugin{
 	{{.Engine}}.Plugin(),
+{{- if not .Embed}}
+	{{.Renderer}}{{.Bundler}}.Plugin(),
+{{- else}}
 	{{.Renderer}}.Plugin(),
+{{- end}}
 	{{.Router}}.Plugin(),
 	slog.Plugin(),
 	logging.Plugin(),

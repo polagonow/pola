@@ -173,6 +173,30 @@ type BundleInput struct {
 	// CSSProcessor is the optional CSS processor (e.g. Tailwind) to use
 	// during the client bundle pass. When nil, CSS imports are stubbed.
 	CSSProcessor CSS
+
+	// WatchExtensions are the file extensions the bundler's Watch mode
+	// should monitor for changes (e.g. [".tsx", ".jsx", ".css"]).
+	// Populated by the pipeline from renderer.FileExtensions() merged
+	// with framework defaults. When empty, the bundler uses its own defaults.
+	WatchExtensions []string
+
+	// ClientPlugins are bundler-specific plugins for the client bundle pass.
+	// The concrete bundler type-asserts these to its native plugin type
+	// (e.g. []api.Plugin for esbuild). Core does not inspect them.
+	ClientPlugins []any
+
+	// ServerPlugins are bundler-specific plugins for the server bundle pass.
+	ServerPlugins []any
+
+	// ProbePlugins are bundler-specific plugins for the probe pass that
+	// discovers client boundaries. When nil, the bundler skips its probe.
+	ProbePlugins []any
+
+	// ClientModuleStub generates stub source code for client component files
+	// in the server bundle. It receives the absolute file path and the computed
+	// module ID, and returns the JS stub source. When nil, the bundler uses
+	// an empty stub.
+	ClientModuleStub func(absPath, moduleID string) string
 }
 
 // BundleOutput is the result of a successful build.
