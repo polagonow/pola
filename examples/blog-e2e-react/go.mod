@@ -26,4 +26,4 @@ require (
 	golang.org/x/text v0.30.0 // indirect
 )
 
-replace github.com/polagonow/pola => /Users/admin/conductor/workspaces/pola/bangalore
+replace github.com/polagonow/pola => /Users/admin/conductor/workspaces/pola/surabaya-v1

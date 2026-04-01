@@ -197,6 +197,11 @@ type BundleInput struct {
 	// module ID, and returns the JS stub source. When nil, the bundler uses
 	// an empty stub.
 	ClientModuleStub func(absPath, moduleID string) string
+
+	// BeforeRebuild is called before each watch-mode rebuild, allowing the
+	// caller to update dynamic fields (e.g. ServerEntryContent, ClientComponents)
+	// based on newly discovered routes. Only used by Watch, ignored by Build.
+	BeforeRebuild func(input *BundleInput)
 }
 
 // BundleOutput is the result of a successful build.
