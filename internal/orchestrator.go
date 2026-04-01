@@ -264,6 +264,18 @@ func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
 			if o.tryRendererServe(ctx, w, r, req, http.StatusNotFound) {
 				return
 			}
+			// Non-Flight: pre-render the not-found page and embed in shell.
+			if rb, ok := o.renderer.(interface {
+				RenderToBytes(context.Context, core.RenderRequest) ([]byte, error)
+			}); ok {
+				if ssrData, err := rb.RenderToBytes(ctx, req); err == nil {
+					w.WriteHeader(http.StatusNotFound)
+					o.serveHTML(w, r, ssrData)
+					return
+				} else {
+					o.logger.Error("pola: render not-found", "err", err)
+				}
+			}
 		}
 		w.WriteHeader(http.StatusNotFound)
 		o.serveHTML(w, r, nil)
