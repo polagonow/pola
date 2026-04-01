@@ -62,7 +62,9 @@ type Polafile struct {
 	Router         string `hcl:"router,optional"`
 	CSS            string `hcl:"css,optional"`
 	Cache          string `hcl:"cache,optional"`
-	PackageManager string `hcl:"package_manager,optional"`
+	PackageManager  string `hcl:"package_manager,optional"`
+	CSRF            string `hcl:"csrf,optional"`
+	SecurityHeaders string `hcl:"security_headers,optional"`
 
 	AppDir     string `hcl:"app_dir,optional"`
 	ActionsDir string `hcl:"actions_dir,optional"`
@@ -83,13 +85,15 @@ func (pf *Polafile) PolaPackage() string {
 
 // Environment holds per-environment overrides.
 type Environment struct {
-	Renderer       string `hcl:"renderer,optional"`
-	Engine         string `hcl:"engine,optional"`
-	Bundler        string `hcl:"bundler,optional"`
-	Router         string `hcl:"router,optional"`
-	CSS            string `hcl:"css,optional"`
-	Cache          string `hcl:"cache,optional"`
-	PackageManager string `hcl:"package_manager,optional"`
+	Renderer        string `hcl:"renderer,optional"`
+	Engine          string `hcl:"engine,optional"`
+	Bundler         string `hcl:"bundler,optional"`
+	Router          string `hcl:"router,optional"`
+	CSS             string `hcl:"css,optional"`
+	Cache           string `hcl:"cache,optional"`
+	PackageManager  string `hcl:"package_manager,optional"`
+	CSRF            string `hcl:"csrf,optional"`
+	SecurityHeaders string `hcl:"security_headers,optional"`
 }
 
 // ForEnv returns a merged Polafile with the given environment's overrides
@@ -128,6 +132,12 @@ func (pf *Polafile) ForEnv(env string) Polafile {
 	}
 	if override.PackageManager != "" {
 		merged.PackageManager = override.PackageManager
+	}
+	if override.CSRF != "" {
+		merged.CSRF = override.CSRF
+	}
+	if override.SecurityHeaders != "" {
+		merged.SecurityHeaders = override.SecurityHeaders
 	}
 
 	return merged
@@ -176,6 +186,8 @@ func Save(dir string, pf *Polafile) error {
 	setAttr(blockBody, "css", pf.CSS)
 	setAttr(blockBody, "cache", pf.Cache)
 	setAttr(blockBody, "package_manager", pf.PackageManager)
+	setAttr(blockBody, "csrf", pf.CSRF)
+	setAttr(blockBody, "security_headers", pf.SecurityHeaders)
 	setAttr(blockBody, "app_dir", pf.AppDir)
 	setAttr(blockBody, "actions_dir", pf.ActionsDir)
 	setAttr(blockBody, "routes_dir", pf.RoutesDir)
@@ -194,6 +206,8 @@ func Save(dir string, pf *Polafile) error {
 		setAttr(envBody, "css", env.CSS)
 		setAttr(envBody, "cache", env.Cache)
 		setAttr(envBody, "package_manager", env.PackageManager)
+		setAttr(envBody, "csrf", env.CSRF)
+		setAttr(envBody, "security_headers", env.SecurityHeaders)
 	}
 
 	writeEnvBlock("development", pf.Development)

@@ -10,6 +10,7 @@ require (
 	github.com/evanw/esbuild v0.20.2
 	github.com/fastschema/qjs v0.0.6
 	github.com/fsnotify/fsnotify v1.9.0
+	github.com/gorilla/csrf v1.7.3
 	github.com/gorilla/websocket v1.5.3
 	github.com/grafana/sobek v0.0.0-20260309140132-c198b3f43d96
 	github.com/hashicorp/golang-lru/v2 v2.0.7
@@ -42,6 +43,7 @@ require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/pprof v0.0.0-20240727154555-813a5fbdbec8 // indirect
 	github.com/google/uuid v1.6.0 // indirect
+	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/mitchellh/go-wordwrap v1.0.1 // indirect

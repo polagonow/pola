@@ -8,6 +8,21 @@ package core
 
 import "time"
 
+// csrfContextKeyType is an unexported type for the CSRF token context key,
+// ensuring no collisions with keys from other packages.
+type csrfContextKeyType struct{}
+
+// CSRFTokenContextKey is the context key used to pass a CSRF token from
+// the CSRF middleware to the orchestrator for injection into the HTML shell.
+var CSRFTokenContextKey = csrfContextKeyType{}
+
+// nonceContextKeyType is an unexported type for the CSP nonce context key.
+type nonceContextKeyType struct{}
+
+// NonceContextKey is the context key used to pass a per-request CSP nonce
+// from the security headers middleware to the orchestrator/shell.
+var NonceContextKey = nonceContextKeyType{}
+
 // ClientRef is the wire representation of a Client Component reference.
 // The browser's RSC runtime resolves this to the actual React component
 // by looking up the manifest produced at build time.
@@ -130,6 +145,10 @@ type ShellParams struct {
 	// layout (html/body attributes, head elements, body prefix/suffix).
 	// When nil the shell uses default attributes (lang="en").
 	DocumentProps *DocumentProps
+
+	// Nonce is a per-request CSP nonce for inline <script> tags.
+	// When non-empty, the shell adds nonce="..." to all inline scripts.
+	Nonce string
 }
 
 // RenderOpts controls a single page render.
