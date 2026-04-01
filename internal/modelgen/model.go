@@ -1,0 +1,73 @@
+// Package modelgen provides model definition types and generation logic
+// for the `pola generate model` command.
+package modelgen
+
+// FieldType represents the CLI-level type abstraction for model fields.
+type FieldType string
+
+const (
+	FieldString     FieldType = "string"
+	FieldInt        FieldType = "int"
+	FieldInt64      FieldType = "int64"
+	FieldFloat      FieldType = "float"
+	FieldBool       FieldType = "bool"
+	FieldTime       FieldType = "time"
+	FieldUUID       FieldType = "uuid"
+	FieldText       FieldType = "text"
+	FieldBytes      FieldType = "bytes"
+	FieldJSON       FieldType = "json"
+	FieldReferences FieldType = "references"
+)
+
+// validFieldTypes is the set of recognised CLI type names.
+var validFieldTypes = map[FieldType]bool{
+	FieldString:     true,
+	FieldInt:        true,
+	FieldInt64:      true,
+	FieldFloat:      true,
+	FieldBool:       true,
+	FieldTime:       true,
+	FieldUUID:       true,
+	FieldText:       true,
+	FieldBytes:      true,
+	FieldJSON:       true,
+	FieldReferences: true,
+}
+
+// Field represents a single model field parsed from CLI arguments.
+type Field struct {
+	Name        string
+	Type        FieldType
+	Optional    bool      // trailing "?" on type, e.g. age:int?
+	Index       bool      // :index modifier
+	Unique      bool      // :uniq modifier
+	Polymorphic bool      // {polymorphic} option (only valid on references)
+	Limit       int       // {N} option for sized types, e.g. string{255} → varchar(255). 0 means default.
+	RefIDType   FieldType // resolved ID type of referenced model (set by ValidateReferences, not parsing)
+}
+
+// ModelDef is the parsed model definition from CLI arguments.
+type ModelDef struct {
+	Name   string  // PascalCase model name, e.g. "Article"
+	Fields []Field
+}
+
+// HasReferences returns true if the model has any non-polymorphic references fields.
+func (m *ModelDef) HasReferences() bool {
+	for _, f := range m.Fields {
+		if f.Type == FieldReferences && !f.Polymorphic {
+			return true
+		}
+	}
+	return false
+}
+
+// HasIndexes returns true if any field has an index or unique modifier.
+func (m *ModelDef) HasIndexes() bool {
+	for _, f := range m.Fields {
+		if f.Index || f.Unique {
+			return true
+		}
+	}
+	return false
+}
