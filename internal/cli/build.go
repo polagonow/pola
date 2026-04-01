@@ -21,8 +21,8 @@ var buildFlags struct {
 	vm              string
 	cgo             string
 	appPath         string
-	csrf            string
-	securityHeaders string
+	csrf            bool
+	securityHeaders bool
 }
 
 var buildCmd = &cobra.Command{
@@ -46,8 +46,8 @@ func init() {
 	buildCmd.Flags().StringVar(&buildFlags.vm, "vm", cmp.Or(os.Getenv("POLA_VM"), "goja"), "JS engine")
 	buildCmd.Flags().StringVar(&buildFlags.cgo, "cgo", cmp.Or(os.Getenv("CGO_ENABLED"), "1"), "CGO_ENABLED value")
 	buildCmd.Flags().StringVar(&buildFlags.appPath, "app-path", cmp.Or(os.Getenv("POLA_WEBAPP_PATH"), "./app"), "path to the web app directory")
-	buildCmd.Flags().StringVar(&buildFlags.csrf, "csrf", cmp.Or(os.Getenv("POLA_CSRF"), "true"), "CSRF protection (true, none)")
-	buildCmd.Flags().StringVar(&buildFlags.securityHeaders, "security-headers", cmp.Or(os.Getenv("POLA_SECURITY_HEADERS"), "true"), "security headers (true, none)")
+	buildCmd.Flags().BoolVar(&buildFlags.csrf, "csrf", os.Getenv("POLA_CSRF") != "false", "enable CSRF protection")
+	buildCmd.Flags().BoolVar(&buildFlags.securityHeaders, "security-headers", os.Getenv("POLA_SECURITY_HEADERS") != "false", "enable security headers")
 }
 
 func runBuild(cmd *cobra.Command, _ []string) error {

@@ -12,7 +12,10 @@ import (
 	"strings"
 	"text/template"
 
+	survey "github.com/AlecAivazis/survey/v2"
 	"github.com/polagonow/pola/internal/codegen"
+	"github.com/polagonow/pola/internal/modelgen"
+	_ "github.com/polagonow/pola/internal/modelgen/plugins" // register model generators
 	"github.com/polagonow/pola/polafile"
 	"github.com/spf13/cobra"
 )
@@ -48,8 +51,8 @@ type pluginOpts struct {
 	Router          string
 	CSS             string
 	Cache           string
-	CSRF            string
-	SecurityHeaders string
+	CSRF            bool
+	SecurityHeaders bool
 	Dev             bool
 	Embed           bool
 }
@@ -92,6 +95,26 @@ var generateRouteCmd = &cobra.Command{
   pola generate route Posts/Comments --actions GET,POST,DELETE`,
 }
 
+var generateModelCmd = &cobra.Command{
+	Use:   "model [Name] [field:type ...]",
+	Short: "Generate an ORM model/schema from field definitions",
+	Long: `Parse model name and field:type{opts}:modifier specs, then generate
+ORM-specific schema files using the plugin configured in Polafile.hcl.
+
+Field syntax: field:type{options}:modifier1:modifier2
+  Types:    string, int, int64, float, bool, time, uuid, text, bytes, json, references
+  Options:  {polymorphic} (only on references)
+  Modifiers: index, uniq`,
+	Args:    cobra.MinimumNArgs(1),
+	RunE:    runGenerateModel,
+	Aliases: []string{"m"},
+	Example: `  pola generate model User name:string email:string:uniq age:int
+  pola generate model Article title:string:index body:text author:references
+  pola generate model Comment body:text commentable:references{polymorphic}`,
+}
+
+var generateForce bool
+var generateSkipCollision bool
 var routeActions string
 
 // validHTTPMethods is the set of HTTP methods accepted by --actions.
@@ -103,9 +126,12 @@ var validHTTPMethods = map[string]bool{
 func init() {
 	generateCmd.Flags().StringVar(&generateFlags.actionsDir, "actions-dir", "", "path to actions directory (default: ./actions)")
 	generateCmd.Flags().StringVar(&generateFlags.tsOut, "ts-out", "", "path to generated .d.ts file")
+	generateCmd.PersistentFlags().BoolVar(&generateForce, "force", false, "overwrite files that already exist")
+	generateCmd.PersistentFlags().BoolVar(&generateSkipCollision, "skip-collision-check", false, "skip collision check entirely")
 	generateRouteCmd.Flags().StringVar(&routeActions, "actions", "GET", "comma-separated HTTP methods (e.g. GET,POST,DELETE)")
 	generateCmd.AddCommand(generateActionCmd)
 	generateCmd.AddCommand(generateRouteCmd)
+	generateCmd.AddCommand(generateModelCmd)
 }
 
 func runGenerate(_ *cobra.Command, _ []string) error {
@@ -127,9 +153,9 @@ func runGenerate(_ *cobra.Command, _ []string) error {
 		Renderer:        cmp.Or(os.Getenv("POLA_RENDERER"), nameOnly(pf.Renderer), "react"),
 		Router:          cmp.Or(os.Getenv("POLA_ROUTER"), nameOnly(pf.Router), "nextjs"),
 		CSS:             cmp.Or(os.Getenv("POLA_CSS"), nameOnly(pf.CSS), "tailwind"),
-		Cache:           cmp.Or(os.Getenv("POLA_CACHE"), nameOnly(pf.Cache), "memory"),
-		CSRF:            cmp.Or(os.Getenv("POLA_CSRF"), pf.CSRF, "true"),
-		SecurityHeaders: cmp.Or(os.Getenv("POLA_SECURITY_HEADERS"), pf.SecurityHeaders, "true"),
+		Cache:           cmp.Or(os.Getenv("POLA_CACHE"), pf.CacheAdapter("default"), "memory"),
+		CSRF:            envOrBool("POLA_CSRF", pf.CSRFEnabled("default")),
+		SecurityHeaders: envOrBool("POLA_SECURITY_HEADERS", pf.SecurityHeadersEnabled("default")),
 		Dev:             true,
 	})
 	if err != nil {
@@ -229,6 +255,95 @@ func runGenerateRoute(_ *cobra.Command, args []string) error {
 
 	fmt.Printf("Created %s\n", filePath)
 	return nil
+}
+
+func runGenerateModel(_ *cobra.Command, args []string) error {
+	projectDir, err := findProjectRoot()
+	if err != nil {
+		return err
+	}
+
+	// Load Polafile.
+	pf, err := polafile.Load(projectDir)
+	if err != nil {
+		return fmt.Errorf("load Polafile: %w", err)
+	}
+	if pf == nil {
+		pf = &polafile.Polafile{}
+	}
+
+	// Ensure database block exists; prompt interactively for missing ORM.
+	if pf.Database == nil {
+		pf.Database = &polafile.Database{
+			Models:     "models",
+			Migrations: "migrations",
+		}
+	}
+	dirty := false
+	if pf.Database.ORM == "" {
+		orm, err := promptSelect("ORM:", []string{"ent", "gorm"})
+		if err != nil {
+			return err
+		}
+		pf.Database.ORM = orm
+		dirty = true
+	}
+	if dirty {
+		if err := polafile.Save(projectDir, pf); err != nil {
+			return fmt.Errorf("save Polafile: %w", err)
+		}
+		fmt.Println("Saved database configuration to Polafile.hcl.")
+	}
+
+	modelDef, err := modelgen.ParseArgs(args)
+	if err != nil {
+		return err
+	}
+
+	orm := pf.DatabaseORM()
+	outDir := filepath.Join(projectDir, pf.DatabaseModelsDir())
+
+	// Validate that referenced models exist and resolve FK types.
+	if err := modelgen.ValidateReferences(modelDef, outDir, orm); err != nil {
+		return err
+	}
+
+	gen, err := modelgen.GetGenerator(orm)
+	if err != nil {
+		return err
+	}
+
+	outFile := filepath.Join(outDir, orm, modelgen.SnakeCase(modelDef.Name)+".go")
+
+	// Collision check: if file exists, respect --force / --skip-collision-check.
+	if !generateSkipCollision {
+		if _, err := os.Stat(outFile); err == nil {
+			if !generateForce {
+				return fmt.Errorf("%s already exists; use --force to overwrite or --skip-collision-check to skip", outFile)
+			}
+			fmt.Printf("Overwriting %s\n", outFile)
+		}
+	}
+
+	if err := gen.Generate(modelDef, outDir); err != nil {
+		return fmt.Errorf("generate model: %w", err)
+	}
+
+	fmt.Printf("Created %s\n", outFile)
+	return nil
+}
+
+// promptSelect presents an interactive selection prompt and returns the chosen option.
+func promptSelect(message string, options []string) (string, error) {
+	var answer string
+	prompt := &survey.Select{
+		Message: message,
+		Options: options,
+	}
+	if err := survey.AskOne(prompt, &answer); err != nil {
+		return "", fmt.Errorf("prompt: %w", err)
+	}
+	return answer, nil
 }
 
 // parseActions splits and validates the --actions flag value.
@@ -408,8 +523,8 @@ func generatePluginImports(opts pluginOpts, actionsImport string, routePkgs []ro
 
 	hasCSS := opts.CSS != "" && opts.CSS != "none"
 	hasCache := opts.Cache != "" && opts.Cache != "none"
-	hasCSRF := opts.CSRF != "" && opts.CSRF != "none"
-	hasSecurityHeaders := opts.SecurityHeaders != "" && opts.SecurityHeaders != "none"
+	hasCSRF := opts.CSRF
+	hasSecurityHeaders := opts.SecurityHeaders
 
 	var buf strings.Builder
 	err := pluginsTmpl.Execute(&buf, struct {
@@ -447,6 +562,15 @@ func generatePluginImports(opts pluginOpts, actionsImport string, routePkgs []ro
 		return nil, fmt.Errorf("execute plugins template: %w", err)
 	}
 	return []byte(buf.String()), nil
+}
+
+// envOrBool returns the boolean value from an env var if set, otherwise the fallback.
+func envOrBool(key string, fallback bool) bool {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	return v == "true" || v == "1"
 }
 
 func condStr(cond bool, a, b string) string {

@@ -10,7 +10,6 @@ import (
 
 	"github.com/gorilla/websocket"
 
-	"github.com/polagonow/pola/cache/memory"
 	"github.com/polagonow/pola/core"
 )
 
@@ -243,13 +242,15 @@ func NewHotReloader(cfg *core.Config, registry *core.Registry, initial *core.App
 				if ar, err := core.Invoke[core.APIRouter](registry); err == nil {
 					apiRouter = ar
 				}
-				renderCache, err := core.Invoke[core.Cache](registry)
-				if err != nil {
-					renderCache = memory.MustNew(0)
+				renderCache, cacheErr := core.Invoke[core.Cache](registry)
+				if cacheErr != nil {
+					logger.Info("hotreload: cache not registered, caching disabled")
 				}
 				// Clear stale SSR data from previous build.
-				if err := renderCache.Clear(context.Background()); err != nil {
-					logger.Warn("hotreload: cache clear", "err", err)
+				if renderCache != nil {
+					if err := renderCache.Clear(context.Background()); err != nil {
+						logger.Warn("hotreload: cache clear", "err", err)
+					}
 				}
 				orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, renderCache, mws, WrapInjectorsWithMemo(injs), nil, shell, assets, newOutput, h.notFoundRoute, cssURLs, docProps, true)
 
