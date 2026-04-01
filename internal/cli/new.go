@@ -44,13 +44,15 @@ func resolveVersion(choice string) string {
 }
 
 var newFlags struct {
-	renderer string
-	bundler  string
-	router   string
-	css      string
-	vm       string
-	polaPath string
-	pm       string
+	renderer        string
+	bundler         string
+	router          string
+	css             string
+	vm              string
+	polaPath        string
+	pm              string
+	csrf            string
+	securityHeaders string
 }
 
 var newCmd = &cobra.Command{
@@ -73,6 +75,8 @@ func init() {
 	newCmd.Flags().StringVar(&newFlags.vm, "vm", "goja", "JS engine (goja)")
 	newCmd.Flags().StringVar(&newFlags.polaPath, "pola-path", "", "local path to pola framework source (adds replace directive)")
 	newCmd.Flags().StringVar(&newFlags.pm, "pm", "", "package manager to use (npm, pnpm, yarn); auto-detected if not set")
+	newCmd.Flags().StringVar(&newFlags.csrf, "csrf", "true", "CSRF protection (true, none)")
+	newCmd.Flags().StringVar(&newFlags.securityHeaders, "security-headers", "true", "security headers (true, none)")
 }
 
 func runNew(_ *cobra.Command, args []string) error {
@@ -123,17 +127,19 @@ func runNew(_ *cobra.Command, args []string) error {
 
 	// Write Polafile.hcl to lock the user's choices with resolved versions.
 	pf := &polafile.Polafile{
-		Version:        version,
-		Renderer:       resolveVersion(newFlags.renderer),
-		Engine:         resolveVersion(newFlags.vm),
-		Bundler:        resolveVersion(newFlags.bundler),
-		Router:         newFlags.router,
-		CSS:            newFlags.css,
-		Cache:          "memory",
-		PackageManager: pm,
-		AppDir:         "app",
-		ActionsDir:     "actions",
-		RoutesDir:      "routes",
+		Version:         version,
+		Renderer:        resolveVersion(newFlags.renderer),
+		Engine:          resolveVersion(newFlags.vm),
+		Bundler:         resolveVersion(newFlags.bundler),
+		Router:          newFlags.router,
+		CSS:             newFlags.css,
+		Cache:           "memory",
+		PackageManager:  pm,
+		CSRF:            newFlags.csrf,
+		SecurityHeaders: newFlags.securityHeaders,
+		AppDir:          "app",
+		ActionsDir:      "actions",
+		RoutesDir:       "routes",
 	}
 	if err := polafile.Save(targetDir, pf); err != nil {
 		return fmt.Errorf("write Polafile.hcl: %w", err)
@@ -149,14 +155,16 @@ func runNew(_ *cobra.Command, args []string) error {
 	// This file is removed after tidy — at runtime it's injected via overlay.
 	pluginsPath := filepath.Join(targetDir, "pola_plugins.go")
 	pluginsSrc, err := generatePluginImports(pluginOpts{
-		PolaPackage: polafile.DefaultPackage,
-		Engine:      newFlags.vm,
-		Bundler:     newFlags.bundler,
-		Renderer:    newFlags.renderer,
-		Router:      newFlags.router,
-		CSS:         newFlags.css,
-		Cache:       "memory",
-		Dev:         true,
+		PolaPackage:     polafile.DefaultPackage,
+		Engine:          newFlags.vm,
+		Bundler:         newFlags.bundler,
+		Renderer:        newFlags.renderer,
+		Router:          newFlags.router,
+		CSS:             newFlags.css,
+		Cache:           "memory",
+		CSRF:            newFlags.csrf,
+		SecurityHeaders: newFlags.securityHeaders,
+		Dev:             true,
 	}, appName+"/actions", []routePackageInfo{
 		{ImportPath: appName + "/routes/health"},
 	})

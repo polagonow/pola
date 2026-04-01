@@ -47,10 +47,11 @@ func (s *Shell) Render(p core.ShellParams) string {
 		HasStylesheets:     len(p.Stylesheets) > 0,
 		StyleBlock:         template.HTML("<style>" + styles + "</style>"),
 		Stylesheets:        p.Stylesheets,
-		ImportMap:          template.HTML(ImportMap(p.ImportURLs)),
+		ImportMap:          template.HTML(ImportMapWithNonce(p.ImportURLs, p.Nonce)),
 		BodyOpen:           template.HTML("<body" + string(renderAttrs(bodyAttrsMap(p.DocumentProps))) + ">"),
 		BodyPrefix:         template.HTML(bodyPrefix(p.DocumentProps)),
 		InnerHTML:          template.HTML(s.innerHTML),
+		Nonce:              p.Nonce,
 		Scripts:            scripts,
 		ClientScript:       p.ClientScript,
 		BodySuffix:         template.HTML(bodySuffix(p.DocumentProps)),
@@ -66,6 +67,12 @@ func (s *Shell) Render(p core.ShellParams) string {
 // ImportMap generates a <script type="importmap"> block from a module-ID →
 // chunk-URL map. Returns an empty string when importURLs is nil or empty.
 func ImportMap(importURLs map[string]string) string {
+	return ImportMapWithNonce(importURLs, "")
+}
+
+// ImportMapWithNonce generates a <script type="importmap"> block with an
+// optional CSP nonce. Returns an empty string when importURLs is nil or empty.
+func ImportMapWithNonce(importURLs map[string]string, nonce string) string {
 	if len(importURLs) == 0 {
 		return ""
 	}
@@ -75,6 +82,9 @@ func ImportMap(importURLs map[string]string) string {
 	}
 	// json.Marshal escapes <, >, & to \uXXXX by default, so "</script>"
 	// sequences in keys/values cannot break out of the script tag.
+	if nonce != "" {
+		return fmt.Sprintf(`<script type="importmap" nonce="%s">%s</script>`, template.HTMLEscapeString(nonce), payload)
+	}
 	return fmt.Sprintf(`<script type="importmap">%s</script>`, payload)
 }
 

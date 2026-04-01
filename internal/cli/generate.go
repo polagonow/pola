@@ -41,15 +41,17 @@ var embedTmpl = template.Must(
 
 // pluginOpts holds parameters for plugin generation.
 type pluginOpts struct {
-	PolaPackage string
-	Engine      string
-	Bundler     string
-	Renderer    string
-	Router      string
-	CSS         string
-	Cache       string
-	Dev         bool
-	Embed       bool
+	PolaPackage     string
+	Engine          string
+	Bundler         string
+	Renderer        string
+	Router          string
+	CSS             string
+	Cache           string
+	CSRF            string
+	SecurityHeaders string
+	Dev             bool
+	Embed           bool
 }
 
 var generateFlags struct {
@@ -119,14 +121,16 @@ func runGenerate(_ *cobra.Command, _ []string) error {
 	}
 
 	result, err := generateOverlay(projectDir, pluginOpts{
-		PolaPackage: pf.PolaPackage(),
-		Engine:      cmp.Or(os.Getenv("POLA_VM"), nameOnly(pf.Engine), "goja"),
-		Bundler:     cmp.Or(os.Getenv("POLA_BUNDLER"), nameOnly(pf.Bundler), "esbuild"),
-		Renderer:    cmp.Or(os.Getenv("POLA_RENDERER"), nameOnly(pf.Renderer), "react"),
-		Router:      cmp.Or(os.Getenv("POLA_ROUTER"), nameOnly(pf.Router), "nextjs"),
-		CSS:         cmp.Or(os.Getenv("POLA_CSS"), nameOnly(pf.CSS), "tailwind"),
-		Cache:       cmp.Or(os.Getenv("POLA_CACHE"), nameOnly(pf.Cache), "memory"),
-		Dev:         true,
+		PolaPackage:     pf.PolaPackage(),
+		Engine:          cmp.Or(os.Getenv("POLA_VM"), nameOnly(pf.Engine), "goja"),
+		Bundler:         cmp.Or(os.Getenv("POLA_BUNDLER"), nameOnly(pf.Bundler), "esbuild"),
+		Renderer:        cmp.Or(os.Getenv("POLA_RENDERER"), nameOnly(pf.Renderer), "react"),
+		Router:          cmp.Or(os.Getenv("POLA_ROUTER"), nameOnly(pf.Router), "nextjs"),
+		CSS:             cmp.Or(os.Getenv("POLA_CSS"), nameOnly(pf.CSS), "tailwind"),
+		Cache:           cmp.Or(os.Getenv("POLA_CACHE"), nameOnly(pf.Cache), "memory"),
+		CSRF:            cmp.Or(os.Getenv("POLA_CSRF"), pf.CSRF, "true"),
+		SecurityHeaders: cmp.Or(os.Getenv("POLA_SECURITY_HEADERS"), pf.SecurityHeaders, "true"),
+		Dev:             true,
 	})
 	if err != nil {
 		return err
@@ -404,34 +408,40 @@ func generatePluginImports(opts pluginOpts, actionsImport string, routePkgs []ro
 
 	hasCSS := opts.CSS != "" && opts.CSS != "none"
 	hasCache := opts.Cache != "" && opts.Cache != "none"
+	hasCSRF := opts.CSRF != "" && opts.CSRF != "none"
+	hasSecurityHeaders := opts.SecurityHeaders != "" && opts.SecurityHeaders != "none"
 
 	var buf strings.Builder
 	err := pluginsTmpl.Execute(&buf, struct {
-		PolaPackage   string
-		Engine        string
-		Bundler       string
-		Renderer      string
-		Router        string
-		CSS           string
-		Cache         string
-		Dev           bool
-		Embed         bool
-		HasRoutes     bool
-		ActionsImport string
-		RouteImports  []string
+		PolaPackage     string
+		Engine          string
+		Bundler         string
+		Renderer        string
+		Router          string
+		CSS             string
+		Cache           string
+		CSRF            bool
+		SecurityHeaders bool
+		Dev             bool
+		Embed           bool
+		HasRoutes       bool
+		ActionsImport   string
+		RouteImports    []string
 	}{
-		PolaPackage:   opts.PolaPackage,
-		Engine:        opts.Engine,
-		Bundler:       opts.Bundler,
-		Renderer:      opts.Renderer,
-		Router:        opts.Router,
-		CSS:           condStr(hasCSS, opts.CSS, ""),
-		Cache:         condStr(hasCache, opts.Cache, ""),
-		Dev:           opts.Dev,
-		Embed:         opts.Embed,
-		HasRoutes:     len(routePkgs) > 0,
-		ActionsImport: actionsImport,
-		RouteImports:  routeImports,
+		PolaPackage:     opts.PolaPackage,
+		Engine:          opts.Engine,
+		Bundler:         opts.Bundler,
+		Renderer:        opts.Renderer,
+		Router:          opts.Router,
+		CSS:             condStr(hasCSS, opts.CSS, ""),
+		Cache:           condStr(hasCache, opts.Cache, ""),
+		CSRF:            hasCSRF,
+		SecurityHeaders: hasSecurityHeaders,
+		Dev:             opts.Dev,
+		Embed:           opts.Embed,
+		HasRoutes:       len(routePkgs) > 0,
+		ActionsImport:   actionsImport,
+		RouteImports:    routeImports,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("execute plugins template: %w", err)
