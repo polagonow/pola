@@ -142,13 +142,18 @@ func (b *Bundler) Watch(ctx context.Context, req core.BundleInput) (<-chan *core
 	outputCh := make(chan *core.BundleOutput, 1)
 	triggerCh := make(chan struct{}, 1)
 
+	watchExts := req.WatchExtensions
+	if len(watchExts) == 0 {
+		watchExts = []string{".ts", ".tsx", ".js", ".jsx", ".css"}
+	}
+
 	poller := watcher.New(func() {
 		select {
 		case triggerCh <- struct{}{}:
 		default:
 		}
 	})
-	poller.SetPaths(watcher.CollectPaths(req.AppDir, []string{".ts", ".tsx", ".js", ".jsx", ".css"}))
+	poller.SetPaths(watcher.CollectPaths(req.AppDir, watchExts))
 	poller.Start()
 
 	go func() {
@@ -171,7 +176,7 @@ func (b *Bundler) Watch(ctx context.Context, req core.BundleInput) (<-chan *core
 					continue
 				}
 				// Refresh watched paths — new files may have appeared.
-				poller.SetPaths(watcher.CollectPaths(req.AppDir, []string{".ts", ".tsx", ".js", ".jsx", ".css"}))
+				poller.SetPaths(watcher.CollectPaths(req.AppDir, watchExts))
 				// Replace any unread previous output so consumer always
 				// gets the latest build.
 				select {
@@ -303,11 +308,13 @@ func buildPagesBundle(
 				if !ok {
 					return api.OnLoadResult{}, nil
 				}
-				stub := fmt.Sprintf(
-					`import { createClientModuleProxy } from "react-server-dom-webpack/server.browser";`+"\n"+
-						`module.exports = createClientModuleProxy(%q);`+"\n",
-					moduleID,
-				)
+				var stub string
+				if req.ClientModuleStub != nil {
+					stub = req.ClientModuleStub(args.Path, moduleID)
+				}
+				if stub == "" {
+					stub = "module.exports = {};\n"
+				}
 				return api.OnLoadResult{
 					Contents:   &stub,
 					Loader:     api.LoaderJS,
@@ -355,7 +362,7 @@ func buildPagesBundle(
 		MinifyWhitespace:  true,
 		MinifyIdentifiers: true,
 		MinifySyntax:      true,
-		Plugins:           []api.Plugin{newAtAliasPlugin(absDir), newPolaWorkspacePlugin(absAppDir), useClientPlugin, newCSSStubPlugin()},
+		Plugins:           serverPlugins(absDir, req.ServerPlugins, useClientPlugin),
 		Conditions:        req.ServerBundleConditions,
 		Define:            defines,
 	})
@@ -372,10 +379,6 @@ func buildClientBundle(req core.BundleInput, absDir string, cssFiles []string) (
 	absOutDir, err := filepath.Abs(req.OutDir)
 	if err != nil {
 		return nil, "", "", nil, fmt.Errorf("esbuild: abs outdir: %w", err)
-	}
-	absAppDir, err := filepath.Abs(req.AppDir)
-	if err != nil {
-		return nil, "", "", nil, fmt.Errorf("esbuild: abs appdir: %w", err)
 	}
 
 	var entries []string
@@ -423,6 +426,10 @@ func buildClientBundle(req core.BundleInput, absDir string, cssFiles []string) (
 		cssPlugin = newCSSStubPlugin()
 	}
 
+	clientPlugins := []api.Plugin{newAtAliasPlugin(absDir)}
+	clientPlugins = append(clientPlugins, castPlugins(req.ClientPlugins)...)
+	clientPlugins = append(clientPlugins, cssPlugin)
+
 	r := api.Build(api.BuildOptions{
 		EntryPoints:       entries,
 		Bundle:            true,
@@ -442,7 +449,7 @@ func buildClientBundle(req core.BundleInput, absDir string, cssFiles []string) (
 		ChunkNames:        "chunks/[name]-[hash]",
 		AssetNames:        "[name]-[hash]",
 		Conditions:        []string{"browser", "import", "module", "default"},
-		Plugins:           []api.Plugin{newAtAliasPlugin(absDir), newPolaWorkspacePlugin(absAppDir), newAutoDedupePlugin(absAppDir), cssPlugin},
+		Plugins:           clientPlugins,
 		Metafile:          true,
 		Define:            clientDefines,
 	})
@@ -510,11 +517,19 @@ func probeServerEntry(req core.BundleInput, absDir string) probeResult {
 	if req.ServerEntryContent == "" {
 		return probeResult{}
 	}
+	// Skip probe when no probe plugins are provided — the renderer does not
+	// need client boundary discovery (e.g. Svelte, Vue).
+	if req.ProbePlugins == nil {
+		return probeResult{}
+	}
 	absAppDir, _ := filepath.Abs(req.AppDir)
 	var result probeResult
 
-	probePlugin := api.Plugin{
-		Name: "probe-use-client",
+	// The renderer-provided probe plugins handle framework-specific detection
+	// (e.g. "use client" for React). We wrap them with a result-collecting
+	// plugin that captures discovered client files.
+	clientCollector := api.Plugin{
+		Name: "probe-client-collector",
 		Setup: func(build api.PluginBuild) {
 			build.OnLoad(api.OnLoadOptions{Filter: `\.(tsx|ts|jsx|js)$`}, func(args api.OnLoadArgs) (api.OnLoadResult, error) {
 				contents, err := os.ReadFile(args.Path)
@@ -555,6 +570,10 @@ func probeServerEntry(req core.BundleInput, absDir string) probeResult {
 		},
 	}
 
+	plugins := []api.Plugin{newAtAliasPlugin(absDir), clientCollector}
+	plugins = append(plugins, castPlugins(req.ProbePlugins)...)
+	plugins = append(plugins, cssCollector)
+
 	defines := map[string]string{
 		"process.env.NODE_ENV": `"production"`,
 		"__DEV__":              "false",
@@ -574,9 +593,32 @@ func probeServerEntry(req core.BundleInput, absDir string) probeResult {
 		Conditions:    req.ServerBundleConditions,
 		External:      req.External,
 		Define:        defines,
-		Plugins:       []api.Plugin{newAtAliasPlugin(absDir), newPolaWorkspacePlugin(absAppDir), probePlugin, cssCollector},
+		Plugins:       plugins,
 	})
 	return result
+}
+
+// ── plugin helpers ────────────────────────────────────────────────────────────
+
+// castPlugins type-asserts a []any slice to []api.Plugin, silently skipping
+// values that are not esbuild plugins.
+func castPlugins(anyPlugins []any) []api.Plugin {
+	plugins := make([]api.Plugin, 0, len(anyPlugins))
+	for _, p := range anyPlugins {
+		if ep, ok := p.(api.Plugin); ok {
+			plugins = append(plugins, ep)
+		}
+	}
+	return plugins
+}
+
+// serverPlugins assembles the plugin list for the server bundle pass:
+// [atAlias] + renderer-provided plugins + [useClientPlugin] + [cssStub].
+func serverPlugins(absDir string, rendererPlugins []any, useClientPlugin api.Plugin) []api.Plugin {
+	plugins := []api.Plugin{newAtAliasPlugin(absDir)}
+	plugins = append(plugins, castPlugins(rendererPlugins)...)
+	plugins = append(plugins, useClientPlugin, newCSSStubPlugin())
+	return plugins
 }
 
 // ── esbuild plugins ──────────────────────────────────────────────────────────
@@ -598,79 +640,6 @@ func newAtAliasPlugin(absProjectDir string) api.Plugin {
 			})
 		},
 	}
-}
-
-func newPolaWorkspacePlugin(absAppDir string) api.Plugin {
-	return api.Plugin{
-		Name: "pola-workspace",
-		Setup: func(build api.PluginBuild) {
-			build.OnResolve(api.OnResolveOptions{Filter: `^@pola/(react|actions)(/.*)?$`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
-				pkgRoot := findPolaPkgRoot(absAppDir)
-				if pkgRoot == "" {
-					return api.OnResolveResult{}, nil
-				}
-				path := args.Path
-				if strings.HasPrefix(path, "@pola/react") {
-					sub := strings.TrimPrefix(path, "@pola/react")
-					switch sub {
-					case "", "/":
-						return api.OnResolveResult{}, nil
-					case "/client", "/Client":
-						return api.OnResolveResult{Path: filepath.Join(pkgRoot, "react", "components", "Client.tsx")}, nil
-					case "/error-boundary", "/ErrorBoundary":
-						return api.OnResolveResult{Path: filepath.Join(pkgRoot, "react", "components", "ErrorBoundary.tsx")}, nil
-					case "/types/page":
-						return api.OnResolveResult{Path: filepath.Join(pkgRoot, "react", "types", "page.ts")}, nil
-					default:
-						return api.OnResolveResult{}, nil
-					}
-				}
-				if path == "@pola/actions" {
-					return api.OnResolveResult{Path: filepath.Join(pkgRoot, "actions", "src", "index.ts")}, nil
-				}
-				return api.OnResolveResult{}, nil
-			})
-		},
-	}
-}
-
-func newAutoDedupePlugin(absAppDir string) api.Plugin {
-	return api.Plugin{
-		Name: "auto-dedupe",
-		Setup: func(build api.PluginBuild) {
-			build.OnResolve(api.OnResolveOptions{Filter: `^[^./]`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
-				if !strings.Contains(filepath.ToSlash(args.ResolveDir), "/node_modules/") {
-					return api.OnResolveResult{}, nil
-				}
-				result := build.Resolve(args.Path, api.ResolveOptions{
-					ResolveDir: absAppDir,
-					Kind:       args.Kind,
-				})
-				if len(result.Errors) == 0 && result.Path != "" {
-					return api.OnResolveResult{Path: result.Path}, nil
-				}
-				return api.OnResolveResult{}, nil
-			})
-		},
-	}
-}
-
-// findPolaPkgRoot walks up from absAppDir looking for node_modules/@pola.
-// Returns the path to the @pola directory (e.g. /project/node_modules/@pola).
-func findPolaPkgRoot(absAppDir string) string {
-	dir := absAppDir
-	for {
-		candidate := filepath.Join(dir, "node_modules", "@pola")
-		if st, err := os.Stat(candidate); err == nil && st.IsDir() {
-			return candidate
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			break
-		}
-		dir = parent
-	}
-	return ""
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────

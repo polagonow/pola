@@ -25,7 +25,7 @@ import (
 	"github.com/polagonow/pola/middleware/recovery"
 	"github.com/polagonow/pola/observability/metrics/prometheus"
 	"github.com/polagonow/pola/observability/tracing/otel"
-	"github.com/polagonow/pola/renderer/react"
+	reactesbuild "github.com/polagonow/pola/renderer/react/esbuild"
 	"github.com/polagonow/pola/router/nextjs"
 	"github.com/polagonow/pola/test/fixture"
 )
@@ -33,7 +33,7 @@ import (
 var testPlugins = []core.Plugin{
 	goja.Plugin(),
 	esbuild.Plugin(),
-	react.Plugin(),
+	reactesbuild.Plugin(),
 	nextjs.Plugin(),
 	osfs.Plugin(),
 	slog.Plugin(),
