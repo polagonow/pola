@@ -66,6 +66,8 @@ func newPolaWorkspacePlugin(absAppDir string) api.Plugin {
 						return api.OnResolveResult{Path: filepath.Join(pkgRoot, "react", "components", "Client.tsx")}, nil
 					case "/error-boundary", "/ErrorBoundary":
 						return api.OnResolveResult{Path: filepath.Join(pkgRoot, "react", "components", "ErrorBoundary.tsx")}, nil
+					case "/link", "/Link":
+						return api.OnResolveResult{Path: filepath.Join(pkgRoot, "react", "components", "Link.tsx")}, nil
 					case "/types/page":
 						return api.OnResolveResult{Path: filepath.Join(pkgRoot, "react", "types", "page.ts")}, nil
 					default:

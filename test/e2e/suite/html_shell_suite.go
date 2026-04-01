@@ -17,8 +17,8 @@ func RunHTMLShellTests(t *testing.T) {
 	t.Run("HasMountPoint", func(t *testing.T) {
 		fixture.ForEachReactApp(t, func(t *testing.T, f fixture.AppFixture) {
 			body := fixture.Page(t, f, "/")
-			if !strings.Contains(body, `id="root"`) {
-				t.Error("HTML shell missing mount point <div id=\"root\">")
+			if !strings.Contains(body, `id="__POLA_ROOT__"`) {
+				t.Error("HTML shell missing mount point <div id=\"__POLA_ROOT__\">")
 			}
 		})
 	})

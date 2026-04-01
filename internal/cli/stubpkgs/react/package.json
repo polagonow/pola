@@ -5,7 +5,8 @@
   "description": "React client hydration and page types for Pola",
   "exports": {
     "./client": "./components/Client.tsx",
-    "./error-boundary": "./components/ErrorBoundary.tsx"
+    "./error-boundary": "./components/ErrorBoundary.tsx",
+    "./link": "./components/Link.tsx"
   },
   "peerDependencies": {
     "react": "*",

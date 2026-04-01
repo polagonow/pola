@@ -3,6 +3,7 @@
 package react
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -149,6 +150,43 @@ func (r *Renderer) RenderToWriter(ctx context.Context, req core.RenderRequest, w
 		return fmt.Errorf("react renderer: no Flight output written")
 	}
 	return nil
+}
+
+// ── bufferStreamWriter ────────────────────────────────────────────────────────
+
+// bufferStreamWriter implements core.StreamWriter by writing to a bytes.Buffer.
+type bufferStreamWriter struct{ buf *bytes.Buffer }
+
+func (bw *bufferStreamWriter) WriteRaw(p []byte) (int, error) { return bw.buf.Write(p) }
+func (bw *bufferStreamWriter) Flush()                         {}
+
+// RenderToBytes performs a full RSC Flight render and returns the output as bytes.
+// Used to capture Flight data for inline embedding in the HTML shell.
+func (r *Renderer) RenderToBytes(ctx context.Context, req core.RenderRequest) ([]byte, error) {
+	if r.pool == nil {
+		return nil, fmt.Errorf("react renderer: VM pool not configured")
+	}
+
+	vm, propsJSON, err := r.prepareVM(ctx, req)
+	if err != nil {
+		return nil, err
+	}
+	defer r.pool.Release(vm)
+
+	handle, err := vm.CallRenderFunction(req.Route.Export, propsJSON)
+	if err != nil {
+		return nil, fmt.Errorf("react renderer: call render: %w", err)
+	}
+
+	var buf bytes.Buffer
+	wroteAny, err := vm.DrainStream(handle, &bufferStreamWriter{buf: &buf})
+	if err != nil {
+		return nil, fmt.Errorf("react renderer: drain stream: %w", err)
+	}
+	if !wroteAny {
+		return nil, fmt.Errorf("react renderer: no Flight output written")
+	}
+	return buf.Bytes(), nil
 }
 
 // WithPool returns a copy of the renderer that uses pool for VM acquisition.

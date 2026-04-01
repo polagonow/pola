@@ -1,5 +1,5 @@
 "use client";
-import NavLink from "./NavLink";
+import { Link } from "@pola/react/link";
 
 const LINKS = [
   { href: "/posts", label: "Posts" },
@@ -13,7 +13,7 @@ export default function Nav() {
   return (
     <nav className="flex items-center gap-4">
       {LINKS.map(({ href, label }) => (
-        <NavLink
+        <Link
           key={href}
           href={href}
           className={({ isActive }) =>
@@ -21,9 +21,10 @@ export default function Nav() {
               ? "text-[var(--color-fg)] font-semibold text-sm hover:no-underline"
               : "text-[var(--color-muted)] text-sm font-medium hover:text-[var(--color-fg)] hover:no-underline"
           }
+          prefetch
         >
           {label}
-        </NavLink>
+        </Link>
       ))}
     </nav>
   );

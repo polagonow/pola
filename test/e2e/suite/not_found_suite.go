@@ -95,8 +95,8 @@ func RunNotFoundHandlingTests(t *testing.T) {
 			// The HTML 404 response is the standard client shell (not a raw error page).
 			// The browser bootstraps and makes a subsequent RSC request to fetch the
 			// actual GlobalNotFound component content.
-			if !strings.Contains(string(body), `id="root"`) {
-				t.Errorf("unmatched route HTML response should be client shell with id=\"root\", got:\n%s",
+			if !strings.Contains(string(body), `id="__POLA_ROOT__"`) {
+				t.Errorf("unmatched route HTML response should be client shell with id=\"__POLA_ROOT__\", got:\n%s",
 					string(body)[:min(len(string(body)), 400)])
 			}
 		})
