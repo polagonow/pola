@@ -1,42 +1,68 @@
 import { createRoot, hydrateRoot } from "react-dom/client";
 import { createFromFetch } from "react-server-dom-esm/client";
+import React, { use, startTransition } from "react";
+import { notifyPathnameChange } from "./Link";
 
-function renderError(root: ReturnType<typeof createRoot>, msg: string) {
-  root.render(<div className="rsc-err">{msg}</div>);
+// ── Flight data fetching ────────────────────────────────────────────────────
+
+const FLIGHT_CONTENT_TYPE = "text/x-component";
+
+function fetchFlight(url: string): Promise<React.ReactNode> {
+  const resp = fetch(url, {
+    method: "GET",
+    headers: { "Content-Type": FLIGHT_CONTENT_TYPE },
+  });
+  return createFromFetch(resp);
 }
 
-// Mount RSC tree into #root
-const container = document.getElementById("root") ?? document.body;
-
-try {
+function initialFlight(): Promise<React.ReactNode> {
   const ssrData: string | undefined = (
     self as typeof globalThis & { __POLA_SSR_DATA__?: string }
   ).__POLA_SSR_DATA__;
-  const fetchPromise = ssrData
-    ? Promise.resolve(
-        new Response(ssrData, {
-          headers: { "Content-Type": "text/x-component" },
-        }),
-      )
-    : fetch(location.pathname + location.search, {
-        method: "GET",
-        headers: { "Content-Type": "text/x-component" },
-      });
-
-  const hasServerHTML = container.childNodes.length > 0;
-
-  createFromFetch(fetchPromise).then((comp: React.ReactNode) => {
-    if (hasServerHTML) {
-      // Selective hydration: React 18 will hydrate Suspense boundaries
-      // independently and prioritize user-interacted components.
-      hydrateRoot(container, comp);
-    } else {
-      // No server HTML — full client render (fallback path).
-      const root = createRoot(container);
-      root.render(comp);
-    }
-  });
-} catch (err: unknown) {
-  const root = createRoot(container);
-  renderError(root, err instanceof Error ? err.message : String(err));
+  if (ssrData) {
+    const resp = Promise.resolve(
+      new Response(ssrData, {
+        headers: { "Content-Type": FLIGHT_CONTENT_TYPE },
+      }),
+    );
+    return createFromFetch(resp);
+  }
+  return fetchFlight(location.pathname + location.search);
 }
+
+// ── Navigation manager ──────────────────────────────────────────────────────
+
+let treePromise = initialFlight();
+
+function navigate(href: string) {
+  history.pushState(null, "", href);
+  notifyPathnameChange();
+  startTransition(() => {
+    treePromise = fetchFlight(href);
+    root.render(<Shell />);
+  });
+}
+
+// Expose navigate globally so <Link> can call it.
+(self as typeof globalThis & { __pola_navigate__?: typeof navigate }).__pola_navigate__ = navigate;
+
+// Handle browser back/forward.
+window.addEventListener("popstate", () => {
+  notifyPathnameChange();
+  startTransition(() => {
+    treePromise = fetchFlight(location.pathname + location.search);
+    root.render(<Shell />);
+  });
+});
+
+// ── Shell component ─────────────────────────────────────────────────────────
+
+function Shell() {
+  return use(treePromise);
+}
+
+// ── Mount ───────────────────────────────────────────────────────────────────
+
+const container = document.getElementById("root") ?? document.body;
+const root = createRoot(container);
+root.render(<Shell />);

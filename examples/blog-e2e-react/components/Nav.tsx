@@ -1,5 +1,5 @@
 "use client";
-import NavLink from "./NavLink";
+import { Link } from "@pola/react/link";
 
 const LINKS = [
   { href: "/posts", label: "Posts" },
@@ -13,7 +13,7 @@ export default function Nav() {
   return (
     <nav className="flex items-center gap-4">
       {LINKS.map(({ href, label }) => (
-        <NavLink
+        <Link
           key={href}
           href={href}
           className={({ isActive }) =>
@@ -23,7 +23,7 @@ export default function Nav() {
           }
         >
           {label}
-        </NavLink>
+        </Link>
       ))}
     </nav>
   );
