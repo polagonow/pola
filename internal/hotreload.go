@@ -143,6 +143,34 @@ func NewHotReloader(cfg *core.Config, registry *core.Registry, initial *core.App
 		Dev:                true,
 		CSSProcessor:       css,
 	}
+	// Re-scan routes and regenerate server entry before each watch-mode rebuild
+	// so that newly created page files are included in the bundle.
+	bundleInput.BeforeRebuild = func(input *core.BundleInput) {
+		if router == nil || fsys == nil || renderer == nil {
+			return
+		}
+		exts := renderer.FileExtensions()
+		if _, scanErr := router.ScanRoutes(context.Background(), fsys, absWebAppPath, exts); scanErr != nil {
+			return
+		}
+		if dp, ok := router.(interface {
+			DiscoveryResult() core.DiscoveryResult
+		}); ok {
+			disc := dp.DiscoveryResult()
+			input.ClientComponents = disc.ClientComponents
+		}
+		if eg, ok := renderer.(interface {
+			GenerateEntry(core.DiscoveryResult) (string, error)
+		}); ok {
+			if dp, ok2 := router.(interface {
+				DiscoveryResult() core.DiscoveryResult
+			}); ok2 {
+				if entry, err := eg.GenerateEntry(dp.DiscoveryResult()); err == nil {
+					input.ServerEntryContent = entry
+				}
+			}
+		}
+	}
 	if renderer != nil {
 		bundleInput.WatchExtensions = mergeWatchExtensions(renderer.FileExtensions())
 	}
