@@ -53,6 +53,9 @@ const (
 	// ConsoleBridge routes console.* calls through __pola_log__(level, msg).
 	// Engines install __pola_log__ as a native Go callback wired to core.Logger.
 	ConsoleBridge core.PolyfillID = "console-bridge"
+	// BridgeMemo wraps __DEPENDENCY_INJECTION__ with per-request memoization.
+	// Unlike other polyfills, this runs per-request after Inject populates the bridge.
+	BridgeMemo core.PolyfillID = "bridge-memo"
 )
 
 // microtaskSrc installs queueMicrotask and __drainMicrotasks__.
@@ -492,6 +495,36 @@ const webpackRequireSrc = `(function() {
 	};
 })();`
 
+// BridgeMemoSrc wraps the existing __DEPENDENCY_INJECTION__ bridge with a
+// memoization layer. For each unique (functionName, argsJSON) pair within a
+// single render, the result is cached and reused. Idempotent — skips if
+// already applied (checks __memoized__ flag).
+const BridgeMemoSrc = `(function() {
+  var bridge = globalThis.__DEPENDENCY_INJECTION__;
+  if (!bridge || bridge.__memoized__) return;
+  var cache = Object.create(null);
+  var handler = {
+    get: function(target, prop) {
+      var orig = target[prop];
+      if (typeof orig !== 'function') return orig;
+      return function() {
+        var key = prop + ':' + JSON.stringify(Array.prototype.slice.call(arguments));
+        if (key in cache) return cache[key];
+        var result = orig.apply(target, arguments);
+        if (result && typeof result.then === 'function') {
+          cache[key] = result.then(function(v) { cache[key] = Promise.resolve(v); return v; });
+        } else {
+          cache[key] = result;
+        }
+        return cache[key];
+      };
+    }
+  };
+  var proxy = new Proxy(bridge, handler);
+  proxy.__memoized__ = true;
+  globalThis.__DEPENDENCY_INJECTION__ = proxy;
+})();`
+
 // DefaultRegistry returns a core.PolyfillRegistry pre-populated with all
 // standard Pola polyfills. Each polyfill source is guarded so it only
 // installs if the global it provides is not already defined.
@@ -512,4 +545,5 @@ func Register(reg core.PolyfillRegistry) {
 	reg.Register(core.PolyfillSource{ID: WebpackRequire, Source: webpackRequireSrc})
 	reg.Register(core.PolyfillSource{ID: NodeGlobals, Source: nodeGlobalsSrc})
 	reg.Register(core.PolyfillSource{ID: ConsoleBridge, Source: consoleBridgeSrc})
+	reg.Register(core.PolyfillSource{ID: BridgeMemo, Source: BridgeMemoSrc})
 }

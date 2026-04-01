@@ -1,0 +1,1 @@
+import{a as i}from"./chunk-BYO7LABW.js";import{b as s}from"./chunk-S6KIM4VV.js";var o=s(i());function r({href:n,children:a,className:t,...c}){let e=typeof window<"u"?window.location.pathname:"",l=n?n==="/"?e==="/":e===n||e.startsWith(n+"/"):!1,d=typeof t=="function"?t({isActive:l,isPending:!1}):t??"";return(0,o.jsx)("a",{href:n,className:d,...c,children:a})}export{r as a};

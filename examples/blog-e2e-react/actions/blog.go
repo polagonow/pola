@@ -65,15 +65,15 @@ var revisions = map[string][]Revision{
 var posts = []Post{
 	{ID: 1, Slug: "go-react-ssr", Title: "Building SSR with Go and React",
 		Excerpt: "How to run React Server Components inside a Go process using Goja.",
-		Author: "Jane Doe", Date: "2024-01-15", ReadTime: 5,
+		Author:  "Jane Doe", Date: "2024-01-15", ReadTime: 5,
 		Tags: []string{"go", "react", "ssr"}},
 	{ID: 2, Slug: "rsc-deep-dive", Title: "React Server Components Deep Dive",
 		Excerpt: "Understanding the Flight wire protocol and how RSC trees serialize.",
-		Author: "Jane Doe", Date: "2024-02-03", ReadTime: 8,
+		Author:  "Jane Doe", Date: "2024-02-03", ReadTime: 8,
 		Tags: []string{"react", "rsc", "performance"}},
 	{ID: 3, Slug: "goja-vm-internals", Title: "Goja VM Internals",
 		Excerpt: "A tour through the event loop, promise scheduling, and Go↔JS bridging.",
-		Author: "Jane Doe", Date: "2024-03-10", ReadTime: 12,
+		Author:  "Jane Doe", Date: "2024-03-10", ReadTime: 12,
 		Tags: []string{"go", "javascript", "vm"}},
 }
 
@@ -101,7 +101,7 @@ func (b *Blog) GetPost(slug string) (*Post, error) {
 }
 
 func (b *Blog) GetProjects() ([]Project, error) {
-	time.Sleep(1 * time.Second) // simulate latency
+	time.Sleep(10 * time.Second) // simulate latency
 	return projects, nil
 }
 
