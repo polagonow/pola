@@ -16,6 +16,8 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
 	github.com/google/pprof v0.0.0-20240727154555-813a5fbdbec8 // indirect
+	github.com/gorilla/csrf v1.7.3 // indirect
+	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/magefile/mage v1.16.1 // indirect
@@ -26,4 +28,4 @@ require (
 	golang.org/x/text v0.30.0 // indirect
 )
 
-replace github.com/polagonow/pola => /Users/admin/conductor/workspaces/pola/surabaya-v1
+replace github.com/polagonow/pola => /Users/admin/conductor/workspaces/pola/caracas

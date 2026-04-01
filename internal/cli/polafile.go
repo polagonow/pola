@@ -28,6 +28,8 @@ func applyPolafileDefaults(cmd *cobra.Command, projectDir string) {
 	applyIfUnchanged(cmd, "vm", "POLA_VM", nameOnly(pf.Engine))
 	applyIfUnchanged(cmd, "cache", "POLA_CACHE", nameOnly(pf.Cache))
 	applyIfUnchanged(cmd, "pm", "POLA_PM", nameOnly(pf.PackageManager))
+	applyIfUnchanged(cmd, "csrf", "POLA_CSRF", pf.CSRF)
+	applyIfUnchanged(cmd, "security-headers", "POLA_SECURITY_HEADERS", pf.SecurityHeaders)
 }
 
 // applyIfUnchanged sets a flag's value from the Polafile only if the user

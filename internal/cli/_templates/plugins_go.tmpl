@@ -8,8 +8,14 @@ import (
 	"{{.PolaPackage}}/core"
 	"{{.PolaPackage}}/engine/{{.Engine}}"
 	"{{.PolaPackage}}/logger/slog"
+{{- if .CSRF}}
+	"{{.PolaPackage}}/middleware/csrf"
+{{- end}}
 	"{{.PolaPackage}}/middleware/logging"
 	"{{.PolaPackage}}/middleware/recovery"
+{{- if .SecurityHeaders}}
+	"{{.PolaPackage}}/middleware/securityheaders"
+{{- end}}
 {{- if not .Embed}}
 	{{.Renderer}}{{.Bundler}} "{{.PolaPackage}}/renderer/{{.Renderer}}/{{.Bundler}}"
 {{- else}}
@@ -49,6 +55,12 @@ var PolaPlugins = []core.Plugin{
 	slog.Plugin(),
 	logging.Plugin(),
 	recovery.Plugin(),
+{{- if .SecurityHeaders}}
+	securityheaders.Plugin(),
+{{- end}}
+{{- if .CSRF}}
+	csrf.Plugin(),
+{{- end}}
 {{- if not .Embed}}
 	{{.Bundler}}.Plugin(),
 	osfs.Plugin(),

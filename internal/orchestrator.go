@@ -309,7 +309,7 @@ func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
 // serveHTML returns the HTML shell for initial page loads.
 // When ssrData is non-nil, it is embedded as an inline script so the client
 // can use it directly without a second Flight request.
-func (o *Orchestrator) serveHTML(w http.ResponseWriter, _ *http.Request, ssrData []byte) {
+func (o *Orchestrator) serveHTML(w http.ResponseWriter, r *http.Request, ssrData []byte) {
 	params := core.ShellParams{
 		Metadata:      defaultMetadata(),
 		DocumentProps: o.documentProps,
@@ -324,6 +324,23 @@ func (o *Orchestrator) serveHTML(w http.ResponseWriter, _ *http.Request, ssrData
 	if o.devScript != "" {
 		params.Scripts = append(params.Scripts, o.devScript)
 	}
+	// Inject CSP nonce if the security headers middleware is active.
+	if nonce, ok := r.Context().Value(core.NonceContextKey).(string); ok && nonce != "" {
+		params.Nonce = nonce
+	}
+
+	// Inject CSRF token as <meta> tags if the CSRF middleware is active.
+	if token, ok := r.Context().Value(core.CSRFTokenContextKey).(string); ok && token != "" {
+		if params.Metadata == nil {
+			params.Metadata = &core.Metadata{}
+		}
+		if params.Metadata.Other == nil {
+			params.Metadata.Other = make(map[string]string)
+		}
+		params.Metadata.Other["csrf-param"] = "authenticity_token"
+		params.Metadata.Other["csrf-token"] = token
+	}
+
 	if len(ssrData) > 0 {
 		// json.Marshal escapes <, >, & to \uXXXX — safe inside <script> tags.
 		encoded, err := json.Marshal(string(ssrData))

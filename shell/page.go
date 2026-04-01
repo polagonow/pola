@@ -26,6 +26,7 @@ type pageData struct {
 	BodyOpen           template.HTML // e.g. `<body>` or `<body class="dark">`
 	BodyPrefix         template.HTML
 	InnerHTML          template.HTML
+	Nonce              string
 	Scripts            []template.JS
 	ClientScript       string
 	BodySuffix         template.HTML

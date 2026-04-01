@@ -17,9 +17,9 @@
   {{- .BodyPrefix}}
   {{- .InnerHTML}}
   {{- range .Scripts}}
-  <script>{{.}}</script>
+  <script{{if $.Nonce}} nonce="{{$.Nonce}}"{{end}}>{{.}}</script>
   {{- end}}
-  <script type="module" src="{{.ClientScript}}"></script>
+  <script type="module" src="{{.ClientScript}}"{{if .Nonce}} nonce="{{.Nonce}}"{{end}}></script>
   {{- .BodySuffix}}
 </body>
 </html>
