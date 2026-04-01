@@ -219,6 +219,10 @@ func NewHotReloader(cfg *core.Config, registry *core.Registry, initial *core.App
 				if err != nil {
 					renderCache = memory.MustNew(0)
 				}
+				// Clear stale SSR data from previous build.
+				if err := renderCache.Clear(context.Background()); err != nil {
+					logger.Warn("hotreload: cache clear", "err", err)
+				}
 				orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, renderCache, mws, WrapInjectorsWithMemo(injs), nil, shell, assets, newOutput, h.notFoundRoute, cssURLs, docProps, true)
 
 				newApp := newApp(cfg, registry, orch)

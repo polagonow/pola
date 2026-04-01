@@ -7,8 +7,10 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/polagonow/pola/core"
 )
@@ -73,10 +75,15 @@ func (r *Router) ScanRoutes(ctx context.Context, fsys core.FS, appDir string, ex
 			return fmt.Errorf("%s: missing \"export default function\"", path)
 		}
 
+		revalidate, err := extractRevalidate(fsys, path)
+		if err != nil {
+			return err
+		}
+
 		pattern := routePattern(pagesDir, path)
 		export := pageExport(pagesDir, path)
 
-		routes = append(routes, core.Route{Pattern: pattern, Export: export})
+		routes = append(routes, core.Route{Pattern: pattern, Export: export, Revalidate: revalidate})
 
 		// Collect PageEntry for the DiscoveryResult (used by renderers).
 		segs, segErr := collectSegments(fsys, pagesDir, filepath.Dir(path), exts)
@@ -261,6 +268,36 @@ func hasUseClient(fsys core.FS, path string) (bool, error) {
 		return line == `"use client"` || line == `'use client'`, nil
 	}
 	return false, nil
+}
+
+// extractRevalidate scans a page file for "export const revalidate = <seconds>".
+// Returns 0 (no caching) if the export is absent.
+func extractRevalidate(fsys core.FS, path string) (time.Duration, error) {
+	data, err := fsys.ReadFile(path)
+	if err != nil {
+		return 0, err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		line = strings.TrimSuffix(line, ";")
+		if !strings.HasPrefix(line, "export const revalidate") {
+			continue
+		}
+		parts := strings.SplitN(line, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		val := strings.TrimSpace(parts[1])
+		secs, err := strconv.Atoi(val)
+		if err != nil {
+			return 0, fmt.Errorf("%s: invalid revalidate value %q", path, val)
+		}
+		if secs < 0 {
+			return 0, fmt.Errorf("%s: revalidate must be >= 0, got %d", path, secs)
+		}
+		return time.Duration(secs) * time.Second, nil
+	}
+	return 0, nil
 }
 
 // ── path conversion ──────────────────────────────────────────────────────────
