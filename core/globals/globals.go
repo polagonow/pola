@@ -20,6 +20,9 @@ const (
 	// HTML shell, avoiding a second request when the server has pre-rendered data.
 	SSRData = "__POLA_SSR_DATA__"
 
+	// RootElementID is the DOM element ID used as the React mount point.
+	RootElementID = "__POLA_ROOT__"
+
 	// StreamHandle is where streaming VMs stash the current RSC ReadableStream.
 	// Used by v8go (and cleared by multiple VMs) so the Go side can call into
 	// PullStreamFn repeatedly without passing opaque handles through Go↔JS.

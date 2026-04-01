@@ -1,6 +1,6 @@
 // Package shell renders the complete HTML document shell for Pola pages.
 // It is renderer-agnostic: the only renderer-specific piece is the body
-// content (e.g. `<div id="root"></div>` for React), which is supplied at
+// content (e.g. `<div id="__POLA_ROOT__"></div>` for React), which is supplied at
 // construction time via New().
 package shell
 
@@ -21,7 +21,7 @@ type Shell struct {
 // New returns a Shell that injects innerHTML as the body content of the page.
 // Pass the renderer-specific root element, e.g.:
 //
-//	shell.New(`<div id="root"></div>`)   // React
+//	shell.New(`<div id="__POLA_ROOT__"></div>`)   // React
 //	shell.New(`<div id="app"></div>`)    // Vue
 //	shell.New(``)                        // HTMX (no root div needed)
 func New(innerHTML string) *Shell {
