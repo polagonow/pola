@@ -143,6 +143,9 @@ func NewHotReloader(cfg *core.Config, registry *core.Registry, initial *core.App
 		Dev:                true,
 		CSSProcessor:       css,
 	}
+	if renderer != nil {
+		bundleInput.WatchExtensions = mergeWatchExtensions(renderer.FileExtensions())
+	}
 	// Add renderer-specific bundle configuration (conditions, client entry).
 	if bc, ok := renderer.(interface {
 		BundleConditions() []string
@@ -150,6 +153,13 @@ func NewHotReloader(cfg *core.Config, registry *core.Registry, initial *core.App
 	}); ok {
 		bundleInput.ServerBundleConditions = bc.BundleConditions()
 		bundleInput.ClientEntry = bc.ClientEntry()
+	}
+	// Add bundler-specific plugins from the plugin provider.
+	if bp, err := core.Invoke[core.BundlePluginProvider](registry); err == nil {
+		bundleInput.ClientPlugins = bp.ClientPlugins(absWebAppPath)
+		bundleInput.ServerPlugins = bp.ServerPlugins(absWebAppPath)
+		bundleInput.ProbePlugins = bp.ProbePlugins(absWebAppPath)
+		bundleInput.ClientModuleStub = bp.ClientModuleStub()
 	}
 
 	watchCh, watchErr := bundler.Watch(h.contextFromDone(), bundleInput)

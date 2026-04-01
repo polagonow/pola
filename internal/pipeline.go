@@ -230,10 +230,17 @@ func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, er
 		ServerEntryContent: serverEntryContent,
 		PublicEnvVars:      publicEnvVars,
 		CSSProcessor:       css, // may be nil — bundler stubs CSS when nil
+		WatchExtensions:    mergeWatchExtensions(renderer.FileExtensions()),
 	}
 	if bc, ok := renderer.(bundleConfigurator); ok {
 		bundleInput.ServerBundleConditions = bc.BundleConditions()
 		bundleInput.ClientEntry = bc.ClientEntry()
+	}
+	if bp, err := core.Invoke[core.BundlePluginProvider](registry); err == nil {
+		bundleInput.ClientPlugins = bp.ClientPlugins(absWebAppPath)
+		bundleInput.ServerPlugins = bp.ServerPlugins(absWebAppPath)
+		bundleInput.ProbePlugins = bp.ProbePlugins(absWebAppPath)
+		bundleInput.ClientModuleStub = bp.ClientModuleStub()
 	}
 
 	bundleOutput, err := bundler.Build(ctx, bundleInput)
@@ -350,6 +357,23 @@ func copyPublicStatics(srcDir, dstDir string) {
 			_ = os.WriteFile(dst, data, 0o644)
 		}
 	}
+}
+
+// mergeWatchExtensions combines the renderer's file extensions with framework
+// defaults (.css) into a deduplicated list for the bundler's watch mode.
+func mergeWatchExtensions(rendererExts []string) []string {
+	seen := make(map[string]bool, len(rendererExts)+1)
+	var result []string
+	for _, ext := range rendererExts {
+		if !seen[ext] {
+			result = append(result, ext)
+			seen[ext] = true
+		}
+	}
+	if !seen[".css"] {
+		result = append(result, ".css")
+	}
+	return result
 }
 
 // routeLoader is the optional interface a Router may implement to accept
