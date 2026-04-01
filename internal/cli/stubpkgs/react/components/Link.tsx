@@ -40,26 +40,37 @@ if (typeof window !== "undefined") {
 }
 
 // Prefetch cache — avoids duplicate fetches for the same href.
-const prefetched = new Set<string>();
+const prefetched = new Map<string, AbortController>();
 
-function prefetchFlight(href: string) {
-  if (prefetched.has(href)) return;
+function prefetchFlight(href: string): AbortController | undefined {
+  if (prefetched.has(href)) return prefetched.get(href);
   try {
     const url = new URL(href, location.origin);
     if (url.origin !== location.origin) return;
   } catch {
     return;
   }
-  prefetched.add(href);
+  const controller = new AbortController();
+  prefetched.set(href, controller);
   // Low-priority fetch; result is cached by the browser for the subsequent navigation fetch.
   fetch(href, {
     method: "GET",
     headers: { "Content-Type": "text/x-component" },
+    signal: controller.signal,
     priority: "low",
   } as RequestInit).catch(() => {
-    // Remove from set so it can be retried.
+    // Remove from map so it can be retried (unless it was intentionally aborted).
     prefetched.delete(href);
   });
+  return controller;
+}
+
+function abortPrefetch(href: string) {
+  const controller = prefetched.get(href);
+  if (controller) {
+    controller.abort();
+    prefetched.delete(href);
+  }
 }
 
 export function Link({ href, children, className, onClick, prefetch, ...props }: LinkProps) {
@@ -92,7 +103,10 @@ export function Link({ href, children, className, onClick, prefetch, ...props }:
       { rootMargin: "200px" },
     );
     observer.observe(el);
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      abortPrefetch(href);
+    };
   }, [prefetch, href]);
 
   const handleMouseEnter = useCallback(() => {

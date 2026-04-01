@@ -8,7 +8,7 @@ import (
 	"github.com/polagonow/pola/shell"
 )
 
-const reactRoot = `<div id="root"></div>`
+const reactRoot = `<div id="__POLA_ROOT__"></div>`
 
 func TestShellImplementsInterface(t *testing.T) {
 	var _ core.HTMLShell = shell.New(reactRoot)

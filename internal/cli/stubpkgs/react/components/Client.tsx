@@ -7,10 +7,11 @@ import { notifyPathnameChange } from "./Link";
 
 const FLIGHT_CONTENT_TYPE = "text/x-component";
 
-function fetchFlight(url: string): Promise<React.ReactNode> {
+function fetchFlight(url: string, signal?: AbortSignal): Promise<React.ReactNode> {
   const resp = fetch(url, {
     method: "GET",
     headers: { "Content-Type": FLIGHT_CONTENT_TYPE },
+    signal,
   });
   return createFromFetch(resp);
 }
@@ -33,14 +34,24 @@ function initialFlight(): Promise<React.ReactNode> {
 // ── Navigation manager ──────────────────────────────────────────────────────
 
 let treePromise = initialFlight();
+let navigationController: AbortController | null = null;
+
+function navigateWithFlight(url: string) {
+  // Abort any in-flight navigation fetch.
+  navigationController?.abort();
+  const controller = new AbortController();
+  navigationController = controller;
+
+  startTransition(() => {
+    treePromise = fetchFlight(url, controller.signal);
+    root.render(<Shell />);
+  });
+}
 
 function navigate(href: string) {
   history.pushState(null, "", href);
   notifyPathnameChange();
-  startTransition(() => {
-    treePromise = fetchFlight(href);
-    root.render(<Shell />);
-  });
+  navigateWithFlight(href);
 }
 
 // Expose navigate globally so <Link> can call it.
@@ -49,10 +60,7 @@ function navigate(href: string) {
 // Handle browser back/forward.
 window.addEventListener("popstate", () => {
   notifyPathnameChange();
-  startTransition(() => {
-    treePromise = fetchFlight(location.pathname + location.search);
-    root.render(<Shell />);
-  });
+  navigateWithFlight(location.pathname + location.search);
 });
 
 // ── Shell component ─────────────────────────────────────────────────────────
@@ -63,6 +71,6 @@ function Shell() {
 
 // ── Mount ───────────────────────────────────────────────────────────────────
 
-const container = document.getElementById("root") ?? document.body;
+const container = document.getElementById("__POLA_ROOT__") ?? document.body;
 const root = createRoot(container);
 root.render(<Shell />);
