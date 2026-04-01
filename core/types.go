@@ -73,8 +73,10 @@ type DiscoveryResult struct {
 // Pattern supports dynamic segments ("/products/:id"), catch-all ("/shop/:...path"),
 // and optional catch-all ("/docs/:...slug?").
 type Route struct {
-	Pattern string
-	Export  string
+	Pattern    string
+	Export     string
+	Revalidate time.Duration // cache TTL; 0 = no caching, >0 = stale-while-revalidate
+	Static     bool          // true = pre-rendered at build time, skip VM render
 }
 
 // DocumentProps holds the document-level properties extracted from the root
@@ -112,7 +114,7 @@ type ShellParams struct {
 	ClientScript string
 
 	// Scripts holds bare JS expressions to embed as inline <script> blocks
-	// before the client module tag (e.g. "self.__flight_data=...").
+	// before the client module tag (e.g. "console.time('boot')").
 	Scripts []string
 
 	// Stylesheets holds URLs of external CSS files to load via <link> tags
