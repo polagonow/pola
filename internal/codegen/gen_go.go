@@ -34,7 +34,7 @@ func (d goTemplData) StructNameFor(m MethodDef) string {
 }
 
 // GenerateGo produces the generated_bridge.go source code.
-func GenerateGo(result *ParseResult) ([]byte, error) {
+func GenerateGo(result *ParseResult, polaPackage string) ([]byte, error) {
 	funcMap := template.FuncMap{
 		"fieldName": func(structName string) string {
 			return CamelCase(structName)
@@ -69,7 +69,7 @@ func GenerateGo(result *ParseResult) ([]byte, error) {
 
 	data := goTemplData{
 		PackageName: result.PackageName,
-		PolaPackage: "github.com/polagonow/pola",
+		PolaPackage: polaPackage,
 		Actions:     result.Actions,
 	}
 

@@ -21,7 +21,7 @@ type RunResult struct {
 // generates the Go bridge into tmpDir, and writes TypeScript declarations to
 // tsOutPath. The caller is responsible for creating/cleaning up tmpDir and
 // building the overlay JSON.
-func Run(actionsDir, tsOutPath, tmpDir string) (*RunResult, error) {
+func Run(actionsDir, tsOutPath, tmpDir, polaPackage string) (*RunResult, error) {
 	result, err := Parse(actionsDir)
 	if err != nil {
 		return nil, fmt.Errorf("parse: %w", err)
@@ -32,7 +32,7 @@ func Run(actionsDir, tsOutPath, tmpDir string) (*RunResult, error) {
 	}
 
 	// Generate Go bridge source.
-	goSrc, err := GenerateGo(result)
+	goSrc, err := GenerateGo(result, polaPackage)
 	if err != nil {
 		return nil, fmt.Errorf("generate go: %w", err)
 	}

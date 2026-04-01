@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/polagonow/pola/internal/cli/stubpkgs"
+	"github.com/polagonow/pola/polafile"
 	"github.com/polagonow/pola/watcher"
 	"github.com/spf13/cobra"
 )
@@ -51,10 +52,18 @@ func init() {
 // goWatchExts are the file extensions that trigger a Go process restart.
 var goWatchExts = []string{".go", ".tmpl"}
 
-func runServe(_ *cobra.Command, _ []string) error {
+func runServe(cmd *cobra.Command, _ []string) error {
 	projectDir, err := findProjectRoot()
 	if err != nil {
 		return err
+	}
+
+	applyPolafileDefaults(cmd, projectDir)
+
+	// Load Polafile for PolaPackage.
+	var pf polafile.Polafile
+	if loaded, err := polafile.Load(projectDir); err == nil && loaded != nil {
+		pf = *loaded
 	}
 
 	if verbose {
@@ -76,13 +85,14 @@ func runServe(_ *cobra.Command, _ []string) error {
 	for {
 		// Generate overlay (plugin imports + action bridge codegen).
 		overlayRes, err := generateOverlay(projectDir, pluginOpts{
-			Engine:   serveFlags.vm,
-			Bundler:  serveFlags.bundler,
-			Renderer: serveFlags.renderer,
-			Router:   serveFlags.router,
-			CSS:      serveFlags.css,
-			Cache:    "memory",
-			Dev:      true,
+			PolaPackage: pf.PolaPackage(),
+			Engine:      serveFlags.vm,
+			Bundler:     serveFlags.bundler,
+			Renderer:    serveFlags.renderer,
+			Router:      serveFlags.router,
+			CSS:         serveFlags.css,
+			Cache:       "memory",
+			Dev:         true,
 		})
 		if err != nil {
 			return err
@@ -182,8 +192,8 @@ func cleanupOverlay(res *overlayResult) {
 // and go.sum for dependency change detection.
 func collectGoFiles(projectDir string) []string {
 	paths := watcher.CollectPaths(projectDir, goWatchExts)
-	// Also watch go.mod and go.sum for dependency changes.
-	for _, name := range []string{"go.mod", "go.sum"} {
+	// Also watch go.mod, go.sum, and Polafile.hcl for changes.
+	for _, name := range []string{"go.mod", "go.sum", "Polafile.hcl"} {
 		p := filepath.Join(projectDir, name)
 		if _, err := os.Stat(p); err == nil {
 			paths = append(paths, p)
