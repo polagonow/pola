@@ -122,7 +122,7 @@ func (b *Blog) Vars() map[string]any {
 	}
 
 	// Test Go generation
-	goSrc, err := GenerateGo(result)
+	goSrc, err := GenerateGo(result, "github.com/polagonow/pola")
 	if err != nil {
 		t.Fatalf("GenerateGo: %v", err)
 	}

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 
 	"github.com/polagonow/pola/internal/cli/stubpkgs"
+	"github.com/polagonow/pola/polafile"
 	"github.com/spf13/cobra"
 )
 
@@ -45,10 +46,18 @@ func init() {
 	buildCmd.Flags().StringVar(&buildFlags.appPath, "app-path", cmp.Or(os.Getenv("POLA_WEBAPP_PATH"), "./app"), "path to the web app directory")
 }
 
-func runBuild(_ *cobra.Command, _ []string) error {
+func runBuild(cmd *cobra.Command, _ []string) error {
 	projectDir, err := findProjectRoot()
 	if err != nil {
 		return err
+	}
+
+	applyPolafileDefaults(cmd, projectDir)
+
+	// Load Polafile for PolaPackage.
+	var pf polafile.Polafile
+	if loaded, err := polafile.Load(projectDir); err == nil && loaded != nil {
+		pf = *loaded
 	}
 
 	// Determine output path.
@@ -67,12 +76,13 @@ func runBuild(_ *cobra.Command, _ []string) error {
 	}
 
 	baseOpts := pluginOpts{
-		Engine:   buildFlags.vm,
-		Bundler:  buildFlags.bundler,
-		Renderer: buildFlags.renderer,
-		Router:   buildFlags.router,
-		CSS:      buildFlags.css,
-		Cache:    "memory",
+		PolaPackage: pf.PolaPackage(),
+		Engine:      buildFlags.vm,
+		Bundler:     buildFlags.bundler,
+		Renderer:    buildFlags.renderer,
+		Router:      buildFlags.router,
+		CSS:         buildFlags.css,
+		Cache:       "memory",
 	}
 
 	// ── Stage 1: Bundle ──────────────────────────────────────────────────
