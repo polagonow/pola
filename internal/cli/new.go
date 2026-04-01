@@ -5,12 +5,43 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime/debug"
 	"strings"
 
 	"github.com/polagonow/pola/internal/cli/scaffold"
 	"github.com/polagonow/pola/internal/cli/stubpkgs"
+	"github.com/polagonow/pola/polafile"
 	"github.com/spf13/cobra"
 )
+
+// choiceToModule maps Polafile choice names to their Go module paths.
+// Only choices backed by Go modules are listed here.
+var choiceToModule = map[string]string{
+	"goja":    "github.com/dop251/goja",
+	"sobek":   "github.com/grafana/sobek",
+	"quickjs": "github.com/buke/quickjs-go",
+	"v8":      "rogchap.com/v8go",
+	"esbuild": "github.com/evanw/esbuild",
+}
+
+// resolveVersion appends the Go module version to a choice name if available.
+// For example, "goja" becomes "goja@v0.0.0-20260311135729-065cd970411c".
+func resolveVersion(choice string) string {
+	modPath, ok := choiceToModule[choice]
+	if !ok {
+		return choice
+	}
+	bi, ok := debug.ReadBuildInfo()
+	if !ok {
+		return choice
+	}
+	for _, dep := range bi.Deps {
+		if dep.Path == modPath {
+			return polafile.FormatVersioned(choice, dep.Version)
+		}
+	}
+	return choice
+}
 
 var newFlags struct {
 	renderer string
@@ -64,7 +95,7 @@ func runNew(_ *cobra.Command, args []string) error {
 	data := scaffold.Data{
 		AppName:       appName,
 		ModulePath:    appName,
-		PolaPackage:   "github.com/polagonow/pola",
+		PolaPackage:   polafile.DefaultPackage,
 		Renderer:      newFlags.renderer,
 		Bundler:       newFlags.bundler,
 		Router:        newFlags.router,
@@ -84,6 +115,30 @@ func runNew(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("scaffold: %w", err)
 	}
 
+	// Detect package manager early so we can persist it in the Polafile.
+	pm := newFlags.pm
+	if pm == "" {
+		pm = detectPackageManager()
+	}
+
+	// Write Polafile.hcl to lock the user's choices with resolved versions.
+	pf := &polafile.Polafile{
+		Version:        version,
+		Renderer:       resolveVersion(newFlags.renderer),
+		Engine:         resolveVersion(newFlags.vm),
+		Bundler:        resolveVersion(newFlags.bundler),
+		Router:         newFlags.router,
+		CSS:            newFlags.css,
+		Cache:          "memory",
+		PackageManager: pm,
+		AppDir:         "app",
+		ActionsDir:     "actions",
+		RoutesDir:      "routes",
+	}
+	if err := polafile.Save(targetDir, pf); err != nil {
+		return fmt.Errorf("write Polafile.hcl: %w", err)
+	}
+
 	// Write a placeholder favicon.
 	faviconPath := filepath.Join(targetDir, "public", "favicon.ico")
 	if _, err := os.Stat(faviconPath); os.IsNotExist(err) {
@@ -94,13 +149,14 @@ func runNew(_ *cobra.Command, args []string) error {
 	// This file is removed after tidy — at runtime it's injected via overlay.
 	pluginsPath := filepath.Join(targetDir, "pola_plugins.go")
 	pluginsSrc, err := generatePluginImports(pluginOpts{
-		Engine:   newFlags.vm,
-		Bundler:  newFlags.bundler,
-		Renderer: newFlags.renderer,
-		Router:   newFlags.router,
-		CSS:      newFlags.css,
-		Cache:    "memory",
-		Dev:      true,
+		PolaPackage: polafile.DefaultPackage,
+		Engine:      newFlags.vm,
+		Bundler:     newFlags.bundler,
+		Renderer:    newFlags.renderer,
+		Router:      newFlags.router,
+		CSS:         newFlags.css,
+		Cache:       "memory",
+		Dev:         true,
 	}, appName+"/actions", []routePackageInfo{
 		{ImportPath: appName + "/routes/health"},
 	})
@@ -121,11 +177,7 @@ func runNew(_ *cobra.Command, args []string) error {
 	// Remove the temporary plugins file — overlay handles it at serve/build time.
 	os.Remove(pluginsPath)
 
-	// Detect and run package manager install.
-	pm := newFlags.pm
-	if pm == "" {
-		pm = detectPackageManager()
-	}
+	// Run package manager install.
 	fmt.Printf("Running %s install...\n", pm)
 	if err := runInDir(targetDir, pm, "install"); err != nil {
 		fmt.Printf("Warning: %s install failed: %v\n", pm, err)
