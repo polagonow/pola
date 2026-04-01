@@ -2,6 +2,7 @@ package cli
 
 import (
 	"os"
+	"strconv"
 
 	"github.com/polagonow/pola/polafile"
 	"github.com/spf13/cobra"
@@ -26,10 +27,10 @@ func applyPolafileDefaults(cmd *cobra.Command, projectDir string) {
 	applyIfUnchanged(cmd, "router", "POLA_ROUTER", nameOnly(pf.Router))
 	applyIfUnchanged(cmd, "css", "POLA_CSS", nameOnly(pf.CSS))
 	applyIfUnchanged(cmd, "vm", "POLA_VM", nameOnly(pf.Engine))
-	applyIfUnchanged(cmd, "cache", "POLA_CACHE", nameOnly(pf.Cache))
+	applyIfUnchanged(cmd, "cache", "POLA_CACHE", pf.CacheAdapter("default"))
 	applyIfUnchanged(cmd, "pm", "POLA_PM", nameOnly(pf.PackageManager))
-	applyIfUnchanged(cmd, "csrf", "POLA_CSRF", pf.CSRF)
-	applyIfUnchanged(cmd, "security-headers", "POLA_SECURITY_HEADERS", pf.SecurityHeaders)
+	applyIfUnchanged(cmd, "csrf", "POLA_CSRF", strconv.FormatBool(pf.CSRFEnabled("default")))
+	applyIfUnchanged(cmd, "security-headers", "POLA_SECURITY_HEADERS", strconv.FormatBool(pf.SecurityHeadersEnabled("default")))
 }
 
 // applyIfUnchanged sets a flag's value from the Polafile only if the user

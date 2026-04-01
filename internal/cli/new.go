@@ -51,8 +51,8 @@ var newFlags struct {
 	vm              string
 	polaPath        string
 	pm              string
-	csrf            string
-	securityHeaders string
+	csrf            bool
+	securityHeaders bool
 }
 
 var newCmd = &cobra.Command{
@@ -75,8 +75,8 @@ func init() {
 	newCmd.Flags().StringVar(&newFlags.vm, "vm", "goja", "JS engine (goja)")
 	newCmd.Flags().StringVar(&newFlags.polaPath, "pola-path", "", "local path to pola framework source (adds replace directive)")
 	newCmd.Flags().StringVar(&newFlags.pm, "pm", "", "package manager to use (npm, pnpm, yarn); auto-detected if not set")
-	newCmd.Flags().StringVar(&newFlags.csrf, "csrf", "true", "CSRF protection (true, none)")
-	newCmd.Flags().StringVar(&newFlags.securityHeaders, "security-headers", "true", "security headers (true, none)")
+	newCmd.Flags().BoolVar(&newFlags.csrf, "csrf", true, "enable CSRF protection")
+	newCmd.Flags().BoolVar(&newFlags.securityHeaders, "security-headers", true, "enable security headers")
 }
 
 func runNew(_ *cobra.Command, args []string) error {
@@ -127,19 +127,19 @@ func runNew(_ *cobra.Command, args []string) error {
 
 	// Write Polafile.hcl to lock the user's choices with resolved versions.
 	pf := &polafile.Polafile{
-		Version:         version,
-		Renderer:        resolveVersion(newFlags.renderer),
-		Engine:          resolveVersion(newFlags.vm),
-		Bundler:         resolveVersion(newFlags.bundler),
-		Router:          newFlags.router,
-		CSS:             newFlags.css,
-		Cache:           "memory",
-		PackageManager:  pm,
-		CSRF:            newFlags.csrf,
-		SecurityHeaders: newFlags.securityHeaders,
-		AppDir:          "app",
-		ActionsDir:      "actions",
-		RoutesDir:       "routes",
+		Version:        version,
+		Renderer:       resolveVersion(newFlags.renderer),
+		Engine:         resolveVersion(newFlags.vm),
+		Bundler:        resolveVersion(newFlags.bundler),
+		Router:         newFlags.router,
+		CSS:            newFlags.css,
+		PackageManager: pm,
+		App:            "app",
+		Actions:        "actions",
+		Routes:         "routes",
+		CSRF:           &polafile.CSRF{Enabled: newFlags.csrf},
+		SecurityHeaders: &polafile.SecurityHeaders{Enabled: newFlags.securityHeaders},
+		Cache:          &polafile.Cache{Enabled: true, Adapter: "memory"},
 	}
 	if err := polafile.Save(targetDir, pf); err != nil {
 		return fmt.Errorf("write Polafile.hcl: %w", err)

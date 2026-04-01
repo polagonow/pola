@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/polagonow/pola/cache/memory"
 	"github.com/polagonow/pola/core"
 )
 
@@ -278,11 +277,10 @@ func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, er
 	shell, assets := resolveShellAndAssets(registry, publicDir)
 
 	// ── 8. Wire orchestrator ───────────────────────────────────────────────
-	// Resolve cache for render result caching; fall back to in-memory LRU.
-	renderCache, err := core.Invoke[core.Cache](registry)
-	if err != nil {
-		logger.Info("pola: no cache registered, using default in-memory LRU")
-		renderCache = memory.MustNew(0)
+	// Resolve cache for render result caching; nil when cache is disabled.
+	renderCache, cacheErr := core.Invoke[core.Cache](registry)
+	if cacheErr != nil {
+		logger.Info("pola: cache not registered, caching disabled")
 	}
 
 	// Wrap injectors with per-request memoization to deduplicate Go calls.
@@ -418,10 +416,10 @@ func buildFromPrebuilt(
 	// Resolve shell and asset server.
 	shell, assets := resolveShellAndAssets(registry, "")
 
-	// Resolve cache for render result caching; fall back to in-memory LRU.
-	renderCache, err := core.Invoke[core.Cache](registry)
-	if err != nil {
-		renderCache = memory.MustNew(0)
+	// Resolve cache for render result caching; nil when cache is disabled.
+	renderCache, cacheErr := core.Invoke[core.Cache](registry)
+	if cacheErr != nil {
+		logger.Info("pola: cache not registered, caching disabled")
 	}
 
 	// Wrap injectors with per-request memoization.
