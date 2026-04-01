@@ -106,13 +106,14 @@ func runServe(cmd *cobra.Command, _ []string) error {
 
 		// Start polling .go and .tmpl files for changes.
 		restartCh := make(chan struct{}, 1)
-		poller := watcher.New(func() {
+		poller := watcher.NewWithCollect(func() []string {
+			return collectGoFiles(projectDir)
+		}, func() {
 			select {
 			case restartCh <- struct{}{}:
 			default:
 			}
 		})
-		poller.SetPaths(collectGoFiles(projectDir))
 		poller.Start()
 
 		doneCh := make(chan error, 1)

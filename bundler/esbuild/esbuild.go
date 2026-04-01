@@ -147,13 +147,14 @@ func (b *Bundler) Watch(ctx context.Context, req core.BundleInput) (<-chan *core
 		watchExts = []string{".ts", ".tsx", ".js", ".jsx", ".css"}
 	}
 
-	poller := watcher.New(func() {
+	poller := watcher.NewWithCollect(func() []string {
+		return watcher.CollectPaths(req.AppDir, watchExts)
+	}, func() {
 		select {
 		case triggerCh <- struct{}{}:
 		default:
 		}
 	})
-	poller.SetPaths(watcher.CollectPaths(req.AppDir, watchExts))
 	poller.Start()
 
 	go func() {
@@ -171,12 +172,13 @@ func (b *Bundler) Watch(ctx context.Context, req core.BundleInput) (<-chan *core
 			case <-ctx.Done():
 				return
 			case <-triggerCh:
+				if req.BeforeRebuild != nil {
+					req.BeforeRebuild(&req)
+				}
 				out, buildErr := b.Build(ctx, req)
 				if buildErr != nil {
 					continue
 				}
-				// Refresh watched paths — new files may have appeared.
-				poller.SetPaths(watcher.CollectPaths(req.AppDir, watchExts))
 				// Replace any unread previous output so consumer always
 				// gets the latest build.
 				select {

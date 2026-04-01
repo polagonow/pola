@@ -123,7 +123,7 @@ func (r *Router) ScanRoutes(ctx context.Context, fsys core.FS, appDir string, ex
 	}
 
 	// Discover global components (global-not-found, global-error).
-	gc := discoverGlobalComponents(fsys, appDir, exts)
+	gc := discoverGlobalComponents(fsys, pagesDir, exts)
 	if gc.ErrorPath != "" && !seen[gc.ErrorPath] {
 		clientComponents = append(clientComponents, gc.ErrorPath)
 	}
@@ -490,8 +490,7 @@ type globalComponents struct {
 	ErrorPath    string
 }
 
-func discoverGlobalComponents(fsys core.FS, appDir string, exts []string) globalComponents {
-	pagesDir := filepath.Join(appDir, "app")
+func discoverGlobalComponents(fsys core.FS, pagesDir string, exts []string) globalComponents {
 	var gc globalComponents
 	for _, item := range []struct {
 		base string

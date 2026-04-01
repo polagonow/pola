@@ -21,6 +21,7 @@ const (
 	minItemsPerIter          = 64
 	maxIntervalsBeforeUpdate = 20
 	modKeySafetyGap          = 3 * time.Second
+	rescanInterval           = 2 * time.Second
 )
 
 // modEntry stores the last-known state of a watched file.
@@ -43,6 +44,7 @@ type Poller struct {
 	scanOrder   []string            // shuffled non-recent paths
 	scanIndex   int                 // current position in scanOrder
 	onChange    func()              // called when any file changes
+	collectFn   func() []string     // optional: re-collects paths to discover new files
 	done        chan struct{}
 }
 
@@ -55,6 +57,16 @@ func New(onChange func()) *Poller {
 		onChange:  onChange,
 		done:      make(chan struct{}),
 	}
+}
+
+// NewWithCollect creates a Poller that periodically re-scans the filesystem
+// using collectFn to discover new files. This ensures that newly created
+// files trigger onChange without requiring an existing file to change first.
+func NewWithCollect(collectFn func() []string, onChange func()) *Poller {
+	p := New(onChange)
+	p.collectFn = collectFn
+	p.SetPaths(collectFn())
+	return p
 }
 
 // SetPaths replaces the set of watched file paths. Safe to call while polling.
@@ -106,6 +118,13 @@ func (p *Poller) run() {
 	ticker := time.NewTicker(pollInterval)
 	defer ticker.Stop()
 
+	var rescanCh <-chan time.Time
+	if p.collectFn != nil {
+		rt := time.NewTicker(rescanInterval)
+		defer rt.Stop()
+		rescanCh = rt.C
+	}
+
 	for {
 		select {
 		case <-p.done:
@@ -114,8 +133,36 @@ func (p *Poller) run() {
 			if p.poll() {
 				p.onChange()
 			}
+		case <-rescanCh:
+			if p.rescan() {
+				p.onChange()
+			}
 		}
 	}
+}
+
+// rescan re-collects paths and updates the watched set. Returns true if
+// new files were discovered (triggering a rebuild for the new content).
+func (p *Poller) rescan() bool {
+	paths := p.collectFn()
+
+	p.mu.Lock()
+	hasNew := false
+	for _, path := range paths {
+		if _, ok := p.items[path]; !ok {
+			hasNew = true
+			break
+		}
+	}
+	changed := hasNew || len(paths) != len(p.items)
+	p.mu.Unlock()
+
+	if !changed {
+		return false
+	}
+
+	p.SetPaths(paths)
+	return hasNew
 }
 
 // poll runs a single polling iteration. Returns true if any file changed.
