@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/fs/osfs"
@@ -386,6 +387,80 @@ func TestHasDefaultExport(t *testing.T) {
 				t.Errorf("got %v, want %v", got, tc.want)
 			}
 		})
+	}
+}
+
+// ── extractRevalidate ─────────────────────────────────────────────────────────
+
+func TestExtractRevalidate(t *testing.T) {
+	dir := t.TempDir()
+	cases := []struct {
+		name    string
+		content string
+		want    time.Duration
+		wantErr bool
+	}{
+		{"60 seconds", "export const revalidate = 60;\nexport default function Page() { return null; }", 60 * time.Second, false},
+		{"zero", "export const revalidate = 0;\nexport default function Page() { return null; }", 0, false},
+		{"no semicolon", "export const revalidate = 30\nexport default function Page() { return null; }", 30 * time.Second, false},
+		{"no export", "export default function Page() { return null; }", 0, false},
+		{"invalid value", "export const revalidate = abc;\nexport default function Page() { return null; }", 0, true},
+		{"negative value", "export const revalidate = -1;\nexport default function Page() { return null; }", 0, true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			path := writeFile(t, dir, tc.name+".tsx", tc.content)
+			got, err := extractRevalidate(testFS(), path)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatal("expected error, got nil")
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("extractRevalidate: %v", err)
+			}
+			if got != tc.want {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestScanRoutes_Revalidate(t *testing.T) {
+	appDir := t.TempDir()
+	pagesDir := filepath.Join(appDir, "app")
+
+	// Page with revalidate
+	cachedDir := filepath.Join(pagesDir, "cached")
+	if err := os.MkdirAll(cachedDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, cachedDir, "page.tsx", "export const revalidate = 120;\nexport default function Page() { return null; }\n")
+
+	// Page without revalidate
+	freshDir := filepath.Join(pagesDir, "fresh")
+	if err := os.MkdirAll(freshDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, freshDir, "page.tsx", "export default function Page() { return null; }\n")
+
+	r := New()
+	routes, err := r.ScanRoutes(context.Background(), testFS(), appDir, defaultExts)
+	if err != nil {
+		t.Fatalf("ScanRoutes: %v", err)
+	}
+
+	byPattern := make(map[string]core.Route)
+	for _, rt := range routes {
+		byPattern[rt.Pattern] = rt
+	}
+
+	if rt := byPattern["/cached"]; rt.Revalidate != 120*time.Second {
+		t.Errorf("/cached revalidate=%v, want 2m0s", rt.Revalidate)
+	}
+	if rt := byPattern["/fresh"]; rt.Revalidate != 0 {
+		t.Errorf("/fresh revalidate=%v, want 0", rt.Revalidate)
 	}
 }
 
