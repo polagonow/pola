@@ -16,6 +16,10 @@ const (
 	// RuntimeInjector.Inject; read by server components as `__DEPENDENCY_INJECTION__.fnName(...)`.
 	BridgeObject = "__DEPENDENCY_INJECTION__"
 
+	// SSRData is the browser global used to embed cached Flight data in the
+	// HTML shell, avoiding a second request when the server has pre-rendered data.
+	SSRData = "__POLA_SSR_DATA__"
+
 	// StreamHandle is where streaming VMs stash the current RSC ReadableStream.
 	// Used by v8go (and cleared by multiple VMs) so the Go side can call into
 	// PullStreamFn repeatedly without passing opaque handles through Go↔JS.
@@ -56,14 +60,6 @@ const (
 	// serializes its React element tree to HTML, and returns it as a string.
 	// Used at startup to extract document-level props (html/body attrs, head elements).
 	ExtractShellFn = "__extractShell__"
-)
-
-// SSR data inlined into the HTML shell for client-side hydration.
-const (
-	// SSRData is the global variable name where the orchestrator inlines
-	// pre-rendered SSR data into the HTML shell. Each renderer's client-side
-	// code reads this in its own idiomatic way.
-	SSRData = "__POLA_SSR_DATA__"
 )
 
 // Client component manifest injected as a bundler define.

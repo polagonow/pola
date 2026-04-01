@@ -122,7 +122,7 @@ func (r *Renderer) prepareVM(ctx context.Context, req core.RenderRequest) (core.
 	return vm, string(propsJSON), nil
 }
 
-// RenderToWriter implements core.StreamRenderer. It acquires a VM, performs
+// RenderToWriter acquires a VM, performs
 // a full RSC Flight render, and streams all chunks to w. The orchestrator
 // uses this to progressively flush SSR data into the HTML response.
 func (r *Renderer) RenderToWriter(ctx context.Context, req core.RenderRequest, w core.StreamWriter) error {

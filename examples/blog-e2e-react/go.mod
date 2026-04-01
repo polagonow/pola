@@ -3,8 +3,8 @@ module blog-e2e-react
 go 1.25.0
 
 require (
+	github.com/joho/godotenv v1.5.1
 	github.com/polagonow/pola v0.0.0
-	github.com/samber/do/v2 v2.0.0
 )
 
 require (
@@ -19,10 +19,11 @@ require (
 	github.com/gorilla/websocket v1.5.3 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/magefile/mage v1.16.1 // indirect
+	github.com/samber/do/v2 v2.0.0 // indirect
 	github.com/samber/go-type-to-string v1.8.0 // indirect
 	golang.org/x/net v0.46.0 // indirect
 	golang.org/x/sys v0.37.0 // indirect
 	golang.org/x/text v0.30.0 // indirect
 )
 
-replace github.com/polagonow/pola => /Users/admin/conductor/workspaces/pola/cairo
+replace github.com/polagonow/pola => /Users/admin/conductor/workspaces/pola/ottawa

@@ -5,6 +5,7 @@ package internal
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -143,11 +144,43 @@ func (o *Orchestrator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 // tryRendererServe calls ServeRequest on the renderer if it implements
 // requestHandler. Returns true if the renderer claimed the response.
+//
+// For Flight requests (Content-Type: text/x-component), it checks the cache
+// first and serves cached data directly. On cache miss with Route.Revalidate > 0,
+// it tees the response to fill the cache for subsequent requests.
 func (o *Orchestrator) tryRendererServe(ctx context.Context, w http.ResponseWriter, r *http.Request, req core.RenderRequest, status int) bool {
 	rh, ok := o.renderer.(requestHandler)
 	if !ok {
 		return false
 	}
+
+	// Cache integration for Flight requests.
+	isFlight := r.Header.Get("Content-Type") == "text/x-component"
+	if isFlight && o.cache != nil {
+		cacheKey := "ssr:" + req.Route.Pattern + "?" + r.URL.RawQuery
+		// Serve from cache if available — instant, no VM needed.
+		if cached, ok, err := o.cache.Get(ctx, cacheKey); err != nil {
+			o.logger.Error("pola: cache get", "key", cacheKey, "err", err)
+		} else if ok {
+			w.Header().Set("Content-Type", "text/x-component; charset=utf-8")
+			w.WriteHeader(status)
+			w.Write(cached) //nolint:errcheck
+			return true
+		}
+		// On cache miss, tee the output to fill cache for next request.
+		tw := &teeWriter{ResponseWriter: w}
+		defer func() {
+			if len(tw.buf) > 0 {
+				if err := o.cache.Set(ctx, cacheKey, tw.buf, core.CacheOptions{
+					TTL: req.Route.Revalidate, // 0 = no expiry
+				}); err != nil {
+					o.logger.Error("pola: cache set", "key", cacheKey, "err", err)
+				}
+			}
+		}()
+		w = tw
+	}
+
 	if o.tracer != nil {
 		var span core.Span
 		ctx, span = o.tracer.StartSpan(ctx, "pola.render")
@@ -164,7 +197,26 @@ func (o *Orchestrator) tryRendererServe(ctx context.Context, w http.ResponseWrit
 	return handled
 }
 
+// teeWriter wraps an http.ResponseWriter and captures all written bytes
+// into a buffer while passing through to the underlying writer.
+type teeWriter struct {
+	http.ResponseWriter
+	buf []byte
+}
+
+func (tw *teeWriter) Write(p []byte) (int, error) {
+	tw.buf = append(tw.buf, p...)
+	return tw.ResponseWriter.Write(p)
+}
+
+func (tw *teeWriter) Flush() {
+	if f, ok := tw.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
+}
+
 func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Vary", "Content-Type")
 	ctx := r.Context()
 	if o.tracer != nil {
 		var span core.Span
@@ -212,12 +264,7 @@ func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
 			if o.tryRendererServe(ctx, w, r, req, http.StatusNotFound) {
 				return
 			}
-			// Inline SSR data for not-found pages too.
-			w.WriteHeader(http.StatusNotFound)
-			o.serveHTMLWithSSRData(ctx, w, r, &req)
-			return
 		}
-		// HTML 404: client shell bootstraps, then fetches the not-found component.
 		w.WriteHeader(http.StatusNotFound)
 		o.serveHTML(w, r, nil)
 		return
@@ -232,68 +279,24 @@ func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
 	if o.tryRendererServe(ctx, w, r, req, http.StatusOK) {
 		return
 	}
-	o.serveHTMLWithSSRData(ctx, w, r, &req)
-}
 
-// serveHTMLWithSSRData serves the HTML shell with cached SSR data inlined
-// when available. If no cache hit, it serves the empty shell immediately
-// and the client streams Flight data via a second request — preserving
-// Suspense streaming (the original non-blocking design).
-//
-// After serving the empty shell, a background goroutine renders the page
-// and populates the cache so the next request gets instant inlined data.
-func (o *Orchestrator) serveHTMLWithSSRData(ctx context.Context, w http.ResponseWriter, r *http.Request, req *core.RenderRequest) {
-	cacheKey := req.Route.Pattern + "?" + r.URL.RawQuery
-
-	// Serve cached SSR data inline if available — instant, no blocking.
+	// If cached Flight data exists, embed it in the HTML shell to avoid
+	// a second request (Next.js-style inline SSR data).
+	var ssrData []byte
 	if o.cache != nil {
-		if cached, ok, _ := o.cache.Get(ctx, "ssr:"+cacheKey); ok {
-			o.serveHTML(w, r, cached)
-			return
+		cacheKey := "ssr:" + route.Pattern + "?" + r.URL.RawQuery
+		if cached, ok, err := o.cache.Get(ctx, cacheKey); err != nil {
+			o.logger.Error("pola: cache get", "key", cacheKey, "err", err)
+		} else if ok {
+			ssrData = cached
 		}
 	}
-
-	// No cache: serve the empty shell immediately. The client will fetch
-	// Flight data in a streaming second request (original behavior).
-	o.serveHTML(w, r, nil)
-
-	// Warm the cache in the background for the next visitor.
-	if o.cache != nil && req.Route.Revalidate > 0 {
-		sr, ok := o.renderer.(core.StreamRenderer)
-		if ok {
-			bgReq := *req
-			go o.warmCache(context.Background(), sr, bgReq, cacheKey)
-		}
-	}
+	o.serveHTML(w, r, ssrData)
 }
-
-// warmCache renders a page in the background and stores the result in the
-// cache. Errors are logged but do not affect the current request.
-func (o *Orchestrator) warmCache(ctx context.Context, sr core.StreamRenderer, req core.RenderRequest, cacheKey string) {
-	bw := &bufferWriter{}
-	if err := sr.RenderToWriter(ctx, req, bw); err != nil {
-		o.logger.Error("pola: cache warm render", "err", err)
-		return
-	}
-	if len(bw.buf) > 0 {
-		_ = o.cache.Set(ctx, "ssr:"+cacheKey, bw.buf, core.CacheOptions{
-			TTL: req.Route.Revalidate,
-		})
-	}
-}
-
-// bufferWriter collects SSR output into an in-memory buffer for caching.
-type bufferWriter struct{ buf []byte }
-
-func (bw *bufferWriter) WriteRaw(p []byte) (int, error) {
-	bw.buf = append(bw.buf, p...)
-	return len(p), nil
-}
-func (bw *bufferWriter) Flush() {}
 
 // serveHTML returns the HTML shell for initial page loads.
-// When ssrData is non-nil, it is inlined as self.__POLA_SSR_DATA__ so the
-// client can render immediately without a second fetch.
+// When ssrData is non-nil, it is embedded as an inline script so the client
+// can use it directly without a second Flight request.
 func (o *Orchestrator) serveHTML(w http.ResponseWriter, _ *http.Request, ssrData []byte) {
 	params := core.ShellParams{
 		Metadata:      defaultMetadata(),
@@ -310,8 +313,13 @@ func (o *Orchestrator) serveHTML(w http.ResponseWriter, _ *http.Request, ssrData
 		params.Scripts = append(params.Scripts, o.devScript)
 	}
 	if len(ssrData) > 0 {
-		escaped, _ := json.Marshal(string(ssrData))
-		params.Scripts = append(params.Scripts, "self."+globals.SSRData+"="+string(escaped))
+		// json.Marshal escapes <, >, & to \uXXXX — safe inside <script> tags.
+		encoded, err := json.Marshal(string(ssrData))
+		if err != nil {
+			o.logger.Error("pola: marshal SSR data", "err", err)
+		} else {
+			params.Scripts = append(params.Scripts, fmt.Sprintf("self.%s=%s", globals.SSRData, encoded))
+		}
 	}
 	html := o.shell.Render(params)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")

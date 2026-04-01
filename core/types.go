@@ -114,7 +114,7 @@ type ShellParams struct {
 	ClientScript string
 
 	// Scripts holds bare JS expressions to embed as inline <script> blocks
-	// before the client module tag (e.g. "self.__POLA_SSR_DATA__=...").
+	// before the client module tag (e.g. "console.time('boot')").
 	Scripts []string
 
 	// Stylesheets holds URLs of external CSS files to load via <link> tags
