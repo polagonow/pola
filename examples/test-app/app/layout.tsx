@@ -1,0 +1,34 @@
+import React from "react";
+import "./globals.css";
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <head>
+        <title>test-app</title>
+      </head>
+      <body>
+        <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column" }}>
+          <header style={{
+            borderBottom: "1px solid var(--color-border)",
+            padding: "0.75rem 1.5rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "2rem",
+          }}>
+            <a href="/" style={{ fontWeight: 700, fontSize: "1.125rem", color: "var(--color-fg)", textDecoration: "none" }}>
+              test-app
+            </a>
+          </header>
+          <div style={{ flex: 1, maxWidth: 1000, margin: "0 auto", width: "100%", padding: "2rem 1.5rem" }}>
+            {children}
+          </div>
+        </div>
+      </body>
+    </html>
+  );
+}

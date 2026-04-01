@@ -1,0 +1,274 @@
+{
+  "@pola/react/components/ErrorBoundary#": {
+    "id": "@pola/react/components/ErrorBoundary",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "@pola/react/components/ErrorBoundary#default": {
+    "id": "@pola/react/components/ErrorBoundary",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "app/(blog)/posts/[slug]/error#": {
+    "id": "app/(blog)/posts/[slug]/error",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "app/(blog)/posts/[slug]/error#default": {
+    "id": "app/(blog)/posts/[slug]/error",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "app/(blog)/posts/[slug]/revisions/[rev]/error#": {
+    "id": "app/(blog)/posts/[slug]/revisions/[rev]/error",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "app/(blog)/posts/[slug]/revisions/[rev]/error#default": {
+    "id": "app/(blog)/posts/[slug]/revisions/[rev]/error",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "app/(blog)/posts/[slug]/revisions/error#": {
+    "id": "app/(blog)/posts/[slug]/revisions/error",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "app/(blog)/posts/[slug]/revisions/error#default": {
+    "id": "app/(blog)/posts/[slug]/revisions/error",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "app/(blog)/posts/error#": {
+    "id": "app/(blog)/posts/error",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "app/(blog)/posts/error#default": {
+    "id": "app/(blog)/posts/error",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "app/(work)/projects/[id]/error#": {
+    "id": "app/(work)/projects/[id]/error",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "app/(work)/projects/[id]/error#default": {
+    "id": "app/(work)/projects/[id]/error",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "app/(work)/projects/error#": {
+    "id": "app/(work)/projects/error",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "app/(work)/projects/error#default": {
+    "id": "app/(work)/projects/error",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "app/about/error#": {
+    "id": "app/about/error",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "app/about/error#default": {
+    "id": "app/about/error",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "app/docs/[[...slug]]/error#": {
+    "id": "app/docs/[[...slug]]/error",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "app/docs/[[...slug]]/error#default": {
+    "id": "app/docs/[[...slug]]/error",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "app/error#": {
+    "id": "app/error",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "app/error#default": {
+    "id": "app/error",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "app/global-error#": {
+    "id": "app/global-error",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "app/global-error#default": {
+    "id": "app/global-error",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "app/profile/error#": {
+    "id": "app/profile/error",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "app/profile/error#default": {
+    "id": "app/profile/error",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "components/LikeButton#": {
+    "id": "components/LikeButton",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "components/LikeButton#default": {
+    "id": "components/LikeButton",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "components/Nav#": {
+    "id": "components/Nav",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "components/Nav#default": {
+    "id": "components/Nav",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "components/NavLink#": {
+    "id": "components/NavLink",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "components/NavLink#default": {
+    "id": "components/NavLink",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "components/SearchFilter#": {
+    "id": "components/SearchFilter",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "components/SearchFilter#default": {
+    "id": "components/SearchFilter",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "components/ThemeToggle#": {
+    "id": "components/ThemeToggle",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  },
+  "components/ThemeToggle#default": {
+    "id": "components/ThemeToggle",
+    "name": "default",
+    "chunks": [
+      "default"
+    ],
+    "async": false
+  }
+}
