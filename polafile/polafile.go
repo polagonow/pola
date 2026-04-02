@@ -64,9 +64,11 @@ type Polafile struct {
 	CSS            string `hcl:"css,optional"`
 	PackageManager string `hcl:"package_manager,optional"`
 
-	App     string `hcl:"app,optional"`
-	Actions string `hcl:"actions,optional"`
-	Routes  string `hcl:"routes,optional"`
+	App          string `hcl:"app,optional"`
+	Actions      string `hcl:"actions,optional"`
+	Routes       string `hcl:"routes,optional"`
+	Repositories string `hcl:"repositories,optional"`
+	Services     string `hcl:"services,optional"`
 
 	CSRF            *CSRF            `hcl:"csrf,block"`
 	SecurityHeaders *SecurityHeaders `hcl:"security_headers,block"`
@@ -319,6 +321,22 @@ func (pf *Polafile) CacheAdapter(env string) string {
 	return "memory"
 }
 
+// RepositoriesDir returns the configured repositories directory, defaulting to "repository".
+func (pf *Polafile) RepositoriesDir() string {
+	if pf.Repositories != "" {
+		return pf.Repositories
+	}
+	return "repository"
+}
+
+// ServicesDir returns the configured services directory, defaulting to "service".
+func (pf *Polafile) ServicesDir() string {
+	if pf.Services != "" {
+		return pf.Services
+	}
+	return "service"
+}
+
 // PolaPackage returns the pola framework import path (always DefaultPackage).
 func (pf *Polafile) PolaPackage() string {
 	return DefaultPackage
@@ -369,6 +387,8 @@ func Save(dir string, pf *Polafile) error {
 	setAttr(blockBody, "app", pf.App)
 	setAttr(blockBody, "actions", pf.Actions)
 	setAttr(blockBody, "routes", pf.Routes)
+	setAttr(blockBody, "repositories", pf.Repositories)
+	setAttr(blockBody, "services", pf.Services)
 
 	// CSRF block.
 	if pf.CSRF != nil {

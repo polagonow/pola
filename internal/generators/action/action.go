@@ -19,8 +19,13 @@ import (
 //go:embed all:_templates
 var templates embed.FS
 
-var actionTmpl = template.Must(
-	template.New("action_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/action_go.tmpl"),
+var (
+	actionTmpl = template.Must(
+		template.New("action_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/action_go.tmpl"),
+	)
+	actionServiceTmpl = template.Must(
+		template.New("action_service_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/action_service_go.tmpl"),
+	)
 )
 
 // ActionGenerator scaffolds new action structs in the actions/ directory.
@@ -58,15 +63,20 @@ func (g *ActionGenerator) AfterHooks() []generators.Hook {
 }
 
 func (g *ActionGenerator) Command() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "action [Name]",
 		Short: "Scaffold a new action struct",
-		Long:  "Create a new action file in the actions/ directory with boilerplate and comments.",
-		Args:  cobra.ExactArgs(1),
-		RunE:  g.run,
+		Long: `Create a new action file in the actions/ directory with boilerplate and comments.
+
+Use --service=Name to wire the action to a generated service.`,
+		Args: cobra.ExactArgs(1),
+		RunE: g.run,
 		Example: `  pola generate action Blog
-  pola generate action Products`,
+  pola generate action Products
+  pola generate action Products --service=Product`,
 	}
+	cmd.Flags().String("service", "", "wire action methods to the named service")
+	return cmd
 }
 
 func (g *ActionGenerator) run(cmd *cobra.Command, args []string) error {
@@ -92,9 +102,34 @@ func (g *ActionGenerator) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
+	serviceName, _ := cmd.Flags().GetString("service")
+
 	var buf strings.Builder
-	if err := actionTmpl.Execute(&buf, struct{ Name string }{Name: name}); err != nil {
-		return fmt.Errorf("execute action template: %w", err)
+	if serviceName != "" {
+		if serviceName[0] >= 'a' && serviceName[0] <= 'z' {
+			serviceName = string(serviceName[0]-32) + serviceName[1:]
+		}
+
+		modulePath, err := project.ModulePath(projectDir)
+		if err != nil {
+			return fmt.Errorf("read module path: %w", err)
+		}
+
+		if err := actionServiceTmpl.Execute(&buf, struct {
+			Name        string
+			ServiceName string
+			ModulePath  string
+		}{
+			Name:        name,
+			ServiceName: serviceName,
+			ModulePath:  modulePath,
+		}); err != nil {
+			return fmt.Errorf("execute action service template: %w", err)
+		}
+	} else {
+		if err := actionTmpl.Execute(&buf, struct{ Name string }{Name: name}); err != nil {
+			return fmt.Errorf("execute action template: %w", err)
+		}
 	}
 
 	if err := os.WriteFile(filePath, []byte(buf.String()), 0o644); err != nil {

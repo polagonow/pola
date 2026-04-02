@@ -21,7 +21,7 @@ type [[.Name]] struct {
 	// DB *sql.DB  // example: injected database connection
 }
 
-// Item is an example type returned by your methods.
+// [[.Name]]Item is an example type returned by your methods.
 // Struct fields map to TypeScript interfaces via json tags.
 type [[.Name]]Item struct {
 	ID   int    `json:"id"`
@@ -34,8 +34,8 @@ func (a *[[.Name]]) GetAll() ([]*[[.Name]]Item, error) {
 	return nil, nil
 }
 
-// GetByID returns a single item by ID. Becomes [[.Name]].getByID(id) in JavaScript.
-func (a *[[.Name]]) GetByID(id string) (*[[.Name]]Item, error) {
+// Get returns a single item by ID. Becomes [[.Name]].Get(id) in JavaScript.
+func (a *[[.Name]]) Get(id string) (*[[.Name]]Item, error) {
 	// TODO: implement
 	return nil, nil
 }
