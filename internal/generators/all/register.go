@@ -6,6 +6,8 @@ import (
 	_ "github.com/polagonow/pola/internal/generators/action"
 	_ "github.com/polagonow/pola/internal/generators/migration"
 	_ "github.com/polagonow/pola/internal/generators/model"
+	_ "github.com/polagonow/pola/internal/generators/repository"
 	_ "github.com/polagonow/pola/internal/generators/route"
 	_ "github.com/polagonow/pola/internal/generators/scaffold"
+	_ "github.com/polagonow/pola/internal/generators/service"
 )

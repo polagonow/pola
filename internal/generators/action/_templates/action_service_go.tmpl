@@ -1,0 +1,38 @@
+package actions
+
+import (
+	"context"
+
+	"[[ .ModulePath ]]/repository"
+	"[[ .ModulePath ]]/service"
+)
+
+// [[ .Name ]] exposes functions and variables to JavaScript via the Pola bridge.
+//
+// How it works:
+//   - Each exported method becomes a callable function in JS
+//   - Method names are automatically camelCased: GetItems → [[ .Name ]].getItems()
+//   - Parameters are positional and type-safe (string, int, bool, structs)
+//   - Return must be (T, error) or just error
+//   - The special Vars() method exposes read-only constants to JS
+//
+// Usage in React:
+//   import { [[ .Name ]] } from "@pola/actions"
+//   const items = await [[ .Name ]].list(1, 25)
+//
+// Run "pola generate" to regenerate the bridge after editing this file.
+
+// [[ .Name ]] is your action struct with service dependency.
+type [[ .Name ]] struct {
+	svc *service.[[ .ServiceName ]]Service
+}
+
+// List returns a paginated list of [[ .ServiceName ]] entities. Becomes [[ .Name ]].list(page, perPage) in JavaScript.
+func (a *[[ .Name ]]) List(page, perPage int) (*repository.ListResult[*repository.[[ .ServiceName ]]], error) {
+	return a.svc.List(context.TODO(), repository.ListParams{Page: page, PerPage: perPage})
+}
+
+// Get returns a single [[ .ServiceName ]] by ID. Becomes [[ .Name ]].Get(id) in JavaScript.
+func (a *[[ .Name ]]) Get(id uint) (*repository.[[ .ServiceName ]], error) {
+	return a.svc.Get(context.TODO(), id)
+}

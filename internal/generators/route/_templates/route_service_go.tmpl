@@ -1,0 +1,151 @@
+package [[ .Package ]]
+
+import (
+	"encoding/json"
+	"net/http"
+	"strconv"
+
+	"[[ .ModulePath ]]/repository"
+	"[[ .ModulePath ]]/service"
+	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/routes"
+)
+
+// Route handles [[ .RoutePath ]] requests.
+type Route struct {
+	svc *service.[[ .ServiceName ]]Service
+}
+
+// Init resolves the [[ .ServiceName ]]Service from the DI registry.
+func (r *Route) Init(registry *core.Registry) error {
+	r.svc = core.MustInvoke[*service.[[ .ServiceName ]]Service](registry)
+	return nil
+}
+[[ range .Methods ]]
+[[ if eq . "GET" -]]
+// GET [[ $.RoutePath ]]
+func (r *Route) GET(w http.ResponseWriter, req *http.Request) {
+	id := routes.Param(req, "id")
+	if id != "" {
+		n, err := strconv.ParseUint(id, 10, 64)
+		if err != nil {
+			http.Error(w, "invalid id", http.StatusBadRequest)
+			return
+		}
+		entity, err := r.svc.Get(req.Context(), uint(n))
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(entity)
+		return
+	}
+
+	params := repository.ListParams{
+		Page:    queryInt(req, "page", 1),
+		PerPage: queryInt(req, "per_page", repository.DefaultPerPage),
+	}
+	result, err := r.svc.List(req.Context(), params)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(result)
+}
+[[ else if eq . "POST" -]]
+// POST [[ $.RoutePath ]]
+func (r *Route) POST(w http.ResponseWriter, req *http.Request) {
+	var entity repository.[[ $.ServiceName ]]
+	if err := json.NewDecoder(req.Body).Decode(&entity); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	if err := r.svc.Create(req.Context(), &entity); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusCreated)
+	json.NewEncoder(w).Encode(entity)
+}
+[[ else if eq . "PUT" -]]
+// PUT [[ $.RoutePath ]]
+func (r *Route) PUT(w http.ResponseWriter, req *http.Request) {
+	id := routes.Param(req, "id")
+	n, err := strconv.ParseUint(id, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	var entity repository.[[ $.ServiceName ]]
+	if err := json.NewDecoder(req.Body).Decode(&entity); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	entity.ID = uint(n)
+	if err := r.svc.Update(req.Context(), &entity); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(entity)
+}
+[[ else if eq . "PATCH" -]]
+// PATCH [[ $.RoutePath ]]
+func (r *Route) PATCH(w http.ResponseWriter, req *http.Request) {
+	id := routes.Param(req, "id")
+	n, err := strconv.ParseUint(id, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	var entity repository.[[ $.ServiceName ]]
+	if err := json.NewDecoder(req.Body).Decode(&entity); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	entity.ID = uint(n)
+	if err := r.svc.Update(req.Context(), &entity); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(entity)
+}
+[[ else if eq . "DELETE" -]]
+// DELETE [[ $.RoutePath ]]
+func (r *Route) DELETE(w http.ResponseWriter, req *http.Request) {
+	id := routes.Param(req, "id")
+	n, err := strconv.ParseUint(id, 10, 64)
+	if err != nil {
+		http.Error(w, "invalid id", http.StatusBadRequest)
+		return
+	}
+	if err := r.svc.Delete(req.Context(), uint(n)); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+[[ else -]]
+// [[ . ]] [[ $.RoutePath ]]
+func (r *Route) [[ . ]](w http.ResponseWriter, req *http.Request) {
+	// TODO: implement
+}
+[[ end -]]
+[[ end -]]
+
+// queryInt reads an integer query parameter with a default fallback.
+func queryInt(r *http.Request, key string, fallback int) int {
+	v := r.URL.Query().Get(key)
+	if v == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil || n < 1 {
+		return fallback
+	}
+	return n
+}
