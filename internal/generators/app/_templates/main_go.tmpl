@@ -1,0 +1,15 @@
+package main
+
+import (
+	"log"
+	"net/http"
+
+	"[[ .PolaPackage ]]"
+)
+
+func main() {
+	if err := pola.Ready(); err != nil {
+		log.Fatal(err)
+	}
+	log.Fatal(http.ListenAndServe(pola.Addr(), nil))
+}

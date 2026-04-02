@@ -1,0 +1,15 @@
+package [[.PackageName]]
+
+import (
+[[- range .Imports]]
+	[[.]]
+[[- end]]
+)
+
+// [[.Name]] represents the [[.SnakeName]] database table.
+type [[.Name]] struct {
+	gorm.Model
+[[- range .Fields]]
+	[[.StructField]]
+[[- end]]
+}

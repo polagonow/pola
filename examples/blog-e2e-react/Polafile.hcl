@@ -1,4 +1,5 @@
 pola {
+  package         = "blog-e2e-react"
   renderer        = "react"
   engine          = "goja"
   bundler         = "esbuild"
@@ -23,15 +24,19 @@ pola {
   }
 
   database {
-    models     = "models"
-    migrations = "migrations"
-    orm        = "ent"
+    models  = "models"
+    orm     = "gorm"
 
-    environment "development" {
+    migrations {
+      directory = "migrations"
+      format    = "hcl"
+    }
+
+    env "development" {
       adapter = "sqlite"
     }
 
-    environment "production" {
+    env "production" {
       adapter = "postgresql"
     }
   }
