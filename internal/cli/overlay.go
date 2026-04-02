@@ -1,0 +1,324 @@
+package cli
+
+import (
+	"embed"
+	"encoding/json"
+	"fmt"
+	"io/fs"
+	"os"
+	"path/filepath"
+	"sort"
+	"strings"
+	"text/template"
+
+	"github.com/polagonow/pola/internal/actionbridge"
+)
+
+//go:embed _templates/plugins_go.tmpl _templates/embed_go.tmpl
+var overlayTemplates embed.FS
+
+var pluginsTmpl = template.Must(
+	template.New("plugins_go.tmpl").ParseFS(overlayTemplates, "_templates/plugins_go.tmpl"),
+)
+
+// embedTmpl is the template for pola_embed.go, injected via overlay
+// during production builds. It embeds the public/ directory and registers the
+// asset server and prebuild loader as a plugin.
+var embedTmpl = template.Must(
+	template.New("embed_go.tmpl").ParseFS(overlayTemplates, "_templates/embed_go.tmpl"),
+)
+
+// pluginOpts holds parameters for plugin generation.
+type pluginOpts struct {
+	PolaPackage     string
+	Engine          string
+	Bundler         string
+	Renderer        string
+	Router          string
+	CSS             string
+	Cache           string
+	CSRF            bool
+	SecurityHeaders bool
+	Dev             bool
+	Embed           bool
+}
+
+// overlayResult holds the output from generateOverlay.
+type overlayResult struct {
+	OverlayPath string
+	TmpDir      string
+	TSOutPath   string
+}
+
+// routePackageInfo holds metadata about a discovered route package.
+type routePackageInfo struct {
+	ImportPath string // e.g. "test-app/routes/kampala/uganda"
+	AbsDir     string // e.g. "/abs/path/routes/kampala/uganda"
+	PkgName    string // e.g. "uganda"
+}
+
+// generateOverlay creates a unified overlay containing:
+//  1. pola_plugins.go — explicit Plugin() calls (always)
+//  2. generated_bridge.go — action bridge codegen (if actions/ exists)
+//  3. pola_embed.go — asset embedding for production builds (//go:build embed)
+//
+// The caller should defer os.RemoveAll(result.TmpDir) after the build completes.
+func generateOverlay(projectDir string, opts pluginOpts) (*overlayResult, error) {
+	tmpDir, err := os.MkdirTemp("", "pola-overlay-*")
+	if err != nil {
+		return nil, fmt.Errorf("create temp dir: %w", err)
+	}
+
+	replace := make(map[string]string)
+
+	// Determine actions directory.
+	actionsDir := generateFlags.actionsDir
+	if actionsDir == "" {
+		actionsDir = filepath.Join(projectDir, "actions")
+	}
+	if !filepath.IsAbs(actionsDir) {
+		actionsDir = filepath.Join(projectDir, actionsDir)
+	}
+
+	// 1. Run action bridge codegen if actions/ exists.
+	var tsOutPath string
+	var actionsImport string
+	hasActions := false
+	if info, err := os.Stat(actionsDir); err == nil && info.IsDir() {
+		hasActions = true
+		tsOut := generateFlags.tsOut
+		if tsOut == "" {
+			tsOut = filepath.Join(projectDir, "node_modules", "@pola", "actions", "src", "generated.ts")
+		}
+		if !filepath.IsAbs(tsOut) {
+			tsOut = filepath.Join(projectDir, tsOut)
+		}
+
+		fmt.Println("Generating action bridges...")
+		bridgeResult, err := actionbridge.Run(actionsDir, tsOut, tmpDir, opts.PolaPackage)
+		if err != nil {
+			os.RemoveAll(tmpDir)
+			return nil, fmt.Errorf("actionbridge: %w", err)
+		}
+
+		if bridgeResult != nil && bridgeResult.BridgePath != "" {
+			replace[bridgeResult.VirtualPath] = bridgeResult.BridgePath
+			tsOutPath = bridgeResult.TSOutPath
+		}
+
+		if verbose && bridgeResult != nil && bridgeResult.TSOutPath != "" {
+			fmt.Printf("Generated types: %s\n", bridgeResult.TSOutPath)
+		}
+	} else if verbose {
+		fmt.Println("No actions/ directory found, skipping actionbridge.")
+	}
+
+	// 2. Resolve the actions import path so pola_plugins.go can blank-import it.
+	if hasActions {
+		if modPath, err := readModulePath(projectDir); err == nil && modPath != "" {
+			actionsImport = modPath + "/actions"
+		}
+	}
+
+	// 3. Discover route packages under routes/.
+	var routePkgs []routePackageInfo
+	if modPath, err := readModulePath(projectDir); err == nil && modPath != "" {
+		routePkgs = discoverRoutePackages(projectDir, modPath)
+	}
+
+	// 3b. Generate pola_route_init.go overlay for each route package.
+	for i, rp := range routePkgs {
+		src := generateRouteInit(rp.PkgName, opts.PolaPackage)
+		initPath := filepath.Join(tmpDir, fmt.Sprintf("pola_route_init_%d.go", i))
+		if err := os.WriteFile(initPath, src, 0o644); err != nil {
+			os.RemoveAll(tmpDir)
+			return nil, fmt.Errorf("write route init for %s: %w", rp.PkgName, err)
+		}
+		replace[filepath.Join(rp.AbsDir, "pola_route_init.go")] = initPath
+	}
+
+	// 4. Generate plugin imports (always).
+	pluginsSrc, err := generatePluginImports(opts, actionsImport, routePkgs)
+	if err != nil {
+		return nil, fmt.Errorf("generate plugins: %w", err)
+	}
+	pluginsPath := filepath.Join(tmpDir, "pola_plugins.go")
+	if err := os.WriteFile(pluginsPath, pluginsSrc, 0o644); err != nil {
+		return nil, fmt.Errorf("write plugins: %w", err)
+	}
+	absProjectDir, err := filepath.Abs(projectDir)
+	if err != nil {
+		return nil, fmt.Errorf("abs project dir: %w", err)
+	}
+	replace[filepath.Join(absProjectDir, "pola_plugins.go")] = pluginsPath
+
+	// 5. Generate embed file (only for production embed builds).
+	if opts.Embed {
+		var embedBuf strings.Builder
+		if err := embedTmpl.Execute(&embedBuf, struct{ PolaPackage string }{opts.PolaPackage}); err != nil {
+			return nil, fmt.Errorf("execute embed template: %w", err)
+		}
+		embedPath := filepath.Join(tmpDir, "pola_embed.go")
+		if err := os.WriteFile(embedPath, []byte(embedBuf.String()), 0o644); err != nil {
+			return nil, fmt.Errorf("write embed: %w", err)
+		}
+		replace[filepath.Join(absProjectDir, "pola_embed.go")] = embedPath
+	}
+
+	// 6. Write unified overlay JSON.
+	overlay := map[string]any{
+		"Replace": replace,
+	}
+	overlayJSON, err := json.Marshal(overlay)
+	if err != nil {
+		os.RemoveAll(tmpDir)
+		return nil, fmt.Errorf("marshal overlay: %w", err)
+	}
+
+	overlayPath := filepath.Join(tmpDir, "overlay.json")
+	if err := os.WriteFile(overlayPath, overlayJSON, 0o644); err != nil {
+		os.RemoveAll(tmpDir)
+		return nil, fmt.Errorf("write overlay: %w", err)
+	}
+
+	if verbose {
+		fmt.Printf("Generated overlay: %s\n", overlayPath)
+	}
+
+	return &overlayResult{
+		OverlayPath: overlayPath,
+		TmpDir:      tmpDir,
+		TSOutPath:   tsOutPath,
+	}, nil
+}
+
+// generatePluginImports returns the source for pola_plugins.go containing
+// explicit Plugin() calls and a PolaPlugins variable.
+func generatePluginImports(opts pluginOpts, actionsImport string, routePkgs []routePackageInfo) ([]byte, error) {
+	routeImports := make([]string, len(routePkgs))
+	for i, rp := range routePkgs {
+		routeImports[i] = rp.ImportPath
+	}
+
+	hasCSS := opts.CSS != "" && opts.CSS != "none"
+	hasCache := opts.Cache != "" && opts.Cache != "none"
+	hasCSRF := opts.CSRF
+	hasSecurityHeaders := opts.SecurityHeaders
+
+	var buf strings.Builder
+	err := pluginsTmpl.Execute(&buf, struct {
+		PolaPackage     string
+		Engine          string
+		Bundler         string
+		Renderer        string
+		Router          string
+		CSS             string
+		Cache           string
+		CSRF            bool
+		SecurityHeaders bool
+		Dev             bool
+		Embed           bool
+		HasRoutes       bool
+		ActionsImport   string
+		RouteImports    []string
+	}{
+		PolaPackage:     opts.PolaPackage,
+		Engine:          opts.Engine,
+		Bundler:         opts.Bundler,
+		Renderer:        opts.Renderer,
+		Router:          opts.Router,
+		CSS:             condStr(hasCSS, opts.CSS, ""),
+		Cache:           condStr(hasCache, opts.Cache, ""),
+		CSRF:            hasCSRF,
+		SecurityHeaders: hasSecurityHeaders,
+		Dev:             opts.Dev,
+		Embed:           opts.Embed,
+		HasRoutes:       len(routePkgs) > 0,
+		ActionsImport:   actionsImport,
+		RouteImports:    routeImports,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("execute plugins template: %w", err)
+	}
+	return []byte(buf.String()), nil
+}
+
+// envOrBool returns the boolean value from an env var if set, otherwise the fallback.
+func envOrBool(key string, fallback bool) bool {
+	v := os.Getenv(key)
+	if v == "" {
+		return fallback
+	}
+	return v == "true" || v == "1"
+}
+
+func condStr(cond bool, a, b string) string {
+	if cond {
+		return a
+	}
+	return b
+}
+
+// discoverRoutePackages walks the routes/ directory and returns metadata
+// for every sub-package that contains at least one .go file.
+func discoverRoutePackages(projectDir, modPath string) []routePackageInfo {
+	routesDir := filepath.Join(projectDir, "routes")
+	info, err := os.Stat(routesDir)
+	if err != nil || !info.IsDir() {
+		return nil
+	}
+
+	var pkgs []routePackageInfo
+	filepath.WalkDir(routesDir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil || !d.IsDir() {
+			return nil
+		}
+		// Check if this directory has any .go files.
+		entries, err := os.ReadDir(path)
+		if err != nil {
+			return nil
+		}
+		for _, e := range entries {
+			if !e.IsDir() && strings.HasSuffix(e.Name(), ".go") {
+				rel, _ := filepath.Rel(projectDir, path)
+				absDir, _ := filepath.Abs(path)
+				pkgs = append(pkgs, routePackageInfo{
+					ImportPath: modPath + "/" + filepath.ToSlash(rel),
+					AbsDir:     absDir,
+					PkgName:    filepath.Base(path),
+				})
+				break
+			}
+		}
+		return nil
+	})
+
+	sort.Slice(pkgs, func(i, j int) bool {
+		return pkgs[i].ImportPath < pkgs[j].ImportPath
+	})
+	return pkgs
+}
+
+// generateRouteInit returns the source for a pola_route_init.go file that
+// registers the Route struct in the given package via init().
+func generateRouteInit(pkgName, polaPackage string) []byte {
+	return []byte(fmt.Sprintf(
+		"// Code generated by pola; DO NOT EDIT.\npackage %s\n\nimport \"%s/routes\"\n\nfunc init() { routes.Register(&Route{}) }\n",
+		pkgName, polaPackage,
+	))
+}
+
+// readModulePath reads the module path from go.mod in the given directory.
+func readModulePath(dir string) (string, error) {
+	data, err := os.ReadFile(filepath.Join(dir, "go.mod"))
+	if err != nil {
+		return "", err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "module ") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "module")), nil
+		}
+	}
+	return "", fmt.Errorf("module directive not found in go.mod")
+}

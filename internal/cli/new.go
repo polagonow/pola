@@ -8,8 +8,8 @@ import (
 	"runtime/debug"
 	"strings"
 
-	"github.com/polagonow/pola/internal/cli/scaffold"
-	"github.com/polagonow/pola/internal/cli/stubpkgs"
+	"github.com/polagonow/pola/internal/generators/app"
+	"github.com/polagonow/pola/internal/stubpkgs"
 	"github.com/polagonow/pola/polafile"
 	"github.com/spf13/cobra"
 )
@@ -96,7 +96,7 @@ func runNew(_ *cobra.Command, args []string) error {
 	// If running from a dev build, detect the local pola source for a replace directive.
 	polaLocalPath := findPolaSource()
 
-	data := scaffold.Data{
+	data := app.Data{
 		AppName:       appName,
 		ModulePath:    appName,
 		PolaPackage:   polafile.DefaultPackage,
@@ -115,7 +115,7 @@ func runNew(_ *cobra.Command, args []string) error {
 	}
 
 	// Execute scaffold templates.
-	if err := scaffold.Execute(targetDir, data); err != nil {
+	if err := app.Execute(targetDir, data); err != nil {
 		return fmt.Errorf("scaffold: %w", err)
 	}
 
@@ -127,6 +127,7 @@ func runNew(_ *cobra.Command, args []string) error {
 
 	// Write Polafile.hcl to lock the user's choices with resolved versions.
 	pf := &polafile.Polafile{
+		Package:        appName,
 		Version:        version,
 		Renderer:       resolveVersion(newFlags.renderer),
 		Engine:         resolveVersion(newFlags.vm),

@@ -55,8 +55,8 @@ const DefaultPackage = "github.com/polagonow/pola"
 
 // Polafile represents the contents of a Polafile.hcl.
 type Polafile struct {
-	Package        string `hcl:"package,optional"`
-	Version        string `hcl:"version,optional"`
+	Package string `hcl:"package,optional"`
+	Version    string `hcl:"version,optional"`
 	Renderer       string `hcl:"renderer,optional"`
 	Engine         string `hcl:"engine,optional"`
 	Bundler        string `hcl:"bundler,optional"`
@@ -78,14 +78,14 @@ type Polafile struct {
 
 // CSRFEnvironment holds per-environment CSRF overrides.
 type CSRFEnvironment struct {
-	Environment string `hcl:"environment,label"`
+	Environment string `hcl:"env,label"`
 	Enabled     bool   `hcl:"enabled,optional"`
 }
 
 // CSRF holds CSRF protection configuration with optional per-environment overrides.
 type CSRF struct {
 	Enabled bool              `hcl:"enabled,optional"`
-	Envs    []CSRFEnvironment `hcl:"environment,block"`
+	Envs    []CSRFEnvironment `hcl:"env,block"`
 }
 
 // CSRFEnabled returns whether CSRF is enabled for the given environment.
@@ -107,14 +107,14 @@ func (pf *Polafile) CSRFEnabled(env string) bool {
 
 // SecurityHeadersEnvironment holds per-environment security headers overrides.
 type SecurityHeadersEnvironment struct {
-	Environment string `hcl:"environment,label"`
+	Environment string `hcl:"env,label"`
 	Enabled     bool   `hcl:"enabled,optional"`
 }
 
 // SecurityHeaders holds security headers configuration with optional per-environment overrides.
 type SecurityHeaders struct {
 	Enabled bool                         `hcl:"enabled,optional"`
-	Envs    []SecurityHeadersEnvironment `hcl:"environment,block"`
+	Envs    []SecurityHeadersEnvironment `hcl:"env,block"`
 }
 
 // SecurityHeadersEnabled returns whether security headers are enabled for the given environment.
@@ -136,20 +136,28 @@ func (pf *Polafile) SecurityHeadersEnabled(env string) bool {
 
 // DatabaseEnvironment holds per-environment database overrides.
 type DatabaseEnvironment struct {
-	Environment string `hcl:"environment,label"`
+	Environment string `hcl:"env,label"`
+	URL         string `hcl:"url,optional"`
 	Models      string `hcl:"models,optional"`
-	Migrations  string `hcl:"migrations,optional"`
 	Adapter     string `hcl:"adapter,optional"`
 	ORM         string `hcl:"orm,optional"`
 }
 
+// Migrations holds migration-specific configuration (shared across environments).
+type Migrations struct {
+	Directory string `hcl:"directory,optional"`
+	Format    string `hcl:"format,optional"`
+	DevURL    string `hcl:"dev_url,optional"`
+}
+
 // Database holds database configuration with optional per-environment overrides.
 type Database struct {
+	URL        string                `hcl:"url,optional"`
 	Models     string                `hcl:"models,optional"`
-	Migrations string                `hcl:"migrations,optional"`
 	Adapter    string                `hcl:"adapter,optional"`
 	ORM        string                `hcl:"orm,optional"`
-	Envs       []DatabaseEnvironment `hcl:"environment,block"`
+	Migrations *Migrations           `hcl:"migrations,block"`
+	Envs       []DatabaseEnvironment `hcl:"env,block"`
 }
 
 // DatabaseForEnv merges the base database config with env-specific overrides.
@@ -158,18 +166,18 @@ func (pf *Polafile) DatabaseForEnv(env string) Database {
 		return Database{}
 	}
 	base := Database{
-		Models:     pf.Database.Models,
-		Migrations: pf.Database.Migrations,
-		Adapter:    pf.Database.Adapter,
-		ORM:        pf.Database.ORM,
+		URL:     pf.Database.URL,
+		Models:  pf.Database.Models,
+		Adapter: pf.Database.Adapter,
+		ORM:     pf.Database.ORM,
 	}
 	for _, e := range pf.Database.Envs {
 		if e.Environment == env {
 			override := Database{
-				Models:     e.Models,
-				Migrations: e.Migrations,
-				Adapter:    e.Adapter,
-				ORM:        e.ORM,
+				URL:     e.URL,
+				Models:  e.Models,
+				Adapter: e.Adapter,
+				ORM:     e.ORM,
 			}
 			_ = mergo.Merge(&base, &override, mergo.WithOverride)
 			break
@@ -188,10 +196,32 @@ func (pf *Polafile) DatabaseModelsDir() string {
 
 // DatabaseMigrationsDir returns the configured migrations directory, defaulting to "migrations".
 func (pf *Polafile) DatabaseMigrationsDir() string {
-	if pf.Database != nil && pf.Database.Migrations != "" {
-		return pf.Database.Migrations
+	if pf.Database != nil && pf.Database.Migrations != nil && pf.Database.Migrations.Directory != "" {
+		return pf.Database.Migrations.Directory
 	}
 	return "migrations"
+}
+
+// DatabaseMigrationsFormat returns the configured migrations format, defaulting to "sql".
+func (pf *Polafile) DatabaseMigrationsFormat() string {
+	if pf.Database != nil && pf.Database.Migrations != nil && pf.Database.Migrations.Format != "" {
+		return pf.Database.Migrations.Format
+	}
+	return "sql"
+}
+
+// DatabaseURL returns the configured database URL for the given environment.
+func (pf *Polafile) DatabaseURL(env string) string {
+	merged := pf.DatabaseForEnv(env)
+	return merged.URL
+}
+
+// DatabaseDevURL returns the configured dev database URL from the migrations block.
+func (pf *Polafile) DatabaseDevURL(env string) string {
+	if pf.Database != nil && pf.Database.Migrations != nil {
+		return pf.Database.Migrations.DevURL
+	}
+	return ""
 }
 
 // DatabaseAdapter returns the configured database adapter for the given environment,
@@ -216,7 +246,7 @@ func (pf *Polafile) DatabaseORM() string {
 
 // CacheEnvironment holds per-environment cache overrides.
 type CacheEnvironment struct {
-	Environment string `hcl:"environment,label"`
+	Environment string `hcl:"env,label"`
 	Enabled     *bool  `hcl:"enabled,optional"`
 	Adapter     string `hcl:"adapter,optional"`
 	Host        string `hcl:"host,optional"`
@@ -233,7 +263,7 @@ type Cache struct {
 	Port     string             `hcl:"port,optional"`
 	Password string             `hcl:"password,optional"`
 	DB       string             `hcl:"db,optional"`
-	Envs     []CacheEnvironment `hcl:"environment,block"`
+	Envs     []CacheEnvironment `hcl:"env,block"`
 }
 
 // CacheEnabled returns whether caching is enabled for the given environment.
@@ -289,12 +319,8 @@ func (pf *Polafile) CacheAdapter(env string) string {
 	return "memory"
 }
 
-// PolaPackage returns the configured pola framework import path,
-// falling back to DefaultPackage if not set.
+// PolaPackage returns the pola framework import path (always DefaultPackage).
 func (pf *Polafile) PolaPackage() string {
-	if pf.Package != "" {
-		return pf.Package
-	}
 	return DefaultPackage
 }
 
@@ -351,7 +377,7 @@ func Save(dir string, pf *Polafile) error {
 		csrfBody := csrfBlock.Body()
 		csrfBody.SetAttributeValue("enabled", cty.BoolVal(pf.CSRF.Enabled))
 		for _, e := range pf.CSRF.Envs {
-			envBlock := csrfBody.AppendNewBlock("environment", []string{e.Environment})
+			envBlock := csrfBody.AppendNewBlock("env", []string{e.Environment})
 			envBody := envBlock.Body()
 			envBody.SetAttributeValue("enabled", cty.BoolVal(e.Enabled))
 		}
@@ -364,7 +390,7 @@ func Save(dir string, pf *Polafile) error {
 		shBody := shBlock.Body()
 		shBody.SetAttributeValue("enabled", cty.BoolVal(pf.SecurityHeaders.Enabled))
 		for _, e := range pf.SecurityHeaders.Envs {
-			envBlock := shBody.AppendNewBlock("environment", []string{e.Environment})
+			envBlock := shBody.AppendNewBlock("env", []string{e.Environment})
 			envBody := envBlock.Body()
 			envBody.SetAttributeValue("enabled", cty.BoolVal(e.Enabled))
 		}
@@ -382,7 +408,7 @@ func Save(dir string, pf *Polafile) error {
 		setAttr(cBody, "password", pf.Cache.Password)
 		setAttr(cBody, "db", pf.Cache.DB)
 		for _, e := range pf.Cache.Envs {
-			envBlock := cBody.AppendNewBlock("environment", []string{e.Environment})
+			envBlock := cBody.AppendNewBlock("env", []string{e.Environment})
 			envBody := envBlock.Body()
 			setAttr(envBody, "adapter", e.Adapter)
 			setAttr(envBody, "host", e.Host)
@@ -397,15 +423,22 @@ func Save(dir string, pf *Polafile) error {
 		blockBody.AppendNewline()
 		dbBlock := blockBody.AppendNewBlock("database", nil)
 		dbBody := dbBlock.Body()
+		setAttr(dbBody, "url", pf.Database.URL)
 		setAttr(dbBody, "models", pf.Database.Models)
-		setAttr(dbBody, "migrations", pf.Database.Migrations)
 		setAttr(dbBody, "adapter", pf.Database.Adapter)
 		setAttr(dbBody, "orm", pf.Database.ORM)
+		if pf.Database.Migrations != nil {
+			migBlock := dbBody.AppendNewBlock("migrations", nil)
+			migBody := migBlock.Body()
+			setAttr(migBody, "directory", pf.Database.Migrations.Directory)
+			setAttr(migBody, "format", pf.Database.Migrations.Format)
+			setAttr(migBody, "dev_url", pf.Database.Migrations.DevURL)
+		}
 		for _, e := range pf.Database.Envs {
-			envBlock := dbBody.AppendNewBlock("environment", []string{e.Environment})
+			envBlock := dbBody.AppendNewBlock("env", []string{e.Environment})
 			envBody := envBlock.Body()
+			setAttr(envBody, "url", e.URL)
 			setAttr(envBody, "models", e.Models)
-			setAttr(envBody, "migrations", e.Migrations)
 			setAttr(envBody, "adapter", e.Adapter)
 			setAttr(envBody, "orm", e.ORM)
 		}

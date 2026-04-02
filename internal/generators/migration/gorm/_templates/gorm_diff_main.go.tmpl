@@ -1,0 +1,80 @@
+package main
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"log"
+	"os"
+
+	"ariga.io/atlas-provider-gorm/gormschema"
+	atlas "ariga.io/atlas/sql/migrate"
+	"ariga.io/atlas/sql/schema"
+	atlassqlite "ariga.io/atlas/sql/sqlite"
+	_ "[[ .DriverImport ]]"
+	usermodels "[[ .ModulePath ]]/[[ .ModelsDir ]]/gorm"
+)
+
+func main() {
+	ctx := context.Background()
+
+	// Load DDL from GORM models.
+	stmts, err := gormschema.New("[[ .AtlasDialect ]]").Load(
+[[ range .Models ]]		&usermodels.[[ . ]]{},
+[[ end ]]	)
+	if err != nil {
+		log.Fatalf("load gorm models: %v", err)
+	}
+
+	// Open an in-memory SQLite and apply the desired schema.
+	devDB, err := sql.Open("sqlite3", "file:gorm_diff?mode=memory&cache=shared&_fk=1")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer devDB.Close()
+
+	if _, err := devDB.ExecContext(ctx, stmts); err != nil {
+		log.Fatalf("apply desired schema: %v", err)
+	}
+
+	// Open Atlas driver and inspect the desired state.
+	drv, err := atlassqlite.Open(devDB)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	desired, err := drv.InspectRealm(ctx, &schema.InspectRealmOption{})
+	if err != nil {
+		log.Fatalf("inspect desired state: %v", err)
+	}
+
+	// Open the migrations directory.
+	dir, err := atlas.NewLocalDir(os.Args[1])
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Plan the diff using a Planner with a clean dev DB for replay.
+	cleanDB, err := sql.Open("sqlite3", "file:gorm_replay?mode=memory&cache=shared&_fk=1")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer cleanDB.Close()
+
+	replayDrv, err := atlassqlite.Open(cleanDB)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	pl := atlas.NewPlanner(replayDrv, dir, atlas.WithFormatter(atlas.DefaultFormatter))
+	plan, err := pl.Plan(ctx, os.Args[2], atlas.Realm(desired))
+	if err != nil {
+		log.Fatalf("plan migration: %v", err)
+	}
+
+	if err := pl.WritePlan(plan); err != nil {
+		log.Fatalf("write plan: %v", err)
+	}
+
+	fmt.Printf("Migration %s created\n", os.Args[2])
+}

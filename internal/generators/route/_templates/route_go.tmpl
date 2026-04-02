@@ -1,0 +1,12 @@
+package [[ .Package ]]
+
+import "net/http"
+
+// Route handles [[ .RoutePath ]] requests.
+type Route struct{}
+[[ range .Methods ]]
+// [[ . ]] [[ $.RoutePath ]]
+func (r *Route) [[ . ]](w http.ResponseWriter, req *http.Request) {
+	// TODO: implement
+}
+[[ end ]]

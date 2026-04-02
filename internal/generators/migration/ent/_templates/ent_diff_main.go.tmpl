@@ -1,0 +1,44 @@
+package main
+
+import (
+	"context"
+	"log"
+	"os"
+
+	atlas "ariga.io/atlas/sql/migrate"
+	"entgo.io/ent/dialect"
+	"entgo.io/ent/dialect/sql/schema"
+	"entgo.io/ent/entc"
+	"entgo.io/ent/entc/gen"
+	_ "[[ .DriverImport ]]"
+	_ "[[ .ModulePath ]]/[[ .ModelsDir ]]/ent" // keep require in go.mod for entc.LoadGraph
+)
+
+func main() {
+	ctx := context.Background()
+	dir, err := atlas.NewLocalDir(os.Args[1])
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Load ent schemas directly from the package — no codegen needed.
+	graph, err := entc.LoadGraph(os.Args[4], &gen.Config{})
+	if err != nil {
+		log.Fatal("load ent schemas: ", err)
+	}
+
+	tables, err := graph.Tables()
+	if err != nil {
+		log.Fatal("build tables: ", err)
+	}
+
+	opts := []schema.MigrateOption{
+		schema.WithDir(dir),
+		schema.WithMigrationMode(schema.ModeReplay),
+		schema.WithDialect(dialect.[[ .Dialect ]]),
+		schema.WithFormatter(atlas.DefaultFormatter),
+	}
+	if err := schema.Diff(ctx, os.Args[2], os.Args[3], tables, opts...); err != nil {
+		log.Fatal(err)
+	}
+}
