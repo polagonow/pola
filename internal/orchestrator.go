@@ -157,7 +157,7 @@ func (o *Orchestrator) tryRendererServe(ctx context.Context, w http.ResponseWrit
 	// Cache integration for Flight requests.
 	isFlight := r.Header.Get("Content-Type") == "text/x-component"
 	if isFlight && o.cache != nil {
-		cacheKey := "ssr:" + req.Route.Pattern + "?" + r.URL.RawQuery
+		cacheKey := "ssr:" + r.URL.Path + "?" + r.URL.RawQuery
 		// Serve from cache if available — instant, no VM needed.
 		if cached, ok, err := o.cache.Get(ctx, cacheKey); err != nil {
 			o.logger.Error("pola: cache get", "key", cacheKey, "err", err)
@@ -296,7 +296,7 @@ func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
 	// a second request (Next.js-style inline SSR data).
 	var ssrData []byte
 	if o.cache != nil {
-		cacheKey := "ssr:" + route.Pattern + "?" + r.URL.RawQuery
+		cacheKey := "ssr:" + r.URL.Path + "?" + r.URL.RawQuery
 		if cached, ok, err := o.cache.Get(ctx, cacheKey); err != nil {
 			o.logger.Error("pola: cache get", "key", cacheKey, "err", err)
 		} else if ok {

@@ -45,10 +45,10 @@ type teeWriter struct {
 ### Cache Key Format
 
 ```
-ssr:<route_pattern>?<raw_query>
+ssr:<url_path>?<raw_query>
 ```
 
-Example: `ssr:/posts/{slug}?id=42`
+Example: `ssr:/posts/hello-world?id=42`
 
 ### Default Cache
 
