@@ -138,7 +138,6 @@ func (pf *Polafile) SecurityHeadersEnabled(env string) bool {
 type DatabaseEnvironment struct {
 	Environment string `hcl:"env,label"`
 	URL         string `hcl:"url,optional"`
-	DevURL      string `hcl:"dev_url,optional"`
 	Models      string `hcl:"models,optional"`
 	Adapter     string `hcl:"adapter,optional"`
 	ORM         string `hcl:"orm,optional"`
@@ -148,12 +147,12 @@ type DatabaseEnvironment struct {
 type Migrations struct {
 	Directory string `hcl:"directory,optional"`
 	Format    string `hcl:"format,optional"`
+	DevURL    string `hcl:"dev_url,optional"`
 }
 
 // Database holds database configuration with optional per-environment overrides.
 type Database struct {
 	URL        string                `hcl:"url,optional"`
-	DevURL     string                `hcl:"dev_url,optional"`
 	Models     string                `hcl:"models,optional"`
 	Adapter    string                `hcl:"adapter,optional"`
 	ORM        string                `hcl:"orm,optional"`
@@ -168,7 +167,6 @@ func (pf *Polafile) DatabaseForEnv(env string) Database {
 	}
 	base := Database{
 		URL:     pf.Database.URL,
-		DevURL:  pf.Database.DevURL,
 		Models:  pf.Database.Models,
 		Adapter: pf.Database.Adapter,
 		ORM:     pf.Database.ORM,
@@ -177,7 +175,6 @@ func (pf *Polafile) DatabaseForEnv(env string) Database {
 		if e.Environment == env {
 			override := Database{
 				URL:     e.URL,
-				DevURL:  e.DevURL,
 				Models:  e.Models,
 				Adapter: e.Adapter,
 				ORM:     e.ORM,
@@ -219,10 +216,12 @@ func (pf *Polafile) DatabaseURL(env string) string {
 	return merged.URL
 }
 
-// DatabaseDevURL returns the configured dev database URL for the given environment.
+// DatabaseDevURL returns the configured dev database URL from the migrations block.
 func (pf *Polafile) DatabaseDevURL(env string) string {
-	merged := pf.DatabaseForEnv(env)
-	return merged.DevURL
+	if pf.Database != nil && pf.Database.Migrations != nil {
+		return pf.Database.Migrations.DevURL
+	}
+	return ""
 }
 
 // DatabaseAdapter returns the configured database adapter for the given environment,
@@ -425,7 +424,6 @@ func Save(dir string, pf *Polafile) error {
 		dbBlock := blockBody.AppendNewBlock("database", nil)
 		dbBody := dbBlock.Body()
 		setAttr(dbBody, "url", pf.Database.URL)
-		setAttr(dbBody, "dev_url", pf.Database.DevURL)
 		setAttr(dbBody, "models", pf.Database.Models)
 		setAttr(dbBody, "adapter", pf.Database.Adapter)
 		setAttr(dbBody, "orm", pf.Database.ORM)
@@ -434,12 +432,12 @@ func Save(dir string, pf *Polafile) error {
 			migBody := migBlock.Body()
 			setAttr(migBody, "directory", pf.Database.Migrations.Directory)
 			setAttr(migBody, "format", pf.Database.Migrations.Format)
+			setAttr(migBody, "dev_url", pf.Database.Migrations.DevURL)
 		}
 		for _, e := range pf.Database.Envs {
 			envBlock := dbBody.AppendNewBlock("env", []string{e.Environment})
 			envBody := envBlock.Body()
 			setAttr(envBody, "url", e.URL)
-			setAttr(envBody, "dev_url", e.DevURL)
 			setAttr(envBody, "models", e.Models)
 			setAttr(envBody, "adapter", e.Adapter)
 			setAttr(envBody, "orm", e.ORM)
