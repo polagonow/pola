@@ -10,56 +10,111 @@ A `Polafile.hcl` is generated at the project root when running `pola new`. It us
 
 ```hcl
 pola {
-  package         = "github.com/polagonow/pola"
-  version         = "0.1.0"
-  renderer        = "react@^19.0.0"
-  engine          = "goja@0.0.0-20240220"
-  bundler         = "esbuild@^0.21.0"
+  package         = "blog-e2e-react"
+  renderer        = "react"
+  engine          = "goja"
+  bundler         = "esbuild"
   router          = "nextjs"
-  css             = "tailwind@^4.0.0"
-  cache           = "memory"
-  package_manager = "pnpm@^9.0.0"
-  app_dir         = "app"
-  actions_dir     = "actions"
-  routes_dir      = "routes"
+  css             = "tailwind"
+  package_manager = "pnpm"
+  app             = "app"
+  actions         = "actions"
+  routes          = "routes"
 
-  development {
-    cache   = "memory"
-    bundler = "esbuild@^0.21.0"
+  csrf {
+    enabled = true
   }
 
-  production {
-    cache   = "redis"
-    bundler = "webpack@^5.0.0"
-    css     = "postcss@^8.0.0"
+  security_headers {
+    enabled = true
+  }
+
+  cache {
+    enabled = true
+    adapter = "memory"
+
+    env "production" {
+      adapter  = "redis"
+      host     = "localhost"
+      port     = "6379"
+    }
+  }
+
+  database {
+    models     = "models"
+    migrations = "migrations"
+    orm        = "ent"
+
+    env "development" {
+      adapter = "sqlite"
+    }
+
+    env "production" {
+      adapter = "postgresql"
+    }
   }
 }
 ```
 
-### Attributes
-
-Versioned attributes use `name@version` format (like package.json). The version part is optional — `"react"` and `"react@^19.0.0"` are both valid.
-
-| Attribute         | Description                | Example values                          |
-|-------------------|----------------------------|-----------------------------------------|
-| `package`         | Pola framework Go import path | `github.com/polagonow/pola` (default) |
-| `version`         | Pola CLI version used to create the project | `0.1.0`                    |
-| `renderer`        | View renderer              | `react@^19.0.0`                         |
-| `engine`          | JavaScript engine          | `goja@0.0.0-20240220`                   |
-| `bundler`         | JS bundler                 | `esbuild@^0.21.0`, `webpack@^5.0.0`    |
-| `router`          | Router style               | `nextjs`                                |
-| `css`             | CSS processor              | `tailwind@^4.0.0`, `postcss@^8.0.0`, `none` |
-| `cache`           | Cache backend              | `memory`, `redis`                       |
-| `package_manager` | JS package manager         | `pnpm@^9.0.0`, `npm@^10.0.0`, `yarn@^4.0.0` |
-| `app_dir`         | Directory for frontend app | `app`                                   |
-| `actions_dir`     | Directory for server actions | `actions`                             |
-| `routes_dir`      | Directory for API routes   | `routes`                                |
+### Top-level attributes
 
 All attributes are optional.
 
-### Environment blocks
+| Attribute         | Description                              | Example values                                |
+|-------------------|------------------------------------------|-----------------------------------------------|
+| `package`         | App's Go module name (set by `pola new`)  | `blog-e2e-react`, `my-app`                   |
+| `version`         | Pola CLI version used to create the project | `0.1.0`                                     |
+| `renderer`        | View renderer                            | `react`                                       |
+| `engine`          | JavaScript engine                        | `goja`                                        |
+| `bundler`         | JS bundler                               | `esbuild`                                     |
+| `router`          | Router style                             | `nextjs`                                      |
+| `css`             | CSS processor                            | `tailwind`, `none`                            |
+| `package_manager` | JS package manager                       | `pnpm`, `npm`, `yarn`                         |
+| `app`             | Directory for frontend app               | `app`                                         |
+| `actions`         | Directory for server actions             | `actions`                                     |
+| `routes`          | Directory for API routes                 | `routes`                                      |
 
-The `development` and `production` blocks override base attributes for that environment. Values not set in an environment block inherit from the parent `pola` block.
+### Nested blocks
+
+#### `csrf`
+
+| Field     | Type | Default | Description              |
+|-----------|------|---------|--------------------------|
+| `enabled` | bool | `true`  | Enable CSRF protection   |
+
+Supports per-environment overrides via `env` sub-blocks.
+
+#### `security_headers`
+
+| Field     | Type | Default | Description                |
+|-----------|------|---------|----------------------------|
+| `enabled` | bool | `true`  | Enable security headers    |
+
+Supports per-environment overrides via `env` sub-blocks.
+
+#### `cache`
+
+| Field      | Type   | Default  | Description             |
+|------------|--------|----------|-------------------------|
+| `enabled`  | bool   | `false`  | Enable caching          |
+| `adapter`  | string | —        | Cache backend           |
+| `host`     | string | —        | Cache host              |
+| `port`     | string | —        | Cache port              |
+| `password` | string | —        | Cache password          |
+| `db`       | string | —        | Cache database number   |
+
+Supports per-environment overrides via `env` sub-blocks.
+
+#### `database`
+
+| Field        | Type   | Default | Description              |
+|--------------|--------|---------|--------------------------|
+| `models`     | string | —       | Models directory         |
+| `migrations` | string | —       | Migrations directory     |
+| `adapter`    | string | —       | Database adapter         |
+| `orm`        | string | —       | ORM (`ent` or `gorm`)   |
+
+Supports per-environment overrides via `env` sub-blocks.
 
 ## Resolution order
 
@@ -80,29 +135,42 @@ pf, err := polafile.Load(".")
 
 // Save — writes Polafile.hcl to the given directory.
 err := polafile.Save(".", &polafile.Polafile{
+    Package:        "my-app",
     Version:        "0.1.0",
-    Renderer:       "react@^19.0.0",
-    Engine:         "goja@0.0.0-20240220",
-    Bundler:        "esbuild@^0.21.0",
-    PackageManager: "pnpm@^9.0.0",
-    CSS:            "tailwind@^4.0.0",
-    Cache:          "memory",
-    AppDir:         "app",
-    ActionsDir:     "actions",
-    RoutesDir:      "routes",
+    Renderer:       "react",
+    Engine:         "goja",
+    Bundler:        "esbuild",
+    PackageManager: "pnpm",
+    CSS:            "tailwind",
+    App:            "app",
+    Actions:        "actions",
+    Routes:         "routes",
+    CSRF:           &polafile.CSRF{Enabled: true},
+    SecurityHeaders: &polafile.SecurityHeaders{Enabled: true},
+    Cache:          &polafile.Cache{Enabled: true, Adapter: "memory"},
+    Database:       &polafile.Database{
+        Models:     "models",
+        Migrations: "migrations",
+        ORM:        "ent",
+    },
 })
 
 // PolaPackage — get the framework import path (defaults to "github.com/polagonow/pola").
 pkg := pf.PolaPackage()
 
-// ForEnv — merge environment overrides on top of base values.
-prod := pf.ForEnv("production")
-fmt.Println(prod.Bundler)  // "webpack@^5.0.0" (from production block)
-fmt.Println(prod.Renderer) // "react@^19.0.0" (inherited from base)
+// CSRFEnabled — check if CSRF is enabled for an environment.
+enabled := pf.CSRFEnabled("production")
 
-// ParseVersioned — split "name@version" into parts.
-name, ver := polafile.ParseVersioned(prod.CSS) // "postcss", "^8.0.0"
+// SecurityHeadersEnabled — check if security headers are enabled.
+enabled := pf.SecurityHeadersEnabled("production")
 
-// FormatVersioned — join name and version back together.
-s := polafile.FormatVersioned("tailwind", "^4.0.0") // "tailwind@^4.0.0"
+// DatabaseForEnv — merge base database config with env-specific overrides.
+db := pf.DatabaseForEnv("production")
+fmt.Println(db.Adapter) // "postgresql"
+
+// CacheEnabled — check if caching is enabled for an environment.
+enabled := pf.CacheEnabled("production")
+
+// CacheAdapter — get the cache adapter for an environment.
+adapter := pf.CacheAdapter("production") // "redis"
 ```

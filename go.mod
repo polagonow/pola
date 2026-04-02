@@ -4,6 +4,7 @@ go 1.25.0
 
 require (
 	dario.cat/mergo v1.0.2
+	entgo.io/ent v0.14.6
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/buke/quickjs-go v0.6.11
 	github.com/caarlos0/env/v6 v6.10.1

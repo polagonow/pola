@@ -7,7 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
-	"github.com/polagonow/pola/internal/cli/stubpkgs"
+	"github.com/polagonow/pola/internal/stubpkgs"
 	"github.com/polagonow/pola/polafile"
 	"github.com/spf13/cobra"
 )

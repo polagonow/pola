@@ -12,7 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/polagonow/pola/internal/cli/stubpkgs"
+	"github.com/polagonow/pola/internal/stubpkgs"
+	"github.com/polagonow/pola/internal/project"
 	"github.com/polagonow/pola/polafile"
 	"github.com/polagonow/pola/watcher"
 	"github.com/spf13/cobra"
@@ -209,26 +210,9 @@ func collectGoFiles(projectDir string) []string {
 	return paths
 }
 
-// findProjectRoot walks up from cwd looking for a go.mod file.
+// findProjectRoot is a convenience wrapper around project.FindRoot.
 func findProjectRoot() (string, error) {
-	dir, err := os.Getwd()
-	if err != nil {
-		return "", fmt.Errorf("get cwd: %w", err)
-	}
-
-	for {
-		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir, nil
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			break
-		}
-		dir = parent
-	}
-
-	// Fall back to cwd.
-	return os.Getwd()
+	return project.FindRoot()
 }
 
 
