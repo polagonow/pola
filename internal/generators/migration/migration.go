@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
+	"unicode"
 
 	"github.com/polagonow/pola/internal/generators"
 	"github.com/polagonow/pola/internal/generators/migration/diff"
@@ -54,7 +56,7 @@ func (g *MigrationGenerator) Command() *cobra.Command {
 }
 
 func (g *MigrationGenerator) run(cmd *cobra.Command, args []string) error {
-	name := args[0]
+	name := toSnakeCase(args[0])
 
 	projectDir, err := project.FindRoot()
 	if err != nil {
@@ -126,4 +128,21 @@ func (g *MigrationGenerator) run(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+// toSnakeCase converts PascalCase/camelCase to snake_case.
+// "CreateProducts" → "create_products"
+func toSnakeCase(s string) string {
+	var b strings.Builder
+	for i, r := range s {
+		if unicode.IsUpper(r) {
+			if i > 0 {
+				b.WriteByte('_')
+			}
+			b.WriteRune(unicode.ToLower(r))
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
