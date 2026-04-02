@@ -9,6 +9,7 @@ import (
 
 	survey "github.com/AlecAivazis/survey/v2"
 	"github.com/polagonow/pola/internal/generators"
+	"github.com/polagonow/pola/internal/generators/model/beego"
 	"github.com/polagonow/pola/internal/generators/model/ent"
 	"github.com/polagonow/pola/internal/generators/model/gorm"
 	"github.com/polagonow/pola/internal/generators/model/schema"
@@ -22,6 +23,7 @@ type ModelGenerator struct{}
 
 func init() {
 	// Register ORM generators.
+	schema.RegisterORMGenerator(&beego.BeegoGenerator{})
 	schema.RegisterORMGenerator(&ent.EntGenerator{})
 	schema.RegisterORMGenerator(&gorm.GormGenerator{})
 
@@ -86,7 +88,7 @@ func (g *ModelGenerator) run(cmd *cobra.Command, args []string) error {
 	}
 	dirty := false
 	if pf.Database.ORM == "" {
-		orm, err := promptSelect("ORM:", []string{"ent", "gorm"})
+		orm, err := promptSelect("ORM:", []string{"beego", "ent", "gorm"})
 		if err != nil {
 			return err
 		}

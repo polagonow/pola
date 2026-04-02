@@ -13,6 +13,7 @@ import (
 
 	"github.com/polagonow/pola/internal/generators"
 	"github.com/polagonow/pola/internal/generators/migration/diff"
+	beegodiff "github.com/polagonow/pola/internal/generators/migration/beego"
 	entdiff "github.com/polagonow/pola/internal/generators/migration/ent"
 	gormdiff "github.com/polagonow/pola/internal/generators/migration/gorm"
 	"github.com/polagonow/pola/internal/project"
@@ -25,6 +26,7 @@ type MigrationGenerator struct{}
 
 func init() {
 	// Register ORM diff generators.
+	diff.Register(&beegodiff.BeegoDiffGenerator{})
 	diff.Register(&entdiff.EntDiffGenerator{})
 	diff.Register(&gormdiff.GormDiffGenerator{})
 

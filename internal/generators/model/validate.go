@@ -59,6 +59,8 @@ func defaultIDType(plugin string) schema.FieldType {
 		return schema.FieldInt // ent defaults to int IDs
 	case "gorm":
 		return schema.FieldInt64 // gorm.Model uses uint (we use int64 as closest)
+	case "beego":
+		return schema.FieldInt // beego defaults to int auto-increment PK
 	default:
 		return schema.FieldInt64
 	}
@@ -78,6 +80,8 @@ func parseModelIDType(filePath, plugin string) (schema.FieldType, error) {
 		return parseEntIDType(content), nil
 	case "gorm":
 		return parseGormIDType(content), nil
+	case "beego":
+		return parseBeegoIDType(content), nil
 	default:
 		return defaultIDType(plugin), nil
 	}
@@ -133,6 +137,20 @@ func entTypeToFieldType(entType string) schema.FieldType {
 	default:
 		return schema.FieldInt
 	}
+}
+
+// beegoIDPattern matches the Id field in a Beego model struct.
+// e.g. "Id int", "Id int64", "Id string"
+var beegoIDPattern = regexp.MustCompile(`(?m)^\s+Id\s+(\S+)`)
+
+// parseBeegoIDType extracts the ID type from a Beego model struct.
+// Beego convention is `Id int` with `orm:"auto;pk"`.
+func parseBeegoIDType(content string) schema.FieldType {
+	matches := beegoIDPattern.FindStringSubmatch(content)
+	if matches != nil {
+		return goTypeToFieldType(matches[1])
+	}
+	return schema.FieldInt // beego default
 }
 
 func goTypeToFieldType(goType string) schema.FieldType {
