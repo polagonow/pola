@@ -1,0 +1,31 @@
+package main
+
+import (
+	"context"
+	"log"
+	"os"
+
+	atlas "ariga.io/atlas/sql/migrate"
+	"entgo.io/ent/dialect"
+	"entgo.io/ent/dialect/sql/schema"
+	_ "[[ .DriverImport ]]"
+	"[[ .ModulePath ]]/[[ .ModelsDir ]]/ent/migrate"
+)
+
+func main() {
+	ctx := context.Background()
+	dir, err := atlas.NewLocalDir(os.Args[1])
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	opts := []schema.MigrateOption{
+		schema.WithDir(dir),
+		schema.WithMigrationMode(schema.ModeReplay),
+		schema.WithDialect(dialect.[[ .Dialect ]]),
+		schema.WithFormatter(atlas.DefaultFormatter),
+	}
+	if err := schema.Diff(ctx, os.Args[2], os.Args[3], migrate.Tables, opts...); err != nil {
+		log.Fatal(err)
+	}
+}

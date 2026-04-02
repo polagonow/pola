@@ -56,6 +56,7 @@ Field syntax: field:type{options}:modifier1:modifier2
   pola generate model Article title:string:index body:text author:references
   pola generate model Comment body:text commentable:references{polymorphic}`,
 	}
+	cmd.Flags().Bool("skip-migration", false, "Skip auto-generating a migration after model creation")
 	return cmd
 }
 
@@ -77,8 +78,10 @@ func (g *ModelGenerator) run(cmd *cobra.Command, args []string) error {
 	// Ensure database block exists; prompt interactively for missing ORM.
 	if pf.Database == nil {
 		pf.Database = &polafile.Database{
-			Models:     "models",
-			Migrations: "migrations",
+			Models: "models",
+			Migrations: &polafile.Migrations{
+				Directory: "migrations",
+			},
 		}
 	}
 	dirty := false
@@ -126,7 +129,22 @@ func (g *ModelGenerator) run(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Created %s\n", outFile)
-	return generators.RunAfterHooks(g, projectDir)
+
+	if err := generators.RunAfterHooks(g, projectDir); err != nil {
+		return err
+	}
+
+	// Auto-generate migration unless --skip-migration is set.
+	skipMigration, _ := cmd.Flags().GetBool("skip-migration")
+	if !skipMigration {
+		migName := "Create" + schema.Pluralize(ModelDefinition.Name)
+		fmt.Printf("Generating migration %s...\n", migName)
+		if err := generators.Run("migration", cmd, []string{migName}); err != nil {
+			return fmt.Errorf("migration: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // promptSelect presents an interactive selection prompt and returns the chosen option.

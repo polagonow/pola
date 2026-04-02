@@ -137,18 +137,27 @@ func (pf *Polafile) SecurityHeadersEnabled(env string) bool {
 // DatabaseEnvironment holds per-environment database overrides.
 type DatabaseEnvironment struct {
 	Environment string `hcl:"env,label"`
+	URL         string `hcl:"url,optional"`
+	DevURL      string `hcl:"dev_url,optional"`
 	Models      string `hcl:"models,optional"`
-	Migrations  string `hcl:"migrations,optional"`
 	Adapter     string `hcl:"adapter,optional"`
 	ORM         string `hcl:"orm,optional"`
 }
 
+// Migrations holds migration-specific configuration (shared across environments).
+type Migrations struct {
+	Directory string `hcl:"directory,optional"`
+	Format    string `hcl:"format,optional"`
+}
+
 // Database holds database configuration with optional per-environment overrides.
 type Database struct {
+	URL        string                `hcl:"url,optional"`
+	DevURL     string                `hcl:"dev_url,optional"`
 	Models     string                `hcl:"models,optional"`
-	Migrations string                `hcl:"migrations,optional"`
 	Adapter    string                `hcl:"adapter,optional"`
 	ORM        string                `hcl:"orm,optional"`
+	Migrations *Migrations           `hcl:"migrations,block"`
 	Envs       []DatabaseEnvironment `hcl:"env,block"`
 }
 
@@ -158,18 +167,20 @@ func (pf *Polafile) DatabaseForEnv(env string) Database {
 		return Database{}
 	}
 	base := Database{
-		Models:     pf.Database.Models,
-		Migrations: pf.Database.Migrations,
-		Adapter:    pf.Database.Adapter,
-		ORM:        pf.Database.ORM,
+		URL:     pf.Database.URL,
+		DevURL:  pf.Database.DevURL,
+		Models:  pf.Database.Models,
+		Adapter: pf.Database.Adapter,
+		ORM:     pf.Database.ORM,
 	}
 	for _, e := range pf.Database.Envs {
 		if e.Environment == env {
 			override := Database{
-				Models:     e.Models,
-				Migrations: e.Migrations,
-				Adapter:    e.Adapter,
-				ORM:        e.ORM,
+				URL:     e.URL,
+				DevURL:  e.DevURL,
+				Models:  e.Models,
+				Adapter: e.Adapter,
+				ORM:     e.ORM,
 			}
 			_ = mergo.Merge(&base, &override, mergo.WithOverride)
 			break
@@ -188,10 +199,30 @@ func (pf *Polafile) DatabaseModelsDir() string {
 
 // DatabaseMigrationsDir returns the configured migrations directory, defaulting to "migrations".
 func (pf *Polafile) DatabaseMigrationsDir() string {
-	if pf.Database != nil && pf.Database.Migrations != "" {
-		return pf.Database.Migrations
+	if pf.Database != nil && pf.Database.Migrations != nil && pf.Database.Migrations.Directory != "" {
+		return pf.Database.Migrations.Directory
 	}
 	return "migrations"
+}
+
+// DatabaseMigrationsFormat returns the configured migrations format, defaulting to "sql".
+func (pf *Polafile) DatabaseMigrationsFormat() string {
+	if pf.Database != nil && pf.Database.Migrations != nil && pf.Database.Migrations.Format != "" {
+		return pf.Database.Migrations.Format
+	}
+	return "sql"
+}
+
+// DatabaseURL returns the configured database URL for the given environment.
+func (pf *Polafile) DatabaseURL(env string) string {
+	merged := pf.DatabaseForEnv(env)
+	return merged.URL
+}
+
+// DatabaseDevURL returns the configured dev database URL for the given environment.
+func (pf *Polafile) DatabaseDevURL(env string) string {
+	merged := pf.DatabaseForEnv(env)
+	return merged.DevURL
 }
 
 // DatabaseAdapter returns the configured database adapter for the given environment,
@@ -393,15 +424,23 @@ func Save(dir string, pf *Polafile) error {
 		blockBody.AppendNewline()
 		dbBlock := blockBody.AppendNewBlock("database", nil)
 		dbBody := dbBlock.Body()
+		setAttr(dbBody, "url", pf.Database.URL)
+		setAttr(dbBody, "dev_url", pf.Database.DevURL)
 		setAttr(dbBody, "models", pf.Database.Models)
-		setAttr(dbBody, "migrations", pf.Database.Migrations)
 		setAttr(dbBody, "adapter", pf.Database.Adapter)
 		setAttr(dbBody, "orm", pf.Database.ORM)
+		if pf.Database.Migrations != nil {
+			migBlock := dbBody.AppendNewBlock("migrations", nil)
+			migBody := migBlock.Body()
+			setAttr(migBody, "directory", pf.Database.Migrations.Directory)
+			setAttr(migBody, "format", pf.Database.Migrations.Format)
+		}
 		for _, e := range pf.Database.Envs {
 			envBlock := dbBody.AppendNewBlock("env", []string{e.Environment})
 			envBody := envBlock.Body()
+			setAttr(envBody, "url", e.URL)
+			setAttr(envBody, "dev_url", e.DevURL)
 			setAttr(envBody, "models", e.Models)
-			setAttr(envBody, "migrations", e.Migrations)
 			setAttr(envBody, "adapter", e.Adapter)
 			setAttr(envBody, "orm", e.ORM)
 		}

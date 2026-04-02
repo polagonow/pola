@@ -160,9 +160,12 @@ func TestSaveAndLoadWithDatabaseBlocks(t *testing.T) {
 	pf := &Polafile{
 		Renderer: "react",
 		Database: &Database{
-			Models:     "models",
-			Migrations: "migrations",
-			ORM:        "ent",
+			Models: "models",
+			ORM:    "ent",
+			Migrations: &Migrations{
+				Directory: "migrations",
+				Format:    "sql",
+			},
 			Envs: []DatabaseEnvironment{
 				{Environment: "development", Adapter: "sqlite"},
 				{Environment: "production", Adapter: "postgresql"},

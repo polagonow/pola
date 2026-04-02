@@ -1,0 +1,41 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"log"
+	"os"
+
+	"ariga.io/atlas-provider-gorm/gormschema"
+	atlas "ariga.io/atlas/sql/migrate"
+	"ariga.io/atlas/sql/sqltool"
+	_ "[[ .DriverImport ]]"
+	usermodels "[[ .ModulePath ]]/[[ .ModelsDir ]]/gorm"
+)
+
+func main() {
+	ctx := context.Background()
+	_ = ctx
+
+	stmts, err := gormschema.New("[[ .AtlasDialect ]]").Load(usermodels.Models()...)
+	if err != nil {
+		log.Fatalf("load gorm models: %v", err)
+	}
+
+	dir, err := atlas.NewLocalDir(os.Args[1])
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Create a memory-based state from the GORM DDL.
+	// Use sqltool to plan the migration from current dir state to desired.
+	pl := sqltool.PlannerFor(dir)
+	plan, err := pl.Plan(ctx, os.Args[3], stmts)
+	if err != nil {
+		log.Fatalf("plan migration: %v", err)
+	}
+	if err := pl.WritePlan(plan); err != nil {
+		log.Fatalf("write plan: %v", err)
+	}
+	fmt.Printf("Migration %s created\n", os.Args[3])
+}

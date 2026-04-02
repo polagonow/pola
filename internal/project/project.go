@@ -5,7 +5,43 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
+
+// ModulePath reads the module path from go.mod in the given directory.
+func ModulePath(dir string) (string, error) {
+	data, err := readGoMod(dir)
+	if err != nil {
+		return "", err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "module ") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "module")), nil
+		}
+	}
+	return "", fmt.Errorf("module directive not found in go.mod")
+}
+
+// GoVersion reads the go version directive from go.mod in the given directory.
+// Returns "1.25.0" as fallback if not found.
+func GoVersion(dir string) string {
+	data, err := readGoMod(dir)
+	if err != nil {
+		return "1.25.0"
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "go ") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "go"))
+		}
+	}
+	return "1.25.0"
+}
+
+func readGoMod(dir string) ([]byte, error) {
+	return os.ReadFile(filepath.Join(dir, "go.mod"))
+}
 
 // FindRoot walks up from cwd looking for a go.mod file.
 // Falls back to cwd if no go.mod is found.

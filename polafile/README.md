@@ -41,9 +41,13 @@ pola {
   }
 
   database {
-    models     = "models"
-    migrations = "migrations"
-    orm        = "ent"
+    models = "models"
+    orm    = "ent"
+
+    migrations {
+      directory = "migrations"
+      format    = "sql"
+    }
 
     env "development" {
       adapter = "sqlite"
@@ -107,14 +111,24 @@ Supports per-environment overrides via `env` sub-blocks.
 
 #### `database`
 
-| Field        | Type   | Default | Description              |
-|--------------|--------|---------|--------------------------|
-| `models`     | string | —       | Models directory         |
-| `migrations` | string | —       | Migrations directory     |
-| `adapter`    | string | —       | Database adapter         |
-| `orm`        | string | —       | ORM (`ent` or `gorm`)   |
+| Field     | Type   | Default | Description                       |
+|-----------|--------|---------|-----------------------------------|
+| `url`     | string | —       | Database connection URL           |
+| `dev_url` | string | —       | Dev database URL (for migrations) |
+| `models`  | string | —       | Models directory                  |
+| `adapter` | string | —       | Database adapter                  |
+| `orm`     | string | —       | ORM (`ent` or `gorm`)            |
 
 Supports per-environment overrides via `env` sub-blocks.
+
+##### `database > migrations`
+
+| Field       | Type   | Default      | Description              |
+|-------------|--------|--------------|--------------------------|
+| `directory` | string | `migrations` | Migrations directory     |
+| `format`    | string | `sql`        | Migration format         |
+
+Shared across all environments (no per-env overrides).
 
 ## Resolution order
 
@@ -149,9 +163,12 @@ err := polafile.Save(".", &polafile.Polafile{
     SecurityHeaders: &polafile.SecurityHeaders{Enabled: true},
     Cache:          &polafile.Cache{Enabled: true, Adapter: "memory"},
     Database:       &polafile.Database{
-        Models:     "models",
-        Migrations: "migrations",
-        ORM:        "ent",
+        Models: "models",
+        ORM:    "ent",
+        Migrations: &polafile.Migrations{
+            Directory: "migrations",
+            Format:    "sql",
+        },
     },
 })
 

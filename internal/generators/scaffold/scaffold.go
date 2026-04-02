@@ -42,6 +42,7 @@ Use --skip-model, --skip-action, or --skip-route to omit specific parts.`,
 	cmd.Flags().Bool("skip-model", false, "skip model generation")
 	cmd.Flags().Bool("skip-action", false, "skip action generation")
 	cmd.Flags().Bool("skip-route", false, "skip route generation")
+	cmd.Flags().Bool("skip-migration", false, "skip migration generation (propagated to model generator)")
 	return cmd
 }
 
