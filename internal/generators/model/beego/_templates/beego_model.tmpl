@@ -1,0 +1,22 @@
+package [[.PackageName]]
+[[- if .Imports]]
+
+import (
+[[- range .Imports]]
+	[[.]]
+[[- end]]
+)
+[[- end]]
+
+// [[.Name]] represents the [[.TableName]] database table.
+type [[.Name]] struct {
+	Id int `orm:"auto;pk" json:"id"`
+[[- range .Fields]]
+	[[.StructField]]
+[[- end]]
+}
+
+// TableName sets the table name for [[.Name]].
+func (t *[[.Name]]) TableName() string {
+	return "[[.TableName]]"
+}
