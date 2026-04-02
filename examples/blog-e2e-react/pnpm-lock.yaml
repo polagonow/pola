@@ -585,30 +585,30 @@ packages:
       require-from-string: 2.0.2
     dev: false
 
-  /baseline-browser-mapping@2.10.13:
-    resolution: {integrity: sha512-BL2sTuHOdy0YT1lYieUxTw/QMtPBC3pmlJC6xk8BBYVv6vcw3SGdKemQ+Xsx9ik2F/lYDO9tqsFQH1r9PFuHKw==}
+  /baseline-browser-mapping@2.10.12:
+    resolution: {integrity: sha512-qyq26DxfY4awP2gIRXhhLWfwzwI+N5Nxk6iQi8EFizIaWIjqicQTE4sLnZZVdeKPRcVNoJOkkpfzoIYuvCKaIQ==}
     engines: {node: '>=6.0.0'}
     hasBin: true
     dev: false
 
-  /browserslist@4.28.2:
-    resolution: {integrity: sha512-48xSriZYYg+8qXna9kwqjIVzuQxi+KYWp2+5nCYnYKPTr0LvD89Jqk2Or5ogxz0NUMfIjhh2lIUX/LyX9B4oIg==}
+  /browserslist@4.28.1:
+    resolution: {integrity: sha512-ZC5Bd0LgJXgwGqUknZY/vkUQ04r8NXnJZ3yYi4vDmSiZmC/pdSN0NbNRPxZpbtO4uAfDUAFffO8IZoM3Gj8IkA==}
     engines: {node: ^6 || ^7 || ^8 || ^9 || ^10 || ^11 || ^12 || >=13.7}
     hasBin: true
     dependencies:
-      baseline-browser-mapping: 2.10.13
-      caniuse-lite: 1.0.30001784
-      electron-to-chromium: 1.5.330
+      baseline-browser-mapping: 2.10.12
+      caniuse-lite: 1.0.30001781
+      electron-to-chromium: 1.5.328
       node-releases: 2.0.36
-      update-browserslist-db: 1.2.3(browserslist@4.28.2)
+      update-browserslist-db: 1.2.3(browserslist@4.28.1)
     dev: false
 
   /buffer-from@1.1.2:
     resolution: {integrity: sha512-E+XQCRwSbaaiChtv6k6Dwgc+bx+Bs6vuKJHHl5kox/BaKbhiXzqQOwK4cO22yElGp2OCmjwVhT3HmxgyPGnJfQ==}
     dev: false
 
-  /caniuse-lite@1.0.30001784:
-    resolution: {integrity: sha512-WU346nBTklUV9YfUl60fqRbU5ZqyXlqvo1SgigE1OAXK5bFL8LL9q1K7aap3N739l4BvNqnkm3YrGHiY9sfUQw==}
+  /caniuse-lite@1.0.30001781:
+    resolution: {integrity: sha512-RdwNCyMsNBftLjW6w01z8bKEvT6e/5tpPVEgtn22TiLGlstHOVecsX2KHFkD5e/vRnIE4EGzpuIODb3mtswtkw==}
     dev: false
 
   /chrome-trace-event@1.0.4:
@@ -629,8 +629,8 @@ packages:
     engines: {node: '>=8'}
     dev: true
 
-  /electron-to-chromium@1.5.330:
-    resolution: {integrity: sha512-jFNydB5kFtYUobh4IkWUnXeyDbjf/r9gcUEXe1xcrcUxIGfTdzPXA+ld6zBRbwvgIGVzDll/LTIiDztEtckSnA==}
+  /electron-to-chromium@1.5.328:
+    resolution: {integrity: sha512-QNQ5l45DzYytThO21403XN3FvK0hOkWDG8viNf6jqS42msJ8I4tGDSpBCgvDRRPnkffafiwAym2X2eHeGD2V0w==}
     dev: false
 
   /enhanced-resolve@5.20.1:
@@ -1022,13 +1022,13 @@ packages:
     resolution: {integrity: sha512-AsuCzffGHJybSaRrmr5eHr81mwJU3kjw6M+uprWvCXiNeN9SOGwQ3Jn8jb8m3Z6izVgknn1R0FTCEAP2QrLY/w==}
     dev: false
 
-  /update-browserslist-db@1.2.3(browserslist@4.28.2):
+  /update-browserslist-db@1.2.3(browserslist@4.28.1):
     resolution: {integrity: sha512-Js0m9cx+qOgDxo0eMiFGEueWztz+d4+M3rGlmKPT+T4IS/jP4ylw3Nwpu6cpTTP8R1MAC1kF4VbdLt3ARf209w==}
     hasBin: true
     peerDependencies:
       browserslist: '>= 4.21.0'
     dependencies:
-      browserslist: 4.28.2
+      browserslist: 4.28.1
       escalade: 3.2.0
       picocolors: 1.1.1
     dev: false
@@ -1064,7 +1064,7 @@ packages:
       '@webassemblyjs/wasm-parser': 1.14.1
       acorn: 8.16.0
       acorn-import-phases: 1.0.4(acorn@8.16.0)
-      browserslist: 4.28.2
+      browserslist: 4.28.1
       chrome-trace-event: 1.0.4
       enhanced-resolve: 5.20.1
       es-module-lexer: 2.0.0
