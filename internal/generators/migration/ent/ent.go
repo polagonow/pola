@@ -1,6 +1,7 @@
 // Package ent implements the Ent ORM migration diff generator.
-// It creates a temporary Go program that imports the user's ent/migrate
-// package and calls schema.Diff to auto-generate versioned SQL migrations.
+// It creates a temporary Go program that uses entc.LoadGraph to load
+// the user's ent schemas and schema.Diff to auto-generate versioned
+// SQL migrations — no ent codegen required.
 package ent
 
 import (
@@ -73,8 +74,12 @@ func (g *EntDiffGenerator) Diff(ctx context.Context, cfg diff.Config) error {
 		return fmt.Errorf("go mod tidy: %s\n%w", out, err)
 	}
 
-	// Run the temporary program.
-	run := exec.CommandContext(ctx, "go", "run", ".", cfg.MigrationsDir, cfg.DevURL, cfg.Name)
+	// Schema import path for entc.LoadGraph.
+	schemaImportPath := cfg.ModulePath + "/" + cfg.ModelsDir + "/ent"
+
+	// Run the temporary program:
+	// args: migrationsDir, devURL, migrationName, schemaImportPath
+	run := exec.CommandContext(ctx, "go", "run", ".", cfg.MigrationsDir, cfg.DevURL, cfg.Name, schemaImportPath)
 	run.Dir = tmpDir
 	run.Stdout = os.Stdout
 	run.Stderr = os.Stderr

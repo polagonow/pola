@@ -24,8 +24,8 @@ pola {
   }
 
   database {
-    models = "models"
-    orm    = "ent"
+    models  = "models"
+    orm     = "ent"
 
     migrations {
       directory = "migrations"
