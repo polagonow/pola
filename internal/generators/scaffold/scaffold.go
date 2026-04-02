@@ -37,9 +37,11 @@ Use --skip-model, --skip-action, or --skip-route to omit specific parts.`,
 		Aliases: []string{"s"},
 		Example: `  pola generate scaffold Product name:string price:float description:text
   pola generate scaffold Product name:string --skip-route
-  pola generate scaffold Product name:string --skip-model --skip-action`,
+  pola generate scaffold Product name:string --skip-repository --skip-service`,
 	}
 	cmd.Flags().Bool("skip-model", false, "skip model generation")
+	cmd.Flags().Bool("skip-repository", false, "skip repository generation")
+	cmd.Flags().Bool("skip-service", false, "skip service generation")
 	cmd.Flags().Bool("skip-action", false, "skip action generation")
 	cmd.Flags().Bool("skip-route", false, "skip route generation")
 	cmd.Flags().Bool("skip-migration", false, "skip migration generation (propagated to model generator)")
@@ -50,6 +52,8 @@ func (g *ScaffoldGenerator) run(cmd *cobra.Command, args []string) error {
 	name := args[0]
 
 	skipModel, _ := cmd.Flags().GetBool("skip-model")
+	skipRepository, _ := cmd.Flags().GetBool("skip-repository")
+	skipService, _ := cmd.Flags().GetBool("skip-service")
 	skipAction, _ := cmd.Flags().GetBool("skip-action")
 	skipRoute, _ := cmd.Flags().GetBool("skip-route")
 
@@ -60,16 +64,38 @@ func (g *ScaffoldGenerator) run(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	if !skipRepository {
+		fmt.Printf("Generating repository %s...\n", name)
+		if err := generators.Run("repository", cmd, args); err != nil {
+			return fmt.Errorf("repository: %w", err)
+		}
+	}
+
+	if !skipService {
+		fmt.Printf("Generating service %s...\n", name)
+		if err := generators.Run("service", cmd, args); err != nil {
+			return fmt.Errorf("service: %w", err)
+		}
+	}
+
 	if !skipAction {
 		fmt.Printf("Generating action %s...\n", name)
-		if err := generators.Run("action", cmd, []string{name}); err != nil {
+		actionArgs := []string{name}
+		if !skipService {
+			actionArgs = append(actionArgs, "--service="+name)
+		}
+		if err := generators.Run("action", cmd, actionArgs); err != nil {
 			return fmt.Errorf("action: %w", err)
 		}
 	}
 
 	if !skipRoute {
 		fmt.Printf("Generating route %s...\n", name)
-		if err := generators.Run("route", cmd, []string{strings.ToLower(name), "GET,POST,PUT,PATCH,DELETE"}); err != nil {
+		routeArgs := []string{strings.ToLower(name), "GET,POST,PUT,PATCH,DELETE"}
+		if !skipService {
+			routeArgs = append(routeArgs, "--service="+name)
+		}
+		if err := generators.Run("route", cmd, routeArgs); err != nil {
 			return fmt.Errorf("route: %w", err)
 		}
 	}

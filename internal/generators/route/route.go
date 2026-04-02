@@ -18,8 +18,13 @@ import (
 //go:embed all:_templates
 var templates embed.FS
 
-var routeTmpl = template.Must(
-	template.New("route_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/route_go.tmpl"),
+var (
+	routeTmpl = template.Must(
+		template.New("route_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/route_go.tmpl"),
+	)
+	routeServiceTmpl = template.Must(
+		template.New("route_service_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/route_service_go.tmpl"),
+	)
 )
 
 // validHTTPMethods is the set of accepted HTTP methods.
@@ -40,19 +45,24 @@ func (g *RouteGenerator) Description() string           { return "Scaffold a new
 func (g *RouteGenerator) AfterHooks() []generators.Hook { return nil }
 
 func (g *RouteGenerator) Command() *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "route [Name] [methods...]",
 		Short: "Scaffold a new route handler",
 		Long: `Create a new route file in the routes/ directory with HTTP method stubs.
 
 Methods can be passed as separate arguments or comma-separated.
-If no methods are provided, defaults to GET.`,
+If no methods are provided, defaults to GET.
+
+Use --service=Name to wire the route to a generated service via DI.`,
 		Args: cobra.MinimumNArgs(1),
 		RunE: g.run,
 		Example: `  pola generate route Posts
   pola generate route Posts GET,POST
-  pola generate route Posts/Comments GET POST DELETE`,
+  pola generate route Posts/Comments GET POST DELETE
+  pola generate route Posts GET,POST,DELETE --service=Post`,
 	}
+	cmd.Flags().String("service", "", "wire route handlers to the named service via DI")
+	return cmd
 }
 
 func (g *RouteGenerator) run(cmd *cobra.Command, args []string) error {
@@ -89,17 +99,47 @@ func (g *RouteGenerator) run(cmd *cobra.Command, args []string) error {
 
 	routePath := "/" + strings.Join(segments, "/")
 
+	serviceName, _ := cmd.Flags().GetString("service")
+
 	var buf strings.Builder
-	if err := routeTmpl.Execute(&buf, struct {
-		Package   string
-		RoutePath string
-		Methods   []string
-	}{
-		Package:   pkgName,
-		RoutePath: routePath,
-		Methods:   methods,
-	}); err != nil {
-		return fmt.Errorf("execute route template: %w", err)
+	if serviceName != "" {
+		// Capitalize first letter.
+		if serviceName[0] >= 'a' && serviceName[0] <= 'z' {
+			serviceName = string(serviceName[0]-32) + serviceName[1:]
+		}
+
+		modulePath, err := project.ModulePath(projectDir)
+		if err != nil {
+			return fmt.Errorf("read module path: %w", err)
+		}
+
+		if err := routeServiceTmpl.Execute(&buf, struct {
+			Package     string
+			RoutePath   string
+			Methods     []string
+			ServiceName string
+			ModulePath  string
+		}{
+			Package:     pkgName,
+			RoutePath:   routePath,
+			Methods:     methods,
+			ServiceName: serviceName,
+			ModulePath:  modulePath,
+		}); err != nil {
+			return fmt.Errorf("execute route service template: %w", err)
+		}
+	} else {
+		if err := routeTmpl.Execute(&buf, struct {
+			Package   string
+			RoutePath string
+			Methods   []string
+		}{
+			Package:   pkgName,
+			RoutePath: routePath,
+			Methods:   methods,
+		}); err != nil {
+			return fmt.Errorf("execute route template: %w", err)
+		}
 	}
 
 	if err := os.WriteFile(filePath, []byte(buf.String()), 0o644); err != nil {
@@ -117,6 +157,10 @@ func parseActions(args []string) ([]string, error) {
 	seen := make(map[string]bool)
 	var methods []string
 	for _, arg := range args {
+		// Skip flag-like arguments so --service=X doesn't get parsed as a method.
+		if strings.HasPrefix(arg, "--") {
+			continue
+		}
 		for _, p := range strings.Split(arg, ",") {
 			m := strings.TrimSpace(strings.ToUpper(p))
 			if m == "" {

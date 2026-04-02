@@ -104,6 +104,11 @@ func Run(name string, parentCmd *cobra.Command, args []string) error {
 		if v, _ := parentCmd.Flags().GetBool("skip-collision-check"); v {
 			cmd.Flags().Set("skip-collision-check", "true")
 		}
+		if v, _ := parentCmd.Flags().GetString("service"); v != "" {
+			if cmd.Flags().Lookup("service") != nil {
+				cmd.Flags().Set("service", v)
+			}
+		}
 	}
 	cmd.SetArgs(args)
 	return cmd.Execute()

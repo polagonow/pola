@@ -1,0 +1,83 @@
+package ent
+
+import (
+	"context"
+	"fmt"
+
+	"[[.ModulePath]]/ent"
+	ent[[.Name]] "[[.ModulePath]]/ent/[[.SnakeName]]"
+	"[[.ModulePath]]/repository"
+)
+
+type [[.LowerName]]Repository struct {
+	client *ent.Client
+}
+
+// New[[.Name]]Repository creates a new Ent-backed [[.Name]]Repository.
+func New[[.Name]]Repository(client *ent.Client) repository.[[.Name]]Repository {
+	return &[[.LowerName]]Repository{client: client}
+}
+
+func (r *[[.LowerName]]Repository) Create(ctx context.Context, entity *repository.[[.Name]]) error {
+	_, err := r.client.[[.Name]].Create().
+		// TODO: set fields from entity
+		Save(ctx)
+	return err
+}
+
+func (r *[[.LowerName]]Repository) Get(ctx context.Context, id uint) (*repository.[[.Name]], error) {
+	e, err := r.client.[[.Name]].Get(ctx, int(id))
+	if err != nil {
+		return nil, fmt.Errorf("get [[.SnakeName]] by id: %w", err)
+	}
+	_ = e
+	// TODO: map ent entity to repository entity
+	return &repository.[[.Name]]{ID: uint(e.ID)}, nil
+}
+
+func (r *[[.LowerName]]Repository) List(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repository.[[.Name]]], error) {
+	params = params.Normalize()
+
+	total, err := r.client.[[.Name]].Query().Count(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("count [[.PluralSnake]]: %w", err)
+	}
+
+	entries, err := r.client.[[.Name]].Query().
+		Offset(params.Offset()).
+		Limit(params.PerPage).
+		All(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("list [[.PluralSnake]]: %w", err)
+	}
+
+	items := make([]*repository.[[.Name]], len(entries))
+	for i, e := range entries {
+		items[i] = &repository.[[.Name]]{ID: uint(e.ID)}
+		// TODO: map remaining fields
+	}
+
+	totalPages := total / params.PerPage
+	if total%params.PerPage != 0 {
+		totalPages++
+	}
+
+	return &repository.ListResult[*repository.[[.Name]]]{
+		Items:      items,
+		Total:      total,
+		Page:       params.Page,
+		PerPage:    params.PerPage,
+		TotalPages: totalPages,
+	}, nil
+}
+
+func (r *[[.LowerName]]Repository) Update(ctx context.Context, entity *repository.[[.Name]]) error {
+	_, err := r.client.[[.Name]].UpdateOneID(int(entity.ID)).
+		// TODO: set fields from entity
+		Save(ctx)
+	return err
+}
+
+func (r *[[.LowerName]]Repository) Delete(ctx context.Context, id uint) error {
+	return r.client.[[.Name]].DeleteOneID(int(id)).Exec(ctx)
+}
