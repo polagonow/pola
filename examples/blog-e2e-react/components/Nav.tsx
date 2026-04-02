@@ -21,7 +21,6 @@ export default function Nav() {
               ? "text-[var(--color-fg)] font-semibold text-sm hover:no-underline"
               : "text-[var(--color-muted)] text-sm font-medium hover:text-[var(--color-fg)] hover:no-underline"
           }
-          prefetch
         >
           {label}
         </Link>
