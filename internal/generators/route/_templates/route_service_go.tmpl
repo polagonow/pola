@@ -7,19 +7,12 @@ import (
 
 	"[[ .ModulePath ]]/repositories"
 	"[[ .ModulePath ]]/services"
-	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/routes"
 )
 
 // Route handles [[ .RoutePath ]] requests.
 type Route struct {
 	svc *services.[[ .ServiceName ]]Service
-}
-
-// Init resolves the [[ .ServiceName ]]Service from the DI registry.
-func (r *Route) Init(registry *core.Registry) error {
-	r.svc = core.MustInvoke[*services.[[ .ServiceName ]]Service](registry)
-	return nil
 }
 [[ range .Methods ]]
 [[ if eq . "GET" -]]

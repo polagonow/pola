@@ -3,14 +3,16 @@ package actionbridge
 import (
 	"bytes"
 	"fmt"
+	"sort"
 	"strings"
 	"text/template"
 )
 
 type goTemplData struct {
-	PackageName string
-	PolaPackage string
-	Actions     []ActionDef
+	PackageName        string
+	PolaPackage        string
+	Actions            []ActionDef
+	ConstructorImports []string // unique import paths needed by constructors
 }
 
 func (d goTemplData) HasAnyVars() bool {
@@ -68,9 +70,10 @@ func GenerateGo(result *ParseResult, polaPackage string) ([]byte, error) {
 	}
 
 	data := goTemplData{
-		PackageName: result.PackageName,
-		PolaPackage: polaPackage,
-		Actions:     result.Actions,
+		PackageName:        result.PackageName,
+		PolaPackage:        polaPackage,
+		Actions:            result.Actions,
+		ConstructorImports: collectConstructorImports(result.Actions),
 	}
 
 	var buf bytes.Buffer
@@ -79,6 +82,27 @@ func GenerateGo(result *ParseResult, polaPackage string) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
+}
+
+// collectConstructorImports returns deduplicated import paths needed by all action constructors.
+func collectConstructorImports(actions []ActionDef) []string {
+	seen := make(map[string]bool)
+	for _, a := range actions {
+		if a.Constructor == nil {
+			continue
+		}
+		for _, p := range a.Constructor.Params {
+			if p.TypePath != "" {
+				seen[p.TypePath] = true
+			}
+		}
+	}
+	imports := make([]string, 0, len(seen))
+	for imp := range seen {
+		imports = append(imports, imp)
+	}
+	sort.Strings(imports)
+	return imports
 }
 
 func goArgCast(i int, p ParamDef) string {

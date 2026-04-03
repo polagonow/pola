@@ -19,7 +19,7 @@ import (
 	"github.com/polagonow/pola/polafile"
 )
 
-//go:embed _templates/plugins_go.tmpl _templates/embed_go.tmpl _templates/repo_plugins_go.tmpl _templates/svc_plugins_go.tmpl
+//go:embed _templates/plugins_go.tmpl _templates/embed_go.tmpl _templates/repo_plugins_go.tmpl _templates/svc_plugins_go.tmpl _templates/route_init_go.tmpl
 var overlayTemplates embed.FS
 
 var pluginsTmpl = template.Must(
@@ -32,6 +32,10 @@ var repoPluginsTmpl = template.Must(
 
 var svcPluginsTmpl = template.Must(
 	template.New("svc_plugins_go.tmpl").ParseFS(overlayTemplates, "_templates/svc_plugins_go.tmpl"),
+)
+
+var routeInitTmpl = template.Must(
+	template.New("route_init_go.tmpl").ParseFS(overlayTemplates, "_templates/route_init_go.tmpl"),
 )
 
 // embedTmpl is the template for pola_embed.go, injected via overlay
@@ -92,6 +96,9 @@ func generateOverlay(projectDir string, opts pluginOpts) (*overlayResult, error)
 
 	replace := make(map[string]string)
 
+	// Read the module path once — used by multiple discovery steps below.
+	modPath, _ := readModulePath(projectDir)
+
 	// Determine actions directory.
 	actionsDir := generateFlags.actionsDir
 	if actionsDir == "" {
@@ -135,19 +142,18 @@ func generateOverlay(projectDir string, opts pluginOpts) (*overlayResult, error)
 	}
 
 	// 2. Resolve the actions import path so pola_plugins.go can blank-import it.
-	if hasActions {
-		if modPath, err := readModulePath(projectDir); err == nil && modPath != "" {
-			actionsImport = modPath + "/actions"
-		}
+	if hasActions && modPath != "" {
+		actionsImport = modPath + "/actions"
 	}
 
 	// 3. Discover route packages under routes/.
 	var routePkgs []routePackageInfo
-	if modPath, err := readModulePath(projectDir); err == nil && modPath != "" {
+	if modPath != "" {
 		routePkgs = discoverRoutePackages(projectDir, modPath)
 	}
 
 	// 3b. Generate pola_route_init.go overlay for each route package.
+	//     Also generate pola_route_di.go if the route has a service dependency.
 	for i, rp := range routePkgs {
 		src := generateRouteInit(rp.PkgName, opts.PolaPackage)
 		initPath := filepath.Join(tmpDir, fmt.Sprintf("pola_route_init_%d.go", i))
@@ -156,19 +162,43 @@ func generateOverlay(projectDir string, opts pluginOpts) (*overlayResult, error)
 			return nil, fmt.Errorf("write route init for %s: %w", rp.PkgName, err)
 		}
 		replace[filepath.Join(rp.AbsDir, "pola_route_init.go")] = initPath
+
+		// Check if this route has a service dependency that needs DI wiring.
+		if dep := discoverRouteServiceDep(rp.AbsDir, modPath); dep != nil {
+			var buf strings.Builder
+			if err := routeInitTmpl.Execute(&buf, struct {
+				PolaPackage   string
+				PkgName       string
+				ServiceImport string
+				ServicePkg    string
+				ServiceType   string
+			}{
+				PolaPackage:   opts.PolaPackage,
+				PkgName:       rp.PkgName,
+				ServiceImport: dep.ServicePath,
+				ServicePkg:    dep.ServicePkg,
+				ServiceType:   dep.ServiceType,
+			}); err != nil {
+				return nil, fmt.Errorf("execute route init template for %s: %w", rp.PkgName, err)
+			}
+			diPath := filepath.Join(tmpDir, fmt.Sprintf("pola_route_di_%d.go", i))
+			if err := os.WriteFile(diPath, []byte(buf.String()), 0o644); err != nil {
+				os.RemoveAll(tmpDir)
+				return nil, fmt.Errorf("write route DI for %s: %w", rp.PkgName, err)
+			}
+			replace[filepath.Join(rp.AbsDir, "pola_route_di.go")] = diPath
+		}
 	}
 
 	// 3c. Discover repository registrations and generate per-repo plugin overlay.
 	var repoDisco *repoDiscovery
-	if opts.Database != "" {
-		if modPath, err := readModulePath(projectDir); err == nil && modPath != "" {
-			pf, _ := polafile.Load(projectDir)
-			repoDir := "repositories"
-			if pf != nil {
-				repoDir = pf.RepositoriesDir()
-			}
-			repoDisco = discoverRepositoryRegistrations(projectDir, repoDir, opts.Database, modPath)
+	if opts.Database != "" && modPath != "" {
+		pf, _ := polafile.Load(projectDir)
+		repoDir := "repositories"
+		if pf != nil {
+			repoDir = pf.RepositoriesDir()
 		}
+		repoDisco = discoverRepositoryRegistrations(projectDir, repoDir, opts.Database, modPath)
 	}
 
 	if repoDisco != nil {
@@ -206,7 +236,7 @@ func generateOverlay(projectDir string, opts pluginOpts) (*overlayResult, error)
 
 	// 3d. Discover service constructors and generate per-service plugin overlay.
 	var svcDisco *svcDiscovery
-	if modPath, err := readModulePath(projectDir); err == nil && modPath != "" {
+	if modPath != "" {
 		pf, _ := polafile.Load(projectDir)
 		svcDir := "services"
 		if pf != nil {
@@ -599,6 +629,76 @@ func discoverServiceConstructors(projectDir, svcDir, modPath string) *svcDiscove
 		PkgName:    filepath.Base(svcDir),
 		Services:   svcs,
 	}
+}
+
+// routeServiceDep holds the service dependency info discovered in a route package.
+type routeServiceDep struct {
+	ServicePkg  string // e.g. "services"
+	ServiceType string // e.g. "PostService"
+	ServicePath string // e.g. "myapp/services"
+}
+
+// discoverRouteServiceDep scans a route package for a Route struct with a field
+// whose type matches *services.*Service, and returns the dependency info.
+func discoverRouteServiceDep(routeDir, modPath string) *routeServiceDep {
+	fset := token.NewFileSet()
+	entries, err := os.ReadDir(routeDir)
+	if err != nil {
+		return nil
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") {
+			continue
+		}
+		// Skip generated overlay files.
+		if strings.HasPrefix(entry.Name(), "pola_") {
+			continue
+		}
+		f, err := parser.ParseFile(fset, filepath.Join(routeDir, entry.Name()), nil, 0)
+		if err != nil {
+			continue
+		}
+		for _, decl := range f.Decls {
+			gd, ok := decl.(*ast.GenDecl)
+			if !ok || gd.Tok != token.TYPE {
+				continue
+			}
+			for _, spec := range gd.Specs {
+				ts, ok := spec.(*ast.TypeSpec)
+				if !ok || ts.Name.Name != "Route" {
+					continue
+				}
+				st, ok := ts.Type.(*ast.StructType)
+				if !ok || st.Fields == nil {
+					continue
+				}
+				for _, field := range st.Fields.List {
+					// Look for *services.XxxService fields.
+					pt, ok := field.Type.(*ast.StarExpr)
+					if !ok {
+						continue
+					}
+					sel, ok := pt.X.(*ast.SelectorExpr)
+					if !ok {
+						continue
+					}
+					ident, ok := sel.X.(*ast.Ident)
+					if !ok {
+						continue
+					}
+					typeName := sel.Sel.Name
+					if strings.HasSuffix(typeName, "Service") {
+						return &routeServiceDep{
+							ServicePkg:  ident.Name,
+							ServiceType: typeName,
+							ServicePath: modPath + "/" + ident.Name,
+						}
+					}
+				}
+			}
+		}
+	}
+	return nil
 }
 
 // readModulePath reads the module path from go.mod in the given directory.
