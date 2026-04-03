@@ -50,8 +50,9 @@ func WithName(name string) Option { return func(c *config) { c.Name = name } }
 func WithAdapter(adapter string) Option { return func(c *config) { c.Adapter = adapter } }
 
 type entPlugin struct {
-	cfg config
-	db  *sql.DB
+	cfg      config
+	db       *sql.DB
+	registry *core.Registry
 }
 
 // Plugin returns a Pola plugin that registers *entsql.Driver and *sql.DB
@@ -68,6 +69,7 @@ func Plugin(opts ...Option) core.Plugin {
 func (p *entPlugin) Name() string { return "ent-database" }
 
 func (p *entPlugin) Register(r *core.Registry) {
+	p.registry = r
 	core.Provide[*entsql.Driver](r, func() (*entsql.Driver, error) {
 		c := p.cfg.Config.WithEnvFallback()
 		connStr := dsn.Build(c)
@@ -96,6 +98,11 @@ func (p *entPlugin) Register(r *core.Registry) {
 		}
 		return p.db, nil
 	})
+}
+
+func (p *entPlugin) Start(_ context.Context) error {
+	_, err := core.Invoke[*entsql.Driver](p.registry)
+	return err
 }
 
 func (p *entPlugin) Shutdown(_ context.Context) error {

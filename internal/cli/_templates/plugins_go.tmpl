@@ -102,6 +102,12 @@ var PolaPlugins = []core.Plugin{
 {{- end}}
 	),
 {{- end}}
+{{- if .HasDatabaseRepos}}
+	core.PluginFunc{
+		PluginName: "database-repositories",
+		Fn:         PolaDatabaseInit,
+	},
+{{- end}}
 {{- if .HasRoutes}}
 	routes.Plugin(),
 {{- end}}

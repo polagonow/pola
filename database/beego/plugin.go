@@ -43,7 +43,8 @@ func WithName(name string) Option { return func(c *config) { c.Name = name } }
 func WithAdapter(adapter string) Option { return func(c *config) { c.Adapter = adapter } }
 
 type beegoPlugin struct {
-	cfg config
+	cfg      config
+	registry *core.Registry
 }
 
 // Plugin returns a Pola plugin that registers orm.Ormer in the DI container.
@@ -59,6 +60,7 @@ func Plugin(opts ...Option) core.Plugin {
 func (p *beegoPlugin) Name() string { return "beego-database" }
 
 func (p *beegoPlugin) Register(r *core.Registry) {
+	p.registry = r
 	core.Provide[orm.Ormer](r, func() (orm.Ormer, error) {
 		c := p.cfg.Config.WithEnvFallback()
 		connStr := dsn.Build(c)
@@ -69,6 +71,11 @@ func (p *beegoPlugin) Register(r *core.Registry) {
 		}
 		return orm.NewOrm(), nil
 	})
+}
+
+func (p *beegoPlugin) Start(_ context.Context) error {
+	_, err := core.Invoke[orm.Ormer](p.registry)
+	return err
 }
 
 func (p *beegoPlugin) Shutdown(_ context.Context) error {

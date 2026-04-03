@@ -151,7 +151,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 			killProcessGroup(cmd)
 			<-doneCh
 			cleanupOverlay(overlayRes)
-			fmt.Println("\n  \033[36m↻ Go files changed, restarting...\033[0m\n")
+			fmt.Print("\n  \033[36m↻ Go files changed, restarting...\033[0m\n\n")
 			// Brief pause to let the OS release the listen port.
 			time.Sleep(500 * time.Millisecond)
 		}

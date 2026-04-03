@@ -43,8 +43,9 @@ func WithName(name string) Option { return func(c *config) { c.Name = name } }
 func WithAdapter(adapter string) Option { return func(c *config) { c.Adapter = adapter } }
 
 type gormPlugin struct {
-	cfg config
-	db  *gormpkg.DB
+	cfg      config
+	db       *gormpkg.DB
+	registry *core.Registry
 }
 
 // Plugin returns a Pola plugin that registers *gorm.DB in the DI container.
@@ -60,6 +61,7 @@ func Plugin(opts ...Option) core.Plugin {
 func (p *gormPlugin) Name() string { return "gorm-database" }
 
 func (p *gormPlugin) Register(r *core.Registry) {
+	p.registry = r
 	core.Provide[*gormpkg.DB](r, func() (*gormpkg.DB, error) {
 		c := p.cfg.Config.WithEnvFallback()
 		connStr := dsn.Build(c)
@@ -76,6 +78,11 @@ func (p *gormPlugin) Register(r *core.Registry) {
 		p.db = db
 		return db, nil
 	})
+}
+
+func (p *gormPlugin) Start(_ context.Context) error {
+	_, err := core.Invoke[*gormpkg.DB](p.registry)
+	return err
 }
 
 func (p *gormPlugin) Shutdown(_ context.Context) error {

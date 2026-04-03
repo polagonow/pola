@@ -4,6 +4,9 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -15,11 +18,15 @@ import (
 	"github.com/polagonow/pola/polafile"
 )
 
-//go:embed _templates/plugins_go.tmpl _templates/embed_go.tmpl
+//go:embed _templates/plugins_go.tmpl _templates/embed_go.tmpl _templates/database_init_go.tmpl
 var overlayTemplates embed.FS
 
 var pluginsTmpl = template.Must(
 	template.New("plugins_go.tmpl").ParseFS(overlayTemplates, "_templates/plugins_go.tmpl"),
+)
+
+var databaseInitTmpl = template.Must(
+	template.New("database_init_go.tmpl").ParseFS(overlayTemplates, "_templates/database_init_go.tmpl"),
 )
 
 // embedTmpl is the template for pola_embed.go, injected via overlay
@@ -146,8 +153,44 @@ func generateOverlay(projectDir string, opts pluginOpts) (*overlayResult, error)
 		replace[filepath.Join(rp.AbsDir, "pola_route_init.go")] = initPath
 	}
 
+	// 3c. Discover repository registrations and generate pola_database_init.go.
+	var repoDisco *repoDiscovery
+	if opts.Database != "" {
+		if modPath, err := readModulePath(projectDir); err == nil && modPath != "" {
+			pf, _ := polafile.Load(projectDir)
+			repoDir := "repositories"
+			if pf != nil {
+				repoDir = pf.RepositoriesDir()
+			}
+			repoDisco = discoverRepositoryRegistrations(projectDir, repoDir, opts.Database, modPath)
+		}
+	}
+
+	if repoDisco != nil {
+		var dbInitBuf strings.Builder
+		if err := databaseInitTmpl.Execute(&dbInitBuf, struct {
+			PolaPackage  string
+			RepoORMImport string
+			RepoORMPkg   string
+			Repositories []string
+		}{
+			PolaPackage:  opts.PolaPackage,
+			RepoORMImport: repoDisco.ImportPath,
+			RepoORMPkg:   repoDisco.PkgName,
+			Repositories: repoDisco.Repositories,
+		}); err != nil {
+			return nil, fmt.Errorf("execute database init template: %w", err)
+		}
+		dbInitPath := filepath.Join(tmpDir, "pola_database_init.go")
+		if err := os.WriteFile(dbInitPath, []byte(dbInitBuf.String()), 0o644); err != nil {
+			return nil, fmt.Errorf("write database init: %w", err)
+		}
+		absProject, _ := filepath.Abs(projectDir)
+		replace[filepath.Join(absProject, "pola_database_init.go")] = dbInitPath
+	}
+
 	// 4. Generate plugin imports (always).
-	pluginsSrc, err := generatePluginImports(opts, actionsImport, routePkgs)
+	pluginsSrc, err := generatePluginImports(opts, actionsImport, routePkgs, repoDisco != nil)
 	if err != nil {
 		return nil, fmt.Errorf("generate plugins: %w", err)
 	}
@@ -203,7 +246,7 @@ func generateOverlay(projectDir string, opts pluginOpts) (*overlayResult, error)
 
 // generatePluginImports returns the source for pola_plugins.go containing
 // explicit Plugin() calls and a PolaPlugins variable.
-func generatePluginImports(opts pluginOpts, actionsImport string, routePkgs []routePackageInfo) ([]byte, error) {
+func generatePluginImports(opts pluginOpts, actionsImport string, routePkgs []routePackageInfo, hasDatabaseRepos bool) ([]byte, error) {
 	routeImports := make([]string, len(routePkgs))
 	for i, rp := range routePkgs {
 		routeImports[i] = rp.ImportPath
@@ -236,32 +279,34 @@ func generatePluginImports(opts pluginOpts, actionsImport string, routePkgs []ro
 		SecurityHeaders bool
 		Dev             bool
 		Embed           bool
-		HasRoutes       bool
-		ActionsImport   string
-		RouteImports    []string
+		HasRoutes        bool
+		HasDatabaseRepos bool
+		ActionsImport    string
+		RouteImports     []string
 	}{
-		PolaPackage:     opts.PolaPackage,
-		Engine:          opts.Engine,
-		Bundler:         opts.Bundler,
-		Renderer:        opts.Renderer,
-		Router:          opts.Router,
-		CSS:             condStr(hasCSS, opts.CSS, ""),
-		Cache:           condStr(hasCache, opts.Cache, ""),
-		Database:        condStr(hasDatabase, opts.Database, ""),
-		DatabaseAdapter: opts.DatabaseAdapter,
-		DatabaseURL:     opts.DatabaseURL,
-		DatabaseHost:    opts.DatabaseHost,
-		DatabasePort:    opts.DatabasePort,
-		DatabaseUser:    opts.DatabaseUser,
-		DatabasePass:    opts.DatabasePass,
-		DatabaseName:    opts.DatabaseName,
-		CSRF:            hasCSRF,
-		SecurityHeaders: hasSecurityHeaders,
-		Dev:             opts.Dev,
-		Embed:           opts.Embed,
-		HasRoutes:       len(routePkgs) > 0,
-		ActionsImport:   actionsImport,
-		RouteImports:    routeImports,
+		PolaPackage:      opts.PolaPackage,
+		Engine:           opts.Engine,
+		Bundler:          opts.Bundler,
+		Renderer:         opts.Renderer,
+		Router:           opts.Router,
+		CSS:              condStr(hasCSS, opts.CSS, ""),
+		Cache:            condStr(hasCache, opts.Cache, ""),
+		Database:         condStr(hasDatabase, opts.Database, ""),
+		DatabaseAdapter:  opts.DatabaseAdapter,
+		DatabaseURL:      opts.DatabaseURL,
+		DatabaseHost:     opts.DatabaseHost,
+		DatabasePort:     opts.DatabasePort,
+		DatabaseUser:     opts.DatabaseUser,
+		DatabasePass:     opts.DatabasePass,
+		DatabaseName:     opts.DatabaseName,
+		CSRF:             hasCSRF,
+		SecurityHeaders:  hasSecurityHeaders,
+		Dev:              opts.Dev,
+		Embed:            opts.Embed,
+		HasRoutes:        len(routePkgs) > 0,
+		HasDatabaseRepos: hasDatabaseRepos,
+		ActionsImport:    actionsImport,
+		RouteImports:     routeImports,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("execute plugins template: %w", err)
@@ -356,6 +401,66 @@ func generateRouteInit(pkgName, polaPackage string) []byte {
 		"// Code generated by pola; DO NOT EDIT.\npackage %s\n\nimport \"%s/routes\"\n\nfunc init() { routes.Register(&Route{}) }\n",
 		pkgName, polaPackage,
 	))
+}
+
+// repoDiscovery holds discovered repository registration info for the overlay.
+type repoDiscovery struct {
+	ImportPath   string   // e.g. "myapp/repositories/gorm"
+	PkgName      string   // e.g. "gorm"
+	Repositories []string // e.g. ["User", "Product"]
+}
+
+// discoverRepositoryRegistrations scans repositories/{orm}/ for exported
+// Register*Repository functions and returns their names.
+func discoverRepositoryRegistrations(projectDir, repoDir, orm, modPath string) *repoDiscovery {
+	ormDir := filepath.Join(projectDir, repoDir, orm)
+	info, err := os.Stat(ormDir)
+	if err != nil || !info.IsDir() {
+		return nil
+	}
+
+	entries, err := os.ReadDir(ormDir)
+	if err != nil {
+		return nil
+	}
+
+	var repos []string
+	fset := token.NewFileSet()
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") {
+			continue
+		}
+		f, err := parser.ParseFile(fset, filepath.Join(ormDir, entry.Name()), nil, 0)
+		if err != nil {
+			continue
+		}
+		for _, decl := range f.Decls {
+			fd, ok := decl.(*ast.FuncDecl)
+			if !ok || !fd.Name.IsExported() {
+				continue
+			}
+			name := fd.Name.Name
+			if strings.HasPrefix(name, "Register") && strings.HasSuffix(name, "Repository") {
+				// Extract the model name: Register{Name}Repository -> Name
+				modelName := strings.TrimPrefix(name, "Register")
+				modelName = strings.TrimSuffix(modelName, "Repository")
+				if modelName != "" {
+					repos = append(repos, modelName)
+				}
+			}
+		}
+	}
+
+	if len(repos) == 0 {
+		return nil
+	}
+
+	sort.Strings(repos)
+	return &repoDiscovery{
+		ImportPath:   modPath + "/" + filepath.ToSlash(filepath.Join(repoDir, orm)),
+		PkgName:      orm,
+		Repositories: repos,
+	}
 }
 
 // readModulePath reads the module path from go.mod in the given directory.
