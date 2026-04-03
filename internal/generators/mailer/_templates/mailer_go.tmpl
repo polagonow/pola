@@ -1,0 +1,27 @@
+package mailers
+
+import (
+	"[[.ModulePath]]/mailer"
+)
+
+// [[.Name]]Mailer sends emails related to [[.SnakeName]] operations.
+type [[.Name]]Mailer struct {
+	mailer.Base
+}
+
+// New[[.Name]]Mailer creates a new [[.Name]]Mailer with injected dependencies.
+func New[[.Name]]Mailer(base mailer.Base) *[[.Name]]Mailer {
+	return &[[.Name]]Mailer{Base: base}
+}
+[[range .Actions]]
+// [[.PascalName]] composes the [[.SnakeName]] email.
+func (m *[[$.Name]]Mailer) [[.PascalName]]() *mailer.Message {
+	return m.Mail(
+		mailer.To("recipient@example.com"),
+		mailer.Subject("[[.HumanName]]"),
+		mailer.Template("[[$.SnakeName]]_mailer/[[.SnakeName]]", map[string]any{
+			// TODO: add template props
+		}),
+	)
+}
+[[end]]
