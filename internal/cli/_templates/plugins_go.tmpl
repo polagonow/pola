@@ -32,6 +32,9 @@ import (
 {{- if .Cache}}
 	"{{.PolaPackage}}/cache/{{.Cache}}"
 {{- end}}
+{{- if .Database}}
+	database{{.Database}} "{{.PolaPackage}}/database/{{.Database}}"
+{{- end}}
 {{- if .HasRoutes}}
 	"{{.PolaPackage}}/routes"
 {{- end}}
@@ -73,6 +76,31 @@ var PolaPlugins = []core.Plugin{
 {{- end}}
 {{- if .Cache}}
 	{{.Cache}}.Plugin(),
+{{- end}}
+{{- if .Database}}
+	database{{.Database}}.Plugin(
+{{- if .DatabaseAdapter}}
+		database{{.Database}}.WithAdapter("{{.DatabaseAdapter}}"),
+{{- end}}
+{{- if .DatabaseURL}}
+		database{{.Database}}.WithURL("{{.DatabaseURL}}"),
+{{- end}}
+{{- if .DatabaseHost}}
+		database{{.Database}}.WithHost("{{.DatabaseHost}}"),
+{{- end}}
+{{- if .DatabasePort}}
+		database{{.Database}}.WithPort("{{.DatabasePort}}"),
+{{- end}}
+{{- if .DatabaseUser}}
+		database{{.Database}}.WithUser("{{.DatabaseUser}}"),
+{{- end}}
+{{- if .DatabasePass}}
+		database{{.Database}}.WithPassword("{{.DatabasePass}}"),
+{{- end}}
+{{- if .DatabaseName}}
+		database{{.Database}}.WithName("{{.DatabaseName}}"),
+{{- end}}
+	),
 {{- end}}
 {{- if .HasRoutes}}
 	routes.Plugin(),

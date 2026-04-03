@@ -8,6 +8,7 @@ require (
 	dario.cat/mergo v1.0.2
 	entgo.io/ent v0.14.6
 	github.com/AlecAivazis/survey/v2 v2.3.7
+	github.com/beego/beego/v2 v2.3.9
 	github.com/buke/quickjs-go v0.6.11
 	github.com/caarlos0/env/v6 v6.10.1
 	github.com/dop251/goja v0.0.0-20260311135729-065cd970411c
@@ -15,11 +16,13 @@ require (
 	github.com/evanw/esbuild v0.20.2
 	github.com/fastschema/qjs v0.0.6
 	github.com/fsnotify/fsnotify v1.9.0
+	github.com/go-sql-driver/mysql v1.9.2
 	github.com/gorilla/csrf v1.7.3
 	github.com/gorilla/websocket v1.5.3
 	github.com/grafana/sobek v0.0.0-20260309140132-c198b3f43d96
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/hashicorp/hcl/v2 v2.24.0
+	github.com/lib/pq v1.10.9
 	github.com/magefile/mage v1.16.1
 	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/prometheus/client_golang v1.23.2
@@ -30,6 +33,10 @@ require (
 	go.opentelemetry.io/otel/trace v1.42.0
 	golang.org/x/net v0.46.0
 	golang.org/x/tools v0.38.0
+	gorm.io/driver/mysql v1.5.7
+	gorm.io/driver/postgres v1.5.11
+	gorm.io/driver/sqlite v1.5.7
+	gorm.io/gorm v1.30.1
 	modernc.org/libc v1.67.1
 	modernc.org/libquickjs v0.12.3
 	modernc.org/quickjs v0.17.1
@@ -65,7 +72,6 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/inflect v0.19.0 // indirect
 	github.com/go-sourcemap/sourcemap v2.1.4+incompatible // indirect
-	github.com/go-sql-driver/mysql v1.8.1 // indirect
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
@@ -78,6 +84,7 @@ require (
 	github.com/googleapis/go-gorm-spanner v1.8.6 // indirect
 	github.com/googleapis/go-sql-spanner v1.17.0 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
+	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
@@ -99,9 +106,11 @@ require (
 	github.com/prometheus/procfs v0.16.1 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/samber/go-type-to-string v1.8.0 // indirect
+	github.com/shiena/ansicolor v0.0.0-20230509054315-a9deabde6e02 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.5.0 // indirect
 	github.com/tetratelabs/wazero v1.9.0 // indirect
+	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/zclconf/go-cty-yaml v1.1.0 // indirect
 	github.com/zeebo/errs v1.4.0 // indirect
 	go.opencensus.io v0.24.0 // indirect
@@ -129,11 +138,7 @@ require (
 	google.golang.org/grpc v1.74.2 // indirect
 	google.golang.org/protobuf v1.36.8 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	gorm.io/driver/mysql v1.5.7 // indirect
-	gorm.io/driver/postgres v1.5.11 // indirect
-	gorm.io/driver/sqlite v1.5.7 // indirect
 	gorm.io/driver/sqlserver v1.5.4 // indirect
-	gorm.io/gorm v1.30.1 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
 )

@@ -12,6 +12,7 @@ import (
 	"text/template"
 
 	"github.com/polagonow/pola/internal/actionbridge"
+	"github.com/polagonow/pola/polafile"
 )
 
 //go:embed _templates/plugins_go.tmpl _templates/embed_go.tmpl
@@ -37,6 +38,14 @@ type pluginOpts struct {
 	Router          string
 	CSS             string
 	Cache           string
+	Database        string // ORM name: "ent", "gorm", "beego", or "" for none.
+	DatabaseAdapter string // "postgresql", "mysql", "sqlite"
+	DatabaseURL     string
+	DatabaseHost    string
+	DatabasePort    string
+	DatabaseUser    string
+	DatabasePass    string
+	DatabaseName    string
 	CSRF            bool
 	SecurityHeaders bool
 	Dev             bool
@@ -202,6 +211,7 @@ func generatePluginImports(opts pluginOpts, actionsImport string, routePkgs []ro
 
 	hasCSS := opts.CSS != "" && opts.CSS != "none"
 	hasCache := opts.Cache != "" && opts.Cache != "none"
+	hasDatabase := opts.Database != ""
 	hasCSRF := opts.CSRF
 	hasSecurityHeaders := opts.SecurityHeaders
 
@@ -214,6 +224,14 @@ func generatePluginImports(opts pluginOpts, actionsImport string, routePkgs []ro
 		Router          string
 		CSS             string
 		Cache           string
+		Database        string
+		DatabaseAdapter string
+		DatabaseURL     string
+		DatabaseHost    string
+		DatabasePort    string
+		DatabaseUser    string
+		DatabasePass    string
+		DatabaseName    string
 		CSRF            bool
 		SecurityHeaders bool
 		Dev             bool
@@ -229,6 +247,14 @@ func generatePluginImports(opts pluginOpts, actionsImport string, routePkgs []ro
 		Router:          opts.Router,
 		CSS:             condStr(hasCSS, opts.CSS, ""),
 		Cache:           condStr(hasCache, opts.Cache, ""),
+		Database:        condStr(hasDatabase, opts.Database, ""),
+		DatabaseAdapter: opts.DatabaseAdapter,
+		DatabaseURL:     opts.DatabaseURL,
+		DatabaseHost:    opts.DatabaseHost,
+		DatabasePort:    opts.DatabasePort,
+		DatabaseUser:    opts.DatabaseUser,
+		DatabasePass:    opts.DatabasePass,
+		DatabaseName:    opts.DatabaseName,
 		CSRF:            hasCSRF,
 		SecurityHeaders: hasSecurityHeaders,
 		Dev:             opts.Dev,
@@ -250,6 +276,30 @@ func envOrBool(key string, fallback bool) bool {
 		return fallback
 	}
 	return v == "true" || v == "1"
+}
+
+// databaseORM returns the configured ORM name if a database block exists, or "" otherwise.
+func databaseORM(pf *polafile.Polafile) string {
+	if pf == nil || pf.Database == nil {
+		return ""
+	}
+	return pf.DatabaseORM()
+}
+
+// populateDatabaseOpts fills database-related fields in pluginOpts from the Polafile.
+func populateDatabaseOpts(opts *pluginOpts, pf *polafile.Polafile, env string) {
+	opts.Database = databaseORM(pf)
+	if opts.Database == "" {
+		return
+	}
+	merged := pf.DatabaseForEnv(env)
+	opts.DatabaseAdapter = pf.DatabaseAdapter(env)
+	opts.DatabaseURL = merged.URL
+	opts.DatabaseHost = merged.Host
+	opts.DatabasePort = merged.Port
+	opts.DatabaseUser = merged.User
+	opts.DatabasePass = merged.Password
+	opts.DatabaseName = merged.Name
 }
 
 func condStr(cond bool, a, b string) string {

@@ -89,7 +89,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	// Restart loop: on .go/.tmpl file change → kill → regenerate overlay → respawn.
 	for {
 		// Generate overlay (plugin imports + action bridge codegen).
-		overlayRes, err := generateOverlay(projectDir, pluginOpts{
+		opts := pluginOpts{
 			PolaPackage:     pf.PolaPackage(),
 			Engine:          serveFlags.vm,
 			Bundler:         serveFlags.bundler,
@@ -100,7 +100,9 @@ func runServe(cmd *cobra.Command, _ []string) error {
 			CSRF:            serveFlags.csrf,
 			SecurityHeaders: serveFlags.securityHeaders,
 			Dev:             true,
-		})
+		}
+		populateDatabaseOpts(&opts, &pf, "development")
+		overlayRes, err := generateOverlay(projectDir, opts)
 		if err != nil {
 			return err
 		}

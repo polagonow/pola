@@ -15,6 +15,7 @@ import (
 	atlassqlite "ariga.io/atlas/sql/sqlite"
 	_ "github.com/mattn/go-sqlite3"
 
+	"github.com/polagonow/pola/database/dsn"
 	"github.com/polagonow/pola/internal/project"
 	"github.com/polagonow/pola/polafile"
 	"github.com/spf13/cobra"
@@ -471,8 +472,15 @@ func loadDBConfig(cmd *cobra.Command) (*dbConfig, error) {
 	if url == "" {
 		url = pf.DatabaseURL(env)
 	}
+	// If no explicit URL, try building from individual fields.
 	if url == "" {
-		return nil, fmt.Errorf("no database URL; use --url flag or set url in Polafile.hcl database block")
+		merged := pf.DatabaseForEnv(env)
+		if merged.Host != "" || merged.Name != "" {
+			url = buildDSN(merged)
+		}
+	}
+	if url == "" {
+		return nil, fmt.Errorf("no database URL; use --url flag or set url/host/name in Polafile.hcl database block")
 	}
 
 	adapter := pf.DatabaseAdapter(env)
@@ -487,6 +495,19 @@ func loadDBConfig(cmd *cobra.Command) (*dbConfig, error) {
 		url:           url,
 		adapter:       adapter,
 	}, nil
+}
+
+// buildDSN constructs a connection string from individual Polafile database fields.
+func buildDSN(db polafile.Database) string {
+	return dsn.Build(dsn.Config{
+		URL:      db.URL,
+		Host:     db.Host,
+		Port:     db.Port,
+		User:     db.User,
+		Password: db.Password,
+		Name:     db.Name,
+		Adapter:  db.Adapter,
+	})
 }
 
 // openDriver opens a database connection and returns an Atlas driver.

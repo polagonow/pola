@@ -140,6 +140,11 @@ func (pf *Polafile) SecurityHeadersEnabled(env string) bool {
 type DatabaseEnvironment struct {
 	Environment string `hcl:"env,label"`
 	URL         string `hcl:"url,optional"`
+	Host        string `hcl:"host,optional"`
+	Port        string `hcl:"port,optional"`
+	User        string `hcl:"user,optional"`
+	Password    string `hcl:"password,optional"`
+	Name        string `hcl:"name,optional"`
 	Models      string `hcl:"models,optional"`
 	Adapter     string `hcl:"adapter,optional"`
 	ORM         string `hcl:"orm,optional"`
@@ -155,6 +160,11 @@ type Migrations struct {
 // Database holds database configuration with optional per-environment overrides.
 type Database struct {
 	URL        string                `hcl:"url,optional"`
+	Host       string                `hcl:"host,optional"`
+	Port       string                `hcl:"port,optional"`
+	User       string                `hcl:"user,optional"`
+	Password   string                `hcl:"password,optional"`
+	Name       string                `hcl:"name,optional"`
 	Models     string                `hcl:"models,optional"`
 	Adapter    string                `hcl:"adapter,optional"`
 	ORM        string                `hcl:"orm,optional"`
@@ -168,18 +178,28 @@ func (pf *Polafile) DatabaseForEnv(env string) Database {
 		return Database{}
 	}
 	base := Database{
-		URL:     pf.Database.URL,
-		Models:  pf.Database.Models,
-		Adapter: pf.Database.Adapter,
-		ORM:     pf.Database.ORM,
+		URL:      pf.Database.URL,
+		Host:     pf.Database.Host,
+		Port:     pf.Database.Port,
+		User:     pf.Database.User,
+		Password: pf.Database.Password,
+		Name:     pf.Database.Name,
+		Models:   pf.Database.Models,
+		Adapter:  pf.Database.Adapter,
+		ORM:      pf.Database.ORM,
 	}
 	for _, e := range pf.Database.Envs {
 		if e.Environment == env {
 			override := Database{
-				URL:     e.URL,
-				Models:  e.Models,
-				Adapter: e.Adapter,
-				ORM:     e.ORM,
+				URL:      e.URL,
+				Host:     e.Host,
+				Port:     e.Port,
+				User:     e.User,
+				Password: e.Password,
+				Name:     e.Name,
+				Models:   e.Models,
+				Adapter:  e.Adapter,
+				ORM:      e.ORM,
 			}
 			_ = mergo.Merge(&base, &override, mergo.WithOverride)
 			break
@@ -444,6 +464,11 @@ func Save(dir string, pf *Polafile) error {
 		dbBlock := blockBody.AppendNewBlock("database", nil)
 		dbBody := dbBlock.Body()
 		setAttr(dbBody, "url", pf.Database.URL)
+		setAttr(dbBody, "host", pf.Database.Host)
+		setAttr(dbBody, "port", pf.Database.Port)
+		setAttr(dbBody, "user", pf.Database.User)
+		setAttr(dbBody, "password", pf.Database.Password)
+		setAttr(dbBody, "name", pf.Database.Name)
 		setAttr(dbBody, "models", pf.Database.Models)
 		setAttr(dbBody, "adapter", pf.Database.Adapter)
 		setAttr(dbBody, "orm", pf.Database.ORM)
@@ -458,6 +483,11 @@ func Save(dir string, pf *Polafile) error {
 			envBlock := dbBody.AppendNewBlock("env", []string{e.Environment})
 			envBody := envBlock.Body()
 			setAttr(envBody, "url", e.URL)
+			setAttr(envBody, "host", e.Host)
+			setAttr(envBody, "port", e.Port)
+			setAttr(envBody, "user", e.User)
+			setAttr(envBody, "password", e.Password)
+			setAttr(envBody, "name", e.Name)
 			setAttr(envBody, "models", e.Models)
 			setAttr(envBody, "adapter", e.Adapter)
 			setAttr(envBody, "orm", e.ORM)

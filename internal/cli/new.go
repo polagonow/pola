@@ -165,6 +165,7 @@ func runNew(_ *cobra.Command, args []string) error {
 		Router:          newFlags.router,
 		CSS:             newFlags.css,
 		Cache:           "memory",
+		Database:        "", // Database plugin is added when user configures ORM via Polafile.
 		CSRF:            newFlags.csrf,
 		SecurityHeaders: newFlags.securityHeaders,
 		Dev:             true,

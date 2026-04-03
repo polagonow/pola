@@ -52,7 +52,7 @@ func runGenerate(_ *cobra.Command, _ []string) error {
 		pf = *loaded
 	}
 
-	result, err := generateOverlay(projectDir, pluginOpts{
+	genOpts := pluginOpts{
 		PolaPackage:     pf.PolaPackage(),
 		Engine:          cmp.Or(os.Getenv("POLA_VM"), nameOnly(pf.Engine), "goja"),
 		Bundler:         cmp.Or(os.Getenv("POLA_BUNDLER"), nameOnly(pf.Bundler), "esbuild"),
@@ -63,7 +63,9 @@ func runGenerate(_ *cobra.Command, _ []string) error {
 		CSRF:            envOrBool("POLA_CSRF", pf.CSRFEnabled("default")),
 		SecurityHeaders: envOrBool("POLA_SECURITY_HEADERS", pf.SecurityHeadersEnabled("default")),
 		Dev:             true,
-	})
+	}
+	populateDatabaseOpts(&genOpts, &pf, "development")
+	result, err := generateOverlay(projectDir, genOpts)
 	if err != nil {
 		return err
 	}
