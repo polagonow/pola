@@ -62,6 +62,7 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 	hasCSS := opts.CSS != "" && opts.CSS != "none"
 	hasCache := opts.Cache != "" && opts.Cache != "none"
 	hasDatabase := opts.Database != ""
+	hasImageProcessing := opts.ImageProcessing != "" && opts.ImageProcessing != "none"
 	hasCSRF := opts.CSRF
 	hasSecurityHeaders := opts.SecurityHeaders
 	hasStorage := opts.StorageDriver != ""
@@ -86,6 +87,7 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		DatabaseName    string
 		CSRF            bool
 		SecurityHeaders bool
+		ImageProcessing string
 		Dev             bool
 		Embed           bool
 		HasRoutes       bool
@@ -124,6 +126,7 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		DatabaseName:    opts.DatabaseName,
 		CSRF:            hasCSRF,
 		SecurityHeaders: hasSecurityHeaders,
+		ImageProcessing: autoload.CondStr(hasImageProcessing, opts.ImageProcessing, ""),
 		Dev:             opts.Dev,
 		Embed:           opts.Embed,
 		HasRoutes:       len(routeImports) > 0,

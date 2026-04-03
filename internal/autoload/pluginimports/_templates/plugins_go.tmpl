@@ -47,6 +47,9 @@ import (
 	mailerrenderer "{{.PolaPackage}}/mailer/renderer/{{.MailerRenderer}}"
 	mailertransport "{{.PolaPackage}}/mailer/transport/{{.MailerTransport}}"
 {{- end}}
+{{- if .ImageProcessing}}
+	imageprocessing{{.ImageProcessing}} "{{.PolaPackage}}/imageprocessing/{{.ImageProcessing}}"
+{{- end}}
 {{- if .HasRoutes}}
 	"{{.PolaPackage}}/routes"
 {{- end}}
@@ -164,6 +167,9 @@ var PolaPlugins = []core.Plugin{
 	mailer.Plugin(mailer.Config{
 		From: "{{.MailerFrom}}",
 	}),
+{{- end}}
+{{- if .ImageProcessing}}
+	imageprocessing{{.ImageProcessing}}.Plugin(),
 {{- end}}
 {{- if .HasRoutes}}
 	routes.Plugin(),

@@ -77,6 +77,7 @@ type Polafile struct {
 	Database        *Database        `hcl:"database,block"`
 	Storage         *StorageConfig   `hcl:"storage,block"`
 	Mailer          *Mailer          `hcl:"mailer,block"`
+	ImageProcessing *ImageProcessing `hcl:"image_processing,block"`
 }
 
 // ---------- CSRF ----------
@@ -522,6 +523,138 @@ func (pf *Polafile) MailerRenderer(env string) string {
 	return "react"
 }
 
+// ---------- ImageProcessing ----------
+
+// ImageProcessingEnvironment holds per-environment image processing overrides.
+type ImageProcessingEnvironment struct {
+	Environment string `hcl:"env,label"`
+	Enabled     *bool  `hcl:"enabled,optional"`
+	Adapter     string `hcl:"adapter,optional"`
+	Path        string `hcl:"path,optional"`
+	MaxWidth    int    `hcl:"max_width,optional"`
+	MaxHeight   int    `hcl:"max_height,optional"`
+	Format      string `hcl:"format,optional"`
+}
+
+// ImageProcessing holds image processing configuration with optional per-environment overrides.
+type ImageProcessing struct {
+	Enabled   bool                         `hcl:"enabled,optional"`
+	Adapter   string                       `hcl:"adapter,optional"`
+	Path      string                       `hcl:"path,optional"`
+	MaxWidth  int                          `hcl:"max_width,optional"`
+	MaxHeight int                          `hcl:"max_height,optional"`
+	Format    string                       `hcl:"format,optional"`
+	Envs      []ImageProcessingEnvironment `hcl:"env,block"`
+}
+
+// ImageProcessingEnabled returns whether image processing is enabled for the given environment.
+// Resolution: env override > base > default (false).
+func (pf *Polafile) ImageProcessingEnabled(env string) bool {
+	if pf.ImageProcessing == nil {
+		return false
+	}
+	base := pf.ImageProcessing.Enabled
+	for _, e := range pf.ImageProcessing.Envs {
+		if e.Environment == env && e.Enabled != nil {
+			return *e.Enabled
+		}
+	}
+	return base
+}
+
+// ImageProcessingAdapter returns the configured image processing adapter for the given environment,
+// falling back to base config, then "imaging".
+func (pf *Polafile) ImageProcessingAdapter(env string) string {
+	if pf.ImageProcessing == nil {
+		return ""
+	}
+	if !pf.ImageProcessingEnabled(env) {
+		return ""
+	}
+	base := pf.ImageProcessing.Adapter
+	for _, e := range pf.ImageProcessing.Envs {
+		if e.Environment == env && e.Adapter != "" {
+			return e.Adapter
+		}
+	}
+	if base != "" {
+		return base
+	}
+	return "imaging"
+}
+
+// ImageProcessingPath returns the configured image processing path prefix,
+// falling back to base config, then "/_image".
+func (pf *Polafile) ImageProcessingPath(env string) string {
+	if pf.ImageProcessing == nil {
+		return "/_image"
+	}
+	base := pf.ImageProcessing.Path
+	for _, e := range pf.ImageProcessing.Envs {
+		if e.Environment == env && e.Path != "" {
+			return e.Path
+		}
+	}
+	if base != "" {
+		return base
+	}
+	return "/_image"
+}
+
+// ImageProcessingMaxWidth returns the configured max width,
+// falling back to base config, then 4096.
+func (pf *Polafile) ImageProcessingMaxWidth(env string) int {
+	if pf.ImageProcessing == nil {
+		return 4096
+	}
+	base := pf.ImageProcessing.MaxWidth
+	for _, e := range pf.ImageProcessing.Envs {
+		if e.Environment == env && e.MaxWidth > 0 {
+			return e.MaxWidth
+		}
+	}
+	if base > 0 {
+		return base
+	}
+	return 4096
+}
+
+// ImageProcessingMaxHeight returns the configured max height,
+// falling back to base config, then 4096.
+func (pf *Polafile) ImageProcessingMaxHeight(env string) int {
+	if pf.ImageProcessing == nil {
+		return 4096
+	}
+	base := pf.ImageProcessing.MaxHeight
+	for _, e := range pf.ImageProcessing.Envs {
+		if e.Environment == env && e.MaxHeight > 0 {
+			return e.MaxHeight
+		}
+	}
+	if base > 0 {
+		return base
+	}
+	return 4096
+}
+
+// ImageProcessingFormat returns the configured default output format,
+// falling back to base config, then "jpeg".
+func (pf *Polafile) ImageProcessingFormat(env string) string {
+	if pf.ImageProcessing == nil {
+		return "jpeg"
+	}
+	base := pf.ImageProcessing.Format
+	for _, e := range pf.ImageProcessing.Envs {
+		if e.Environment == env && e.Format != "" {
+			return e.Format
+		}
+	}
+	if base != "" {
+		return base
+	}
+	return "jpeg"
+}
+
 // RepositoriesDir returns the configured repositories directory, defaulting to "repositories".
 func (pf *Polafile) RepositoriesDir() string {
 	if pf.Repositories != "" {
@@ -718,6 +851,36 @@ func Save(dir string, pf *Polafile) error {
 			setAttr(envBody, "username", e.Username)
 			setAttr(envBody, "password", e.Password)
 			setAttr(envBody, "tls", e.TLS)
+		}
+	}
+
+	// ImageProcessing block.
+	if pf.ImageProcessing != nil {
+		blockBody.AppendNewline()
+		ipBlock := blockBody.AppendNewBlock("image_processing", nil)
+		ipBody := ipBlock.Body()
+		ipBody.SetAttributeValue("enabled", cty.BoolVal(pf.ImageProcessing.Enabled))
+		setAttr(ipBody, "adapter", pf.ImageProcessing.Adapter)
+		setAttr(ipBody, "path", pf.ImageProcessing.Path)
+		if pf.ImageProcessing.MaxWidth > 0 {
+			ipBody.SetAttributeValue("max_width", cty.NumberIntVal(int64(pf.ImageProcessing.MaxWidth)))
+		}
+		if pf.ImageProcessing.MaxHeight > 0 {
+			ipBody.SetAttributeValue("max_height", cty.NumberIntVal(int64(pf.ImageProcessing.MaxHeight)))
+		}
+		setAttr(ipBody, "format", pf.ImageProcessing.Format)
+		for _, e := range pf.ImageProcessing.Envs {
+			envBlock := ipBody.AppendNewBlock("env", []string{e.Environment})
+			envBody := envBlock.Body()
+			setAttr(envBody, "adapter", e.Adapter)
+			setAttr(envBody, "path", e.Path)
+			if e.MaxWidth > 0 {
+				envBody.SetAttributeValue("max_width", cty.NumberIntVal(int64(e.MaxWidth)))
+			}
+			if e.MaxHeight > 0 {
+				envBody.SetAttributeValue("max_height", cty.NumberIntVal(int64(e.MaxHeight)))
+			}
+			setAttr(envBody, "format", e.Format)
 		}
 	}
 

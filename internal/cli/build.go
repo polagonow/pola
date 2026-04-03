@@ -24,6 +24,7 @@ var buildFlags struct {
 	appPath         string
 	csrf            bool
 	securityHeaders bool
+	imageProcessing string
 }
 
 var buildCmd = &cobra.Command{
@@ -49,6 +50,7 @@ func init() {
 	buildCmd.Flags().StringVar(&buildFlags.appPath, "app-path", cmp.Or(os.Getenv("POLA_WEBAPP_PATH"), "./web"), "path to the web app directory")
 	buildCmd.Flags().BoolVar(&buildFlags.csrf, "csrf", os.Getenv("POLA_CSRF") != "false", "enable CSRF protection")
 	buildCmd.Flags().BoolVar(&buildFlags.securityHeaders, "security-headers", os.Getenv("POLA_SECURITY_HEADERS") != "false", "enable security headers")
+	buildCmd.Flags().StringVar(&buildFlags.imageProcessing, "image-processing", os.Getenv("POLA_IMAGE_PROCESSING"), "image processing adapter")
 }
 
 func runBuild(cmd *cobra.Command, _ []string) error {
@@ -97,6 +99,7 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 		AppDir:          pf.AppDir(),
 		ActionsDir:      generateFlags.actionsDir,
 		TSOut:           generateFlags.tsOut,
+		ImageProcessing: buildFlags.imageProcessing,
 	}
 	autoload.PopulateDatabaseOpts(&baseOpts, &pf, "production")
 	autoload.PopulateStorageOpts(&baseOpts, &pf, "production")

@@ -32,6 +32,7 @@ func applyPolafileDefaults(cmd *cobra.Command, projectDir string) {
 	applyIfUnchanged(cmd, "app-path", "POLA_WEBAPP_PATH", "./"+pf.AppDir())
 	applyIfUnchanged(cmd, "csrf", "POLA_CSRF", strconv.FormatBool(pf.CSRFEnabled("default")))
 	applyIfUnchanged(cmd, "security-headers", "POLA_SECURITY_HEADERS", strconv.FormatBool(pf.SecurityHeadersEnabled("default")))
+	applyIfUnchanged(cmd, "image-processing", "POLA_IMAGE_PROCESSING", pf.ImageProcessingAdapter("default"))
 }
 
 // applyIfUnchanged sets a flag's value from the Polafile only if the user
