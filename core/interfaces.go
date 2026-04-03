@@ -43,8 +43,15 @@ type JSEngine interface {
 type Renderer interface {
 	Name() string
 	FileExtensions() []string
-	Render(ctx context.Context, req RenderRequest) (RenderResult, error)
 	Capabilities() []Capability
+	ServeHTTP(w http.ResponseWriter, r *http.Request)
+}
+
+// RenderDepsAware is an optional interface implemented by renderers that need
+// framework-level dependencies (shell, cache, logger, etc.) to produce HTTP
+// responses. The pipeline calls SetRenderDeps once after wiring.
+type RenderDepsAware interface {
+	SetRenderDeps(RenderDeps)
 }
 
 // Router scans for routes and resolves requests.

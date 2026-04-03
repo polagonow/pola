@@ -82,6 +82,14 @@ func resolveShellAndAssets(registry *core.Registry, publicDir string) (core.HTML
 	return shell, assets
 }
 
+// wireRenderDeps calls SetRenderDeps on the renderer if it implements
+// core.RenderDepsAware, providing all framework-level dependencies.
+func wireRenderDeps(renderer core.Renderer, deps core.RenderDeps) {
+	if rda, ok := renderer.(core.RenderDepsAware); ok {
+		rda.SetRenderDeps(deps)
+	}
+}
+
 // Build runs the full build pipeline from an AppBuilder.
 func Build(ctx context.Context, builder *core.AppBuilder) (*core.App, error) {
 	registry, err := builder.BuildRegistry(ctx)
@@ -276,18 +284,37 @@ func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, er
 	// ── 7. Resolve shell and asset server ─────────────────────────────────
 	shell, assets := resolveShellAndAssets(registry, publicDir)
 
-	// ── 8. Wire orchestrator ───────────────────────────────────────────────
-	// Resolve cache for render result caching; nil when cache is disabled.
+	// ── 8. Wire render deps to renderer ───────────────────────────────────
 	renderCache, cacheErr := core.Invoke[core.Cache](registry)
 	if cacheErr != nil {
 		logger.Info("pola: cache not registered, caching disabled")
 	}
 
+	notFoundRoute := newNotFoundRoute(discovery.GlobalNotFound)
+
+	var devScript string
+	if cfg.Dev {
+		devScript = ClientScript
+	}
+
+	wireRenderDeps(renderer, core.RenderDeps{
+		Shell:         shell,
+		Cache:         renderCache,
+		Logger:        logger,
+		Metrics:       metrics,
+		Tracer:        tracer,
+		BundleOutput:  bundleOutput,
+		CSSURLs:       cssURLs,
+		DocumentProps: docProps,
+		DevScript:     devScript,
+		NotFoundRoute: notFoundRoute,
+	})
+
+	// ── 9. Wire orchestrator ──────────────────────────────────────────────
 	// Wrap injectors with per-request memoization to deduplicate Go calls.
 	memoInjectors := WrapInjectorsWithMemo(runtimeInjectors)
 
-	notFoundRoute := newNotFoundRoute(discovery.GlobalNotFound)
-	orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, renderCache, middleware, memoInjectors, routes, shell, assets, bundleOutput, notFoundRoute, cssURLs, docProps, cfg.Dev)
+	orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, middleware, memoInjectors, routes, assets, cfg.Dev)
 
 	// ── Copy static public files ────────────────────────────────────────
 	srcPublic := filepath.Join(absWebAppPath, "public")
@@ -295,7 +322,7 @@ func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, er
 		copyPublicStatics(srcPublic, publicDir)
 	}
 
-	// ── 9. Write prebuild-meta.json for embed builds ───────────────────────
+	// ── 10. Write prebuild-meta.json for embed builds ───────────────────────
 	if bundleOutput != nil {
 		meta := prebuildMeta{
 			Routes:         routes,
@@ -310,7 +337,7 @@ func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, er
 		}
 	}
 
-	// ── 10. Return App ─────────────────────────────────────────────────────
+	// ── 11. Return App ─────────────────────────────────────────────────────
 	app := newApp(cfg, registry, orch)
 	app.SetArtifacts(bundleOutput)
 
@@ -422,10 +449,23 @@ func buildFromPrebuilt(
 		logger.Info("pola: cache not registered, caching disabled")
 	}
 
+	notFoundRoute := newNotFoundRoute(artifacts.GlobalNotFound)
+
+	wireRenderDeps(renderer, core.RenderDeps{
+		Shell:         shell,
+		Cache:         renderCache,
+		Logger:        logger,
+		Metrics:       metrics,
+		Tracer:        tracer,
+		BundleOutput:  artifacts.BundleOutput,
+		CSSURLs:       artifacts.CSSURLs,
+		DocumentProps: artifacts.DocumentProps,
+		NotFoundRoute: notFoundRoute,
+	})
+
 	// Wrap injectors with per-request memoization.
 	memoInjectors := WrapInjectorsWithMemo(injectors)
 
-	notFoundRoute := newNotFoundRoute(artifacts.GlobalNotFound)
 	// In prebuild/embed mode, API routes are still compiled into the binary.
 	var apiRouter core.APIRouter
 	if ar, err := core.Invoke[core.APIRouter](registry); err == nil {
@@ -439,7 +479,7 @@ func buildFromPrebuilt(
 		}
 		apiRouter = ar
 	}
-	orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, renderCache, middleware, memoInjectors, artifacts.Routes, shell, assets, artifacts.BundleOutput, notFoundRoute, artifacts.CSSURLs, artifacts.DocumentProps, false)
+	orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, middleware, memoInjectors, artifacts.Routes, assets, false)
 	app := newApp(cfg, registry, orch)
 	app.SetArtifacts(artifacts.BundleOutput)
 	return app, nil

@@ -237,22 +237,37 @@ func NewHotReloader(cfg *core.Config, registry *core.Registry, initial *core.App
 					docProps, _ = extractor.ExtractDocumentProps()
 				}
 
-				// Resolve API router for hot-reload rebuild.
-				var apiRouter core.APIRouter
-				if ar, err := core.Invoke[core.APIRouter](registry); err == nil {
-					apiRouter = ar
-				}
+				// Resolve cache and clear stale SSR data from previous build.
 				renderCache, cacheErr := core.Invoke[core.Cache](registry)
 				if cacheErr != nil {
 					logger.Info("hotreload: cache not registered, caching disabled")
 				}
-				// Clear stale SSR data from previous build.
 				if renderCache != nil {
 					if err := renderCache.Clear(context.Background()); err != nil {
 						logger.Warn("hotreload: cache clear", "err", err)
 					}
 				}
-				orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, renderCache, mws, WrapInjectorsWithMemo(injs), nil, shell, assets, newOutput, h.notFoundRoute, cssURLs, docProps, true)
+
+				// Wire updated deps to renderer.
+				wireRenderDeps(renderer, core.RenderDeps{
+					Shell:         shell,
+					Cache:         renderCache,
+					Logger:        logger,
+					Metrics:       metrics,
+					Tracer:        tracer,
+					BundleOutput:  newOutput,
+					CSSURLs:       cssURLs,
+					DocumentProps: docProps,
+					DevScript:     ClientScript,
+					NotFoundRoute: h.notFoundRoute,
+				})
+
+				// Resolve API router for hot-reload rebuild.
+				var apiRouter core.APIRouter
+				if ar, err := core.Invoke[core.APIRouter](registry); err == nil {
+					apiRouter = ar
+				}
+				orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, mws, WrapInjectorsWithMemo(injs), nil, assets, true)
 
 				newApp := newApp(cfg, registry, orch)
 				newApp.SetArtifacts(newOutput)

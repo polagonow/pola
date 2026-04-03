@@ -2,15 +2,11 @@
 package angular
 
 import (
-	"context"
-	"errors"
+	"fmt"
+	"net/http"
 
 	"github.com/polagonow/pola/core"
 )
-
-// ErrNotImplemented is returned by Render until the full Angular implementation
-// is wired in.
-var ErrNotImplemented = errors.New("angular renderer: not yet implemented")
 
 // Renderer is the Pola renderer for Angular components.
 type Renderer struct{}
@@ -27,7 +23,13 @@ func (r *Renderer) FileExtensions() []string { return []string{".html", ".ts"} }
 // Capabilities implements core.Renderer.
 func (r *Renderer) Capabilities() []core.Capability { return []core.Capability{"server-side"} }
 
-// Render implements core.Renderer.
-func (r *Renderer) Render(_ context.Context, _ core.RenderRequest) (core.RenderResult, error) {
-	return core.RenderResult{}, ErrNotImplemented
+// ServeHTTP implements core.Renderer.
+func (r *Renderer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	_, _, _, status, _ := core.RenderRequestFrom(req.Context())
+	if status == 0 {
+		status = http.StatusOK
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	fmt.Fprint(w, "<html><body><h1>angular renderer: not yet implemented</h1></body></html>")
 }

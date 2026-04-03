@@ -277,9 +277,17 @@ type RenderRequest struct {
 	Injectors []RuntimeInjector
 }
 
-// RenderResult is the output of a Renderer.Render call.
-type RenderResult struct {
-	ContentType string
-	Body        []byte
-	Streaming   bool
+// RenderDeps bundles framework-level dependencies that a renderer needs to
+// produce HTTP responses (HTML shell, cache, observability, etc.).
+type RenderDeps struct {
+	Shell         HTMLShell
+	Cache         Cache
+	Logger        Logger
+	Metrics       Metrics
+	Tracer        Tracer
+	BundleOutput  *BundleOutput
+	CSSURLs       []string
+	DocumentProps *DocumentProps
+	DevScript     string
+	NotFoundRoute *Route
 }
