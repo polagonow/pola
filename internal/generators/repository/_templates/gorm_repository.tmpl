@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"gorm.io/gorm"
-	"[[.ModulePath]]/repository"
+	"[[.ModulePath]]/repositories"
 )
 
 type [[.LowerName]]Repository struct {
@@ -13,31 +13,31 @@ type [[.LowerName]]Repository struct {
 }
 
 // New[[.Name]]Repository creates a new GORM-backed [[.Name]]Repository.
-func New[[.Name]]Repository(db *gorm.DB) repository.[[.Name]]Repository {
+func New[[.Name]]Repository(db *gorm.DB) repositories.[[.Name]]Repository {
 	return &[[.LowerName]]Repository{db: db}
 }
 
-func (r *[[.LowerName]]Repository) Create(ctx context.Context, entity *repository.[[.Name]]) error {
+func (r *[[.LowerName]]Repository) Create(ctx context.Context, entity *repositories.[[.Name]]) error {
 	return r.db.WithContext(ctx).Create(entity).Error
 }
 
-func (r *[[.LowerName]]Repository) Get(ctx context.Context, id uint) (*repository.[[.Name]], error) {
-	var entity repository.[[.Name]]
+func (r *[[.LowerName]]Repository) Get(ctx context.Context, id uint) (*repositories.[[.Name]], error) {
+	var entity repositories.[[.Name]]
 	if err := r.db.WithContext(ctx).First(&entity, id).Error; err != nil {
 		return nil, fmt.Errorf("get [[.SnakeName]] by id: %w", err)
 	}
 	return &entity, nil
 }
 
-func (r *[[.LowerName]]Repository) List(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repository.[[.Name]]], error) {
+func (r *[[.LowerName]]Repository) List(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.[[.Name]]], error) {
 	params = params.Normalize()
 
 	var total int64
-	if err := r.db.WithContext(ctx).Model(&repository.[[.Name]]{}).Count(&total).Error; err != nil {
+	if err := r.db.WithContext(ctx).Model(&repositories.[[.Name]]{}).Count(&total).Error; err != nil {
 		return nil, fmt.Errorf("count [[.PluralSnake]]: %w", err)
 	}
 
-	var items []*repository.[[.Name]]
+	var items []*repositories.[[.Name]]
 	if err := r.db.WithContext(ctx).Offset(params.Offset()).Limit(params.PerPage).Find(&items).Error; err != nil {
 		return nil, fmt.Errorf("list [[.PluralSnake]]: %w", err)
 	}
@@ -47,7 +47,7 @@ func (r *[[.LowerName]]Repository) List(ctx context.Context, params repository.L
 		totalPages++
 	}
 
-	return &repository.ListResult[*repository.[[.Name]]]{
+	return &repositories.ListResult[*repositories.[[.Name]]]{
 		Items:      items,
 		Total:      int(total),
 		Page:       params.Page,
@@ -56,10 +56,10 @@ func (r *[[.LowerName]]Repository) List(ctx context.Context, params repository.L
 	}, nil
 }
 
-func (r *[[.LowerName]]Repository) Update(ctx context.Context, entity *repository.[[.Name]]) error {
+func (r *[[.LowerName]]Repository) Update(ctx context.Context, entity *repositories.[[.Name]]) error {
 	return r.db.WithContext(ctx).Save(entity).Error
 }
 
 func (r *[[.LowerName]]Repository) Delete(ctx context.Context, id uint) error {
-	return r.db.WithContext(ctx).Delete(&repository.[[.Name]]{}, id).Error
+	return r.db.WithContext(ctx).Delete(&repositories.[[.Name]]{}, id).Error
 }

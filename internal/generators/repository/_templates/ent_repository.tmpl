@@ -6,7 +6,7 @@ import (
 
 	"[[.ModulePath]]/ent"
 	ent[[.Name]] "[[.ModulePath]]/ent/[[.SnakeName]]"
-	"[[.ModulePath]]/repository"
+	"[[.ModulePath]]/repositories"
 )
 
 type [[.LowerName]]Repository struct {
@@ -14,28 +14,28 @@ type [[.LowerName]]Repository struct {
 }
 
 // New[[.Name]]Repository creates a new Ent-backed [[.Name]]Repository.
-func New[[.Name]]Repository(client *ent.Client) repository.[[.Name]]Repository {
+func New[[.Name]]Repository(client *ent.Client) repositories.[[.Name]]Repository {
 	return &[[.LowerName]]Repository{client: client}
 }
 
-func (r *[[.LowerName]]Repository) Create(ctx context.Context, entity *repository.[[.Name]]) error {
+func (r *[[.LowerName]]Repository) Create(ctx context.Context, entity *repositories.[[.Name]]) error {
 	_, err := r.client.[[.Name]].Create().
 		// TODO: set fields from entity
 		Save(ctx)
 	return err
 }
 
-func (r *[[.LowerName]]Repository) Get(ctx context.Context, id uint) (*repository.[[.Name]], error) {
+func (r *[[.LowerName]]Repository) Get(ctx context.Context, id uint) (*repositories.[[.Name]], error) {
 	e, err := r.client.[[.Name]].Get(ctx, int(id))
 	if err != nil {
 		return nil, fmt.Errorf("get [[.SnakeName]] by id: %w", err)
 	}
 	_ = e
 	// TODO: map ent entity to repository entity
-	return &repository.[[.Name]]{ID: uint(e.ID)}, nil
+	return &repositories.[[.Name]]{ID: uint(e.ID)}, nil
 }
 
-func (r *[[.LowerName]]Repository) List(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repository.[[.Name]]], error) {
+func (r *[[.LowerName]]Repository) List(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.[[.Name]]], error) {
 	params = params.Normalize()
 
 	total, err := r.client.[[.Name]].Query().Count(ctx)
@@ -51,9 +51,9 @@ func (r *[[.LowerName]]Repository) List(ctx context.Context, params repository.L
 		return nil, fmt.Errorf("list [[.PluralSnake]]: %w", err)
 	}
 
-	items := make([]*repository.[[.Name]], len(entries))
+	items := make([]*repositories.[[.Name]], len(entries))
 	for i, e := range entries {
-		items[i] = &repository.[[.Name]]{ID: uint(e.ID)}
+		items[i] = &repositories.[[.Name]]{ID: uint(e.ID)}
 		// TODO: map remaining fields
 	}
 
@@ -62,7 +62,7 @@ func (r *[[.LowerName]]Repository) List(ctx context.Context, params repository.L
 		totalPages++
 	}
 
-	return &repository.ListResult[*repository.[[.Name]]]{
+	return &repositories.ListResult[*repositories.[[.Name]]]{
 		Items:      items,
 		Total:      total,
 		Page:       params.Page,
@@ -71,7 +71,7 @@ func (r *[[.LowerName]]Repository) List(ctx context.Context, params repository.L
 	}, nil
 }
 
-func (r *[[.LowerName]]Repository) Update(ctx context.Context, entity *repository.[[.Name]]) error {
+func (r *[[.LowerName]]Repository) Update(ctx context.Context, entity *repositories.[[.Name]]) error {
 	_, err := r.client.[[.Name]].UpdateOneID(int(entity.ID)).
 		// TODO: set fields from entity
 		Save(ctx)

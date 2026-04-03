@@ -3,8 +3,8 @@ package actions
 import (
 	"context"
 
-	"[[ .ModulePath ]]/repository"
-	"[[ .ModulePath ]]/service"
+	"[[ .ModulePath ]]/repositories"
+	"[[ .ModulePath ]]/services"
 )
 
 // [[ .Name ]] exposes functions and variables to JavaScript via the Pola bridge.
@@ -24,15 +24,15 @@ import (
 
 // [[ .Name ]] is your action struct with service dependency.
 type [[ .Name ]] struct {
-	svc *service.[[ .ServiceName ]]Service
+	svc *services.[[ .ServiceName ]]Service
 }
 
 // List returns a paginated list of [[ .ServiceName ]] entities. Becomes [[ .Name ]].list(page, perPage) in JavaScript.
-func (a *[[ .Name ]]) List(page, perPage int) (*repository.ListResult[*repository.[[ .ServiceName ]]], error) {
-	return a.svc.List(context.TODO(), repository.ListParams{Page: page, PerPage: perPage})
+func (a *[[ .Name ]]) List(page, perPage int) (*repositories.ListResult[*repositories.[[ .ServiceName ]]], error) {
+	return a.svc.List(context.TODO(), repositories.ListParams{Page: page, PerPage: perPage})
 }
 
 // Get returns a single [[ .ServiceName ]] by ID. Becomes [[ .Name ]].Get(id) in JavaScript.
-func (a *[[ .Name ]]) Get(id uint) (*repository.[[ .ServiceName ]], error) {
+func (a *[[ .Name ]]) Get(id uint) (*repositories.[[ .ServiceName ]], error) {
 	return a.svc.Get(context.TODO(), id)
 }
