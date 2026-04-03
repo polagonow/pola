@@ -24,19 +24,19 @@ import (
 
 var (
 	mu      sync.Mutex
-	pending []any // route structs registered before Build()
+	pending []func(*core.Registry) any // route factories registered before Build()
 )
 
-// Register queues a route struct for discovery. The URL pattern is derived
-// from the struct's package path at Build() time. Must be called from init().
-func Register(handler any) {
+// Register queues a route factory for discovery. The factory receives the DI
+// registry and returns a fully-constructed route struct. Must be called from init().
+func Register(factory func(*core.Registry) any) {
 	mu.Lock()
 	defer mu.Unlock()
-	pending = append(pending, handler)
+	pending = append(pending, factory)
 }
 
 // drain returns and clears the pending registrations.
-func drain() []any {
+func drain() []func(*core.Registry) any {
 	mu.Lock()
 	defer mu.Unlock()
 	out := pending
@@ -69,12 +69,19 @@ func New() *Router {
 	}
 }
 
-// Build drains all registered route structs, resolves DI dependencies,
-// discovers RESTful methods via reflection, and compiles the routing table.
+// Build drains all registered route factories, calls each with the registry
+// to produce fully-constructed route structs, discovers RESTful methods via
+// reflection, and compiles the routing table.
 func (r *Router) Build(registry *core.Registry) error {
-	handlers := drain()
-	if len(handlers) == 0 {
+	factories := drain()
+	if len(factories) == 0 {
 		return nil
+	}
+
+	// Materialize all handlers by calling factories with the registry.
+	handlers := make([]any, len(factories))
+	for i, f := range factories {
+		handlers[i] = f(registry)
 	}
 
 	// First pass: collect all package paths to know which are registered resources.
@@ -87,14 +94,6 @@ func (r *Router) Build(registry *core.Registry) error {
 	}
 
 	for _, h := range handlers {
-		// Resolve DI if the struct implements Initializer.
-		if init, ok := h.(Initializer); ok {
-			if err := init.Init(registry); err != nil {
-				typeName := reflect.TypeOf(h).Elem().Name()
-				return fmt.Errorf("routes: Init() failed for %s: %w", typeName, err)
-			}
-		}
-
 		// Derive URL pattern: use Path() override if provided, else auto-derive.
 		var basePattern string
 		if p, ok := h.(Pather); ok {

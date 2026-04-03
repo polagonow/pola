@@ -14,6 +14,11 @@ import (
 type Route struct {
 	svc *services.[[ .ServiceName ]]Service
 }
+
+// NewRoute creates a Route with its service dependency.
+func NewRoute(svc *services.[[ .ServiceName ]]Service) *Route {
+	return &Route{svc: svc}
+}
 [[ range .Methods ]]
 [[ if eq . "GET" -]]
 // GET [[ $.RoutePath ]]
