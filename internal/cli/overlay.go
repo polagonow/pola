@@ -15,18 +15,23 @@ import (
 	"text/template"
 
 	"github.com/polagonow/pola/internal/actionbridge"
+	"github.com/polagonow/pola/internal/generators/model/schema"
 	"github.com/polagonow/pola/polafile"
 )
 
-//go:embed _templates/plugins_go.tmpl _templates/embed_go.tmpl _templates/database_init_go.tmpl
+//go:embed _templates/plugins_go.tmpl _templates/embed_go.tmpl _templates/repo_plugins_go.tmpl _templates/svc_plugins_go.tmpl
 var overlayTemplates embed.FS
 
 var pluginsTmpl = template.Must(
 	template.New("plugins_go.tmpl").ParseFS(overlayTemplates, "_templates/plugins_go.tmpl"),
 )
 
-var databaseInitTmpl = template.Must(
-	template.New("database_init_go.tmpl").ParseFS(overlayTemplates, "_templates/database_init_go.tmpl"),
+var repoPluginsTmpl = template.Must(
+	template.New("repo_plugins_go.tmpl").ParseFS(overlayTemplates, "_templates/repo_plugins_go.tmpl"),
+)
+
+var svcPluginsTmpl = template.Must(
+	template.New("svc_plugins_go.tmpl").ParseFS(overlayTemplates, "_templates/svc_plugins_go.tmpl"),
 )
 
 // embedTmpl is the template for pola_embed.go, injected via overlay
@@ -153,7 +158,7 @@ func generateOverlay(projectDir string, opts pluginOpts) (*overlayResult, error)
 		replace[filepath.Join(rp.AbsDir, "pola_route_init.go")] = initPath
 	}
 
-	// 3c. Discover repository registrations and generate pola_database_init.go.
+	// 3c. Discover repository registrations and generate per-repo plugin overlay.
 	var repoDisco *repoDiscovery
 	if opts.Database != "" {
 		if modPath, err := readModulePath(projectDir); err == nil && modPath != "" {
@@ -167,30 +172,68 @@ func generateOverlay(projectDir string, opts pluginOpts) (*overlayResult, error)
 	}
 
 	if repoDisco != nil {
-		var dbInitBuf strings.Builder
-		if err := databaseInitTmpl.Execute(&dbInitBuf, struct {
+		var repoPluginsBuf strings.Builder
+		if err := repoPluginsTmpl.Execute(&repoPluginsBuf, struct {
 			PolaPackage  string
-			RepoORMImport string
-			RepoORMPkg   string
-			Repositories []string
+			PkgName      string
+			Repositories []pluginEntry
 		}{
 			PolaPackage:  opts.PolaPackage,
-			RepoORMImport: repoDisco.ImportPath,
-			RepoORMPkg:   repoDisco.PkgName,
+			PkgName:      repoDisco.PkgName,
 			Repositories: repoDisco.Repositories,
 		}); err != nil {
-			return nil, fmt.Errorf("execute database init template: %w", err)
+			return nil, fmt.Errorf("execute repo plugins template: %w", err)
 		}
-		dbInitPath := filepath.Join(tmpDir, "pola_database_init.go")
-		if err := os.WriteFile(dbInitPath, []byte(dbInitBuf.String()), 0o644); err != nil {
-			return nil, fmt.Errorf("write database init: %w", err)
+		repoPluginsPath := filepath.Join(tmpDir, "pola_repo_plugins.go")
+		if err := os.WriteFile(repoPluginsPath, []byte(repoPluginsBuf.String()), 0o644); err != nil {
+			return nil, fmt.Errorf("write repo plugins: %w", err)
 		}
-		absProject, _ := filepath.Abs(projectDir)
-		replace[filepath.Join(absProject, "pola_database_init.go")] = dbInitPath
+		// Map into the ORM package directory.
+		pf, _ := polafile.Load(projectDir)
+		repoDir := "repositories"
+		if pf != nil {
+			repoDir = pf.RepositoriesDir()
+		}
+		ormAbsDir, _ := filepath.Abs(filepath.Join(projectDir, repoDir, opts.Database))
+		replace[filepath.Join(ormAbsDir, "pola_plugins.go")] = repoPluginsPath
+	}
+
+	// 3d. Discover service constructors and generate per-service plugin overlay.
+	var svcDisco *svcDiscovery
+	if modPath, err := readModulePath(projectDir); err == nil && modPath != "" {
+		pf, _ := polafile.Load(projectDir)
+		svcDir := "services"
+		if pf != nil {
+			svcDir = pf.ServicesDir()
+		}
+		svcDisco = discoverServiceConstructors(projectDir, svcDir, modPath)
+	}
+
+	if svcDisco != nil {
+		var svcPluginsBuf strings.Builder
+		if err := svcPluginsTmpl.Execute(&svcPluginsBuf, struct {
+			PolaPackage string
+			PkgName     string
+			RepoImport  string
+			Services    []pluginEntry
+		}{
+			PolaPackage: opts.PolaPackage,
+			PkgName:     svcDisco.PkgName,
+			RepoImport:  svcDisco.RepoImport,
+			Services:    svcDisco.Services,
+		}); err != nil {
+			return nil, fmt.Errorf("execute svc plugins template: %w", err)
+		}
+		svcPluginsPath := filepath.Join(tmpDir, "pola_svc_plugins.go")
+		if err := os.WriteFile(svcPluginsPath, []byte(svcPluginsBuf.String()), 0o644); err != nil {
+			return nil, fmt.Errorf("write svc plugins: %w", err)
+		}
+		svcAbsDir, _ := filepath.Abs(filepath.Join(projectDir, svcDisco.PkgName))
+		replace[filepath.Join(svcAbsDir, "pola_plugins.go")] = svcPluginsPath
 	}
 
 	// 4. Generate plugin imports (always).
-	pluginsSrc, err := generatePluginImports(opts, actionsImport, routePkgs, repoDisco != nil)
+	pluginsSrc, err := generatePluginImports(opts, actionsImport, routePkgs, repoDisco, svcDisco)
 	if err != nil {
 		return nil, fmt.Errorf("generate plugins: %w", err)
 	}
@@ -246,7 +289,7 @@ func generateOverlay(projectDir string, opts pluginOpts) (*overlayResult, error)
 
 // generatePluginImports returns the source for pola_plugins.go containing
 // explicit Plugin() calls and a PolaPlugins variable.
-func generatePluginImports(opts pluginOpts, actionsImport string, routePkgs []routePackageInfo, hasDatabaseRepos bool) ([]byte, error) {
+func generatePluginImports(opts pluginOpts, actionsImport string, routePkgs []routePackageInfo, repoDisco *repoDiscovery, svcDisco *svcDiscovery) ([]byte, error) {
 	routeImports := make([]string, len(routePkgs))
 	for i, rp := range routePkgs {
 		routeImports[i] = rp.ImportPath
@@ -280,9 +323,10 @@ func generatePluginImports(opts pluginOpts, actionsImport string, routePkgs []ro
 		Dev             bool
 		Embed           bool
 		HasRoutes        bool
-		HasDatabaseRepos bool
 		ActionsImport    string
 		RouteImports     []string
+		RepoPlugins      *repoDiscovery
+		ServicePlugins   *svcDiscovery
 	}{
 		PolaPackage:      opts.PolaPackage,
 		Engine:           opts.Engine,
@@ -304,9 +348,10 @@ func generatePluginImports(opts pluginOpts, actionsImport string, routePkgs []ro
 		Dev:              opts.Dev,
 		Embed:            opts.Embed,
 		HasRoutes:        len(routePkgs) > 0,
-		HasDatabaseRepos: hasDatabaseRepos,
 		ActionsImport:    actionsImport,
 		RouteImports:     routeImports,
+		RepoPlugins:      repoDisco,
+		ServicePlugins:   svcDisco,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("execute plugins template: %w", err)
@@ -403,11 +448,25 @@ func generateRouteInit(pkgName, polaPackage string) []byte {
 	))
 }
 
+// pluginEntry holds a discovered plugin name with its pre-computed snake_case form.
+type pluginEntry struct {
+	Name      string // e.g. "User"
+	SnakeName string // e.g. "user"
+}
+
 // repoDiscovery holds discovered repository registration info for the overlay.
 type repoDiscovery struct {
-	ImportPath   string   // e.g. "myapp/repositories/gorm"
-	PkgName      string   // e.g. "gorm"
-	Repositories []string // e.g. ["User", "Product"]
+	ImportPath   string        // e.g. "myapp/repositories/gorm"
+	PkgName      string        // e.g. "gorm"
+	Repositories []pluginEntry // e.g. [{Name: "User", SnakeName: "user"}]
+}
+
+// svcDiscovery holds discovered service constructor info for the overlay.
+type svcDiscovery struct {
+	ImportPath string        // e.g. "myapp/services"
+	RepoImport string        // e.g. "myapp/repositories"
+	PkgName    string        // e.g. "services"
+	Services   []pluginEntry // e.g. [{Name: "User", SnakeName: "user"}]
 }
 
 // discoverRepositoryRegistrations scans repositories/{orm}/ for exported
@@ -424,7 +483,7 @@ func discoverRepositoryRegistrations(projectDir, repoDir, orm, modPath string) *
 		return nil
 	}
 
-	var repos []string
+	var repos []pluginEntry
 	fset := token.NewFileSet()
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") {
@@ -445,7 +504,10 @@ func discoverRepositoryRegistrations(projectDir, repoDir, orm, modPath string) *
 				modelName := strings.TrimPrefix(name, "Register")
 				modelName = strings.TrimSuffix(modelName, "Repository")
 				if modelName != "" {
-					repos = append(repos, modelName)
+					repos = append(repos, pluginEntry{
+						Name:      modelName,
+						SnakeName: schema.SnakeCase(modelName),
+					})
 				}
 			}
 		}
@@ -455,11 +517,75 @@ func discoverRepositoryRegistrations(projectDir, repoDir, orm, modPath string) *
 		return nil
 	}
 
-	sort.Strings(repos)
+	sort.Slice(repos, func(i, j int) bool { return repos[i].Name < repos[j].Name })
 	return &repoDiscovery{
 		ImportPath:   modPath + "/" + filepath.ToSlash(filepath.Join(repoDir, orm)),
 		PkgName:      orm,
 		Repositories: repos,
+	}
+}
+
+// discoverServiceConstructors scans the services directory for exported
+// New*Service constructor functions and returns their names.
+func discoverServiceConstructors(projectDir, svcDir, modPath string) *svcDiscovery {
+	absDir := filepath.Join(projectDir, svcDir)
+	info, err := os.Stat(absDir)
+	if err != nil || !info.IsDir() {
+		return nil
+	}
+
+	entries, err := os.ReadDir(absDir)
+	if err != nil {
+		return nil
+	}
+
+	var svcs []pluginEntry
+	fset := token.NewFileSet()
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") {
+			continue
+		}
+		f, err := parser.ParseFile(fset, filepath.Join(absDir, entry.Name()), nil, 0)
+		if err != nil {
+			continue
+		}
+		for _, decl := range f.Decls {
+			fd, ok := decl.(*ast.FuncDecl)
+			if !ok || !fd.Name.IsExported() || fd.Recv != nil {
+				continue
+			}
+			name := fd.Name.Name
+			if strings.HasPrefix(name, "New") && strings.HasSuffix(name, "Service") {
+				// Extract the model name: New{Name}Service -> Name
+				svcName := strings.TrimPrefix(name, "New")
+				svcName = strings.TrimSuffix(svcName, "Service")
+				if svcName != "" {
+					svcs = append(svcs, pluginEntry{
+						Name:      svcName,
+						SnakeName: schema.SnakeCase(svcName),
+					})
+				}
+			}
+		}
+	}
+
+	if len(svcs) == 0 {
+		return nil
+	}
+
+	// Determine the repositories import path (sibling to services dir).
+	pf, _ := polafile.Load(projectDir)
+	repoDir := "repositories"
+	if pf != nil {
+		repoDir = pf.RepositoriesDir()
+	}
+
+	sort.Slice(svcs, func(i, j int) bool { return svcs[i].Name < svcs[j].Name })
+	return &svcDiscovery{
+		ImportPath: modPath + "/" + filepath.ToSlash(svcDir),
+		RepoImport: modPath + "/" + filepath.ToSlash(repoDir),
+		PkgName:    filepath.Base(svcDir),
+		Services:   svcs,
 	}
 }
 

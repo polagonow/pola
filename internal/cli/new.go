@@ -171,7 +171,7 @@ func runNew(_ *cobra.Command, args []string) error {
 		Dev:             true,
 	}, appName+"/actions", []routePackageInfo{
 		{ImportPath: appName + "/routes/health"},
-	}, false)
+	}, nil, nil)
 	if err != nil {
 		return fmt.Errorf("generate plugins: %w", err)
 	}

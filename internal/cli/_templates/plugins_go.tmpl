@@ -38,6 +38,12 @@ import (
 {{- if .HasRoutes}}
 	"{{.PolaPackage}}/routes"
 {{- end}}
+{{- if .RepoPlugins}}
+	repo{{.RepoPlugins.PkgName}} "{{.RepoPlugins.ImportPath}}"
+{{- end}}
+{{- if .ServicePlugins}}
+	{{.ServicePlugins.PkgName}} "{{.ServicePlugins.ImportPath}}"
+{{- end}}
 {{- if .ActionsImport}}
 	"{{.ActionsImport}}"
 {{- end}}
@@ -102,11 +108,15 @@ var PolaPlugins = []core.Plugin{
 {{- end}}
 	),
 {{- end}}
-{{- if .HasDatabaseRepos}}
-	core.PluginFunc{
-		PluginName: "database-repositories",
-		Fn:         PolaDatabaseInit,
-	},
+{{- if .RepoPlugins}}
+{{- range .RepoPlugins.Repositories}}
+	repo{{$.RepoPlugins.PkgName}}.{{.Name}}RepositoryPlugin(),
+{{- end}}
+{{- end}}
+{{- if .ServicePlugins}}
+{{- range .ServicePlugins.Services}}
+	{{$.ServicePlugins.PkgName}}.{{.Name}}ServicePlugin(),
+{{- end}}
 {{- end}}
 {{- if .HasRoutes}}
 	routes.Plugin(),
