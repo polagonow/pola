@@ -31,12 +31,23 @@ type Storage struct {
 }
 
 // NewStorage creates a new rclone storage driver.
-// driver is the rclone backend name (e.g. "s3", "local").
-// location is the bucket or path (e.g. "my-bucket", "/tmp/uploads").
+//
+// For inline backends, driver is the rclone backend name (e.g. "s3", "local")
+// and location is the bucket or path:
+//
+//	rclone.NewStorage("s3", "my-bucket")
+//	rclone.NewStorage("local", "/tmp/uploads")
+//
+// For named remotes (configured via `rclone config`), pass an empty driver
+// and use the "remote:path" format for location:
+//
+//	rclone.NewStorage("", "myremote:bucket/path")
 func NewStorage(driver, location string) *Storage {
-	return &Storage{
-		remote: fmt.Sprintf(":%s:%s", driver, location),
+	remote := location
+	if driver != "" {
+		remote = fmt.Sprintf(":%s:%s", driver, location)
 	}
+	return &Storage{remote: remote}
 }
 
 func (r *Storage) newFs(ctx context.Context) (fs.Fs, error) {
@@ -129,7 +140,7 @@ func (r *Storage) List(ctx context.Context, path string) ([]*storage.Stat, error
 
 	var entries fs.DirEntries
 	err = walk.ListR(ctx, dstFs, path, true, -1, walk.ListAll, func(e fs.DirEntries) error {
-		entries = e
+		entries = append(entries, e...)
 		return nil
 	})
 	if err != nil {

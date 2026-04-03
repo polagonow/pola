@@ -3,10 +3,12 @@ package fs
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"mime"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/polagonow/pola/storage"
 )
@@ -27,13 +29,21 @@ func NewStorage(cfg Config) *Storage {
 	return &Storage{root: cfg.Root}
 }
 
-func (s *Storage) abs(path string) string {
-	return filepath.Join(s.root, path)
+func (s *Storage) abs(path string) (string, error) {
+	abs := filepath.Join(s.root, path)
+	root := filepath.Clean(s.root)
+	if abs != root && !strings.HasPrefix(abs, root+string(filepath.Separator)) {
+		return "", fmt.Errorf("path %q escapes storage root", path)
+	}
+	return abs, nil
 }
 
 // Save writes content to path, creating parent directories as needed.
 func (s *Storage) Save(_ context.Context, content io.Reader, path string) error {
-	abs := s.abs(path)
+	abs, err := s.abs(path)
+	if err != nil {
+		return err
+	}
 	if err := os.MkdirAll(filepath.Dir(abs), 0o755); err != nil {
 		return err
 	}
@@ -42,17 +52,21 @@ func (s *Storage) Save(_ context.Context, content io.Reader, path string) error 
 	if err != nil {
 		return err
 	}
-	defer w.Close()
 
 	if _, err := io.Copy(w, content); err != nil {
+		w.Close()
 		return err
 	}
-	return nil
+	return w.Close()
 }
 
 // Stat returns file metadata. Returns storage.ErrNotExist if not found.
 func (s *Storage) Stat(_ context.Context, path string) (*storage.Stat, error) {
-	fi, err := os.Stat(s.abs(path))
+	abs, err := s.abs(path)
+	if err != nil {
+		return nil, err
+	}
+	fi, err := os.Stat(abs)
 	if os.IsNotExist(err) {
 		return nil, storage.ErrNotExist
 	} else if err != nil {
@@ -70,7 +84,11 @@ func (s *Storage) Stat(_ context.Context, path string) (*storage.Stat, error) {
 
 // Open opens the file at path for reading. Returns storage.ErrNotExist if not found.
 func (s *Storage) Open(_ context.Context, path string) (io.ReadCloser, error) {
-	f, err := os.Open(s.abs(path))
+	abs, err := s.abs(path)
+	if err != nil {
+		return nil, err
+	}
+	f, err := os.Open(abs)
 	if os.IsNotExist(err) {
 		return nil, storage.ErrNotExist
 	}
@@ -79,12 +97,19 @@ func (s *Storage) Open(_ context.Context, path string) (io.ReadCloser, error) {
 
 // Delete removes the file at path.
 func (s *Storage) Delete(_ context.Context, path string) error {
-	return os.Remove(s.abs(path))
+	abs, err := s.abs(path)
+	if err != nil {
+		return err
+	}
+	return os.Remove(abs)
 }
 
 // List returns metadata for all files in path.
 func (s *Storage) List(_ context.Context, path string) ([]*storage.Stat, error) {
-	abs := s.abs(path)
+	abs, err := s.abs(path)
+	if err != nil {
+		return nil, err
+	}
 	f, err := os.Open(abs)
 	if os.IsNotExist(err) {
 		return nil, storage.ErrNotExist
