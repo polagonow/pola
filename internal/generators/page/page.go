@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -32,7 +33,27 @@ func init() {
 
 func (g *PageGenerator) Name() string                  { return "page" }
 func (g *PageGenerator) Description() string           { return "Scaffold CRUD pages for a resource" }
-func (g *PageGenerator) AfterHooks() []generators.Hook { return nil }
+func (g *PageGenerator) AfterHooks() []generators.Hook {
+	return []generators.Hook{
+		generators.FuncHook("install form deps", func(projectDir string) error {
+			pm := "npm"
+			pf, err := polafile.Load(projectDir)
+			if err == nil && pf != nil && pf.PackageManager != "" {
+				pm = pf.PackageManager
+			}
+
+			deps := []string{"react-hook-form", "@hookform/resolvers"}
+			args := append([]string{"install"}, deps...)
+
+			fmt.Printf("Running: %s %s\n", pm, strings.Join(args, " "))
+			cmd := exec.Command(pm, args...)
+			cmd.Dir = projectDir
+			cmd.Stdout = os.Stdout
+			cmd.Stderr = os.Stderr
+			return cmd.Run()
+		}),
+	}
+}
 
 func (g *PageGenerator) Command() *cobra.Command {
 	return &cobra.Command{
@@ -146,7 +167,7 @@ func (g *PageGenerator) run(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Created %s\n", absPath)
 	}
 
-	return nil
+	return generators.RunAfterHooks(g, projectDir)
 }
 
 func loadTemplate(renderer, name string) (*template.Template, error) {
@@ -160,11 +181,12 @@ func loadTemplate(renderer, name string) (*template.Template, error) {
 
 // pageData holds the template data for page generation.
 type pageData struct {
-	Name        string      // PascalCase: "Product"
-	PluralName  string      // PascalCase plural: "Products"
-	SnakeName   string      // snake_case: "product"
-	PluralSnake string      // snake_case plural: "products"
-	Fields      []pageField // non-reference, non-bytes fields
+	Name         string      // PascalCase: "Product"
+	PluralName   string      // PascalCase plural: "Products"
+	SnakeName    string      // snake_case: "product"
+	PluralSnake  string      // snake_case plural: "products"
+	SchemaImport string      // "@/schemas/product"
+	Fields       []pageField // non-reference, non-bytes fields
 }
 
 // pageField describes a single field for page templates.
@@ -180,11 +202,13 @@ type pageField struct {
 
 func buildPageData(def *schema.ModelDefinition) pageData {
 	plural := schema.Pluralize(def.Name)
+	snakeName := schema.SnakeCase(def.Name)
 	data := pageData{
-		Name:        def.Name,
-		PluralName:  plural,
-		SnakeName:   schema.SnakeCase(def.Name),
-		PluralSnake: schema.SnakeCase(plural),
+		Name:         def.Name,
+		PluralName:   plural,
+		SnakeName:    snakeName,
+		PluralSnake:  schema.SnakeCase(plural),
+		SchemaImport: "@/schemas/" + snakeName,
 	}
 
 	for _, f := range def.Fields {

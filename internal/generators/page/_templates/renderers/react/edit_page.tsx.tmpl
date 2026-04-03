@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState, useTransition } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { [[ .SnakeName ]]Schema, type [[ .Name ]] } from "[[ .SchemaImport ]]";
 
 export default function Edit[[ .Name ]]Page({
   params,
@@ -10,14 +13,14 @@ export default function Edit[[ .Name ]]Page({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const [form, setForm] = useState({
-    [[- range .Fields ]]
-    [[ .JSONName ]]: [[ if eq .InputType "checkbox" ]]false[[ else ]]""[[ end ]],
-    [[- end ]]
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<[[ .Name ]]>({
+    resolver: zodResolver([[ .SnakeName ]]Schema),
   });
-
-  const setField = (field: string, value: string | boolean) =>
-    setForm((prev) => ({ ...prev, [field]: value }));
 
   useEffect(() => {
     fetch(`/[[ .PluralSnake ]]/${params.id}`)
@@ -26,35 +29,19 @@ export default function Edit[[ .Name ]]Page({
         return res.json();
       })
       .then((item) => {
-        setForm({
-          [[- range .Fields ]]
-          [[ .JSONName ]]: [[ if eq .InputType "checkbox" ]]Boolean(item.[[ .JSONName ]])[[ else ]]String(item.[[ .JSONName ]] ?? "")[[ end ]],
-          [[- end ]]
-        });
+        reset(item);
         setLoading(false);
       })
       .catch((err) => {
         setError(err.message);
         setLoading(false);
       });
-  }, [params.id]);
+  }, [params.id, reset]);
 
-  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
-    e.preventDefault();
+  function onSubmit(data: [[ .Name ]]) {
     setError(null);
 
     startTransition(async () => {
-      const data: Record<string, unknown> = {};
-      [[- range .Fields ]]
-      [[ if eq .InputType "checkbox" -]]
-      data.[[ .JSONName ]] = form.[[ .JSONName ]];
-      [[ else if eq .InputType "number" -]]
-      data.[[ .JSONName ]] = [[ if .IsFloat ]]parseFloat[[ else ]]parseInt[[ end ]](form.[[ .JSONName ]] as string, 10);
-      [[ else -]]
-      data.[[ .JSONName ]] = form.[[ .JSONName ]];
-      [[ end -]]
-      [[- end ]]
-
       try {
         const res = await fetch(`/[[ .PluralSnake ]]/${params.id}`, {
           method: "PUT",
@@ -98,7 +85,7 @@ export default function Edit[[ .Name ]]Page({
         </div>
       )}
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit(onSubmit)}>
         <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
           [[- range .Fields ]]
           <div>
@@ -116,10 +103,7 @@ export default function Edit[[ .Name ]]Page({
             [[ if .IsTextarea -]]
             <textarea
               id="[[ .JSONName ]]"
-              name="[[ .JSONName ]]"
-              value={form.[[ .JSONName ]] as string}
-              onChange={(e) => setField("[[ .JSONName ]]", e.target.value)}
-              [[ if not .Optional ]]required[[ end ]]
+              {...register("[[ .JSONName ]]")}
               rows={4}
               style={{
                 width: "100%",
@@ -133,18 +117,13 @@ export default function Edit[[ .Name ]]Page({
             <input
               type="checkbox"
               id="[[ .JSONName ]]"
-              name="[[ .JSONName ]]"
-              checked={form.[[ .JSONName ]] as boolean}
-              onChange={(e) => setField("[[ .JSONName ]]", e.target.checked)}
+              {...register("[[ .JSONName ]]")}
             />
             [[ else -]]
             <input
               type="[[ .InputType ]]"
               id="[[ .JSONName ]]"
-              name="[[ .JSONName ]]"
-              value={form.[[ .JSONName ]] as string}
-              onChange={(e) => setField("[[ .JSONName ]]", e.target.value)}
-              [[ if not .Optional ]]required[[ end ]]
+              {...register("[[ .JSONName ]]"[[ if eq .InputType "number" ]], { valueAsNumber: true }[[ end ]])}
               [[ if .IsFloat ]]step="any"[[ end ]]
               style={{
                 width: "100%",
@@ -155,6 +134,11 @@ export default function Edit[[ .Name ]]Page({
               }}
             />
             [[ end -]]
+            {errors.[[ .JSONName ]]?.message && (
+              <p style={{ color: "#dc2626", fontSize: "0.75rem", marginTop: "0.25rem" }}>
+                {errors.[[ .JSONName ]].message}
+              </p>
+            )}
           </div>
           [[- end ]]
         </div>
@@ -177,7 +161,7 @@ export default function Edit[[ .Name ]]Page({
           >
             {isPending ? "Saving..." : "Save [[ .Name ]]"}
           </button>
-          
+          <a
             href={`/[[ .PluralSnake ]]/${params.id}`}
             style={{
               padding: "0.5rem 1.5rem",
