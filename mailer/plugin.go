@@ -6,49 +6,29 @@ import (
 
 // Config holds mailer configuration, typically parsed from Polafile.hcl.
 type Config struct {
-	Transport string // "smtp", "log"; default "log"
-	From      string // default sender address
-	SMTP      SMTPConfig
+	From string // default sender address
 }
 
-// Plugin returns the mailer plugin. It registers the MailTransport in the
-// DI container and provides a BaseFactory for constructing mailer Base values.
+// Plugin returns the mailer plugin. It resolves the EmailRenderer and
+// MailTransport from the DI container (registered by renderer/transport
+// plugins) and provides a BaseFactory for constructing mailer Base values.
 func Plugin(cfg Config) core.Plugin {
 	return &mailerPlugin{cfg: cfg}
 }
 
 type mailerPlugin struct {
-	cfg      Config
-	renderer *ReactEmailRenderer
+	cfg Config
 }
 
 func (p *mailerPlugin) Name() string { return "mailer" }
 
 func (p *mailerPlugin) Register(r *core.Registry) {
-	// Resolve dependencies.
-	engine := core.MustInvoke[core.JSEngine](r)
+	renderer := core.MustInvoke[EmailRenderer](r)
+	transport := core.MustInvoke[core.MailTransport](r)
 	logger, _ := core.Invoke[core.Logger](r)
 
-	// Create the email renderer.
-	p.renderer = NewReactEmailRenderer(engine, logger)
-
-	// Select transport.
-	var transport core.MailTransport
-	switch p.cfg.Transport {
-	case "smtp":
-		transport = NewSMTPTransport(p.cfg.SMTP)
-	default:
-		transport = NewLogTransport(logger)
-	}
-
-	core.ProvideValue[core.MailTransport](r, transport)
-
-	// Register the email renderer so the pipeline can load the email bundle.
-	core.ProvideValue[*ReactEmailRenderer](r, p.renderer)
-
-	// Register a BaseFactory so user mailers can construct Base values.
 	factory := &BaseFactory{
-		renderer:  p.renderer,
+		renderer:  renderer,
 		transport: transport,
 		logger:    logger,
 		from:      p.cfg.From,

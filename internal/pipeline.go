@@ -11,6 +11,7 @@ import (
 
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/mailer"
+	reactrenderer "github.com/polagonow/pola/mailer/renderer/react"
 )
 
 // prebuildMeta is the JSON schema for prebuild-meta.json written during mage Bundle
@@ -499,8 +500,9 @@ func buildFromPrebuilt(
 }
 
 // buildEmailBundle checks for email templates under appDir/mailers/ and, if
-// found, generates a TypeScript entry, bundles it, and loads the result into
-// the mailer's ReactEmailRenderer (resolved from the DI container).
+// found, loads them into the registered mailer renderer. For filesystem-based
+// renderers (e.g. tmpl) it calls LoadTemplates directly; for the react
+// renderer it generates a TypeScript entry, bundles it, and loads the bundle.
 func buildEmailBundle(
 	ctx context.Context,
 	appDir string,
@@ -510,15 +512,23 @@ func buildEmailBundle(
 	logger core.Logger,
 	registry *core.Registry,
 ) {
-	// Check if the mailer plugin registered an email renderer.
-	emailRenderer, err := core.Invoke[*mailer.ReactEmailRenderer](registry)
-	if err != nil {
-		return // mailer plugin not registered — nothing to do
-	}
-
 	mailersDir := filepath.Join(appDir, "mailers")
 	if _, err := os.Stat(mailersDir); os.IsNotExist(err) {
 		return
+	}
+
+	// Try filesystem-based template loader first (e.g. tmpl renderer).
+	if loader, err := core.Invoke[mailer.TemplateLoader](registry); err == nil {
+		if err := loader.LoadTemplates(mailersDir); err != nil {
+			logger.Warn("pola: load email templates", "err", err)
+		}
+		return
+	}
+
+	// Fall back to react email bundle path.
+	emailRenderer, err := core.Invoke[*reactrenderer.Renderer](registry)
+	if err != nil {
+		return // mailer plugin not registered — nothing to do
 	}
 
 	exts := renderer.FileExtensions()

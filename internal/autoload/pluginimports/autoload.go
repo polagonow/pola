@@ -3,6 +3,7 @@
 package pluginimports
 
 import (
+	"cmp"
 	"embed"
 	"fmt"
 	"os"
@@ -64,37 +65,47 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 	hasCSRF := opts.CSRF
 	hasSecurityHeaders := opts.SecurityHeaders
 	hasStorage := opts.StorageDriver != ""
+	hasMailer := opts.MailerRenderer != "" || opts.MailerTransport != ""
 
 	var buf strings.Builder
 	err := pluginsTmpl.Execute(&buf, struct {
-		PolaPackage      string
-		Engine           string
-		Bundler          string
-		Renderer         string
-		Router           string
-		CSS              string
-		Cache            string
-		Database         string
-		DatabaseAdapter  string
-		DatabaseURL      string
-		DatabaseHost     string
-		DatabasePort     string
-		DatabaseUser     string
-		DatabasePass     string
-		DatabaseName     string
-		CSRF             bool
-		SecurityHeaders  bool
-		Dev              bool
-		Embed            bool
-		HasRoutes        bool
-		ActionsImport    string
-		RouteImports     []string
-		RepoPlugins      *autoload.RepoDiscovery
-		ServicePlugins   *autoload.SvcDiscovery
-		HasStorage    bool
-		StorageDriver string // "fs" or "rclone"
-		StorageRoot   string // local dir for fs, "remote:path" for rclone
-		StorageConfig string // optional rclone config path
+		PolaPackage     string
+		Engine          string
+		Bundler         string
+		Renderer        string
+		Router          string
+		CSS             string
+		Cache           string
+		Database        string
+		DatabaseAdapter string
+		DatabaseURL     string
+		DatabaseHost    string
+		DatabasePort    string
+		DatabaseUser    string
+		DatabasePass    string
+		DatabaseName    string
+		CSRF            bool
+		SecurityHeaders bool
+		Dev             bool
+		Embed           bool
+		HasRoutes       bool
+		ActionsImport   string
+		RouteImports    []string
+		RepoPlugins     *autoload.RepoDiscovery
+		ServicePlugins  *autoload.SvcDiscovery
+		HasStorage      bool
+		StorageDriver   string // "fs" or "rclone"
+		StorageRoot     string // local dir for fs, "remote:path" for rclone
+		StorageConfig   string // optional rclone config path
+		HasMailer       bool
+		MailerRenderer  string
+		MailerTransport string
+		MailerFrom      string
+		SMTPHost        string
+		SMTPPort        string
+		SMTPUsername    string
+		SMTPPassword    string
+		SMTPTLS         bool
 	}{
 		PolaPackage:     opts.PolaPackage,
 		Engine:          opts.Engine,
@@ -120,10 +131,19 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		RouteImports:    routeImports,
 		RepoPlugins:     repoDisco,
 		ServicePlugins:  svcDisco,
-		HasStorage:    hasStorage,
-		StorageDriver: opts.StorageDriver,
-		StorageRoot:   opts.StorageRoot,
-		StorageConfig: opts.StorageConfig,
+		HasStorage:      hasStorage,
+		StorageDriver:   opts.StorageDriver,
+		StorageRoot:     opts.StorageRoot,
+		StorageConfig:   opts.StorageConfig,
+		HasMailer:       hasMailer,
+		MailerRenderer:  cmp.Or(opts.MailerRenderer, "react"),
+		MailerTransport: cmp.Or(opts.MailerTransport, "log"),
+		MailerFrom:      opts.MailerFrom,
+		SMTPHost:        opts.SMTPHost,
+		SMTPPort:        opts.SMTPPort,
+		SMTPUsername:    opts.SMTPUsername,
+		SMTPPassword:    opts.SMTPPassword,
+		SMTPTLS:         opts.SMTPTLS,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("execute plugins template: %w", err)

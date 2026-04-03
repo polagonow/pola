@@ -439,6 +439,7 @@ func (pf *Polafile) AppDir() string {
 // MailerEnvironment holds per-environment mailer overrides.
 type MailerEnvironment struct {
 	Environment string `hcl:"env,label"`
+	Renderer    string `hcl:"renderer,optional"`
 	Transport   string `hcl:"transport,optional"`
 	From        string `hcl:"from,optional"`
 	Host        string `hcl:"host,optional"`
@@ -450,6 +451,7 @@ type MailerEnvironment struct {
 
 // Mailer holds mailer configuration with optional per-environment overrides.
 type Mailer struct {
+	Renderer  string             `hcl:"renderer,optional"`
 	Transport string             `hcl:"transport,optional"`
 	From      string             `hcl:"from,optional"`
 	Host      string             `hcl:"host,optional"`
@@ -466,6 +468,7 @@ func (pf *Polafile) MailerForEnv(env string) Mailer {
 		return Mailer{}
 	}
 	base := Mailer{
+		Renderer:  pf.Mailer.Renderer,
 		Transport: pf.Mailer.Transport,
 		From:      pf.Mailer.From,
 		Host:      pf.Mailer.Host,
@@ -477,6 +480,7 @@ func (pf *Polafile) MailerForEnv(env string) Mailer {
 	for _, e := range pf.Mailer.Envs {
 		if e.Environment == env {
 			override := Mailer{
+				Renderer:  e.Renderer,
 				Transport: e.Transport,
 				From:      e.From,
 				Host:      e.Host,
@@ -506,6 +510,16 @@ func (pf *Polafile) MailerTransport(env string) string {
 func (pf *Polafile) MailerFrom(env string) string {
 	merged := pf.MailerForEnv(env)
 	return merged.From
+}
+
+// MailerRenderer returns the configured mailer renderer for the given environment,
+// falling back to base config, then "react".
+func (pf *Polafile) MailerRenderer(env string) string {
+	merged := pf.MailerForEnv(env)
+	if merged.Renderer != "" {
+		return merged.Renderer
+	}
+	return "react"
 }
 
 // RepositoriesDir returns the configured repositories directory, defaulting to "repositories".
@@ -685,6 +699,7 @@ func Save(dir string, pf *Polafile) error {
 		blockBody.AppendNewline()
 		mBlock := blockBody.AppendNewBlock("mailer", nil)
 		mBody := mBlock.Body()
+		setAttr(mBody, "renderer", pf.Mailer.Renderer)
 		setAttr(mBody, "transport", pf.Mailer.Transport)
 		setAttr(mBody, "from", pf.Mailer.From)
 		setAttr(mBody, "host", pf.Mailer.Host)
@@ -695,6 +710,7 @@ func Save(dir string, pf *Polafile) error {
 		for _, e := range pf.Mailer.Envs {
 			envBlock := mBody.AppendNewBlock("env", []string{e.Environment})
 			envBody := envBlock.Body()
+			setAttr(envBody, "renderer", e.Renderer)
 			setAttr(envBody, "transport", e.Transport)
 			setAttr(envBody, "from", e.From)
 			setAttr(envBody, "host", e.Host)

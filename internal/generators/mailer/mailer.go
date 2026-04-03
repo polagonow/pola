@@ -24,15 +24,29 @@ var (
 	mailerGoTmpl = template.Must(
 		template.New("mailer_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/mailer_go.tmpl"),
 	)
+	// React email templates.
 	templateTsxTmpl = template.Must(
 		template.New("mailer_template_tsx.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/mailer_template_tsx.tmpl"),
 	)
 	layoutTsxTmpl = template.Must(
 		template.New("mailer_layout_tsx.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/mailer_layout_tsx.tmpl"),
 	)
+	// Go template scaffolds.
+	templateHTMLTmplTmpl = template.Must(
+		template.New("mailer_template_html_tmpl.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/mailer_template_html_tmpl.tmpl"),
+	)
+	templateTextTmplTmpl = template.Must(
+		template.New("mailer_template_text_tmpl.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/mailer_template_text_tmpl.tmpl"),
+	)
+	layoutHTMLTmplTmpl = template.Must(
+		template.New("mailer_layout_html_tmpl.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/mailer_layout_html_tmpl.tmpl"),
+	)
+	layoutTextTmplTmpl = template.Must(
+		template.New("mailer_layout_text_tmpl.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/mailer_layout_text_tmpl.tmpl"),
+	)
 )
 
-// MailerGenerator scaffolds mailer structs and react.email templates.
+// MailerGenerator scaffolds mailer structs and email templates.
 type MailerGenerator struct{}
 
 func init() {
@@ -44,7 +58,6 @@ func (g *MailerGenerator) Description() string { return "Scaffold a mailer with 
 func (g *MailerGenerator) AfterHooks() []generators.Hook {
 	return []generators.Hook{
 		generators.CmdHook("go", "mod", "tidy"),
-		generators.FuncHook("install react-email packages", installReactEmail),
 	}
 }
 
@@ -52,10 +65,10 @@ func (g *MailerGenerator) Command() *cobra.Command {
 	return &cobra.Command{
 		Use:   "mailer [Name] [actions...]",
 		Short: "Scaffold a mailer with email templates",
-		Long: `Generate a mailer Go struct and React email templates.
+		Long: `Generate a mailer Go struct and email templates.
 
 Each action argument becomes a method on the mailer and a corresponding
-.tsx template under app/mailers/<name>_mailer/.`,
+template under app/mailers/<name>_mailer/.`,
 		Args:    cobra.MinimumNArgs(1),
 		RunE:    g.run,
 		Example: `  pola generate mailer User welcome reset_password
@@ -83,14 +96,18 @@ func (g *MailerGenerator) run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("read module path: %w", err)
 	}
 
-	// Determine app dir from Polafile.
+	// Determine app dir and renderer from Polafile.
 	appDir := "app"
+	rendererType := "react"
 	pf, err := polafile.Load(projectDir)
 	if err != nil {
 		return fmt.Errorf("load Polafile: %w", err)
 	}
-	if pf != nil && pf.App != "" {
-		appDir = pf.App
+	if pf != nil {
+		if pf.App != "" {
+			appDir = pf.App
+		}
+		rendererType = pf.MailerRenderer("development")
 	}
 
 	snakeName := schema.SnakeCase(name)
@@ -132,20 +149,44 @@ func (g *MailerGenerator) run(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("Created %s\n", goFilePath)
 
-	// 2. Generate TSX templates for each action.
-	tsxDir := filepath.Join(projectDir, appDir, "mailers", snakeName+"_mailer")
-	if err := os.MkdirAll(tsxDir, 0o755); err != nil {
+	// 2. Generate email templates for each action.
+	tmplDir := filepath.Join(projectDir, appDir, "mailers", snakeName+"_mailer")
+	if err := os.MkdirAll(tmplDir, 0o755); err != nil {
 		return fmt.Errorf("create template dir: %w", err)
 	}
 
-	for _, action := range actionData {
-		tsxPath := filepath.Join(tsxDir, action.SnakeName+".tsx")
+	if rendererType == "tmpl" {
+		if err := scaffoldTmplTemplates(cmd, tmplDir, actionData, &buf); err != nil {
+			return err
+		}
+		if err := scaffoldTmplLayouts(cmd, projectDir, appDir, &buf); err != nil {
+			return err
+		}
+	} else {
+		if err := scaffoldReactTemplates(cmd, tmplDir, actionData, &buf); err != nil {
+			return err
+		}
+		if err := scaffoldReactLayout(cmd, projectDir, appDir, &buf); err != nil {
+			return err
+		}
+		// Install react-email packages.
+		if err := installReactEmail(projectDir); err != nil {
+			return err
+		}
+	}
+
+	return generators.RunAfterHooks(g, projectDir)
+}
+
+func scaffoldReactTemplates(cmd *cobra.Command, dir string, actions []actionInfo, buf *strings.Builder) error {
+	for _, action := range actions {
+		tsxPath := filepath.Join(dir, action.SnakeName+".tsx")
 		if err := generators.CheckCollision(cmd, tsxPath); err != nil {
 			return err
 		}
 
 		buf.Reset()
-		if err := templateTsxTmpl.Execute(&buf, action); err != nil {
+		if err := templateTsxTmpl.Execute(buf, action); err != nil {
 			return fmt.Errorf("execute template tsx: %w", err)
 		}
 		if err := os.WriteFile(tsxPath, []byte(buf.String()), 0o644); err != nil {
@@ -153,8 +194,10 @@ func (g *MailerGenerator) run(cmd *cobra.Command, args []string) error {
 		}
 		fmt.Printf("Created %s\n", tsxPath)
 	}
+	return nil
+}
 
-	// 3. Generate default layout if it doesn't exist.
+func scaffoldReactLayout(cmd *cobra.Command, projectDir, appDir string, buf *strings.Builder) error {
 	layoutDir := filepath.Join(projectDir, appDir, "mailers", "layouts")
 	layoutPath := filepath.Join(layoutDir, "default.tsx")
 	if _, err := os.Stat(layoutPath); os.IsNotExist(err) {
@@ -162,7 +205,7 @@ func (g *MailerGenerator) run(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("create layouts dir: %w", err)
 		}
 		buf.Reset()
-		if err := layoutTsxTmpl.Execute(&buf, nil); err != nil {
+		if err := layoutTsxTmpl.Execute(buf, nil); err != nil {
 			return fmt.Errorf("execute layout template: %w", err)
 		}
 		if err := os.WriteFile(layoutPath, []byte(buf.String()), 0o644); err != nil {
@@ -170,8 +213,77 @@ func (g *MailerGenerator) run(cmd *cobra.Command, args []string) error {
 		}
 		fmt.Printf("Created %s\n", layoutPath)
 	}
+	return nil
+}
 
-	return generators.RunAfterHooks(g, projectDir)
+func scaffoldTmplTemplates(cmd *cobra.Command, dir string, actions []actionInfo, buf *strings.Builder) error {
+	for _, action := range actions {
+		// HTML template.
+		htmlPath := filepath.Join(dir, action.SnakeName+".html.tmpl")
+		if err := generators.CheckCollision(cmd, htmlPath); err != nil {
+			return err
+		}
+
+		buf.Reset()
+		if err := templateHTMLTmplTmpl.Execute(buf, action); err != nil {
+			return fmt.Errorf("execute html tmpl: %w", err)
+		}
+		if err := os.WriteFile(htmlPath, []byte(buf.String()), 0o644); err != nil {
+			return fmt.Errorf("write %s: %w", htmlPath, err)
+		}
+		fmt.Printf("Created %s\n", htmlPath)
+
+		// Text template.
+		textPath := filepath.Join(dir, action.SnakeName+".text.tmpl")
+		if err := generators.CheckCollision(cmd, textPath); err != nil {
+			return err
+		}
+
+		buf.Reset()
+		if err := templateTextTmplTmpl.Execute(buf, action); err != nil {
+			return fmt.Errorf("execute text tmpl: %w", err)
+		}
+		if err := os.WriteFile(textPath, []byte(buf.String()), 0o644); err != nil {
+			return fmt.Errorf("write %s: %w", textPath, err)
+		}
+		fmt.Printf("Created %s\n", textPath)
+	}
+	return nil
+}
+
+func scaffoldTmplLayouts(cmd *cobra.Command, projectDir, appDir string, buf *strings.Builder) error {
+	layoutDir := filepath.Join(projectDir, appDir, "mailers", "layouts")
+
+	// HTML layout.
+	htmlLayoutPath := filepath.Join(layoutDir, "default.html.tmpl")
+	if _, err := os.Stat(htmlLayoutPath); os.IsNotExist(err) {
+		if err := os.MkdirAll(layoutDir, 0o755); err != nil {
+			return fmt.Errorf("create layouts dir: %w", err)
+		}
+		buf.Reset()
+		if err := layoutHTMLTmplTmpl.Execute(buf, nil); err != nil {
+			return fmt.Errorf("execute html layout tmpl: %w", err)
+		}
+		if err := os.WriteFile(htmlLayoutPath, []byte(buf.String()), 0o644); err != nil {
+			return fmt.Errorf("write %s: %w", htmlLayoutPath, err)
+		}
+		fmt.Printf("Created %s\n", htmlLayoutPath)
+	}
+
+	// Text layout.
+	textLayoutPath := filepath.Join(layoutDir, "default.text.tmpl")
+	if _, err := os.Stat(textLayoutPath); os.IsNotExist(err) {
+		buf.Reset()
+		if err := layoutTextTmplTmpl.Execute(buf, nil); err != nil {
+			return fmt.Errorf("execute text layout tmpl: %w", err)
+		}
+		if err := os.WriteFile(textLayoutPath, []byte(buf.String()), 0o644); err != nil {
+			return fmt.Errorf("write %s: %w", textLayoutPath, err)
+		}
+		fmt.Printf("Created %s\n", textLayoutPath)
+	}
+
+	return nil
 }
 
 type mailerData struct {
@@ -230,9 +342,9 @@ type npmRunner struct {
 	args []string
 }
 
-func (r *npmRunner) Name() string                      { return "npm-install" }
-func (r *npmRunner) Description() string               { return "Install npm packages" }
-func (r *npmRunner) Command() *cobra.Command            { return nil }
+func (r *npmRunner) Name() string                   { return "npm-install" }
+func (r *npmRunner) Description() string            { return "Install npm packages" }
+func (r *npmRunner) Command() *cobra.Command        { return nil }
 func (r *npmRunner) AfterHooks() []generators.Hook {
 	return []generators.Hook{generators.CmdHook(r.args...)}
 }

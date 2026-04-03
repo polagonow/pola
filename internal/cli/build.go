@@ -61,8 +61,12 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 
 	// Load Polafile for PolaPackage.
 	var pf polafile.Polafile
-	if loaded, err := polafile.Load(projectDir); err == nil && loaded != nil {
-		pf = *loaded
+	pfPtr, err := polafile.Load(projectDir)
+	if err != nil {
+		return fmt.Errorf("load Polafile: %w", err)
+	}
+	if pfPtr != nil {
+		pf = *pfPtr
 	}
 
 	// Determine output path.
@@ -96,6 +100,7 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 	}
 	autoload.PopulateDatabaseOpts(&baseOpts, &pf, "production")
 	autoload.PopulateStorageOpts(&baseOpts, &pf, "production")
+	autoload.ApplyMailerOpts(&baseOpts, &pf, "production")
 
 	// ── Stage 1: Bundle ──────────────────────────────────────────────────
 	// Full runtime with bundler, osfs, css — needed to produce assets.

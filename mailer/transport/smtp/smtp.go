@@ -1,4 +1,4 @@
-package mailer
+package smtp
 
 import (
 	"bytes"
@@ -15,8 +15,8 @@ import (
 	"github.com/polagonow/pola/core"
 )
 
-// SMTPConfig holds SMTP connection settings.
-type SMTPConfig struct {
+// Config holds SMTP connection settings.
+type Config struct {
 	Host     string
 	Port     string
 	Username string
@@ -24,19 +24,24 @@ type SMTPConfig struct {
 	TLS      bool
 }
 
-// SMTPTransport delivers emails via SMTP.
-type SMTPTransport struct {
-	cfg SMTPConfig
+// Transport delivers emails via SMTP.
+type Transport struct {
+	cfg Config
 }
 
-// NewSMTPTransport creates a new SMTP transport.
-func NewSMTPTransport(cfg SMTPConfig) *SMTPTransport {
-	return &SMTPTransport{cfg: cfg}
+// Plugin returns a core.Plugin that registers an SMTP mail transport.
+func Plugin(cfg Config) core.Plugin {
+	return core.PluginFunc{
+		PluginName: "mailer.transport.smtp",
+		Fn: func(r *core.Registry) {
+			core.ProvideValue[core.MailTransport](r, &Transport{cfg: cfg})
+		},
+	}
 }
 
-func (t *SMTPTransport) Name() string { return "smtp" }
+func (t *Transport) Name() string { return "smtp" }
 
-func (t *SMTPTransport) Send(_ context.Context, msg *core.MailMessage) error {
+func (t *Transport) Send(_ context.Context, msg *core.MailMessage) error {
 	addr := net.JoinHostPort(t.cfg.Host, t.cfg.Port)
 
 	body, err := buildMIME(msg)
@@ -153,28 +158,4 @@ func buildMIME(msg *core.MailMessage) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
-}
-
-// LogTransport logs the email to the framework logger instead of sending.
-// Useful for development and testing.
-type LogTransport struct {
-	logger core.Logger
-}
-
-// NewLogTransport creates a new log transport.
-func NewLogTransport(logger core.Logger) *LogTransport {
-	return &LogTransport{logger: logger}
-}
-
-func (t *LogTransport) Name() string { return "log" }
-
-func (t *LogTransport) Send(_ context.Context, msg *core.MailMessage) error {
-	t.logger.Info("mailer: email delivered",
-		"from", msg.From,
-		"to", msg.To,
-		"subject", msg.Subject,
-		"html_length", len(msg.HTML),
-		"text_length", len(msg.Text),
-	)
-	return nil
 }
