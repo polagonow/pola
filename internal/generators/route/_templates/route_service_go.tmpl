@@ -5,20 +5,20 @@ import (
 	"net/http"
 	"strconv"
 
-	"[[ .ModulePath ]]/repository"
-	"[[ .ModulePath ]]/service"
+	"[[ .ModulePath ]]/repositories"
+	"[[ .ModulePath ]]/services"
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/routes"
 )
 
 // Route handles [[ .RoutePath ]] requests.
 type Route struct {
-	svc *service.[[ .ServiceName ]]Service
+	svc *services.[[ .ServiceName ]]Service
 }
 
 // Init resolves the [[ .ServiceName ]]Service from the DI registry.
 func (r *Route) Init(registry *core.Registry) error {
-	r.svc = core.MustInvoke[*service.[[ .ServiceName ]]Service](registry)
+	r.svc = core.MustInvoke[*services.[[ .ServiceName ]]Service](registry)
 	return nil
 }
 [[ range .Methods ]]
@@ -42,9 +42,9 @@ func (r *Route) GET(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	params := repository.ListParams{
+	params := repositories.ListParams{
 		Page:    queryInt(req, "page", 1),
-		PerPage: queryInt(req, "per_page", repository.DefaultPerPage),
+		PerPage: queryInt(req, "per_page", repositories.DefaultPerPage),
 	}
 	result, err := r.svc.List(req.Context(), params)
 	if err != nil {
@@ -57,7 +57,7 @@ func (r *Route) GET(w http.ResponseWriter, req *http.Request) {
 [[ else if eq . "POST" -]]
 // POST [[ $.RoutePath ]]
 func (r *Route) POST(w http.ResponseWriter, req *http.Request) {
-	var entity repository.[[ $.ServiceName ]]
+	var entity repositories.[[ $.ServiceName ]]
 	if err := json.NewDecoder(req.Body).Decode(&entity); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -79,7 +79,7 @@ func (r *Route) PUT(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	var entity repository.[[ $.ServiceName ]]
+	var entity repositories.[[ $.ServiceName ]]
 	if err := json.NewDecoder(req.Body).Decode(&entity); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
@@ -101,7 +101,7 @@ func (r *Route) PATCH(w http.ResponseWriter, req *http.Request) {
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
 	}
-	var entity repository.[[ $.ServiceName ]]
+	var entity repositories.[[ $.ServiceName ]]
 	if err := json.NewDecoder(req.Body).Decode(&entity); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

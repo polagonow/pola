@@ -63,7 +63,7 @@ func (g *ServiceGenerator) run(cmd *cobra.Command, args []string) error {
 	}
 
 	// Read Polafile for configured service directory.
-	svcDir := "service"
+	svcDir := "services"
 	pf, err := polafile.Load(projectDir)
 	if err != nil {
 		return fmt.Errorf("load Polafile: %w", err)
