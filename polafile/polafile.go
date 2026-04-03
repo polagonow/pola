@@ -75,6 +75,7 @@ type Polafile struct {
 	SecurityHeaders *SecurityHeaders `hcl:"security_headers,block"`
 	Cache           *Cache           `hcl:"cache,block"`
 	Database        *Database        `hcl:"database,block"`
+	Storage         *StorageConfig   `hcl:"storage,block"`
 }
 
 // ---------- CSRF ----------
@@ -356,6 +357,68 @@ func (pf *Polafile) CacheAdapter(env string) string {
 	return "memory"
 }
 
+// ---------- Storage ----------
+
+// StorageEnvironment holds per-environment storage overrides.
+type StorageEnvironment struct {
+	Environment string `hcl:"env,label"`
+	Driver      string `hcl:"driver,optional"`
+	Root        string `hcl:"root,optional"`
+	Remote      string `hcl:"remote,optional"`
+	Bucket      string `hcl:"bucket,optional"`
+}
+
+// StorageConfig holds file storage configuration with optional per-environment overrides.
+type StorageConfig struct {
+	Driver string               `hcl:"driver,optional"` // "fs" or "s3"
+	Root   string               `hcl:"root,optional"`   // local root for fs driver
+	Remote string               `hcl:"remote,optional"` // rclone remote for s3 driver
+	Bucket string               `hcl:"bucket,optional"` // rclone bucket/path
+	Envs   []StorageEnvironment `hcl:"env,block"`
+}
+
+// StorageForEnv merges the base storage config with env-specific overrides.
+func (pf *Polafile) StorageForEnv(env string) StorageConfig {
+	if pf.Storage == nil {
+		return StorageConfig{}
+	}
+	base := StorageConfig{
+		Driver: pf.Storage.Driver,
+		Root:   pf.Storage.Root,
+		Remote: pf.Storage.Remote,
+		Bucket: pf.Storage.Bucket,
+	}
+	for _, e := range pf.Storage.Envs {
+		if e.Environment == env {
+			override := StorageConfig{
+				Driver: e.Driver,
+				Root:   e.Root,
+				Remote: e.Remote,
+				Bucket: e.Bucket,
+			}
+			_ = mergo.Merge(&base, &override, mergo.WithOverride)
+			break
+		}
+	}
+	return base
+}
+
+// StorageDriver returns the configured storage driver, defaulting to "fs".
+func (pf *Polafile) StorageDriver() string {
+	if pf.Storage != nil && pf.Storage.Driver != "" {
+		return pf.Storage.Driver
+	}
+	return "fs"
+}
+
+// StorageRoot returns the configured storage root directory, defaulting to "uploads".
+func (pf *Polafile) StorageRoot() string {
+	if pf.Storage != nil && pf.Storage.Root != "" {
+		return pf.Storage.Root
+	}
+	return "uploads"
+}
+
 // AppDir returns the configured app directory, defaulting to "web".
 func (pf *Polafile) AppDir() string {
 	if pf.App != "" {
@@ -516,6 +579,25 @@ func Save(dir string, pf *Polafile) error {
 			setAttr(envBody, "models", e.Models)
 			setAttr(envBody, "adapter", e.Adapter)
 			setAttr(envBody, "orm", e.ORM)
+		}
+	}
+
+	// Storage block.
+	if pf.Storage != nil {
+		blockBody.AppendNewline()
+		sBlock := blockBody.AppendNewBlock("storage", nil)
+		sBody := sBlock.Body()
+		setAttr(sBody, "driver", pf.Storage.Driver)
+		setAttr(sBody, "root", pf.Storage.Root)
+		setAttr(sBody, "remote", pf.Storage.Remote)
+		setAttr(sBody, "bucket", pf.Storage.Bucket)
+		for _, e := range pf.Storage.Envs {
+			envBlock := sBody.AppendNewBlock("env", []string{e.Environment})
+			envBody := envBlock.Body()
+			setAttr(envBody, "driver", e.Driver)
+			setAttr(envBody, "root", e.Root)
+			setAttr(envBody, "remote", e.Remote)
+			setAttr(envBody, "bucket", e.Bucket)
 		}
 	}
 
