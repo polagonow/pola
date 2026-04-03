@@ -42,15 +42,19 @@ func GenerateGo(result *ParseResult, polaPackage string) ([]byte, error) {
 			return CamelCase(structName)
 		},
 		"goTypeShort": func(goType string) string {
-			// Strip package path for types within the same package
+			// Preserve pointer prefix before stripping package path.
+			prefix := ""
+			if strings.HasPrefix(goType, "*") {
+				prefix = "*"
+				goType = goType[1:]
+			}
 			if idx := strings.LastIndex(goType, "/"); idx >= 0 {
-				// Find the type name after the package
 				rest := goType[idx+1:]
 				if dotIdx := strings.Index(rest, "."); dotIdx >= 0 {
-					return rest
+					return prefix + rest
 				}
 			}
-			return goType
+			return prefix + goType
 		},
 		"castArg": func(i int, p ParamDef) string {
 			return goArgCast(i, p)

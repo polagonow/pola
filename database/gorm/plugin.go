@@ -105,6 +105,6 @@ func dialectorFor(adapter, connStr string) (gormpkg.Dialector, error) {
 	case "sqlite":
 		return sqlite.Open(connStr), nil
 	default:
-		return nil, fmt.Errorf("gorm: unsupported adapter %q", adapter)
+		return postgres.Open(connStr), nil
 	}
 }
