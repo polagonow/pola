@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/beego/beego/v2/client/orm"
-	"[[.PolaPackage]]/core"
 	"[[.ModulePath]]/repositories"
 )
 
@@ -16,18 +15,6 @@ type [[.LowerName]]Repository struct {
 // New[[.Name]]Repository creates a new Beego ORM-backed [[.Name]]Repository.
 func New[[.Name]]Repository(o orm.Ormer) repositories.[[.Name]]Repository {
 	return &[[.LowerName]]Repository{ormer: o}
-}
-
-// Register[[.Name]]Repository registers a [[.Name]]Repository in the DI container,
-// resolving orm.Ormer from the database plugin.
-func Register[[.Name]]Repository(r *core.Registry) {
-	core.Provide[repositories.[[.Name]]Repository](r, func() (repositories.[[.Name]]Repository, error) {
-		o, err := core.Invoke[orm.Ormer](r)
-		if err != nil {
-			return nil, fmt.Errorf("resolve orm.Ormer for [[.Name]]Repository: %w", err)
-		}
-		return New[[.Name]]Repository(o), nil
-	})
 }
 
 func (r *[[.LowerName]]Repository) Create(_ context.Context, entity *repositories.[[.Name]]) error {

@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"gorm.io/gorm"
-	"[[.PolaPackage]]/core"
 	"[[.ModulePath]]/repositories"
 )
 
@@ -16,18 +15,6 @@ type [[.LowerName]]Repository struct {
 // New[[.Name]]Repository creates a new GORM-backed [[.Name]]Repository.
 func New[[.Name]]Repository(db *gorm.DB) repositories.[[.Name]]Repository {
 	return &[[.LowerName]]Repository{db: db}
-}
-
-// Register[[.Name]]Repository registers a [[.Name]]Repository in the DI container,
-// resolving *gorm.DB from the database plugin.
-func Register[[.Name]]Repository(r *core.Registry) {
-	core.Provide[repositories.[[.Name]]Repository](r, func() (repositories.[[.Name]]Repository, error) {
-		db, err := core.Invoke[*gorm.DB](r)
-		if err != nil {
-			return nil, fmt.Errorf("resolve *gorm.DB for [[.Name]]Repository: %w", err)
-		}
-		return New[[.Name]]Repository(db), nil
-	})
 }
 
 func (r *[[.LowerName]]Repository) Create(ctx context.Context, entity *repositories.[[.Name]]) error {

@@ -176,10 +176,16 @@ func generateOverlay(projectDir string, opts pluginOpts) (*overlayResult, error)
 		if err := repoPluginsTmpl.Execute(&repoPluginsBuf, struct {
 			PolaPackage  string
 			PkgName      string
+			ORM          string
+			RepoImport   string
+			ModulePath   string
 			Repositories []pluginEntry
 		}{
 			PolaPackage:  opts.PolaPackage,
 			PkgName:      repoDisco.PkgName,
+			ORM:          repoDisco.ORM,
+			RepoImport:   repoDisco.RepoImport,
+			ModulePath:   repoDisco.ModulePath,
 			Repositories: repoDisco.Repositories,
 		}); err != nil {
 			return nil, fmt.Errorf("execute repo plugins template: %w", err)
@@ -457,6 +463,9 @@ type pluginEntry struct {
 // repoDiscovery holds discovered repository registration info for the overlay.
 type repoDiscovery struct {
 	ImportPath   string        // e.g. "myapp/repositories/gorm"
+	RepoImport   string        // e.g. "myapp/repositories"
+	ModulePath   string        // e.g. "myapp"
+	ORM          string        // e.g. "gorm", "ent", "beego"
 	PkgName      string        // e.g. "gorm"
 	Repositories []pluginEntry // e.g. [{Name: "User", SnakeName: "user"}]
 }
@@ -470,7 +479,7 @@ type svcDiscovery struct {
 }
 
 // discoverRepositoryRegistrations scans repositories/{orm}/ for exported
-// Register*Repository functions and returns their names.
+// New*Repository constructor functions and returns their names.
 func discoverRepositoryRegistrations(projectDir, repoDir, orm, modPath string) *repoDiscovery {
 	ormDir := filepath.Join(projectDir, repoDir, orm)
 	info, err := os.Stat(ormDir)
@@ -495,13 +504,13 @@ func discoverRepositoryRegistrations(projectDir, repoDir, orm, modPath string) *
 		}
 		for _, decl := range f.Decls {
 			fd, ok := decl.(*ast.FuncDecl)
-			if !ok || !fd.Name.IsExported() {
+			if !ok || !fd.Name.IsExported() || fd.Recv != nil {
 				continue
 			}
 			name := fd.Name.Name
-			if strings.HasPrefix(name, "Register") && strings.HasSuffix(name, "Repository") {
-				// Extract the model name: Register{Name}Repository -> Name
-				modelName := strings.TrimPrefix(name, "Register")
+			if strings.HasPrefix(name, "New") && strings.HasSuffix(name, "Repository") {
+				// Extract the model name: New{Name}Repository -> Name
+				modelName := strings.TrimPrefix(name, "New")
 				modelName = strings.TrimSuffix(modelName, "Repository")
 				if modelName != "" {
 					repos = append(repos, pluginEntry{
@@ -520,6 +529,9 @@ func discoverRepositoryRegistrations(projectDir, repoDir, orm, modPath string) *
 	sort.Slice(repos, func(i, j int) bool { return repos[i].Name < repos[j].Name })
 	return &repoDiscovery{
 		ImportPath:   modPath + "/" + filepath.ToSlash(filepath.Join(repoDir, orm)),
+		RepoImport:   modPath + "/" + filepath.ToSlash(repoDir),
+		ModulePath:   modPath,
+		ORM:          orm,
 		PkgName:      orm,
 		Repositories: repos,
 	}
