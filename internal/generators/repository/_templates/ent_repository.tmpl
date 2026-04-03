@@ -7,6 +7,8 @@ import (
 	"[[.ModulePath]]/ent"
 	ent[[.Name]] "[[.ModulePath]]/ent/[[.SnakeName]]"
 	"[[.ModulePath]]/repositories"
+	"[[.PolaPackage]]/core"
+	entsql "entgo.io/ent/dialect/sql"
 )
 
 type [[.LowerName]]Repository struct {
@@ -16,6 +18,19 @@ type [[.LowerName]]Repository struct {
 // New[[.Name]]Repository creates a new Ent-backed [[.Name]]Repository.
 func New[[.Name]]Repository(client *ent.Client) repositories.[[.Name]]Repository {
 	return &[[.LowerName]]Repository{client: client}
+}
+
+// Register[[.Name]]Repository registers a [[.Name]]Repository in the DI container,
+// resolving *entsql.Driver from the database plugin and creating an *ent.Client.
+func Register[[.Name]]Repository(r *core.Registry) {
+	core.Provide[repositories.[[.Name]]Repository](r, func() (repositories.[[.Name]]Repository, error) {
+		drv, err := core.Invoke[*entsql.Driver](r)
+		if err != nil {
+			return nil, fmt.Errorf("resolve *entsql.Driver for [[.Name]]Repository: %w", err)
+		}
+		client := ent.NewClient(ent.Driver(drv))
+		return New[[.Name]]Repository(client), nil
+	})
 }
 
 func (r *[[.LowerName]]Repository) Create(ctx context.Context, entity *repositories.[[.Name]]) error {
@@ -81,3 +96,6 @@ func (r *[[.LowerName]]Repository) Update(ctx context.Context, entity *repositor
 func (r *[[.LowerName]]Repository) Delete(ctx context.Context, id uint) error {
 	return r.client.[[.Name]].DeleteOneID(int(id)).Exec(ctx)
 }
+
+// Ensure [[.SnakeName]] import is used.
+var _ = ent[[.Name]].Table

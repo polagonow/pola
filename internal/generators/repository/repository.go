@@ -121,6 +121,7 @@ func (g *RepositoryGenerator) run(cmd *cobra.Command, args []string) error {
 	}
 
 	data := buildData(def, modulePath)
+	data.PolaPackage = pf.PolaPackage()
 
 	// Ensure repository directory exists.
 	interfaceDir := filepath.Join(projectDir, repoDir)
@@ -189,6 +190,7 @@ type repoData struct {
 	Fields      []repoField
 	Imports     []string
 	ModulePath  string
+	PolaPackage string
 }
 
 type repoField struct {
