@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync/atomic"
 	"time"
 
 	"github.com/polagonow/pola/core"
@@ -23,17 +24,8 @@ var (
 
 // Renderer implements the React SSR renderer.
 type Renderer struct {
-	pool      core.SSRPool
-	shell     core.HTMLShell
-	cache     core.Cache
-	logger    core.Logger
-	metrics   core.Metrics
-	tracer    core.Tracer
-	bundle    *core.BundleOutput
-	cssURLs   []string
-	docProps  *core.DocumentProps
-	devScript string
-	notFound  *core.Route
+	pool core.SSRPool
+	deps atomic.Pointer[core.RenderDeps]
 }
 
 // New creates a React renderer.
@@ -46,17 +38,18 @@ func (r *Renderer) Capabilities() []core.Capability {
 }
 
 // SetRenderDeps implements core.RenderDepsAware.
+// It atomically swaps the deps pointer so that in-flight requests using the
+// previous snapshot are unaffected.
 func (r *Renderer) SetRenderDeps(deps core.RenderDeps) {
-	r.shell = deps.Shell
-	r.cache = deps.Cache
-	r.logger = deps.Logger
-	r.metrics = deps.Metrics
-	r.tracer = deps.Tracer
-	r.bundle = deps.BundleOutput
-	r.cssURLs = deps.CSSURLs
-	r.docProps = deps.DocumentProps
-	r.devScript = deps.DevScript
-	r.notFound = deps.NotFoundRoute
+	r.deps.Store(&deps)
+}
+
+// loadDeps returns a consistent snapshot of render deps.
+func (r *Renderer) loadDeps() core.RenderDeps {
+	if d := r.deps.Load(); d != nil {
+		return *d
+	}
+	return core.RenderDeps{}
 }
 
 // LoadBundle implements core.BundleLoader. It asks the engine to create an
@@ -80,6 +73,7 @@ const ContentType = "text/x-component"
 // ServeHTTP implements core.Renderer. It handles both RSC Flight requests
 // (Content-Type: text/x-component) and HTML page loads.
 func (r *Renderer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	deps := r.loadDeps()
 	ctx := req.Context()
 	route, props, requestContext, status, injectors := core.RenderRequestFrom(ctx)
 
@@ -88,8 +82,8 @@ func (r *Renderer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		if status == 0 {
 			status = http.StatusNotFound
 		}
-		if r.notFound != nil {
-			route = r.notFound
+		if deps.NotFoundRoute != nil {
+			route = deps.NotFoundRoute
 			if props == nil {
 				props = map[string]any{"params": map[string]any{}, "searchParams": map[string]any{}}
 			}
@@ -97,7 +91,7 @@ func (r *Renderer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			// No not-found page — serve a bare HTML shell.
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.WriteHeader(status)
-			r.serveHTML(w, req, nil)
+			r.serveHTML(w, req, nil, &deps)
 			return
 		}
 	}
@@ -112,16 +106,16 @@ func (r *Renderer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	isFlight := req.Header.Get("Content-Type") == ContentType
 
 	if isFlight {
-		r.serveFlight(ctx, w, req, renderReq, status)
+		r.serveFlight(ctx, w, req, renderReq, status, &deps)
 		return
 	}
 
 	// HTML page load — check cache for inline SSR data.
 	var ssrData []byte
-	if r.cache != nil {
-		cacheKey := "ssr:" + req.URL.Path + "?" + req.URL.RawQuery
-		if cached, ok, err := r.cache.Get(ctx, cacheKey); err != nil {
-			r.logError("pola: cache get", "key", cacheKey, "err", err)
+	cacheKey := "ssr:" + req.URL.Path + "?" + req.URL.RawQuery
+	if deps.Cache != nil {
+		if cached, ok, err := deps.Cache.Get(ctx, cacheKey); err != nil {
+			logError(deps.Logger, "pola: cache get", "key", cacheKey, "err", err)
 		} else if ok {
 			ssrData = cached
 		}
@@ -130,23 +124,31 @@ func (r *Renderer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if ssrData == nil {
 		if data, err := r.RenderToBytes(ctx, renderReq); err == nil {
 			ssrData = data
+			// Fill cache so subsequent requests are served instantly.
+			if deps.Cache != nil {
+				if err := deps.Cache.Set(ctx, cacheKey, ssrData, core.CacheOptions{
+					TTL: renderReq.Route.Revalidate,
+				}); err != nil {
+					logError(deps.Logger, "pola: cache set", "err", err)
+				}
+			}
 		} else {
-			r.logError("pola: render", "err", err)
+			logError(deps.Logger, "pola: render", "err", err)
 		}
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
-	r.serveHTML(w, req, ssrData)
+	r.serveHTML(w, req, ssrData, &deps)
 }
 
 // serveFlight handles RSC Flight requests with caching and streaming.
-func (r *Renderer) serveFlight(ctx context.Context, w http.ResponseWriter, req *http.Request, renderReq core.RenderRequest, status int) {
+func (r *Renderer) serveFlight(ctx context.Context, w http.ResponseWriter, req *http.Request, renderReq core.RenderRequest, status int, deps *core.RenderDeps) {
 	// Cache integration for Flight requests.
-	if r.cache != nil {
+	if deps.Cache != nil {
 		cacheKey := "ssr:" + req.URL.Path + "?" + req.URL.RawQuery
 		// Serve from cache if available — instant, no VM needed.
-		if cached, ok, err := r.cache.Get(ctx, cacheKey); err != nil {
-			r.logError("pola: cache get", "key", cacheKey, "err", err)
+		if cached, ok, err := deps.Cache.Get(ctx, cacheKey); err != nil {
+			logError(deps.Logger, "pola: cache get", "key", cacheKey, "err", err)
 		} else if ok {
 			w.Header().Set("Content-Type", ContentType+"; charset=utf-8")
 			w.WriteHeader(status)
@@ -157,14 +159,14 @@ func (r *Renderer) serveFlight(ctx context.Context, w http.ResponseWriter, req *
 
 	// Tee output to fill cache for next request.
 	var tw *teeWriter
-	if r.cache != nil {
+	if deps.Cache != nil {
 		tw = &teeWriter{ResponseWriter: w}
 		w = tw
 	}
 
-	if r.tracer != nil {
+	if deps.Tracer != nil {
 		var span core.Span
-		ctx, span = r.tracer.StartSpan(ctx, "pola.render")
+		ctx, span = deps.Tracer.StartSpan(ctx, "pola.render")
 		defer span.End()
 	}
 
@@ -173,38 +175,38 @@ func (r *Renderer) serveFlight(ctx context.Context, w http.ResponseWriter, req *
 
 	renderStart := timeNow()
 	err := r.RenderToWriter(ctx, renderReq, newStreamWriter(w))
-	if r.metrics != nil {
-		r.metrics.RecordRender(renderReq.Route.Pattern, timeSince(renderStart))
+	if deps.Metrics != nil {
+		deps.Metrics.RecordRender(renderReq.Route.Pattern, timeSince(renderStart))
 	}
 	if err != nil {
-		r.logError("pola: render", "err", err)
+		logError(deps.Logger, "pola: render", "err", err)
 	}
 
 	// Fill cache from tee buffer.
 	if tw != nil && len(tw.buf) > 0 {
-		if err := r.cache.Set(ctx, "ssr:"+req.URL.Path+"?"+req.URL.RawQuery, tw.buf, core.CacheOptions{
+		if err := deps.Cache.Set(ctx, "ssr:"+req.URL.Path+"?"+req.URL.RawQuery, tw.buf, core.CacheOptions{
 			TTL: renderReq.Route.Revalidate,
 		}); err != nil {
-			r.logError("pola: cache set", "err", err)
+			logError(deps.Logger, "pola: cache set", "err", err)
 		}
 	}
 }
 
 // serveHTML returns the HTML shell for initial page loads.
-func (r *Renderer) serveHTML(w http.ResponseWriter, req *http.Request, ssrData []byte) {
+func (r *Renderer) serveHTML(w http.ResponseWriter, req *http.Request, ssrData []byte, deps *core.RenderDeps) {
 	params := core.ShellParams{
 		Metadata:      defaultMetadata(),
-		DocumentProps: r.docProps,
+		DocumentProps: deps.DocumentProps,
 	}
-	if r.bundle != nil {
-		params.ImportURLs = r.bundle.ImportURLs
-		params.ClientScript = r.bundle.ClientEntryURL
+	if deps.BundleOutput != nil {
+		params.ImportURLs = deps.BundleOutput.ImportURLs
+		params.ClientScript = deps.BundleOutput.ClientEntryURL
 	}
-	if len(r.cssURLs) > 0 {
-		params.Stylesheets = r.cssURLs
+	if len(deps.CSSURLs) > 0 {
+		params.Stylesheets = deps.CSSURLs
 	}
-	if r.devScript != "" {
-		params.Scripts = append(params.Scripts, r.devScript)
+	if deps.DevScript != "" {
+		params.Scripts = append(params.Scripts, deps.DevScript)
 	}
 	// Inject CSP nonce if the security headers middleware is active.
 	if nonce, ok := req.Context().Value(core.NonceContextKey).(string); ok && nonce != "" {
@@ -225,15 +227,15 @@ func (r *Renderer) serveHTML(w http.ResponseWriter, req *http.Request, ssrData [
 	if len(ssrData) > 0 {
 		encoded, err := json.Marshal(string(ssrData))
 		if err != nil {
-			r.logError("pola: marshal SSR data", "err", err)
+			logError(deps.Logger, "pola: marshal SSR data", "err", err)
 		} else {
 			params.Scripts = append(params.Scripts, fmt.Sprintf("self.%s=%s", globals.SSRData, encoded))
 		}
 	}
 
 	var html string
-	if r.shell != nil {
-		html = r.shell.Render(params)
+	if deps.Shell != nil {
+		html = deps.Shell.Render(params)
 	} else {
 		html = "<!DOCTYPE html><html><body></body></html>"
 	}
@@ -242,9 +244,9 @@ func (r *Renderer) serveHTML(w http.ResponseWriter, req *http.Request, ssrData [
 }
 
 // logError logs an error if a logger is configured.
-func (r *Renderer) logError(msg string, args ...any) {
-	if r.logger != nil {
-		r.logger.Error(msg, args...)
+func logError(logger core.Logger, msg string, args ...any) {
+	if logger != nil {
+		logger.Error(msg, args...)
 	}
 }
 
@@ -400,16 +402,23 @@ func (r *Renderer) RenderToBytes(ctx context.Context, req core.RenderRequest) ([
 
 // WithPool returns a copy of the renderer that uses pool for VM acquisition.
 func (r *Renderer) WithPool(pool core.SSRPool) *Renderer {
-	c := *r
-	c.pool = pool
-	return &c
+	nr := New()
+	nr.pool = pool
+	if d := r.deps.Load(); d != nil {
+		cp := *d
+		nr.deps.Store(&cp)
+	}
+	return nr
 }
 
 // WithShell returns a copy of the renderer that uses shell for HTML rendering.
 func (r *Renderer) WithShell(shell core.HTMLShell) *Renderer {
-	c := *r
-	c.shell = shell
-	return &c
+	nr := New()
+	nr.pool = r.pool
+	d := r.loadDeps()
+	d.Shell = shell
+	nr.deps.Store(&d)
+	return nr
 }
 
 // GenerateEntry implements the internal entryGenerator interface.
