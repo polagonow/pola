@@ -321,20 +321,20 @@ func (pf *Polafile) CacheAdapter(env string) string {
 	return "memory"
 }
 
-// RepositoriesDir returns the configured repositories directory, defaulting to "repository".
+// RepositoriesDir returns the configured repositories directory, defaulting to "repositories".
 func (pf *Polafile) RepositoriesDir() string {
 	if pf.Repositories != "" {
 		return pf.Repositories
 	}
-	return "repository"
+	return "repositories"
 }
 
-// ServicesDir returns the configured services directory, defaulting to "service".
+// ServicesDir returns the configured services directory, defaulting to "services".
 func (pf *Polafile) ServicesDir() string {
 	if pf.Services != "" {
 		return pf.Services
 	}
-	return "service"
+	return "services"
 }
 
 // PolaPackage returns the pola framework import path (always DefaultPackage).
