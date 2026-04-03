@@ -56,7 +56,11 @@ func (r *Renderer) LoadBundle(bundle []byte) error {
 
 // RenderEmail renders a react.email template to HTML and plain text.
 func (r *Renderer) RenderEmail(ctx context.Context, templateName, layoutName string, props map[string]any) (string, string, error) {
-	if len(r.bundle) == 0 {
+	r.mu.Lock()
+	bundle := r.bundle
+	r.mu.Unlock()
+
+	if len(bundle) == 0 {
 		return "", "", fmt.Errorf("mailer: no email bundle loaded")
 	}
 
@@ -94,13 +98,14 @@ func (r *Renderer) acquire(ctx context.Context) (core.JSRuntime, error) {
 		r.mu.Unlock()
 		return rt, nil
 	}
+	bundle := r.bundle
 	r.mu.Unlock()
 
 	rt, err := r.engine.NewRuntime(ctx)
 	if err != nil {
 		return nil, err
 	}
-	if _, err := rt.Eval(string(r.bundle)); err != nil {
+	if _, err := rt.Eval(string(bundle)); err != nil {
 		rt.Dispose()
 		return nil, fmt.Errorf("mailer: eval email bundle: %w", err)
 	}

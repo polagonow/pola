@@ -553,9 +553,10 @@ func buildEmailBundle(
 	defer os.RemoveAll(tmpDir)
 
 	emailBundleInput := core.BundleInput{
-		AppDir:             appDir,
-		OutDir:             filepath.Join(tmpDir, "out"),
-		ServerEntryContent: entrySource,
+		AppDir:                 appDir,
+		OutDir:                 filepath.Join(tmpDir, "out"),
+		ServerEntryContent:     entrySource,
+		ServerBundleConditions: []string{"module", "default"},
 	}
 
 	output, err := bundler.Build(ctx, emailBundleInput)

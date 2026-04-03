@@ -2,6 +2,7 @@ package smtp
 
 import (
 	"bytes"
+	"cmp"
 	"context"
 	"crypto/tls"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"net"
 	"net/smtp"
 	"net/textproto"
+	"os"
 	"strings"
 
 	"github.com/polagonow/pola/core"
@@ -41,8 +43,19 @@ func Plugin(cfg Config) core.Plugin {
 
 func (t *Transport) Name() string { return "smtp" }
 
+func (t *Transport) resolveConfig() Config {
+	return Config{
+		Host:     cmp.Or(os.Getenv("SMTP_HOST"), t.cfg.Host),
+		Port:     cmp.Or(os.Getenv("SMTP_PORT"), t.cfg.Port),
+		Username: cmp.Or(os.Getenv("SMTP_USERNAME"), t.cfg.Username),
+		Password: cmp.Or(os.Getenv("SMTP_PASSWORD"), t.cfg.Password),
+		TLS:      t.cfg.TLS,
+	}
+}
+
 func (t *Transport) Send(_ context.Context, msg *core.MailMessage) error {
-	addr := net.JoinHostPort(t.cfg.Host, t.cfg.Port)
+	cfg := t.resolveConfig()
+	addr := net.JoinHostPort(cfg.Host, cfg.Port)
 
 	body, err := buildMIME(msg)
 	if err != nil {
@@ -50,8 +63,8 @@ func (t *Transport) Send(_ context.Context, msg *core.MailMessage) error {
 	}
 
 	var auth smtp.Auth
-	if t.cfg.Username != "" {
-		auth = smtp.PlainAuth("", t.cfg.Username, t.cfg.Password, t.cfg.Host)
+	if cfg.Username != "" {
+		auth = smtp.PlainAuth("", cfg.Username, cfg.Password, cfg.Host)
 	}
 
 	recipients := make([]string, 0, len(msg.To)+len(msg.CC)+len(msg.BCC))
@@ -59,8 +72,8 @@ func (t *Transport) Send(_ context.Context, msg *core.MailMessage) error {
 	recipients = append(recipients, msg.CC...)
 	recipients = append(recipients, msg.BCC...)
 
-	if t.cfg.TLS {
-		return sendTLS(addr, auth, msg.From, recipients, body, t.cfg.Host)
+	if cfg.TLS {
+		return sendTLS(addr, auth, msg.From, recipients, body, cfg.Host)
 	}
 	return smtp.SendMail(addr, auth, msg.From, recipients, body)
 }
