@@ -44,12 +44,14 @@ After running this, you can associate files with models:
 		RunE: g.run,
 		Example: `  pola generate storage
   pola generate storage --driver s3 --bucket my-uploads
+  pola generate storage --driver s3 --bucket my-uploads --config-path /etc/rclone/rclone.conf
   pola generate storage --driver fs --root ./uploads`,
 	}
 	cmd.Flags().String("driver", "fs", "storage driver: fs or s3")
 	cmd.Flags().String("root", "uploads", "local root directory (fs driver)")
 	cmd.Flags().String("remote", "s3", "rclone remote name (s3 driver)")
 	cmd.Flags().String("bucket", "", "rclone bucket or path (s3 driver)")
+	cmd.Flags().String("config-path", "", "rclone config file path (s3 driver)")
 	return cmd
 }
 
@@ -63,6 +65,7 @@ func (g *StorageGenerator) run(cmd *cobra.Command, _ []string) error {
 	root, _ := cmd.Flags().GetString("root")
 	remote, _ := cmd.Flags().GetString("remote")
 	bucket, _ := cmd.Flags().GetString("bucket")
+	configPath, _ := cmd.Flags().GetString("config-path")
 
 	// --- Update Polafile with storage config ---
 
@@ -83,6 +86,7 @@ func (g *StorageGenerator) run(cmd *cobra.Command, _ []string) error {
 	case "s3":
 		pf.Storage.Remote = remote
 		pf.Storage.Bucket = bucket
+		pf.Storage.ConfigPath = configPath
 	}
 
 	if err := polafile.Save(projectDir, pf); err != nil {
