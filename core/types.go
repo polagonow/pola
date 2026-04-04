@@ -23,19 +23,6 @@ type nonceContextKeyType struct{}
 // from the security headers middleware to the orchestrator/shell.
 var NonceContextKey = nonceContextKeyType{}
 
-// ClientRef is the wire representation of a Client Component reference.
-// The browser's RSC runtime resolves this to the actual React component
-// by looking up the manifest produced at build time.
-type ClientRef struct {
-	ID     string   `json:"id"`
-	Name   string   `json:"name"`
-	Chunks []string `json:"chunks"`
-	Async  bool     `json:"async"`
-}
-
-// ClientManifest maps moduleId → ClientRef.
-type ClientManifest map[string]ClientRef
-
 // PageSegment represents one directory level in the route hierarchy.
 // Both LayoutPath and ErrorPath are optional (empty string = absent).
 type PageSegment struct {
@@ -185,8 +172,8 @@ type BundleInput struct {
 	// (e.g. ["react-server","browser","module","default"] for React RSC).
 	ServerBundleConditions []string
 
-	// ServerBundleDefines are additional esbuild defines for the server pass
-	// (merged with the bundler's base defines such as __CLIENT_MANIFEST__).
+	// ServerBundleDefines are renderer-provided esbuild defines for the server
+	// pass (e.g. __CLIENT_MANIFEST__ for React RSC). Set by BundleDefines().
 	ServerBundleDefines map[string]string
 
 	// CSSProcessor is the optional CSS processor (e.g. Tailwind) to use

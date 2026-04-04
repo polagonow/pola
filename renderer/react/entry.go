@@ -10,6 +10,12 @@ import (
 	"github.com/polagonow/pola/core/globals"
 )
 
+// BundleDefines returns esbuild define keys the React renderer requires
+// in the server bundle (e.g. the client manifest placeholder).
+func (r *Renderer) BundleDefines() map[string]string {
+	return map[string]string{ClientManifestDefine: "{}"}
+}
+
 // EntryGenConfig is the input to EntryGenerator.Generate.
 type EntryGenConfig struct {
 	Pages              []core.PageEntry
@@ -213,7 +219,7 @@ outer:
 	var renderBlockBuf strings.Builder
 	_ = renderBlockTmpl.Execute(&renderBlockBuf, struct{ RenderFn, ClientManifest string }{
 		globals.RenderFn,
-		globals.ClientManifest,
+		ClientManifestDefine,
 	})
 	entry.WriteString(renderBlockBuf.String())
 

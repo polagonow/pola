@@ -181,6 +181,11 @@ func NewHotReloader(cfg *core.Config, registry *core.Registry, initial *core.App
 		bundleInput.ServerBundleConditions = bc.BundleConditions()
 		bundleInput.ClientEntry = bc.ClientEntry()
 	}
+	if bd, ok := renderer.(interface {
+		BundleDefines() map[string]string
+	}); ok {
+		bundleInput.ServerBundleDefines = bd.BundleDefines()
+	}
 	// Add bundler-specific plugins from the plugin provider.
 	if bp, err := core.Invoke[core.BundlePluginProvider](registry); err == nil {
 		bundleInput.ClientPlugins = bp.ClientPlugins(absWebAppPath)

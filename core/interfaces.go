@@ -177,8 +177,9 @@ type StreamHandle interface {
 	IsNil() bool
 }
 
-// SSRRuntime extends JSRuntime with methods for streaming SSR rendering
-// (RSC Flight protocol). Implemented by JS runtimes that support React SSR.
+// SSRRuntime extends JSRuntime with methods for streaming SSR rendering.
+// Implemented by JS runtimes that support server-side rendering via a
+// ReadableStream-based protocol.
 type SSRRuntime interface {
 	JSRuntime
 	// SetRequestContext injects per-request data as __REQUEST__ in the runtime.

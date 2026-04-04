@@ -12,7 +12,6 @@ import (
 	"time"
 
 	"github.com/polagonow/pola/core"
-	"github.com/polagonow/pola/core/globals"
 	"github.com/polagonow/pola/shell"
 )
 
@@ -69,6 +68,29 @@ func (r *Renderer) LoadBundle(engine core.JSEngine, bundle []byte) error {
 
 // ContentType is the MIME type for the RSC Flight wire format.
 const ContentType = "text/x-component"
+
+// React-specific JS globals. These constants are kept in the renderer package
+// because they are part of React's RSC protocol, not framework-wide concerns.
+const (
+	// SSRData is the browser global used to embed cached Flight data in the
+	// HTML shell, avoiding a second request when the server has pre-rendered data.
+	SSRData = "__POLA_SSR_DATA__"
+
+	// RootElementID is the DOM element ID used as the React mount point.
+	RootElementID = "__POLA_ROOT__"
+
+	// ExtractShellFn is the global function that calls the root layout component,
+	// serializes its React element tree to HTML, and returns it as a string.
+	ExtractShellFn = "__extractShell__"
+
+	// ClientManifestDefine is the esbuild define key injected into the server
+	// bundle and consumed by React's renderToReadableStream.
+	ClientManifestDefine = "__CLIENT_MANIFEST__"
+
+	// RunMicrotasksFn is used by the Goja-only Suspense helper to prompt Goja's
+	// internal microtask processing during Promise resolution.
+	RunMicrotasksFn = "__runMicrotasks__"
+)
 
 // ServeHTTP implements core.Renderer. It handles both RSC Flight requests
 // (Content-Type: text/x-component) and HTML page loads.
@@ -232,7 +254,7 @@ func (r *Renderer) serveHTML(w http.ResponseWriter, req *http.Request, ssrData [
 		if err != nil {
 			logError(deps.Logger, "pola: marshal SSR data", "err", err)
 		} else {
-			params.Scripts = append(params.Scripts, fmt.Sprintf("self.%s=%s", globals.SSRData, encoded))
+			params.Scripts = append(params.Scripts, fmt.Sprintf("self.%s=%s", SSRData, encoded))
 		}
 	}
 
@@ -452,7 +474,7 @@ func (r *Renderer) ExtractDocumentProps() (*core.DocumentProps, error) {
 	}
 	defer r.pool.Release(vm)
 
-	result, err := vm.Call(globals.ExtractShellFn)
+	result, err := vm.Call(ExtractShellFn)
 	if err != nil {
 		return nil, nil // __extractShell__ not defined or failed — not an error
 	}

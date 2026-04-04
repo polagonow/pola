@@ -37,6 +37,12 @@ type bundleConfigurator interface {
 	ClientEntry() string
 }
 
+// bundleDefiner is the optional interface a Renderer may implement to provide
+// additional esbuild defines for the server bundle (e.g. __CLIENT_MANIFEST__).
+type bundleDefiner interface {
+	BundleDefines() map[string]string
+}
+
 // discoveryProvider is the optional interface a Router may implement to expose
 // the DiscoveryResult produced during ScanRoutes.
 type discoveryProvider interface {
@@ -110,7 +116,7 @@ func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, er
 	// ── 1. Resolve required services ────────────────────────────────────
 	renderer, err := core.Invoke[core.Renderer](registry)
 	if err != nil {
-		return nil, fmt.Errorf("pola: no Renderer registered — use react.Plugin()")
+		return nil, fmt.Errorf("pola: no Renderer registered — register a renderer plugin (e.g. react.Plugin())")
 	}
 	router, err := core.Invoke[core.Router](registry)
 	if err != nil {
@@ -242,6 +248,9 @@ func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, er
 	if bc, ok := renderer.(bundleConfigurator); ok {
 		bundleInput.ServerBundleConditions = bc.BundleConditions()
 		bundleInput.ClientEntry = bc.ClientEntry()
+	}
+	if bd, ok := renderer.(bundleDefiner); ok {
+		bundleInput.ServerBundleDefines = bd.BundleDefines()
 	}
 	if bp, err := core.Invoke[core.BundlePluginProvider](registry); err == nil {
 		bundleInput.ClientPlugins = bp.ClientPlugins(absWebAppPath)
