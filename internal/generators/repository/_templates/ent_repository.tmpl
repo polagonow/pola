@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"[[.ModulePath]]/ent"
-	ent[[.Name]] "[[.ModulePath]]/ent/[[.EntPackage]]"
+	"[[.ModulePath]]/[[.EntClientDir]]"
+	ent[[.Name]] "[[.ModulePath]]/[[.EntClientDir]]/[[.EntPackage]]"
 	"[[.ModulePath]]/repositories"
 )
 
@@ -20,7 +20,9 @@ func New[[.Name]]Repository(client *ent.Client) repositories.[[.Name]]Repository
 
 func (r *[[.LowerName]]Repository) Create(ctx context.Context, entity *repositories.[[.Name]]) error {
 	_, err := r.client.[[.Name]].Create().
-		// TODO: set fields from entity
+		[[- range .Fields]]
+		Set[[.Name]](entity.[[.Name]]).
+		[[- end]]
 		Save(ctx)
 	return err
 }
@@ -30,9 +32,12 @@ func (r *[[.LowerName]]Repository) Get(ctx context.Context, id uint) (*repositor
 	if err != nil {
 		return nil, fmt.Errorf("get [[.SnakeName]] by id: %w", err)
 	}
-	_ = e
-	// TODO: map ent entity to repository entity
-	return &repositories.[[.Name]]{ID: uint(e.ID)}, nil
+	return &repositories.[[.Name]]{
+		ID: uint(e.ID),
+		[[- range .Fields]]
+		[[.Name]]: e.[[.Name]],
+		[[- end]]
+	}, nil
 }
 
 func (r *[[.LowerName]]Repository) List(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.[[.Name]]], error) {
@@ -53,8 +58,12 @@ func (r *[[.LowerName]]Repository) List(ctx context.Context, params repositories
 
 	items := make([]*repositories.[[.Name]], len(entries))
 	for i, e := range entries {
-		items[i] = &repositories.[[.Name]]{ID: uint(e.ID)}
-		// TODO: map remaining fields
+		items[i] = &repositories.[[.Name]]{
+			ID: uint(e.ID),
+			[[- range $.Fields]]
+			[[.Name]]: e.[[.Name]],
+			[[- end]]
+		}
 	}
 
 	totalPages := total / params.PerPage
@@ -73,7 +82,9 @@ func (r *[[.LowerName]]Repository) List(ctx context.Context, params repositories
 
 func (r *[[.LowerName]]Repository) Update(ctx context.Context, entity *repositories.[[.Name]]) error {
 	_, err := r.client.[[.Name]].UpdateOneID(int(entity.ID)).
-		// TODO: set fields from entity
+		[[- range .Fields]]
+		Set[[.Name]](entity.[[.Name]]).
+		[[- end]]
 		Save(ctx)
 	return err
 }

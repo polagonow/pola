@@ -8,7 +8,7 @@ import (
 	"gorm.io/gorm"
 {{- end}}
 {{- if eq .ORM "ent"}}
-	"{{.ModulePath}}/ent"
+	"{{.ModulePath}}/{{.EntClientDir}}"
 	entsql "entgo.io/ent/dialect/sql"
 {{- end}}
 {{- if eq .ORM "beego"}}

@@ -159,17 +159,18 @@ type Migrations struct {
 
 // Database holds database configuration with optional per-environment overrides.
 type Database struct {
-	URL        string                `hcl:"url,optional"`
-	Host       string                `hcl:"host,optional"`
-	Port       string                `hcl:"port,optional"`
-	User       string                `hcl:"user,optional"`
-	Password   string                `hcl:"password,optional"`
-	Name       string                `hcl:"name,optional"`
-	Models     string                `hcl:"models,optional"`
-	Adapter    string                `hcl:"adapter,optional"`
-	ORM        string                `hcl:"orm,optional"`
-	Migrations *Migrations           `hcl:"migrations,block"`
-	Envs       []DatabaseEnvironment `hcl:"env,block"`
+	URL                string                `hcl:"url,optional"`
+	Host               string                `hcl:"host,optional"`
+	Port               string                `hcl:"port,optional"`
+	User               string                `hcl:"user,optional"`
+	Password           string                `hcl:"password,optional"`
+	Name               string                `hcl:"name,optional"`
+	Models             string                `hcl:"models,optional"`
+	Adapter            string                `hcl:"adapter,optional"`
+	ORM                string                `hcl:"orm,optional"`
+	OrmImplementations string                `hcl:"orm_implementations,optional"`
+	Migrations         *Migrations           `hcl:"migrations,block"`
+	Envs               []DatabaseEnvironment `hcl:"env,block"`
 }
 
 // DatabaseForEnv merges the base database config with env-specific overrides.
@@ -208,20 +209,33 @@ func (pf *Polafile) DatabaseForEnv(env string) Database {
 	return base
 }
 
-// DatabaseModelsDir returns the configured models directory, defaulting to "models".
+// DatabaseModelsDir returns the configured models directory, defaulting to "db/models".
 func (pf *Polafile) DatabaseModelsDir() string {
 	if pf.Database != nil && pf.Database.Models != "" {
 		return pf.Database.Models
 	}
-	return "models"
+	return "db/models"
 }
 
-// DatabaseMigrationsDir returns the configured migrations directory, defaulting to "migrations".
+// DatabaseMigrationsDir returns the configured migrations directory, defaulting to "db/migrations".
 func (pf *Polafile) DatabaseMigrationsDir() string {
 	if pf.Database != nil && pf.Database.Migrations != nil && pf.Database.Migrations.Directory != "" {
 		return pf.Database.Migrations.Directory
 	}
-	return "migrations"
+	return "db/migrations"
+}
+
+// DatabaseClientDir returns the base directory for ORM client code, defaulting to "db/client".
+func (pf *Polafile) DatabaseClientDir() string {
+	if pf.Database != nil && pf.Database.OrmImplementations != "" {
+		return pf.Database.OrmImplementations
+	}
+	return "db/client"
+}
+
+// DatabaseEntClientDir returns the directory for the ent-generated client package, defaulting to "db/client/ent".
+func (pf *Polafile) DatabaseEntClientDir() string {
+	return pf.DatabaseClientDir() + "/ent"
 }
 
 // DatabaseMigrationsFormat returns the configured migrations format, defaulting to "sql".
@@ -472,6 +486,7 @@ func Save(dir string, pf *Polafile) error {
 		setAttr(dbBody, "models", pf.Database.Models)
 		setAttr(dbBody, "adapter", pf.Database.Adapter)
 		setAttr(dbBody, "orm", pf.Database.ORM)
+		setAttr(dbBody, "orm_implementations", pf.Database.OrmImplementations)
 		if pf.Database.Migrations != nil {
 			migBlock := dbBody.AppendNewBlock("migrations", nil)
 			migBody := migBlock.Body()

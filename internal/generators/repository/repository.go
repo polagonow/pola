@@ -122,6 +122,7 @@ func (g *RepositoryGenerator) run(cmd *cobra.Command, args []string) error {
 
 	data := buildData(def, modulePath)
 	data.PolaPackage = pf.PolaPackage()
+	data.EntClientDir = pf.DatabaseEntClientDir()
 
 	// Ensure repository directory exists.
 	interfaceDir := filepath.Join(projectDir, repoDir)
@@ -187,11 +188,12 @@ type repoData struct {
 	LowerName   string
 	SnakeName   string
 	PluralSnake string
-	EntPackage  string // all-lowercase name used by ent for sub-packages (e.g. "sampleentity")
-	Fields      []repoField
-	Imports     []string
-	ModulePath  string
-	PolaPackage string
+	EntPackage   string // all-lowercase name used by ent for sub-packages (e.g. "sampleentity")
+	EntClientDir string // directory for ent-generated client (e.g. "db/ent")
+	Fields       []repoField
+	Imports      []string
+	ModulePath   string
+	PolaPackage  string
 }
 
 type repoField struct {

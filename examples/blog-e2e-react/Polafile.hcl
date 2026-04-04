@@ -24,11 +24,11 @@ pola {
   }
 
   database {
-    models  = "models"
+    models  = "db/models"
     orm     = "ent"
 
     migrations {
-      directory = "migrations"
+      directory = "db/migrations"
       format    = "hcl"
     }
 

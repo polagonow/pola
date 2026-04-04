@@ -217,6 +217,41 @@ func TestSaveAndLoadWithDatabaseBlocks(t *testing.T) {
 	}
 }
 
+func TestDatabaseDirectoryDefaults(t *testing.T) {
+	// Empty Polafile should return new db/ defaults.
+	pf := &Polafile{}
+	if got := pf.DatabaseModelsDir(); got != "db/models" {
+		t.Errorf("DatabaseModelsDir() = %q, want %q", got, "db/models")
+	}
+	if got := pf.DatabaseMigrationsDir(); got != "db/migrations" {
+		t.Errorf("DatabaseMigrationsDir() = %q, want %q", got, "db/migrations")
+	}
+	if got := pf.DatabaseClientDir(); got != "db/client" {
+		t.Errorf("DatabaseClientDir() = %q, want %q", got, "db/client")
+	}
+	if got := pf.DatabaseEntClientDir(); got != "db/client/ent" {
+		t.Errorf("DatabaseEntClientDir() = %q, want %q", got, "db/client/ent")
+	}
+
+	// Explicit values override defaults.
+	pf2 := &Polafile{
+		Database: &Database{
+			Models:             "custom/models",
+			OrmImplementations: "custom/orm",
+			Migrations:         &Migrations{Directory: "custom/migrations"},
+		},
+	}
+	if got := pf2.DatabaseModelsDir(); got != "custom/models" {
+		t.Errorf("DatabaseModelsDir() = %q, want %q", got, "custom/models")
+	}
+	if got := pf2.DatabaseMigrationsDir(); got != "custom/migrations" {
+		t.Errorf("DatabaseMigrationsDir() = %q, want %q", got, "custom/migrations")
+	}
+	if got := pf2.DatabaseClientDir(); got != "custom/orm" {
+		t.Errorf("DatabaseClientDir() = %q, want %q", got, "custom/orm")
+	}
+}
+
 func TestCSRFEnvironmentOverride(t *testing.T) {
 	pf := &Polafile{
 		CSRF: &CSRF{

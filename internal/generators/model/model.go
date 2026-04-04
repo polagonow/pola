@@ -82,9 +82,9 @@ func (g *ModelGenerator) run(cmd *cobra.Command, args []string) error {
 	// Ensure database block exists; prompt interactively for missing ORM.
 	if pf.Database == nil {
 		pf.Database = &polafile.Database{
-			Models: "models",
+			Models: "db/models",
 			Migrations: &polafile.Migrations{
-				Directory: "migrations",
+				Directory: "db/migrations",
 			},
 		}
 	}
@@ -136,7 +136,7 @@ func (g *ModelGenerator) run(cmd *cobra.Command, args []string) error {
 
 	if orm == "ent" {
 		fmt.Println("Running ent codegen...")
-		if err := runEntCodegen(projectDir, pf.DatabaseModelsDir()); err != nil {
+		if err := runEntCodegen(projectDir, pf.DatabaseModelsDir(), pf.DatabaseEntClientDir()); err != nil {
 			return fmt.Errorf("ent codegen: %w", err)
 		}
 	}
@@ -159,10 +159,21 @@ func (g *ModelGenerator) run(cmd *cobra.Command, args []string) error {
 }
 
 // runEntCodegen runs the ent code generator to produce the typed client package.
-func runEntCodegen(projectDir, modelsDir string) error {
+func runEntCodegen(projectDir, modelsDir, entClientDir string) error {
+	targetDir := filepath.Join(projectDir, entClientDir)
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+		return fmt.Errorf("create ent client dir: %w", err)
+	}
+	// Seed a package file so ent can resolve the Go package name for the target directory.
+	seedFile := filepath.Join(targetDir, "doc.go")
+	if _, err := os.Stat(seedFile); os.IsNotExist(err) {
+		if err := os.WriteFile(seedFile, []byte("package ent\n"), 0o644); err != nil {
+			return fmt.Errorf("write ent seed file: %w", err)
+		}
+	}
 	schemaPath := "./" + modelsDir + "/ent"
 	cmd := exec.Command("go", "run", "-mod=mod", "entgo.io/ent/cmd/ent", "generate",
-		"--target", "./ent",
+		"--target", targetDir,
 		schemaPath,
 	)
 	cmd.Dir = projectDir

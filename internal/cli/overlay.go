@@ -166,10 +166,12 @@ func generateOverlay(projectDir string, opts pluginOpts) (*overlayResult, error)
 	if opts.Database != "" && modPath != "" {
 		pf, _ := polafile.Load(projectDir)
 		repoDir := "repositories"
+		entClientDir := "db/client/ent"
 		if pf != nil {
 			repoDir = pf.RepositoriesDir()
+			entClientDir = pf.DatabaseEntClientDir()
 		}
-		repoDisco = discoverRepositoryRegistrations(projectDir, repoDir, opts.Database, modPath)
+		repoDisco = discoverRepositoryRegistrations(projectDir, repoDir, entClientDir, opts.Database, modPath)
 	}
 
 	if repoDisco != nil {
@@ -180,6 +182,7 @@ func generateOverlay(projectDir string, opts pluginOpts) (*overlayResult, error)
 			ORM          string
 			RepoImport   string
 			ModulePath   string
+			EntClientDir string
 			Repositories []pluginEntry
 		}{
 			PolaPackage:  opts.PolaPackage,
@@ -187,6 +190,7 @@ func generateOverlay(projectDir string, opts pluginOpts) (*overlayResult, error)
 			ORM:          repoDisco.ORM,
 			RepoImport:   repoDisco.RepoImport,
 			ModulePath:   repoDisco.ModulePath,
+			EntClientDir: repoDisco.EntClientDir,
 			Repositories: repoDisco.Repositories,
 		}); err != nil {
 			return nil, fmt.Errorf("execute repo plugins template: %w", err)
@@ -196,12 +200,7 @@ func generateOverlay(projectDir string, opts pluginOpts) (*overlayResult, error)
 			return nil, fmt.Errorf("write repo plugins: %w", err)
 		}
 		// Map into the ORM package directory.
-		pf, _ := polafile.Load(projectDir)
-		repoDir := "repositories"
-		if pf != nil {
-			repoDir = pf.RepositoriesDir()
-		}
-		ormAbsDir, _ := filepath.Abs(filepath.Join(projectDir, repoDir, opts.Database))
+		ormAbsDir, _ := filepath.Abs(filepath.Join(projectDir, repoDisco.RepoDir, opts.Database))
 		replace[filepath.Join(ormAbsDir, "pola_plugins.go")] = repoPluginsPath
 	}
 
@@ -473,6 +472,8 @@ type repoDiscovery struct {
 	ImportPath   string        // e.g. "myapp/repositories/gorm"
 	RepoImport   string        // e.g. "myapp/repositories"
 	ModulePath   string        // e.g. "myapp"
+	EntClientDir string        // e.g. "db/orm/ent"
+	RepoDir      string        // e.g. "repositories"
 	ORM          string        // e.g. "gorm", "ent", "beego"
 	PkgName      string        // e.g. "gorm"
 	Repositories []pluginEntry // e.g. [{Name: "User", SnakeName: "user"}]
@@ -488,7 +489,7 @@ type svcDiscovery struct {
 
 // discoverRepositoryRegistrations scans repositories/{orm}/ for exported
 // New*Repository constructor functions and returns their names.
-func discoverRepositoryRegistrations(projectDir, repoDir, orm, modPath string) *repoDiscovery {
+func discoverRepositoryRegistrations(projectDir, repoDir, entClientDir, orm, modPath string) *repoDiscovery {
 	ormDir := filepath.Join(projectDir, repoDir, orm)
 	info, err := os.Stat(ormDir)
 	if err != nil || !info.IsDir() {
@@ -539,6 +540,8 @@ func discoverRepositoryRegistrations(projectDir, repoDir, orm, modPath string) *
 		ImportPath:   modPath + "/" + filepath.ToSlash(filepath.Join(repoDir, orm)),
 		RepoImport:   modPath + "/" + filepath.ToSlash(repoDir),
 		ModulePath:   modPath,
+		EntClientDir: entClientDir,
+		RepoDir:      repoDir,
 		ORM:          orm,
 		PkgName:      orm,
 		Repositories: repos,
