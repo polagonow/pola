@@ -78,6 +78,7 @@ func (r *Renderer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	route, props, requestContext, status, injectors := core.RenderRequestFrom(ctx)
 
 	// When no route matched, substitute the not-found page if available.
+	isNotFound := route == nil
 	if route == nil {
 		if status == 0 {
 			status = http.StatusNotFound
@@ -120,8 +121,10 @@ func (r *Renderer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			ssrData = cached
 		}
 	}
-	// If no cached data, try to pre-render.
-	if ssrData == nil {
+	// Pre-render only for not-found pages (the client won't make a Flight
+	// request for them). Regular pages serve the shell immediately and let the
+	// client fetch data via a streaming Flight request.
+	if ssrData == nil && isNotFound {
 		if data, err := r.RenderToBytes(ctx, renderReq); err == nil {
 			ssrData = data
 			// Fill cache so subsequent requests are served instantly.
