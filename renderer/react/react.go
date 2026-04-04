@@ -8,17 +8,23 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync/atomic"
+	"time"
 
 	"github.com/polagonow/pola/core"
-	"github.com/polagonow/pola/core/globals"
 	"github.com/polagonow/pola/shell"
+)
+
+// Time helpers for testability.
+var (
+	timeNow   = time.Now
+	timeSince = time.Since
 )
 
 // Renderer implements the React SSR renderer.
 type Renderer struct {
-	pool      core.SSRPool
-	shell     core.HTMLShell
-	streaming bool
+	pool core.SSRPool
+	deps atomic.Pointer[core.RenderDeps]
 }
 
 // New creates a React renderer.
@@ -28,6 +34,21 @@ func (r *Renderer) Name() string             { return "react" }
 func (r *Renderer) FileExtensions() []string { return []string{".tsx", ".jsx", ".ts", ".js"} }
 func (r *Renderer) Capabilities() []core.Capability {
 	return []core.Capability{"streaming", "rsc"}
+}
+
+// SetRenderDeps implements core.RenderDepsAware.
+// It atomically swaps the deps pointer so that in-flight requests using the
+// previous snapshot are unaffected.
+func (r *Renderer) SetRenderDeps(deps core.RenderDeps) {
+	r.deps.Store(&deps)
+}
+
+// loadDeps returns a consistent snapshot of render deps.
+func (r *Renderer) loadDeps() core.RenderDeps {
+	if d := r.deps.Load(); d != nil {
+		return *d
+	}
+	return core.RenderDeps{}
 }
 
 // LoadBundle implements core.BundleLoader. It asks the engine to create an
@@ -45,31 +66,245 @@ func (r *Renderer) LoadBundle(engine core.JSEngine, bundle []byte) error {
 	return nil
 }
 
-// Render implements core.Renderer. It validates that the pool is ready and
-// returns a streaming RenderResult. The actual render is performed via
-// RenderToWriter when a concrete StreamWriter is available.
-func (r *Renderer) Render(_ context.Context, _ core.RenderRequest) (core.RenderResult, error) {
-	if r.pool == nil {
-		return core.RenderResult{}, fmt.Errorf("react renderer: VM pool not configured")
-	}
-	return core.RenderResult{
-		ContentType: ContentType,
-		Streaming:   true,
-	}, nil
-}
-
 // ContentType is the MIME type for the RSC Flight wire format.
 const ContentType = "text/x-component"
 
-// ServeRequest implements the internal requestHandler interface.
-// It claims RSC Flight requests and streams the response; all others return false.
-func (r *Renderer) ServeRequest(ctx context.Context, w http.ResponseWriter, req *http.Request, renderReq core.RenderRequest, status int) (bool, error) {
-	if req.Header.Get("Content-Type") != ContentType {
-		return false, nil
+// React-specific JS globals. These constants are kept in the renderer package
+// because they are part of React's RSC protocol, not framework-wide concerns.
+const (
+	// SSRData is the browser global used to embed cached Flight data in the
+	// HTML shell, avoiding a second request when the server has pre-rendered data.
+	SSRData = "__POLA_SSR_DATA__"
+
+	// RootElementID is the DOM element ID used as the React mount point.
+	RootElementID = "__POLA_ROOT__"
+
+	// ExtractShellFn is the global function that calls the root layout component,
+	// serializes its React element tree to HTML, and returns it as a string.
+	ExtractShellFn = "__extractShell__"
+
+	// ClientManifestDefine is the esbuild define key injected into the server
+	// bundle and consumed by React's renderToReadableStream.
+	ClientManifestDefine = "__CLIENT_MANIFEST__"
+
+	// RunMicrotasksFn is used by the Goja-only Suspense helper to prompt Goja's
+	// internal microtask processing during Promise resolution.
+	RunMicrotasksFn = "__runMicrotasks__"
+)
+
+// ServeHTTP implements core.Renderer. It handles both RSC Flight requests
+// (Content-Type: text/x-component) and HTML page loads.
+func (r *Renderer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	deps := r.loadDeps()
+	ctx := req.Context()
+	route, props, requestContext, status, injectors := core.RenderRequestFrom(ctx)
+
+	// When no route matched, substitute the not-found page if available.
+	isNotFound := route == nil
+	if route == nil {
+		if status == 0 {
+			status = http.StatusNotFound
+		}
+		if deps.NotFoundRoute != nil {
+			route = deps.NotFoundRoute
+			if props == nil {
+				props = map[string]any{"params": map[string]any{}, "searchParams": map[string]any{}}
+			}
+		} else {
+			// No not-found page — serve a bare HTML shell.
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.WriteHeader(status)
+			r.serveHTML(w, req, nil, &deps)
+			return
+		}
 	}
+
+	renderReq := core.RenderRequest{
+		Route:          *route,
+		Props:          props,
+		RequestContext: requestContext,
+		Injectors:      injectors,
+	}
+
+	isFlight := req.Header.Get("Content-Type") == ContentType
+
+	if isFlight {
+		r.serveFlight(ctx, w, req, renderReq, status, &deps)
+		return
+	}
+
+	// HTML page load — check cache for inline SSR data.
+	var ssrData []byte
+	cacheKey := "ssr:" + req.URL.Path + "?" + req.URL.RawQuery
+	if deps.Cache != nil {
+		if cached, ok, err := deps.Cache.Get(ctx, cacheKey); err != nil {
+			logError(deps.Logger, "pola: cache get", "key", cacheKey, "err", err)
+		} else if ok {
+			ssrData = cached
+		}
+	}
+	// Pre-render only for not-found pages (the client won't make a Flight
+	// request for them). Regular pages serve the shell immediately and let the
+	// client fetch data via a streaming Flight request.
+	if ssrData == nil && isNotFound {
+		if data, err := r.RenderToBytes(ctx, renderReq); err == nil {
+			ssrData = data
+			// Fill cache so subsequent requests are served instantly.
+			if deps.Cache != nil {
+				if err := deps.Cache.Set(ctx, cacheKey, ssrData, core.CacheOptions{
+					TTL: renderReq.Route.Revalidate,
+				}); err != nil {
+					logError(deps.Logger, "pola: cache set", "err", err)
+				}
+			}
+		} else {
+			logError(deps.Logger, "pola: render", "err", err)
+		}
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	r.serveHTML(w, req, ssrData, &deps)
+}
+
+// serveFlight handles RSC Flight requests with caching and streaming.
+func (r *Renderer) serveFlight(ctx context.Context, w http.ResponseWriter, req *http.Request, renderReq core.RenderRequest, status int, deps *core.RenderDeps) {
+	// Cache integration for Flight requests.
+	if deps.Cache != nil {
+		cacheKey := "ssr:" + req.URL.Path + "?" + req.URL.RawQuery
+		// Serve from cache if available — instant, no VM needed.
+		if cached, ok, err := deps.Cache.Get(ctx, cacheKey); err != nil {
+			logError(deps.Logger, "pola: cache get", "key", cacheKey, "err", err)
+		} else if ok {
+			w.Header().Set("Content-Type", ContentType+"; charset=utf-8")
+			w.WriteHeader(status)
+			w.Write(cached) //nolint:errcheck
+			return
+		}
+	}
+
+	// Tee output to fill cache for next request.
+	var tw *teeWriter
+	if deps.Cache != nil {
+		tw = &teeWriter{ResponseWriter: w}
+		w = tw
+	}
+
+	if deps.Tracer != nil {
+		var span core.Span
+		ctx, span = deps.Tracer.StartSpan(ctx, "pola.render")
+		defer span.End()
+	}
+
 	w.Header().Set("Content-Type", ContentType+"; charset=utf-8")
 	w.WriteHeader(status)
-	return true, r.RenderToWriter(ctx, renderReq, newStreamWriter(w))
+
+	renderStart := timeNow()
+	err := r.RenderToWriter(ctx, renderReq, newStreamWriter(w))
+	if deps.Metrics != nil {
+		deps.Metrics.RecordRender(renderReq.Route.Pattern, timeSince(renderStart))
+	}
+	if err != nil {
+		logError(deps.Logger, "pola: render", "err", err)
+	}
+
+	// Fill cache from tee buffer.
+	if tw != nil && len(tw.buf) > 0 {
+		if err := deps.Cache.Set(ctx, "ssr:"+req.URL.Path+"?"+req.URL.RawQuery, tw.buf, core.CacheOptions{
+			TTL: renderReq.Route.Revalidate,
+		}); err != nil {
+			logError(deps.Logger, "pola: cache set", "err", err)
+		}
+	}
+}
+
+// serveHTML returns the HTML shell for initial page loads.
+func (r *Renderer) serveHTML(w http.ResponseWriter, req *http.Request, ssrData []byte, deps *core.RenderDeps) {
+	params := core.ShellParams{
+		Metadata:      defaultMetadata(),
+		DocumentProps: deps.DocumentProps,
+	}
+	if deps.BundleOutput != nil {
+		params.ImportURLs = deps.BundleOutput.ImportURLs
+		params.ClientScript = deps.BundleOutput.ClientEntryURL
+	}
+	if len(deps.CSSURLs) > 0 {
+		params.Stylesheets = deps.CSSURLs
+	}
+	if deps.DevScript != "" {
+		params.Scripts = append(params.Scripts, deps.DevScript)
+	}
+	// Inject CSP nonce if the security headers middleware is active.
+	if nonce, ok := req.Context().Value(core.NonceContextKey).(string); ok && nonce != "" {
+		params.Nonce = nonce
+	}
+	// Inject CSRF token as <meta> tags if the CSRF middleware is active.
+	if token, ok := req.Context().Value(core.CSRFTokenContextKey).(string); ok && token != "" {
+		if params.Metadata == nil {
+			params.Metadata = &core.Metadata{}
+		}
+		if params.Metadata.Other == nil {
+			params.Metadata.Other = make(map[string]string)
+		}
+		params.Metadata.Other["csrf-param"] = "authenticity_token"
+		params.Metadata.Other["csrf-token"] = token
+	}
+
+	if len(ssrData) > 0 {
+		encoded, err := json.Marshal(string(ssrData))
+		if err != nil {
+			logError(deps.Logger, "pola: marshal SSR data", "err", err)
+		} else {
+			params.Scripts = append(params.Scripts, fmt.Sprintf("self.%s=%s", SSRData, encoded))
+		}
+	}
+
+	var html string
+	if deps.Shell != nil {
+		html = deps.Shell.Render(params)
+	} else {
+		html = "<!DOCTYPE html><html><body></body></html>"
+	}
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write([]byte(html)) //nolint:errcheck
+}
+
+// logError logs an error if a logger is configured.
+func logError(logger core.Logger, msg string, args ...any) {
+	if logger != nil {
+		logger.Error(msg, args...)
+	}
+}
+
+// defaultMetadata returns the built-in metadata used when the application has
+// not supplied its own.
+func defaultMetadata() *core.Metadata {
+	faviconURL := "/public/favicon.ico"
+	return &core.Metadata{
+		Title: core.Title{Default: "Pola"},
+		Icons: &core.Icons{
+			Icon: []core.Icon{{URL: faviconURL}},
+		},
+	}
+}
+
+// ── teeWriter ─────────────────────────────────────────────────────────────────
+
+// teeWriter wraps an http.ResponseWriter and captures all written bytes
+// into a buffer while passing through to the underlying writer.
+type teeWriter struct {
+	http.ResponseWriter
+	buf []byte
+}
+
+func (tw *teeWriter) Write(p []byte) (int, error) {
+	tw.buf = append(tw.buf, p...)
+	return tw.ResponseWriter.Write(p)
+}
+
+func (tw *teeWriter) Flush() {
+	if f, ok := tw.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
 
 // ── streamWriter ──────────────────────────────────────────────────────────────
@@ -93,6 +328,8 @@ func (sw *streamWriter) Flush() {
 		sw.flusher.Flush()
 	}
 }
+
+// ── VM helpers ────────────────────────────────────────────────────────────────
 
 // prepareVM acquires a VM from the pool, applies injectors, sets the request
 // context, and marshals props. The caller must release the VM when done.
@@ -124,8 +361,7 @@ func (r *Renderer) prepareVM(ctx context.Context, req core.RenderRequest) (core.
 }
 
 // RenderToWriter acquires a VM, performs
-// a full RSC Flight render, and streams all chunks to w. The orchestrator
-// uses this to progressively flush SSR data into the HTML response.
+// a full RSC Flight render, and streams all chunks to w.
 func (r *Renderer) RenderToWriter(ctx context.Context, req core.RenderRequest, w core.StreamWriter) error {
 	if r.pool == nil {
 		return fmt.Errorf("react renderer: VM pool not configured")
@@ -191,16 +427,23 @@ func (r *Renderer) RenderToBytes(ctx context.Context, req core.RenderRequest) ([
 
 // WithPool returns a copy of the renderer that uses pool for VM acquisition.
 func (r *Renderer) WithPool(pool core.SSRPool) *Renderer {
-	c := *r
-	c.pool = pool
-	return &c
+	nr := New()
+	nr.pool = pool
+	if d := r.deps.Load(); d != nil {
+		cp := *d
+		nr.deps.Store(&cp)
+	}
+	return nr
 }
 
 // WithShell returns a copy of the renderer that uses shell for HTML rendering.
 func (r *Renderer) WithShell(shell core.HTMLShell) *Renderer {
-	c := *r
-	c.shell = shell
-	return &c
+	nr := New()
+	nr.pool = r.pool
+	d := r.loadDeps()
+	d.Shell = shell
+	nr.deps.Store(&d)
+	return nr
 }
 
 // GenerateEntry implements the internal entryGenerator interface.
@@ -231,7 +474,7 @@ func (r *Renderer) ExtractDocumentProps() (*core.DocumentProps, error) {
 	}
 	defer r.pool.Release(vm)
 
-	result, err := vm.Call(globals.ExtractShellFn)
+	result, err := vm.Call(ExtractShellFn)
 	if err != nil {
 		return nil, nil // __extractShell__ not defined or failed — not an error
 	}

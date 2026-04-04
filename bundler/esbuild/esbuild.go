@@ -17,7 +17,6 @@ import (
 	"github.com/evanw/esbuild/pkg/api"
 
 	"github.com/polagonow/pola/core"
-	"github.com/polagonow/pola/core/globals"
 	"github.com/polagonow/pola/watcher"
 )
 
@@ -333,15 +332,20 @@ func buildPagesBundle(
 	defines := map[string]string{
 		"process.env.NODE_ENV": `"production"`,
 		"__DEV__":              "false",
-		globals.ClientManifest: manifestDefineJSON,
+	}
+	// Apply renderer-provided defines (e.g. __CLIENT_MANIFEST__ for React).
+	for k, v := range req.ServerBundleDefines {
+		if v == "{}" {
+			// Replace the placeholder with the real manifest.
+			defines[k] = manifestDefineJSON
+		} else {
+			defines[k] = v
+		}
 	}
 	// Inject POLA_PUBLIC_* env vars.
 	for k, v := range req.PublicEnvVars {
 		quoted, _ := json.Marshal(v)
 		defines[k] = string(quoted)
-	}
-	for k, v := range req.ServerBundleDefines {
-		defines[k] = v
 	}
 
 	r := api.Build(api.BuildOptions{
@@ -579,7 +583,10 @@ func probeServerEntry(req core.BundleInput, absDir string) probeResult {
 	defines := map[string]string{
 		"process.env.NODE_ENV": `"production"`,
 		"__DEV__":              "false",
-		globals.ClientManifest: "{}",
+	}
+	// Apply renderer-provided defines for the probe pass.
+	for k, v := range req.ServerBundleDefines {
+		defines[k] = v
 	}
 	api.Build(api.BuildOptions{
 		Stdin: &api.StdinOptions{
