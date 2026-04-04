@@ -24,6 +24,9 @@ import (
 	qjslib "github.com/fastschema/qjs"
 )
 
+// renderAsyncFn is the async JS helper that drives the render loop in qjs.
+const renderAsyncFn = "__renderAsync__"
+
 var (
 	renderAsyncJSTmpl = template.Must(template.New("renderAsync").Parse(`
 globalThis.{{.RenderAsyncFn}} = async function(exportName, propsJSON) {
@@ -48,7 +51,7 @@ func init() {
 	if err := renderAsyncJSTmpl.Execute(&b, struct {
 		RenderAsyncFn, RenderFn, DrainMicrotasksFn, PullStreamFn, OutputChunk string
 	}{
-		globals.RenderAsyncFn,
+		renderAsyncFn,
 		globals.RenderFn,
 		globals.DrainMicrotasksFn,
 		globals.PullStreamFn,
@@ -317,7 +320,7 @@ func (r *Runtime) DrainStream(sess RenderSession, w core.StreamWriter) (bool, er
 
 		exportLit, _ := json.Marshal(sess.ExportName)
 		propsLit, _ := json.Marshal(sess.PropsJSON)
-		script := fmt.Sprintf("%s(%s, %s)", globals.RenderAsyncFn, string(exportLit), string(propsLit))
+		script := fmt.Sprintf("%s(%s, %s)", renderAsyncFn, string(exportLit), string(propsLit))
 
 		promise, evalErr := r.ctx.Eval("render.js", qjslib.Code(script))
 		if evalErr != nil {

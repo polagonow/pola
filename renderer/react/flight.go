@@ -8,8 +8,20 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/polagonow/pola/core"
 )
+
+// ClientRef is the wire representation of a Client Component reference.
+// The browser's RSC runtime resolves this to the actual React component
+// by looking up the manifest produced at build time.
+type ClientRef struct {
+	ID     string   `json:"id"`
+	Name   string   `json:"name"`
+	Chunks []string `json:"chunks"`
+	Async  bool     `json:"async"`
+}
+
+// ClientManifest maps moduleId → ClientRef.
+type ClientManifest map[string]ClientRef
 
 // ChunkType represents the type prefix in the RSC Flight wire format.
 // Each line on the wire looks like:   <id>:<type><data>\n
@@ -65,7 +77,7 @@ func (fw *FlightWriter) WriteError(id int, msg string) error {
 
 // WriteModuleRef streams a client component reference chunk.
 // The React client uses this to resolve which JS bundle to load.
-func (fw *FlightWriter) WriteModuleRef(id int, ref core.ClientRef) error {
+func (fw *FlightWriter) WriteModuleRef(id int, ref ClientRef) error {
 	return fw.WriteChunk(id, ChunkModule, ref)
 }
 

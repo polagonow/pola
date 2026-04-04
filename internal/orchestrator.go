@@ -4,14 +4,11 @@ package internal
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
 	"net/http"
 	"strings"
 	"time"
 
 	"github.com/polagonow/pola/core"
-	"github.com/polagonow/pola/core/globals"
 )
 
 // contextKey is an unexported type for context keys in this package.
@@ -22,36 +19,21 @@ const (
 	apiParamsKey
 )
 
-// requestHandler is an optional interface for renderers that want to own
-// the full HTTP response for certain requests (e.g. RSC Flight streaming).
-// Return handled=false to fall back to the HTML shell.
-type requestHandler interface {
-	ServeRequest(ctx context.Context, w http.ResponseWriter, r *http.Request,
-		req core.RenderRequest, status int) (bool, error)
-}
-
 // Orchestrator implements http.Handler and wires all Pola components together.
 type Orchestrator struct {
-	renderer      core.Renderer
-	router        core.Router
-	apiRouter     core.APIRouter // may be nil; Go API route handlers
-	logger        core.Logger
-	metrics       core.Metrics
-	tracer        core.Tracer
-	pprof         core.Pprof // may be nil
-	cache         core.Cache // may be nil; render cache
-	middleware    []core.Middleware
-	injectors     []core.RuntimeInjector
-	routes        []core.Route
-	shell         core.HTMLShell
-	assets        core.AssetServer
-	bundleOutput  *core.BundleOutput
-	notFoundRoute *core.Route        // GlobalNotFound export, or nil
-	cssURLs       []string           // external stylesheet URLs
-	documentProps *core.DocumentProps // extracted from root layout, or nil
-	dev           bool
-	devScript     string       // hot-reload inline script, set in dev mode
-	handler       http.Handler // middleware chain wrapping handle, built once
+	renderer   core.Renderer
+	router     core.Router
+	apiRouter  core.APIRouter // may be nil; Go API route handlers
+	logger     core.Logger
+	metrics    core.Metrics
+	tracer     core.Tracer
+	pprof      core.Pprof // may be nil
+	middleware []core.Middleware
+	injectors  []core.RuntimeInjector
+	routes     []core.Route
+	assets     core.AssetServer
+	dev        bool
+	handler    http.Handler // middleware chain wrapping handle, built once
 }
 
 // NewOrchestrator creates a new Orchestrator from resolved services and build artifacts.
@@ -63,40 +45,25 @@ func NewOrchestrator(
 	metrics core.Metrics,
 	tracer core.Tracer,
 	pprof core.Pprof,
-	cache core.Cache,
 	middleware []core.Middleware,
 	injectors []core.RuntimeInjector,
 	routes []core.Route,
-	shell core.HTMLShell,
 	assets core.AssetServer,
-	bundleOutput *core.BundleOutput,
-	notFoundRoute *core.Route,
-	cssURLs []string,
-	documentProps *core.DocumentProps,
 	dev bool,
 ) *Orchestrator {
 	o := &Orchestrator{
-		renderer:      renderer,
-		router:        router,
-		apiRouter:     apiRouter,
-		logger:        logger,
-		metrics:       metrics,
-		tracer:        tracer,
-		pprof:         pprof,
-		cache:         cache,
-		middleware:    middleware,
-		injectors:     injectors,
-		routes:        routes,
-		shell:         shell,
-		assets:        assets,
-		bundleOutput:  bundleOutput,
-		notFoundRoute: notFoundRoute,
-		cssURLs:       cssURLs,
-		documentProps: documentProps,
-		dev:           dev,
-	}
-	if dev {
-		o.devScript = ClientScript
+		renderer:   renderer,
+		router:     router,
+		apiRouter:  apiRouter,
+		logger:     logger,
+		metrics:    metrics,
+		tracer:     tracer,
+		pprof:      pprof,
+		middleware: middleware,
+		injectors:  injectors,
+		routes:     routes,
+		assets:     assets,
+		dev:        dev,
 	}
 	// Build the middleware chain once at construction time instead of per request.
 	handler := http.Handler(http.HandlerFunc(o.handle))
@@ -142,79 +109,6 @@ func (o *Orchestrator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// tryRendererServe calls ServeRequest on the renderer if it implements
-// requestHandler. Returns true if the renderer claimed the response.
-//
-// For Flight requests (Content-Type: text/x-component), it checks the cache
-// first and serves cached data directly. On cache miss with Route.Revalidate > 0,
-// it tees the response to fill the cache for subsequent requests.
-func (o *Orchestrator) tryRendererServe(ctx context.Context, w http.ResponseWriter, r *http.Request, req core.RenderRequest, status int) bool {
-	rh, ok := o.renderer.(requestHandler)
-	if !ok {
-		return false
-	}
-
-	// Cache integration for Flight requests.
-	isFlight := r.Header.Get("Content-Type") == "text/x-component"
-	if isFlight && o.cache != nil {
-		cacheKey := "ssr:" + r.URL.Path + "?" + r.URL.RawQuery
-		// Serve from cache if available — instant, no VM needed.
-		if cached, ok, err := o.cache.Get(ctx, cacheKey); err != nil {
-			o.logger.Error("pola: cache get", "key", cacheKey, "err", err)
-		} else if ok {
-			w.Header().Set("Content-Type", "text/x-component; charset=utf-8")
-			w.WriteHeader(status)
-			w.Write(cached) //nolint:errcheck
-			return true
-		}
-		// On cache miss, tee the output to fill cache for next request.
-		tw := &teeWriter{ResponseWriter: w}
-		defer func() {
-			if len(tw.buf) > 0 {
-				if err := o.cache.Set(ctx, cacheKey, tw.buf, core.CacheOptions{
-					TTL: req.Route.Revalidate, // 0 = no expiry
-				}); err != nil {
-					o.logger.Error("pola: cache set", "key", cacheKey, "err", err)
-				}
-			}
-		}()
-		w = tw
-	}
-
-	if o.tracer != nil {
-		var span core.Span
-		ctx, span = o.tracer.StartSpan(ctx, "pola.render")
-		defer span.End()
-	}
-	renderStart := time.Now()
-	handled, err := rh.ServeRequest(ctx, w, r, req, status)
-	if o.metrics != nil {
-		o.metrics.RecordRender(req.Route.Pattern, time.Since(renderStart))
-	}
-	if err != nil {
-		o.logger.Error("pola: render", "err", err)
-	}
-	return handled
-}
-
-// teeWriter wraps an http.ResponseWriter and captures all written bytes
-// into a buffer while passing through to the underlying writer.
-type teeWriter struct {
-	http.ResponseWriter
-	buf []byte
-}
-
-func (tw *teeWriter) Write(p []byte) (int, error) {
-	tw.buf = append(tw.buf, p...)
-	return tw.ResponseWriter.Write(p)
-}
-
-func (tw *teeWriter) Flush() {
-	if f, ok := tw.ResponseWriter.(http.Flusher); ok {
-		f.Flush()
-	}
-}
-
 func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Vary", "Content-Type")
 	ctx := r.Context()
@@ -237,7 +131,6 @@ func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
 	if route != nil {
 		ctx = context.WithValue(ctx, routePatternKey, route.Pattern)
 	}
-	*r = *r.WithContext(ctx)
 
 	// API route integration: pages always win for GET requests.
 	// For non-GET requests, or GET requests without a matching page, try API routes.
@@ -246,125 +139,22 @@ func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
 		if handler, apiParams, ok := o.apiRouter.Match(r); ok {
 			if apiParams != nil {
 				ctx = context.WithValue(ctx, apiParamsKey, apiParams)
-				*r = *r.WithContext(ctx)
 			}
-			handler(w, r)
+			handler(w, r.WithContext(ctx))
 			return
 		}
 	}
 
+	// Build per-request render context and delegate to the renderer.
+	status := http.StatusOK
+	var props map[string]any
 	if route == nil {
-		if o.notFoundRoute != nil {
-			req := core.RenderRequest{
-				Route:          *o.notFoundRoute,
-				Props:          map[string]any{"params": map[string]any{}, "searchParams": map[string]any{}},
-				RequestContext: buildRequestContext(r),
-				Injectors:      o.injectors,
-			}
-			if o.tryRendererServe(ctx, w, r, req, http.StatusNotFound) {
-				return
-			}
-			// Non-Flight: pre-render the not-found page and embed in shell.
-			if rb, ok := o.renderer.(interface {
-				RenderToBytes(context.Context, core.RenderRequest) ([]byte, error)
-			}); ok {
-				if ssrData, err := rb.RenderToBytes(ctx, req); err == nil {
-					w.WriteHeader(http.StatusNotFound)
-					o.serveHTML(w, r, ssrData)
-					return
-				} else {
-					o.logger.Error("pola: render not-found", "err", err)
-				}
-			}
-		}
-		w.WriteHeader(http.StatusNotFound)
-		o.serveHTML(w, r, nil)
-		return
+		status = http.StatusNotFound
+	} else {
+		props = buildPageProps(r, params)
 	}
-
-	req := core.RenderRequest{
-		Route:          *route,
-		Props:          buildPageProps(r, params),
-		RequestContext: buildRequestContext(r),
-		Injectors:      o.injectors,
-	}
-	if o.tryRendererServe(ctx, w, r, req, http.StatusOK) {
-		return
-	}
-
-	// If cached Flight data exists, embed it in the HTML shell to avoid
-	// a second request (Next.js-style inline SSR data).
-	var ssrData []byte
-	if o.cache != nil {
-		cacheKey := "ssr:" + r.URL.Path + "?" + r.URL.RawQuery
-		if cached, ok, err := o.cache.Get(ctx, cacheKey); err != nil {
-			o.logger.Error("pola: cache get", "key", cacheKey, "err", err)
-		} else if ok {
-			ssrData = cached
-		}
-	}
-	o.serveHTML(w, r, ssrData)
-}
-
-// serveHTML returns the HTML shell for initial page loads.
-// When ssrData is non-nil, it is embedded as an inline script so the client
-// can use it directly without a second Flight request.
-func (o *Orchestrator) serveHTML(w http.ResponseWriter, r *http.Request, ssrData []byte) {
-	params := core.ShellParams{
-		Metadata:      defaultMetadata(),
-		DocumentProps: o.documentProps,
-	}
-	if o.bundleOutput != nil {
-		params.ImportURLs = o.bundleOutput.ImportURLs
-		params.ClientScript = o.bundleOutput.ClientEntryURL
-	}
-	if len(o.cssURLs) > 0 {
-		params.Stylesheets = o.cssURLs
-	}
-	if o.devScript != "" {
-		params.Scripts = append(params.Scripts, o.devScript)
-	}
-	// Inject CSP nonce if the security headers middleware is active.
-	if nonce, ok := r.Context().Value(core.NonceContextKey).(string); ok && nonce != "" {
-		params.Nonce = nonce
-	}
-
-	// Inject CSRF token as <meta> tags if the CSRF middleware is active.
-	if token, ok := r.Context().Value(core.CSRFTokenContextKey).(string); ok && token != "" {
-		if params.Metadata == nil {
-			params.Metadata = &core.Metadata{}
-		}
-		if params.Metadata.Other == nil {
-			params.Metadata.Other = make(map[string]string)
-		}
-		params.Metadata.Other["csrf-param"] = "authenticity_token"
-		params.Metadata.Other["csrf-token"] = token
-	}
-
-	if len(ssrData) > 0 {
-		// json.Marshal escapes <, >, & to \uXXXX — safe inside <script> tags.
-		encoded, err := json.Marshal(string(ssrData))
-		if err != nil {
-			o.logger.Error("pola: marshal SSR data", "err", err)
-		} else {
-			params.Scripts = append(params.Scripts, fmt.Sprintf("self.%s=%s", globals.SSRData, encoded))
-		}
-	}
-	html := o.shell.Render(params)
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	w.Write([]byte(html)) //nolint:errcheck
-}
-
-// defaultMetadata returns the built-in metadata used when the application has
-// not supplied its own.
-func defaultMetadata() *core.Metadata {
-	faviconURL := "/public/favicon.ico"
-	return &core.Metadata{
-		Title: core.Title{Default: "Pola"},
-		Icons: &core.Icons{
-			Icon: []core.Icon{{URL: faviconURL}},
-		},
-	}
+	ctx = core.WithRenderRequest(ctx, route, props, buildRequestContext(r), status, o.injectors)
+	o.renderer.ServeHTTP(w, r.WithContext(ctx))
 }
 
 type responseRecorder struct {

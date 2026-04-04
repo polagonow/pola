@@ -36,6 +36,17 @@ import (
 	"github.com/polagonow/pola/vmpool"
 )
 
+// Engine-specific JS globals used only by the moderncquickjs render helpers.
+const (
+	mqjsCallFn           = "__mqjs_call__"
+	mqjsErrorKey         = "__mqjs_error__"
+	startRenderFn        = "__startRender__"
+	pullOnceFn           = "__pullOnce__"
+	clearRenderStreamFn  = "__clearRenderStream__"
+	rscStreamVar         = "__rscStream__"
+	rscDecoderVar        = "__rscDec__"
+)
+
 // ── JS templates ──────────────────────────────────────────────────────────────
 
 var (
@@ -87,8 +98,8 @@ func init() {
 		StartRenderFn, RSCStreamVar, RenderFn, RSCDecoderVar            string
 		PullOnceFn, DrainMicrotasksFn, OutputChunk, ClearRenderStreamFn string
 	}{
-		globals.StartRenderFn, globals.RSCStreamVar, globals.RenderFn, globals.RSCDecoderVar,
-		globals.PullOnceFn, globals.DrainMicrotasksFn, globals.OutputChunk, globals.ClearRenderStreamFn,
+		startRenderFn, rscStreamVar, globals.RenderFn, rscDecoderVar,
+		pullOnceFn, globals.DrainMicrotasksFn, globals.OutputChunk, clearRenderStreamFn,
 	}); err != nil {
 		panic("moderncquickjs: renderHelpers template: " + err.Error())
 	}
@@ -215,29 +226,29 @@ func newRuntime(src string, logger core.Logger) (*Runtime, error) {
 		// ── Bridge dispatcher ─────────────────────────────────────────
 		// __mqjs_call__(name, argsJSON) → resultJSON
 		// Synchronous; called by __DEPENDENCY_INJECTION__[name] JS wrappers.
-		if err := inner.RegisterFunc(globals.MQJSCallFn, func(name, argsJSON string) string {
+		if err := inner.RegisterFunc(mqjsCallFn, func(name, argsJSON string) string {
 			var fn func(args []any) (any, error)
 			if r.diFuncs != nil {
 				fn = r.diFuncs[name]
 			}
 			if fn == nil {
-				b, _ := json.Marshal(map[string]any{globals.MQJSErrorKey: "bridge: " + name + " not found"})
+				b, _ := json.Marshal(map[string]any{mqjsErrorKey: "bridge: " + name + " not found"})
 				return string(b)
 			}
 			var args []any
 			if err := json.Unmarshal([]byte(argsJSON), &args); err != nil {
-				b, _ := json.Marshal(map[string]any{globals.MQJSErrorKey: "bridge args: " + err.Error()})
+				b, _ := json.Marshal(map[string]any{mqjsErrorKey: "bridge args: " + err.Error()})
 				return string(b)
 			}
 			result, err := fn(args)
 			if err != nil {
-				b, _ := json.Marshal(map[string]any{globals.MQJSErrorKey: err.Error()})
+				b, _ := json.Marshal(map[string]any{mqjsErrorKey: err.Error()})
 				return string(b)
 			}
 			b, _ := json.Marshal(result)
 			return string(b)
 		}, false); err != nil {
-			initErr = fmt.Errorf("moderncquickjs: register %s: %w", globals.MQJSCallFn, err)
+			initErr = fmt.Errorf("moderncquickjs: register %s: %w", mqjsCallFn, err)
 			return
 		}
 
@@ -393,7 +404,7 @@ func (r *Runtime) SetDependencyInjection(funcs map[string]func(args []any) (any,
 			var scriptBuf strings.Builder
 			if err := jsiWrapperJSTmpl.Execute(&scriptBuf, struct {
 				BridgeObject, NameJSON, MQJSCallFn, MQJSErrorKey string
-			}{globals.BridgeObject, string(nameJSON), globals.MQJSCallFn, globals.MQJSErrorKey}); err != nil {
+			}{globals.BridgeObject, string(nameJSON), mqjsCallFn, mqjsErrorKey}); err != nil {
 				runErr = fmt.Errorf("moderncquickjs: wrapper template: %w", err)
 				return
 			}
@@ -430,7 +441,7 @@ func (r *Runtime) drainStream(exportName, propsJSON string, w core.StreamWriter)
 		r.wroteAny = false
 		exportLit, _ := json.Marshal(exportName)
 		propsLit, _ := json.Marshal(propsJSON)
-		script := globals.StartRenderFn + "(" + string(exportLit) + ", " + string(propsLit) + ")"
+		script := startRenderFn + "(" + string(exportLit) + ", " + string(propsLit) + ")"
 		if _, e := r.inner.Eval(script, mquickjs.EvalGlobal); e != nil {
 			err = fmt.Errorf("moderncquickjs: start render: %w", e)
 		}
@@ -447,7 +458,7 @@ func (r *Runtime) drainStream(exportName, propsJSON string, w core.StreamWriter)
 		var iterWrote bool
 		r.run(func() {
 			r.wroteAny = false
-			result, e := r.inner.Eval(globals.PullOnceFn+"()", mquickjs.EvalGlobal)
+			result, e := r.inner.Eval(pullOnceFn+"()", mquickjs.EvalGlobal)
 			if e != nil {
 				err = fmt.Errorf("moderncquickjs: render: %w", e)
 				return
@@ -471,7 +482,7 @@ func (r *Runtime) drainStream(exportName, propsJSON string, w core.StreamWriter)
 	r.run(func() {
 		r.currentWriter = nil
 		r.wroteAny = false
-		evalOrErr(r.inner, globals.ClearRenderStreamFn+"()") //nolint:errcheck
+		evalOrErr(r.inner, clearRenderStreamFn+"()") //nolint:errcheck
 	})
 
 	return wroteAny, err

@@ -99,7 +99,7 @@ const styles = `
     /* ── Misc ── */
     .section-title{font-size:1.2rem;font-weight:700;margin-bottom:1rem}
     .grid-2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
-    .rsc-err{color:#dc2626;background:#fef2f2;padding:.75rem 1rem;border-radius:var(--radius);border:1px solid #fecaca}
+    .render-err{color:#dc2626;background:#fef2f2;padding:.75rem 1rem;border-radius:var(--radius);border:1px solid #fecaca}
     @keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
     #root{padding-top:.25rem}
     @media(max-width:640px){

@@ -27,6 +27,9 @@ import (
 	"github.com/polagonow/pola/vmpool"
 )
 
+// renderAsyncFn is the async JS helper that drives the render loop in quickjsgo.
+const renderAsyncFn = "__renderAsync__"
+
 // ── JS templates ──────────────────────────────────────────────────────────────
 
 var (
@@ -55,7 +58,7 @@ func init() {
 	if err := renderAsyncJSTmpl.Execute(&b, struct {
 		RenderAsyncFn, RenderFn, DrainMicrotasksFn, PullStreamFn, OutputChunk string
 	}{
-		globals.RenderAsyncFn,
+		renderAsyncFn,
 		globals.RenderFn,
 		globals.DrainMicrotasksFn,
 		globals.PullStreamFn,
@@ -374,7 +377,7 @@ func (r *Runtime) drainStream(exportName, propsJSON string, w core.StreamWriter)
 
 		exportLit, _ := json.Marshal(exportName)
 		propsLit, _ := json.Marshal(propsJSON)
-		script := globals.RenderAsyncFn + "(" + string(exportLit) + ", " + string(propsLit) + ")"
+		script := renderAsyncFn + "(" + string(exportLit) + ", " + string(propsLit) + ")"
 
 		promise := r.ctx.Eval(script, quickjs.EvalFileName("render.js"))
 		defer promise.Free()
