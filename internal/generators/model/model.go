@@ -5,6 +5,8 @@ package model
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
 
 	survey "github.com/AlecAivazis/survey/v2"
@@ -132,6 +134,13 @@ func (g *ModelGenerator) run(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Created %s\n", outFile)
 
+	if orm == "ent" {
+		fmt.Println("Running ent codegen...")
+		if err := runEntCodegen(projectDir, pf.DatabaseModelsDir()); err != nil {
+			return fmt.Errorf("ent codegen: %w", err)
+		}
+	}
+
 	if err := generators.RunAfterHooks(g, projectDir); err != nil {
 		return err
 	}
@@ -146,6 +155,22 @@ func (g *ModelGenerator) run(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	return nil
+}
+
+// runEntCodegen runs the ent code generator to produce the typed client package.
+func runEntCodegen(projectDir, modelsDir string) error {
+	schemaPath := "./" + modelsDir + "/ent"
+	cmd := exec.Command("go", "run", "-mod=mod", "entgo.io/ent/cmd/ent", "generate",
+		"--target", "./ent",
+		schemaPath,
+	)
+	cmd.Dir = projectDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("go run entgo.io/ent/cmd/ent generate: %w", err)
+	}
 	return nil
 }
 

@@ -187,6 +187,7 @@ type repoData struct {
 	LowerName   string
 	SnakeName   string
 	PluralSnake string
+	EntPackage  string // all-lowercase name used by ent for sub-packages (e.g. "sampleentity")
 	Fields      []repoField
 	Imports     []string
 	ModulePath  string
@@ -205,6 +206,7 @@ func buildData(def *schema.ModelDefinition, modulePath string) repoData {
 		LowerName:   strings.ToLower(def.Name[:1]) + def.Name[1:],
 		SnakeName:   schema.SnakeCase(def.Name),
 		PluralSnake: schema.SnakeCase(schema.Pluralize(def.Name)),
+		EntPackage:  strings.ToLower(def.Name),
 		ModulePath:  modulePath,
 	}
 
