@@ -48,8 +48,14 @@ type Field struct {
 
 // ModelDefinition is the parsed model definition from CLI arguments.
 type ModelDefinition struct {
-	Name   string // PascalCase model name, e.g. "Article"
+	Name   string    // PascalCase model name, e.g. "Article"
+	IDType FieldType // empty = default auto-increment PK, FieldUUID = string UUID PK
 	Fields []Field
+}
+
+// HasUUIDPrimaryKey returns true if the model uses a UUID primary key.
+func (m *ModelDefinition) HasUUIDPrimaryKey() bool {
+	return m.IDType == FieldUUID
 }
 
 // HasReferences returns true if the model has any non-polymorphic references fields.

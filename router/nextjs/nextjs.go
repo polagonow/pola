@@ -19,7 +19,7 @@ import (
 // the app directory for page files. It implements core.Router.
 type Router struct {
 	mu            sync.Mutex
-	routes        []core.Route            // raw list for callers that need it
+	routes        []core.Route              // raw list for callers that need it
 	staticRoutes  map[string]*compiledRoute // exact-match O(1) lookup
 	dynamicRoutes []*compiledRoute          // sorted by segment specificity
 	sorted        bool

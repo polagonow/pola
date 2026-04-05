@@ -66,11 +66,11 @@ func TestPathToPattern_MemberOverride(t *testing.T) {
 	}
 
 	cases := []struct {
-		name    string
-		pkgPath string
-		reg     map[string]bool
+		name     string
+		pkgPath  string
+		reg      map[string]bool
 		override *bool
-		want    string
+		want     string
 	}{
 		{
 			name:     "force member when parent not registered",

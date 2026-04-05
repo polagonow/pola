@@ -143,4 +143,3 @@ func gitVersion() string {
 	}
 	return s
 }
-

@@ -46,10 +46,15 @@ func init() {
 	generators.Register(&RepositoryGenerator{})
 }
 
-func (g *RepositoryGenerator) Name() string        { return "repository" }
-func (g *RepositoryGenerator) Description() string  { return "Scaffold a repository interface with ORM implementation" }
+func (g *RepositoryGenerator) Name() string { return "repository" }
+func (g *RepositoryGenerator) Description() string {
+	return "Scaffold a repository interface with ORM implementation"
+}
 func (g *RepositoryGenerator) AfterHooks() []generators.Hook {
-	return []generators.Hook{generators.CmdHook("go", "mod", "tidy")}
+	return []generators.Hook{
+		generators.CmdHook("go", "mod", "tidy"),
+		generators.CmdHook("gofmt", "-w", "."),
+	}
 }
 
 func (g *RepositoryGenerator) Command() *cobra.Command {
@@ -184,12 +189,13 @@ func promptSelect(message string, options []string) (string, error) {
 }
 
 type repoData struct {
-	Name        string
-	LowerName   string
-	SnakeName   string
-	PluralSnake string
+	Name         string
+	LowerName    string
+	SnakeName    string
+	PluralSnake  string
 	EntPackage   string // all-lowercase name used by ent for sub-packages (e.g. "sampleentity")
 	EntClientDir string // directory for ent-generated client (e.g. "db/ent")
+	IDGoType     string // "uint" or "string"
 	Fields       []repoField
 	Imports      []string
 	ModulePath   string
@@ -203,12 +209,18 @@ type repoField struct {
 }
 
 func buildData(def *schema.ModelDefinition, modulePath string) repoData {
+	idGoType := "uint"
+	if def.HasUUIDPrimaryKey() {
+		idGoType = "string"
+	}
+
 	data := repoData{
 		Name:        def.Name,
 		LowerName:   strings.ToLower(def.Name[:1]) + def.Name[1:],
 		SnakeName:   schema.SnakeCase(def.Name),
 		PluralSnake: schema.SnakeCase(schema.Pluralize(def.Name)),
 		EntPackage:  strings.ToLower(def.Name),
+		IDGoType:    idGoType,
 		ModulePath:  modulePath,
 	}
 

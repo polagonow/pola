@@ -53,6 +53,7 @@ type gormData struct {
 	SnakeName   string
 	Fields      []gormField
 	Imports     []string
+	HasUUIDPK   bool
 }
 
 type gormField struct {
@@ -68,6 +69,12 @@ func buildGormData(def *schema.ModelDefinition) gormData {
 
 	imports := map[string]bool{
 		`"gorm.io/gorm"`: true,
+	}
+
+	if def.HasUUIDPrimaryKey() {
+		data.HasUUIDPK = true
+		imports[`"time"`] = true
+		imports[`"github.com/google/uuid"`] = true
 	}
 
 	for _, f := range def.Fields {

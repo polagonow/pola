@@ -328,36 +328,36 @@ func generatePluginImports(opts pluginOpts, actionsImport string, routePkgs []ro
 		SecurityHeaders bool
 		Dev             bool
 		Embed           bool
-		HasRoutes        bool
-		ActionsImport    string
-		RouteImports     []string
-		RepoPlugins      *repoDiscovery
-		ServicePlugins   *svcDiscovery
+		HasRoutes       bool
+		ActionsImport   string
+		RouteImports    []string
+		RepoPlugins     *repoDiscovery
+		ServicePlugins  *svcDiscovery
 	}{
-		PolaPackage:      opts.PolaPackage,
-		Engine:           opts.Engine,
-		Bundler:          opts.Bundler,
-		Renderer:         opts.Renderer,
-		Router:           opts.Router,
-		CSS:              condStr(hasCSS, opts.CSS, ""),
-		Cache:            condStr(hasCache, opts.Cache, ""),
-		Database:         condStr(hasDatabase, opts.Database, ""),
-		DatabaseAdapter:  opts.DatabaseAdapter,
-		DatabaseURL:      opts.DatabaseURL,
-		DatabaseHost:     opts.DatabaseHost,
-		DatabasePort:     opts.DatabasePort,
-		DatabaseUser:     opts.DatabaseUser,
-		DatabasePass:     opts.DatabasePass,
-		DatabaseName:     opts.DatabaseName,
-		CSRF:             hasCSRF,
-		SecurityHeaders:  hasSecurityHeaders,
-		Dev:              opts.Dev,
-		Embed:            opts.Embed,
-		HasRoutes:        len(routePkgs) > 0,
-		ActionsImport:    actionsImport,
-		RouteImports:     routeImports,
-		RepoPlugins:      repoDisco,
-		ServicePlugins:   svcDisco,
+		PolaPackage:     opts.PolaPackage,
+		Engine:          opts.Engine,
+		Bundler:         opts.Bundler,
+		Renderer:        opts.Renderer,
+		Router:          opts.Router,
+		CSS:             condStr(hasCSS, opts.CSS, ""),
+		Cache:           condStr(hasCache, opts.Cache, ""),
+		Database:        condStr(hasDatabase, opts.Database, ""),
+		DatabaseAdapter: opts.DatabaseAdapter,
+		DatabaseURL:     opts.DatabaseURL,
+		DatabaseHost:    opts.DatabaseHost,
+		DatabasePort:    opts.DatabasePort,
+		DatabaseUser:    opts.DatabaseUser,
+		DatabasePass:    opts.DatabasePass,
+		DatabaseName:    opts.DatabaseName,
+		CSRF:            hasCSRF,
+		SecurityHeaders: hasSecurityHeaders,
+		Dev:             opts.Dev,
+		Embed:           opts.Embed,
+		HasRoutes:       len(routePkgs) > 0,
+		ActionsImport:   actionsImport,
+		RouteImports:    routeImports,
+		RepoPlugins:     repoDisco,
+		ServicePlugins:  svcDisco,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("execute plugins template: %w", err)

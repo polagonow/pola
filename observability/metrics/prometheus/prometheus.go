@@ -70,4 +70,3 @@ func (m *Metrics) RecordRender(route string, d time.Duration) {
 func (m *Metrics) Handler() http.Handler {
 	return promhttp.HandlerFor(m.reg, promhttp.HandlerOpts{})
 }
-

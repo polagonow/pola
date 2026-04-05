@@ -3,7 +3,6 @@
 // Build this package with the "esbuild" build tag:
 //
 //	go build -tags esbuild ./...
-//
 package esbuild
 
 import (
@@ -195,7 +194,6 @@ func (b *Bundler) Watch(ctx context.Context, req core.BundleInput) (<-chan *core
 
 	return outputCh, nil
 }
-
 
 // ── manifest (inlined from bundler/manifest) ─────────────────────────────────
 

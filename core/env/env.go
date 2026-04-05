@@ -22,7 +22,7 @@ type Env struct {
 
 	TracingEnabled bool `env:"POLA_TRACING" envDefault:"false"`
 
-	PublicDir  string `env:"POLA_PUBLIC_DIR"   envDefault:""`
+	PublicDir string `env:"POLA_PUBLIC_DIR"   envDefault:""`
 	BuildOnly bool   `env:"POLA_BUILD_ONLY"  envDefault:"false"`
 
 	Port string `env:"PORT" envDefault:"3000"`

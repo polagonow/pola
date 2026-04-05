@@ -38,6 +38,6 @@ func (a *[[ .Name ]]) List(page, perPage int) (*repositories.ListResult[*reposit
 }
 
 // Get returns a single [[ .ServiceName ]] by ID. Becomes [[ .Name ]].Get(id) in JavaScript.
-func (a *[[ .Name ]]) Get(id uint) (*repositories.[[ .ServiceName ]], error) {
+func (a *[[ .Name ]]) Get(id [[ .IDGoType ]]) (*repositories.[[ .ServiceName ]], error) {
 	return a.svc.Get(context.TODO(), id)
 }

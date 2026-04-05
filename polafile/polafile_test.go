@@ -41,19 +41,19 @@ func TestSaveAndLoad(t *testing.T) {
 	dir := t.TempDir()
 
 	pf := &Polafile{
-		Version:        "0.1.0",
-		Renderer:       "react@^19.0.0",
-		Engine:         "goja@0.0.0-20240220",
-		Bundler:        "esbuild@^0.21.0",
-		Router:         "nextjs",
-		CSS:            "tailwind@^4.0.0",
-		PackageManager: "pnpm@^9.0.0",
-		Cache:          &Cache{Enabled: true, Adapter: "memory"},
-		CSRF:           &CSRF{Enabled: true},
+		Version:         "0.1.0",
+		Renderer:        "react@^19.0.0",
+		Engine:          "goja@0.0.0-20240220",
+		Bundler:         "esbuild@^0.21.0",
+		Router:          "nextjs",
+		CSS:             "tailwind@^4.0.0",
+		PackageManager:  "pnpm@^9.0.0",
+		Cache:           &Cache{Enabled: true, Adapter: "memory"},
+		CSRF:            &CSRF{Enabled: true},
 		SecurityHeaders: &SecurityHeaders{Enabled: true},
-		App:     "app",
-		Actions: "actions",
-		Routes:  "routes",
+		App:             "app",
+		Actions:         "actions",
+		Routes:          "routes",
 	}
 
 	if err := Save(dir, pf); err != nil {

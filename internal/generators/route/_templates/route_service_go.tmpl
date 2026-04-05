@@ -25,12 +25,16 @@ func NewRoute(svc *services.[[ .ServiceName ]]Service) *Route {
 func (r *Route) GET(w http.ResponseWriter, req *http.Request) {
 	id := routes.Param(req, "id")
 	if id != "" {
+[[ if eq $.IDGoType "string" -]]
+		entity, err := r.svc.Get(req.Context(), id)
+[[ else -]]
 		n, err := strconv.ParseUint(id, 10, 64)
 		if err != nil {
 			http.Error(w, "invalid id", http.StatusBadRequest)
 			return
 		}
 		entity, err := r.svc.Get(req.Context(), uint(n))
+[[ end -]]
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusNotFound)
 			return
@@ -72,17 +76,28 @@ func (r *Route) POST(w http.ResponseWriter, req *http.Request) {
 // PUT [[ $.RoutePath ]]
 func (r *Route) PUT(w http.ResponseWriter, req *http.Request) {
 	id := routes.Param(req, "id")
+[[ if eq $.IDGoType "string" -]]
+	if id == "" {
+		http.Error(w, "missing id", http.StatusBadRequest)
+		return
+	}
+[[ else -]]
 	n, err := strconv.ParseUint(id, 10, 64)
 	if err != nil {
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
 	}
+[[ end -]]
 	var entity repositories.[[ $.ServiceName ]]
 	if err := json.NewDecoder(req.Body).Decode(&entity); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+[[ if eq $.IDGoType "string" -]]
+	entity.ID = id
+[[ else -]]
 	entity.ID = uint(n)
+[[ end -]]
 	if err := r.svc.Update(req.Context(), &entity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -94,17 +109,28 @@ func (r *Route) PUT(w http.ResponseWriter, req *http.Request) {
 // PATCH [[ $.RoutePath ]]
 func (r *Route) PATCH(w http.ResponseWriter, req *http.Request) {
 	id := routes.Param(req, "id")
+[[ if eq $.IDGoType "string" -]]
+	if id == "" {
+		http.Error(w, "missing id", http.StatusBadRequest)
+		return
+	}
+[[ else -]]
 	n, err := strconv.ParseUint(id, 10, 64)
 	if err != nil {
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
 	}
+[[ end -]]
 	var entity repositories.[[ $.ServiceName ]]
 	if err := json.NewDecoder(req.Body).Decode(&entity); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+[[ if eq $.IDGoType "string" -]]
+	entity.ID = id
+[[ else -]]
 	entity.ID = uint(n)
+[[ end -]]
 	if err := r.svc.Update(req.Context(), &entity); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -116,12 +142,20 @@ func (r *Route) PATCH(w http.ResponseWriter, req *http.Request) {
 // DELETE [[ $.RoutePath ]]
 func (r *Route) DELETE(w http.ResponseWriter, req *http.Request) {
 	id := routes.Param(req, "id")
+[[ if eq $.IDGoType "string" -]]
+	if id == "" {
+		http.Error(w, "missing id", http.StatusBadRequest)
+		return
+	}
+	if err := r.svc.Delete(req.Context(), id); err != nil {
+[[ else -]]
 	n, err := strconv.ParseUint(id, 10, 64)
 	if err != nil {
 		http.Error(w, "invalid id", http.StatusBadRequest)
 		return
 	}
 	if err := r.svc.Delete(req.Context(), uint(n)); err != nil {
+[[ end -]]
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}

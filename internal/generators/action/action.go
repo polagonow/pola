@@ -11,6 +11,7 @@ import (
 
 	"github.com/polagonow/pola/internal/actionbridge"
 	"github.com/polagonow/pola/internal/generators"
+	"github.com/polagonow/pola/internal/generators/model/schema"
 	"github.com/polagonow/pola/internal/project"
 	"github.com/polagonow/pola/polafile"
 	"github.com/spf13/cobra"
@@ -36,7 +37,7 @@ func init() {
 }
 
 func (g *ActionGenerator) Name() string        { return "action" }
-func (g *ActionGenerator) Description() string  { return "Scaffold a new action struct" }
+func (g *ActionGenerator) Description() string { return "Scaffold a new action struct" }
 func (g *ActionGenerator) AfterHooks() []generators.Hook {
 	return []generators.Hook{
 		generators.FuncHook("regenerate bridge", func(projectDir string) error {
@@ -59,6 +60,7 @@ func (g *ActionGenerator) AfterHooks() []generators.Hook {
 			_, err = actionbridge.Run(actionsDir, "", tmpDir, pf.PolaPackage())
 			return err
 		}),
+		generators.CmdHook("gofmt", "-w", "."),
 	}
 }
 
@@ -76,6 +78,8 @@ Use --service=Name to wire the action to a generated service.`,
   pola generate action Products --service=Product`,
 	}
 	cmd.Flags().String("service", "", "wire action methods to the named service")
+	cmd.Flags().String("id-type", "uint", "Go type for the entity ID (uint or string)")
+	cmd.Flags().MarkHidden("id-type")
 	return cmd
 }
 
@@ -95,7 +99,7 @@ func (g *ActionGenerator) run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("create actions dir: %w", err)
 	}
 
-	filename := strings.ToLower(name) + ".go"
+	filename := schema.SnakeCase(name) + "_action.go"
 	filePath := filepath.Join(actionsDir, filename)
 
 	if err := generators.CheckCollision(cmd, filePath); err != nil {
@@ -115,19 +119,26 @@ func (g *ActionGenerator) run(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("read module path: %w", err)
 		}
 
+		idType, _ := cmd.Flags().GetString("id-type")
+		if idType == "" {
+			idType = "uint"
+		}
+
 		if err := actionServiceTmpl.Execute(&buf, struct {
 			Name        string
 			ServiceName string
+			IDGoType    string
 			ModulePath  string
 		}{
-			Name:        name,
+			Name:        name + "Action",
 			ServiceName: serviceName,
+			IDGoType:    idType,
 			ModulePath:  modulePath,
 		}); err != nil {
 			return fmt.Errorf("execute action service template: %w", err)
 		}
 	} else {
-		if err := actionTmpl.Execute(&buf, struct{ Name string }{Name: name}); err != nil {
+		if err := actionTmpl.Execute(&buf, struct{ Name string }{Name: name + "Action"}); err != nil {
 			return fmt.Errorf("execute action template: %w", err)
 		}
 	}

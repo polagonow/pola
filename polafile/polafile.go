@@ -55,8 +55,8 @@ const DefaultPackage = "github.com/polagonow/pola"
 
 // Polafile represents the contents of a Polafile.hcl.
 type Polafile struct {
-	Package string `hcl:"package,optional"`
-	Version    string `hcl:"version,optional"`
+	Package        string `hcl:"package,optional"`
+	Version        string `hcl:"version,optional"`
 	Renderer       string `hcl:"renderer,optional"`
 	Engine         string `hcl:"engine,optional"`
 	Bundler        string `hcl:"bundler,optional"`

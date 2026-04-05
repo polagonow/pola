@@ -42,7 +42,9 @@ func init() {
 
 func (g *RouteGenerator) Name() string                  { return "route" }
 func (g *RouteGenerator) Description() string           { return "Scaffold a new route handler" }
-func (g *RouteGenerator) AfterHooks() []generators.Hook { return nil }
+func (g *RouteGenerator) AfterHooks() []generators.Hook {
+	return []generators.Hook{generators.CmdHook("gofmt", "-w", ".")}
+}
 
 func (g *RouteGenerator) Command() *cobra.Command {
 	cmd := &cobra.Command{
@@ -62,6 +64,8 @@ Use --service=Name to wire the route to a generated service via DI.`,
   pola generate route Posts GET,POST,DELETE --service=Post`,
 	}
 	cmd.Flags().String("service", "", "wire route handlers to the named service via DI")
+	cmd.Flags().String("id-type", "uint", "Go type for the entity ID (uint or string)")
+	cmd.Flags().MarkHidden("id-type")
 	return cmd
 }
 
@@ -113,17 +117,24 @@ func (g *RouteGenerator) run(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("read module path: %w", err)
 		}
 
+		idType, _ := cmd.Flags().GetString("id-type")
+		if idType == "" {
+			idType = "uint"
+		}
+
 		if err := routeServiceTmpl.Execute(&buf, struct {
 			Package     string
 			RoutePath   string
 			Methods     []string
 			ServiceName string
+			IDGoType    string
 			ModulePath  string
 		}{
 			Package:     pkgName,
 			RoutePath:   routePath,
 			Methods:     methods,
 			ServiceName: serviceName,
+			IDGoType:    idType,
 			ModulePath:  modulePath,
 		}); err != nil {
 			return fmt.Errorf("execute route service template: %w", err)

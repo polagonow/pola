@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/polagonow/pola/internal/stubpkgs"
 	"github.com/polagonow/pola/internal/project"
+	"github.com/polagonow/pola/internal/stubpkgs"
 	"github.com/polagonow/pola/polafile"
 	"github.com/polagonow/pola/watcher"
 	"github.com/spf13/cobra"
@@ -216,7 +216,6 @@ func collectGoFiles(projectDir string) []string {
 func findProjectRoot() (string, error) {
 	return project.FindRoot()
 }
-
 
 // printStartupBanner displays a Next.js-style startup banner.
 func printStartupBanner(projectDir, port string) {

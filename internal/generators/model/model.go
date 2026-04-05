@@ -39,7 +39,10 @@ func (g *ModelGenerator) Description() string {
 }
 
 func (g *ModelGenerator) AfterHooks() []generators.Hook {
-	return []generators.Hook{generators.CmdHook("go", "mod", "tidy")}
+	return []generators.Hook{
+		generators.CmdHook("go", "mod", "tidy"),
+		generators.CmdHook("gofmt", "-w", "."),
+	}
 }
 
 func (g *ModelGenerator) Command() *cobra.Command {
@@ -122,7 +125,12 @@ func (g *ModelGenerator) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	outFile := filepath.Join(outDir, orm, schema.SnakeCase(ModelDefinition.Name)+".go")
+	// Ent schemas are placed under "schema/" subdirectory, other ORMs use their name.
+	subDir := orm
+	if orm == "ent" {
+		subDir = "schema"
+	}
+	outFile := filepath.Join(outDir, subDir, schema.SnakeCase(ModelDefinition.Name)+".go")
 
 	if err := generators.CheckCollision(cmd, outFile); err != nil {
 		return err
@@ -171,7 +179,7 @@ func runEntCodegen(projectDir, modelsDir, entClientDir string) error {
 			return fmt.Errorf("write ent seed file: %w", err)
 		}
 	}
-	schemaPath := "./" + modelsDir + "/ent"
+	schemaPath := "./" + modelsDir + "/schema"
 	cmd := exec.Command("go", "run", "-mod=mod", "entgo.io/ent/cmd/ent", "generate",
 		"--target", targetDir,
 		schemaPath,

@@ -21,7 +21,7 @@ func NewMemoInjector(inner core.RuntimeInjector) *MemoInjector {
 	return &MemoInjector{inner: inner}
 }
 
-func (m *MemoInjector) Name() string                          { return m.inner.Name() }
+func (m *MemoInjector) Name() string                             { return m.inner.Name() }
 func (m *MemoInjector) Capabilities() []core.InjectionCapability { return m.inner.Capabilities() }
 
 func (m *MemoInjector) Inject(ctx context.Context, runtime core.JSRuntime) error {

@@ -6,6 +6,9 @@ import (
 
 	"github.com/beego/beego/v2/client/orm"
 	"[[.ModulePath]]/repositories"
+[[- if eq .IDGoType "string"]]
+	"github.com/google/uuid"
+[[- end]]
 )
 
 type [[.LowerName]]Repository struct {
@@ -18,11 +21,16 @@ func New[[.Name]]Repository(o orm.Ormer) repositories.[[.Name]]Repository {
 }
 
 func (r *[[.LowerName]]Repository) Create(_ context.Context, entity *repositories.[[.Name]]) error {
+[[- if eq .IDGoType "string"]]
+	if entity.ID == "" {
+		entity.ID = uuid.New().String()
+	}
+[[- end]]
 	_, err := r.ormer.Insert(entity)
 	return err
 }
 
-func (r *[[.LowerName]]Repository) Get(_ context.Context, id uint) (*repositories.[[.Name]], error) {
+func (r *[[.LowerName]]Repository) Get(_ context.Context, id [[.IDGoType]]) (*repositories.[[.Name]], error) {
 	entity := &repositories.[[.Name]]{ID: id}
 	if err := r.ormer.Read(entity); err != nil {
 		return nil, fmt.Errorf("get [[.SnakeName]] by id: %w", err)
@@ -64,7 +72,7 @@ func (r *[[.LowerName]]Repository) Update(_ context.Context, entity *repositorie
 	return err
 }
 
-func (r *[[.LowerName]]Repository) Delete(_ context.Context, id uint) error {
+func (r *[[.LowerName]]Repository) Delete(_ context.Context, id [[.IDGoType]]) error {
 	_, err := r.ormer.Delete(&repositories.[[.Name]]{ID: id})
 	return err
 }

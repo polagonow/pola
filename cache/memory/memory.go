@@ -80,4 +80,3 @@ func (c *Cache) Clear(_ context.Context) error {
 	c.mu.Unlock()
 	return nil
 }
-

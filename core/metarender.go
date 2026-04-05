@@ -353,4 +353,3 @@ func writeIconLinks(w *strings.Builder, rel string, icons []Icon) {
 		w.WriteString(`/>`)
 	}
 }
-
