@@ -68,7 +68,7 @@ var PolaPlugins = []core.Plugin{
 	securityheaders.Plugin(),
 {{- end}}
 {{- if .CSRF}}
-	csrf.Plugin(),
+	csrf.Plugin({{- if .Dev}}csrf.WithSecure(false){{- end}}),
 {{- end}}
 {{- if not .Embed}}
 	{{.Bundler}}.Plugin(),

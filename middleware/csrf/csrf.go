@@ -38,7 +38,8 @@ func WithCookieName(name string) Option {
 }
 
 type mw struct {
-	protect func(http.Handler) http.Handler
+	protect   func(http.Handler) http.Handler
+	plaintext bool
 }
 
 // New creates a CSRF protection middleware.
@@ -65,7 +66,7 @@ func New(opts ...Option) core.Middleware {
 		gorillacsrf.SameSite(gorillacsrf.SameSiteLaxMode),
 	)
 
-	return &mw{protect: protect}
+	return &mw{protect: protect, plaintext: !cfg.secure}
 }
 
 func (m *mw) Name() string { return "csrf" }
@@ -83,5 +84,11 @@ func (m *mw) Wrap(next http.Handler) http.Handler {
 		ctx := context.WithValue(r.Context(), core.CSRFTokenContextKey, token)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
-	return m.protect(tokenInjector)
+	protected := m.protect(tokenInjector)
+	if m.plaintext {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			protected.ServeHTTP(w, gorillacsrf.PlaintextHTTPRequest(r))
+		})
+	}
+	return protected
 }

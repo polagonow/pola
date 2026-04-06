@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -103,6 +104,9 @@ func runDBMigrate(cmd *cobra.Command, _ []string) error {
 		}
 		if err := ex.ExecuteN(ctx, len(pending)); err != nil {
 			return fmt.Errorf("migrate: %w", err)
+		}
+		for _, f := range pending {
+			fmt.Printf("  %s  %s\n", f.Version(), f.Desc())
 		}
 		fmt.Printf("Applied %d migration(s)\n", len(pending))
 	}
@@ -479,8 +483,10 @@ func loadDBConfig(cmd *cobra.Command) (*dbConfig, error) {
 			url = buildDSN(merged)
 		}
 	}
+	// If still no URL, derive a sensible default from the adapter (with env var fallback).
 	if url == "" {
-		return nil, fmt.Errorf("no database URL; use --url flag or set url/host/name in Polafile.hcl database block")
+		adapter := pf.DatabaseAdapter(env)
+		url = dsn.Build(dsn.Config{Adapter: adapter}.WithEnvFallback())
 	}
 
 	adapter := pf.DatabaseAdapter(env)
@@ -593,6 +599,9 @@ func (rw *sqlRevisionReadWriter) ReadRevision(ctx context.Context, version strin
 	var execTime int64
 	err := rw.db.QueryRowContext(ctx, `SELECT version, description, type, applied, total, executed_at, execution_time, error, error_stmt, hash, operator_version FROM atlas_schema_revisions WHERE version = ?`, version).
 		Scan(&r.Version, &r.Description, &r.Type, &r.Applied, &r.Total, &r.ExecutedAt, &execTime, &r.Error, &r.ErrorStmt, &r.Hash, &r.OperatorVersion)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, migrate.ErrRevisionNotExist
+	}
 	if err != nil {
 		return nil, err
 	}
