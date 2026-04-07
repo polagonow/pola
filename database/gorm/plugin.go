@@ -8,11 +8,15 @@ import (
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/database/dsn"
 	gormpkg "gorm.io/gorm"
-
-	"gorm.io/driver/mysql"
-	"gorm.io/driver/postgres"
-	"gorm.io/driver/sqlite"
 )
+
+// dialectors is the adapter registry. Adapter sub-packages register themselves via init().
+var dialectors = map[string]func(string) gormpkg.Dialector{}
+
+// RegisterDialector registers a GORM dialector factory for the given adapter name.
+func RegisterDialector(adapter string, fn func(string) gormpkg.Dialector) {
+	dialectors[adapter] = fn
+}
 
 // Option configures the GORM database plugin.
 type Option func(*config)
@@ -97,14 +101,9 @@ func (p *gormPlugin) Shutdown(_ context.Context) error {
 }
 
 func dialectorFor(adapter, connStr string) (gormpkg.Dialector, error) {
-	switch adapter {
-	case "postgresql", "postgres":
-		return postgres.Open(connStr), nil
-	case "mysql":
-		return mysql.Open(connStr), nil
-	case "sqlite":
-		return sqlite.Open(connStr), nil
-	default:
-		return postgres.Open(connStr), nil
+	fn, ok := dialectors[adapter]
+	if !ok {
+		return nil, fmt.Errorf("gorm: no driver registered for adapter %q (import the adapter sub-package)", adapter)
 	}
+	return fn(connStr), nil
 }

@@ -15,7 +15,7 @@ type Config struct {
 	User     string
 	Password string
 	Name     string // Database name.
-	Adapter  string // "postgresql", "postgres", "mysql", "sqlite".
+	Adapter  string // "postgresql", "mysql", "sqlite".
 }
 
 // FromEnv reads database configuration from DATABASE_* environment variables.
@@ -66,7 +66,7 @@ func Build(c Config) string {
 	}
 
 	switch c.Adapter {
-	case "postgresql", "postgres":
+	case "postgresql":
 		return buildPostgres(c)
 	case "mysql":
 		return buildMySQL(c)

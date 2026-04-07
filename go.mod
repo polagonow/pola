@@ -8,6 +8,7 @@ require (
 	dario.cat/mergo v1.0.2
 	entgo.io/ent v0.14.6
 	github.com/AlecAivazis/survey/v2 v2.3.7
+	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2
 	github.com/beego/beego/v2 v2.3.9
 	github.com/buke/quickjs-go v0.6.11
 	github.com/caarlos0/env/v6 v6.10.1
@@ -58,7 +59,6 @@ require (
 	github.com/GoogleCloudPlatform/opentelemetry-operations-go/detectors/gcp v1.29.0 // indirect
 	github.com/agext/levenshtein v1.2.3 // indirect
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
-	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bmatcuk/doublestar v1.3.4 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect

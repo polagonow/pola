@@ -34,6 +34,9 @@ import (
 {{- end}}
 {{- if .Database}}
 	database{{.Database}} "{{.PolaPackage}}/database/{{.Database}}"
+{{- if .DatabaseAdapter}}
+	_ "{{.PolaPackage}}/database/{{.Database}}/{{.DatabaseAdapter}}"
+{{- end}}
 {{- end}}
 {{- if .HasRoutes}}
 	"{{.PolaPackage}}/routes"

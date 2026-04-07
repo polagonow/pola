@@ -6,13 +6,18 @@ import (
 	"fmt"
 
 	"github.com/beego/beego/v2/client/orm"
-	_ "github.com/go-sql-driver/mysql"
-	_ "github.com/lib/pq"
-	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/database/dsn"
 )
+
+// drivers is the adapter registry. Adapter sub-packages register themselves via init().
+var drivers = map[string]string{}
+
+// RegisterDriver registers a Beego ORM driver name for the given adapter.
+func RegisterDriver(adapter, driverName string) {
+	drivers[adapter] = driverName
+}
 
 // Option configures the Beego database plugin.
 type Option func(*config)
@@ -64,7 +69,10 @@ func (p *beegoPlugin) Register(r *core.Registry) {
 	core.Provide[orm.Ormer](r, func() (orm.Ormer, error) {
 		c := p.cfg.Config.WithEnvFallback()
 		connStr := dsn.Build(c)
-		driverName := beegoDriverName(c.Adapter)
+		driverName, ok := drivers[c.Adapter]
+		if !ok {
+			return nil, fmt.Errorf("beego: no driver registered for adapter %q (import the adapter sub-package)", c.Adapter)
+		}
 
 		if err := orm.RegisterDataBase("default", driverName, connStr); err != nil {
 			return nil, fmt.Errorf("beego: register database: %w", err)
@@ -83,16 +91,3 @@ func (p *beegoPlugin) Shutdown(_ context.Context) error {
 	return nil
 }
 
-// beegoDriverName returns the Beego ORM driver name for the given adapter.
-func beegoDriverName(adapter string) string {
-	switch adapter {
-	case "postgresql", "postgres":
-		return "postgres"
-	case "mysql":
-		return "mysql"
-	case "sqlite":
-		return "sqlite3"
-	default:
-		return "postgres"
-	}
-}

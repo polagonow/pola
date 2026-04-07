@@ -16,10 +16,21 @@ import (
 	"github.com/polagonow/pola/database/dsn"
 
 	entsql "entgo.io/ent/dialect/sql"
-	_ "github.com/go-sql-driver/mysql"
-	_ "github.com/lib/pq"
-	_ "github.com/mattn/go-sqlite3"
 )
+
+// DriverInfo holds the database/sql driver name and Ent dialect for an adapter.
+type DriverInfo struct {
+	SQLDriver  string // e.g. "postgres", "mysql", "sqlite3"
+	EntDialect string // e.g. "postgres", "mysql", "sqlite3"
+}
+
+// drivers is the adapter registry. Adapter sub-packages register themselves via init().
+var drivers = map[string]DriverInfo{}
+
+// RegisterDriver registers a SQL driver and Ent dialect for the given adapter name.
+func RegisterDriver(adapter string, info DriverInfo) {
+	drivers[adapter] = info
+}
 
 // Option configures the Ent database plugin.
 type Option func(*config)
@@ -73,9 +84,12 @@ func (p *entPlugin) Register(r *core.Registry) {
 	core.Provide[*entsql.Driver](r, func() (*entsql.Driver, error) {
 		c := p.cfg.Config.WithEnvFallback()
 		connStr := dsn.Build(c)
-		driverName := sqlDriverName(c.Adapter)
+		info, ok := drivers[c.Adapter]
+		if !ok {
+			return nil, fmt.Errorf("ent: no driver registered for adapter %q (import the adapter sub-package)", c.Adapter)
+		}
 
-		db, err := sql.Open(driverName, connStr)
+		db, err := sql.Open(info.SQLDriver, connStr)
 		if err != nil {
 			return nil, fmt.Errorf("ent: sql.Open: %w", err)
 		}
@@ -85,7 +99,7 @@ func (p *entPlugin) Register(r *core.Registry) {
 		}
 		p.db = db
 
-		drv := entsql.OpenDB(entDialect(c.Adapter), db)
+		drv := entsql.OpenDB(info.EntDialect, db)
 		return drv, nil
 	})
 
@@ -112,30 +126,3 @@ func (p *entPlugin) Shutdown(_ context.Context) error {
 	return nil
 }
 
-// sqlDriverName returns the database/sql driver name for the given adapter.
-func sqlDriverName(adapter string) string {
-	switch adapter {
-	case "postgresql", "postgres":
-		return "postgres"
-	case "mysql":
-		return "mysql"
-	case "sqlite":
-		return "sqlite3"
-	default:
-		return "postgres"
-	}
-}
-
-// entDialect returns the Ent dialect string for the given adapter.
-func entDialect(adapter string) string {
-	switch adapter {
-	case "postgresql", "postgres":
-		return "postgres"
-	case "mysql":
-		return "mysql"
-	case "sqlite":
-		return "sqlite3"
-	default:
-		return "postgres"
-	}
-}
