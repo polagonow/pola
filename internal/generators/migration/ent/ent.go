@@ -75,7 +75,7 @@ func (g *EntDiffGenerator) Diff(ctx context.Context, cfg diff.Config) error {
 	}
 
 	// Schema import path for entc.LoadGraph.
-	schemaImportPath := cfg.ModulePath + "/" + cfg.ModelsDir + "/ent"
+	schemaImportPath := cfg.ModulePath + "/" + cfg.ModelsDir + "/schema"
 
 	// Run the temporary program:
 	// args: migrationsDir, devURL, migrationName, schemaImportPath

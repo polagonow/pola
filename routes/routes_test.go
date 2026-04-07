@@ -147,26 +147,23 @@ func TestRouter_DynamicRoutes(t *testing.T) {
 	}
 }
 
-func TestRouter_InitInterface(t *testing.T) {
+func TestRouter_FactoryPattern(t *testing.T) {
 	registry := core.NewRegistry()
 	core.ProvideValue[string](registry, "injected-value")
 
-	route := &initRoute{}
-	if err := route.Init(registry); err != nil {
-		t.Fatalf("Init: %v", err)
-	}
-	if route.Value != "injected-value" {
-		t.Errorf("Value = %q, want %q", route.Value, "injected-value")
+	Register(func(r *core.Registry) any {
+		val := core.MustInvoke[string](r)
+		return &initRoute{Value: val}
+	})
+
+	router := New()
+	if err := router.Build(registry); err != nil {
+		t.Fatalf("Build: %v", err)
 	}
 }
 
 type initRoute struct {
 	Value string
-}
-
-func (r *initRoute) Init(registry *core.Registry) error {
-	r.Value = core.MustInvoke[string](registry)
-	return nil
 }
 
 func (r *initRoute) GET(w http.ResponseWriter, req *http.Request) {
@@ -259,7 +256,7 @@ func (r *badPathRoute) GET(w http.ResponseWriter, req *http.Request) {}
 
 func TestRouter_CustomPath_ValidationError(t *testing.T) {
 	// Build() should reject a Pather that returns a path without leading "/".
-	pending = append(pending, &badPathRoute{})
+	pending = append(pending, func(_ *core.Registry) any { return &badPathRoute{} })
 
 	router := New()
 	registry := core.NewRegistry()

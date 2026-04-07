@@ -23,7 +23,7 @@ func (s *[[.Name]]Service) Create(ctx context.Context, entity *repositories.[[.N
 }
 
 // Get returns a [[.SnakeName]] by its ID.
-func (s *[[.Name]]Service) Get(ctx context.Context, id uint) (*repositories.[[.Name]], error) {
+func (s *[[.Name]]Service) Get(ctx context.Context, id [[.IDGoType]]) (*repositories.[[.Name]], error) {
 	return s.repo.Get(ctx, id)
 }
 
@@ -39,6 +39,6 @@ func (s *[[.Name]]Service) Update(ctx context.Context, entity *repositories.[[.N
 }
 
 // Delete removes a [[.SnakeName]] by its ID.
-func (s *[[.Name]]Service) Delete(ctx context.Context, id uint) error {
+func (s *[[.Name]]Service) Delete(ctx context.Context, id [[.IDGoType]]) error {
 	return s.repo.Delete(ctx, id)
 }

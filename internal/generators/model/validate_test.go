@@ -33,11 +33,11 @@ func TestValidateReferences_ModelNotFound(t *testing.T) {
 
 func TestValidateReferences_EntDefaultID(t *testing.T) {
 	dir := t.TempDir()
-	entDir := filepath.Join(dir, "ent")
+	entDir := filepath.Join(dir, "schema")
 	os.MkdirAll(entDir, 0o755)
 
 	// Write a minimal ent schema with default ID (no explicit id field).
-	authorSchema := `package ent
+	authorSchema := `package schema
 
 type Author struct { ent.Schema }
 func (Author) Fields() []ent.Field {
@@ -68,11 +68,11 @@ func (Author) Fields() []ent.Field {
 
 func TestValidateReferences_EntUUIDID(t *testing.T) {
 	dir := t.TempDir()
-	entDir := filepath.Join(dir, "ent")
+	entDir := filepath.Join(dir, "schema")
 	os.MkdirAll(entDir, 0o755)
 
 	// Write an ent schema with UUID ID.
-	authorSchema := `package ent
+	authorSchema := `package schema
 
 type Author struct { ent.Schema }
 func (Author) Fields() []ent.Field {

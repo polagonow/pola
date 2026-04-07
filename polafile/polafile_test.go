@@ -41,19 +41,19 @@ func TestSaveAndLoad(t *testing.T) {
 	dir := t.TempDir()
 
 	pf := &Polafile{
-		Version:        "0.1.0",
-		Renderer:       "react@^19.0.0",
-		Engine:         "goja@0.0.0-20240220",
-		Bundler:        "esbuild@^0.21.0",
-		Router:         "nextjs",
-		CSS:            "tailwind@^4.0.0",
-		PackageManager: "pnpm@^9.0.0",
-		Cache:          &Cache{Enabled: true, Adapter: "memory"},
-		CSRF:           &CSRF{Enabled: true},
+		Version:         "0.1.0",
+		Renderer:        "react@^19.0.0",
+		Engine:          "goja@0.0.0-20240220",
+		Bundler:         "esbuild@^0.21.0",
+		Router:          "nextjs",
+		CSS:             "tailwind@^4.0.0",
+		PackageManager:  "pnpm@^9.0.0",
+		Cache:           &Cache{Enabled: true, Adapter: "memory"},
+		CSRF:            &CSRF{Enabled: true},
 		SecurityHeaders: &SecurityHeaders{Enabled: true},
-		App:     "app",
-		Actions: "actions",
-		Routes:  "routes",
+		App:             "app",
+		Actions:         "actions",
+		Routes:          "routes",
 	}
 
 	if err := Save(dir, pf); err != nil {
@@ -214,6 +214,41 @@ func TestSaveAndLoadWithDatabaseBlocks(t *testing.T) {
 	}
 	if loaded.DatabaseAdapter("production") != "postgresql" {
 		t.Errorf("DatabaseAdapter(production) = %q, want %q", loaded.DatabaseAdapter("production"), "postgresql")
+	}
+}
+
+func TestDatabaseDirectoryDefaults(t *testing.T) {
+	// Empty Polafile should return new db/ defaults.
+	pf := &Polafile{}
+	if got := pf.DatabaseModelsDir(); got != "db/models" {
+		t.Errorf("DatabaseModelsDir() = %q, want %q", got, "db/models")
+	}
+	if got := pf.DatabaseMigrationsDir(); got != "db/migrations" {
+		t.Errorf("DatabaseMigrationsDir() = %q, want %q", got, "db/migrations")
+	}
+	if got := pf.DatabaseClientDir(); got != "db/client" {
+		t.Errorf("DatabaseClientDir() = %q, want %q", got, "db/client")
+	}
+	if got := pf.DatabaseEntClientDir(); got != "db/client/ent" {
+		t.Errorf("DatabaseEntClientDir() = %q, want %q", got, "db/client/ent")
+	}
+
+	// Explicit values override defaults.
+	pf2 := &Polafile{
+		Database: &Database{
+			Models:             "custom/models",
+			OrmImplementations: "custom/orm",
+			Migrations:         &Migrations{Directory: "custom/migrations"},
+		},
+	}
+	if got := pf2.DatabaseModelsDir(); got != "custom/models" {
+		t.Errorf("DatabaseModelsDir() = %q, want %q", got, "custom/models")
+	}
+	if got := pf2.DatabaseMigrationsDir(); got != "custom/migrations" {
+		t.Errorf("DatabaseMigrationsDir() = %q, want %q", got, "custom/migrations")
+	}
+	if got := pf2.DatabaseClientDir(); got != "custom/orm" {
+		t.Errorf("DatabaseClientDir() = %q, want %q", got, "custom/orm")
 	}
 }
 

@@ -27,12 +27,17 @@ type [[ .Name ]] struct {
 	svc *services.[[ .ServiceName ]]Service
 }
 
+// New[[ .Name ]] creates a [[ .Name ]] with its service dependency.
+func New[[ .Name ]](svc *services.[[ .ServiceName ]]Service) *[[ .Name ]] {
+	return &[[ .Name ]]{svc: svc}
+}
+
 // List returns a paginated list of [[ .ServiceName ]] entities. Becomes [[ .Name ]].list(page, perPage) in JavaScript.
 func (a *[[ .Name ]]) List(page, perPage int) (*repositories.ListResult[*repositories.[[ .ServiceName ]]], error) {
 	return a.svc.List(context.TODO(), repositories.ListParams{Page: page, PerPage: perPage})
 }
 
 // Get returns a single [[ .ServiceName ]] by ID. Becomes [[ .Name ]].Get(id) in JavaScript.
-func (a *[[ .Name ]]) Get(id uint) (*repositories.[[ .ServiceName ]], error) {
+func (a *[[ .Name ]]) Get(id [[ .IDGoType ]]) (*repositories.[[ .ServiceName ]], error) {
 	return a.svc.Get(context.TODO(), id)
 }

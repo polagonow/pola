@@ -11,7 +11,7 @@ import (
 	"entgo.io/ent/entc"
 	"entgo.io/ent/entc/gen"
 	_ "[[ .DriverImport ]]"
-	_ "[[ .ModulePath ]]/[[ .ModelsDir ]]/ent" // keep require in go.mod for entc.LoadGraph
+	_ "[[ .ModulePath ]]/[[ .ModelsDir ]]/schema" // keep require in go.mod for entc.LoadGraph
 )
 
 func main() {

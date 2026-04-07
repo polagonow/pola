@@ -144,7 +144,7 @@ func beegoDialectForAdapter(adapter string) string {
 	switch adapter {
 	case "sqlite":
 		return "sqlite3"
-	case "postgresql", "postgres":
+	case "postgresql":
 		return "postgres"
 	case "mysql":
 		return "mysql"

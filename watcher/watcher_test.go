@@ -134,7 +134,7 @@ func TestCollectPaths_GoFiles(t *testing.T) {
 
 	paths := CollectPaths(dir, []string{".go", ".tmpl"})
 	want := map[string]bool{
-		filepath.Join(dir, "main.go"):  true,
+		filepath.Join(dir, "main.go"):   true,
 		filepath.Join(dir, "page.tmpl"): true,
 	}
 	got := make(map[string]bool, len(paths))

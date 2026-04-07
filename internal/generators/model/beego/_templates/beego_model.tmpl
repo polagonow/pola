@@ -10,7 +10,11 @@ import (
 
 // [[.Name]] represents the [[.TableName]] database table.
 type [[.Name]] struct {
+[[- if .HasUUIDPK]]
+	Id string `orm:"pk;size(36)" json:"id"`
+[[- else]]
 	Id int `orm:"auto;pk" json:"id"`
+[[- end]]
 [[- range .Fields]]
 	[[.StructField]]
 [[- end]]

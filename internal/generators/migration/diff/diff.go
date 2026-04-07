@@ -56,7 +56,7 @@ func DialectForAdapter(adapter string) string {
 	switch adapter {
 	case "sqlite":
 		return "SQLite"
-	case "postgresql", "postgres":
+	case "postgresql":
 		return "Postgres"
 	case "mysql":
 		return "MySQL"
@@ -70,7 +70,7 @@ func DriverImportForAdapter(adapter string) string {
 	switch adapter {
 	case "sqlite":
 		return "github.com/mattn/go-sqlite3"
-	case "postgresql", "postgres":
+	case "postgresql":
 		return "github.com/lib/pq"
 	case "mysql":
 		return "github.com/go-sql-driver/mysql"
@@ -84,7 +84,7 @@ func AtlasDialectForAdapter(adapter string) string {
 	switch adapter {
 	case "sqlite":
 		return "sqlite"
-	case "postgresql", "postgres":
+	case "postgresql":
 		return "postgres"
 	case "mysql":
 		return "mysql"

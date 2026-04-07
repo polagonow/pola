@@ -5,6 +5,8 @@ package model
 
 import (
 	"fmt"
+	"os"
+	"os/exec"
 	"path/filepath"
 
 	survey "github.com/AlecAivazis/survey/v2"
@@ -37,7 +39,10 @@ func (g *ModelGenerator) Description() string {
 }
 
 func (g *ModelGenerator) AfterHooks() []generators.Hook {
-	return []generators.Hook{generators.CmdHook("go", "mod", "tidy")}
+	return []generators.Hook{
+		generators.CmdHook("go", "mod", "tidy"),
+		generators.CmdHook("gofmt", "-w", "."),
+	}
 }
 
 func (g *ModelGenerator) Command() *cobra.Command {
@@ -80,9 +85,9 @@ func (g *ModelGenerator) run(cmd *cobra.Command, args []string) error {
 	// Ensure database block exists; prompt interactively for missing ORM.
 	if pf.Database == nil {
 		pf.Database = &polafile.Database{
-			Models: "models",
+			Models: "db/models",
 			Migrations: &polafile.Migrations{
-				Directory: "migrations",
+				Directory: "db/migrations",
 			},
 		}
 	}
@@ -120,7 +125,12 @@ func (g *ModelGenerator) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	outFile := filepath.Join(outDir, orm, schema.SnakeCase(ModelDefinition.Name)+".go")
+	// Ent schemas are placed under "schema/" subdirectory, other ORMs use their name.
+	subDir := orm
+	if orm == "ent" {
+		subDir = "schema"
+	}
+	outFile := filepath.Join(outDir, subDir, schema.SnakeCase(ModelDefinition.Name)+".go")
 
 	if err := generators.CheckCollision(cmd, outFile); err != nil {
 		return err
@@ -131,6 +141,13 @@ func (g *ModelGenerator) run(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Created %s\n", outFile)
+
+	if orm == "ent" {
+		fmt.Println("Running ent codegen...")
+		if err := runEntCodegen(projectDir, pf.DatabaseModelsDir(), pf.DatabaseEntClientDir()); err != nil {
+			return fmt.Errorf("ent codegen: %w", err)
+		}
+	}
 
 	if err := generators.RunAfterHooks(g, projectDir); err != nil {
 		return err
@@ -146,6 +163,33 @@ func (g *ModelGenerator) run(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	return nil
+}
+
+// runEntCodegen runs the ent code generator to produce the typed client package.
+func runEntCodegen(projectDir, modelsDir, entClientDir string) error {
+	targetDir := filepath.Join(projectDir, entClientDir)
+	if err := os.MkdirAll(targetDir, 0o755); err != nil {
+		return fmt.Errorf("create ent client dir: %w", err)
+	}
+	// Seed a package file so ent can resolve the Go package name for the target directory.
+	seedFile := filepath.Join(targetDir, "doc.go")
+	if _, err := os.Stat(seedFile); os.IsNotExist(err) {
+		if err := os.WriteFile(seedFile, []byte("package ent\n"), 0o644); err != nil {
+			return fmt.Errorf("write ent seed file: %w", err)
+		}
+	}
+	schemaPath := "./" + modelsDir + "/schema"
+	cmd := exec.Command("go", "run", "-mod=mod", "entgo.io/ent/cmd/ent", "generate",
+		"--target", targetDir,
+		schemaPath,
+	)
+	cmd.Dir = projectDir
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("go run entgo.io/ent/cmd/ent generate: %w", err)
+	}
 	return nil
 }
 

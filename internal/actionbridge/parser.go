@@ -10,10 +10,17 @@ import (
 
 // ActionDef describes a single action struct discovered in the actions/ package.
 type ActionDef struct {
-	StructName string
-	Methods    []MethodDef
-	HasVars    bool
-	Fields     []FieldDef // exported struct fields (for DI resolution)
+	StructName  string
+	Methods     []MethodDef
+	HasVars     bool
+	Fields      []FieldDef      // exported struct fields (for DI resolution)
+	Constructor *ConstructorDef // non-nil if a New<Name>() constructor exists
+}
+
+// ConstructorDef describes a New<Name>() constructor function for DI wiring.
+type ConstructorDef struct {
+	FuncName string     // e.g. "NewBlog"
+	Params   []FieldDef // constructor parameters with type info
 }
 
 // MethodDef describes an exported method on an action struct.
@@ -102,6 +109,54 @@ func Parse(actionsDir string) (*ParseResult, error) {
 			continue
 		}
 		result.Actions = append(result.Actions, *action)
+	}
+
+	// Detect New<Name>() constructor functions and attach to their actions.
+	for i := range result.Actions {
+		ctorName := "New" + result.Actions[i].StructName
+		obj := scope.Lookup(ctorName)
+		if obj == nil {
+			continue
+		}
+		fn, ok := obj.(*types.Func)
+		if !ok {
+			continue
+		}
+		sig := fn.Type().(*types.Signature)
+		// Must return *<StructName>.
+		if sig.Results().Len() != 1 {
+			continue
+		}
+		retPtr, ok := sig.Results().At(0).Type().(*types.Pointer)
+		if !ok {
+			continue
+		}
+		retNamed, ok := retPtr.Elem().(*types.Named)
+		if !ok || retNamed.Obj().Name() != result.Actions[i].StructName {
+			continue
+		}
+		ctor := &ConstructorDef{FuncName: ctorName}
+		params := sig.Params()
+		for j := 0; j < params.Len(); j++ {
+			p := params.At(j)
+			fd := FieldDef{
+				Name:   p.Name(),
+				GoType: p.Type().String(),
+			}
+			if named, ok := p.Type().(*types.Named); ok {
+				if named.Obj().Pkg() != nil {
+					fd.TypePath = named.Obj().Pkg().Path()
+				}
+			} else if ptr, ok := p.Type().(*types.Pointer); ok {
+				if named, ok := ptr.Elem().(*types.Named); ok {
+					if named.Obj().Pkg() != nil {
+						fd.TypePath = named.Obj().Pkg().Path()
+					}
+				}
+			}
+			ctor.Params = append(ctor.Params, fd)
+		}
+		result.Actions[i].Constructor = ctor
 	}
 
 	return result, nil

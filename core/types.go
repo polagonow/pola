@@ -60,7 +60,7 @@ type ComponentFile struct {
 
 // DiscoveryResult is the output of the Discoverer interface.
 type DiscoveryResult struct {
-	AppDir           string   // absolute path to the web app root; used by entry generators
+	AppDir           string // absolute path to the web app root; used by entry generators
 	Pages            []PageEntry
 	ClientComponents []string // absolute paths of "use client" files
 	GlobalNotFound   string   // abs path to global-not-found.tsx, or ""

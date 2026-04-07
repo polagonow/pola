@@ -16,7 +16,7 @@ import (
 )
 
 // generateSchemaHCL replays all migrations on an in-memory dev DB and writes
-// migrations/schema.hcl — a human-readable HCL snapshot of the full database
+// db/schema.hcl — a human-readable HCL snapshot of the full database
 // schema (like Rails' db/schema.rb).
 func generateSchemaHCL(ctx context.Context, cfg diff.Config) error {
 	dir, err := migrate.NewLocalDir(cfg.MigrationsDir)
@@ -66,7 +66,7 @@ func generateSchemaHCL(ctx context.Context, cfg diff.Config) error {
 		return fmt.Errorf("marshal HCL: %w", err)
 	}
 
-	outputPath := filepath.Join(cfg.MigrationsDir, "schema.hcl")
+	outputPath := filepath.Join(filepath.Dir(cfg.MigrationsDir), "schema.hcl")
 	if err := os.WriteFile(outputPath, hclBytes, 0o644); err != nil {
 		return fmt.Errorf("write schema.hcl: %w", err)
 	}

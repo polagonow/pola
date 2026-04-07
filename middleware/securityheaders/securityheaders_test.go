@@ -22,9 +22,9 @@ func TestSecurityHeaders_SetsAllHeaders(t *testing.T) {
 
 	exact := map[string]string{
 		"X-Content-Type-Options": "nosniff",
-		"X-Frame-Options":       "DENY",
-		"X-XSS-Protection":      "0",
-		"Referrer-Policy":       "strict-origin-when-cross-origin",
+		"X-Frame-Options":        "DENY",
+		"X-XSS-Protection":       "0",
+		"Referrer-Policy":        "strict-origin-when-cross-origin",
 		"Permissions-Policy":     "camera=(), microphone=(), geolocation=()",
 	}
 	for header, want := range exact {

@@ -12,8 +12,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/polagonow/pola/internal/stubpkgs"
 	"github.com/polagonow/pola/internal/project"
+	"github.com/polagonow/pola/internal/stubpkgs"
 	"github.com/polagonow/pola/polafile"
 	"github.com/polagonow/pola/watcher"
 	"github.com/spf13/cobra"
@@ -89,7 +89,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	// Restart loop: on .go/.tmpl file change → kill → regenerate overlay → respawn.
 	for {
 		// Generate overlay (plugin imports + action bridge codegen).
-		overlayRes, err := generateOverlay(projectDir, pluginOpts{
+		opts := pluginOpts{
 			PolaPackage:     pf.PolaPackage(),
 			Engine:          serveFlags.vm,
 			Bundler:         serveFlags.bundler,
@@ -100,7 +100,9 @@ func runServe(cmd *cobra.Command, _ []string) error {
 			CSRF:            serveFlags.csrf,
 			SecurityHeaders: serveFlags.securityHeaders,
 			Dev:             true,
-		})
+		}
+		populateDatabaseOpts(&opts, &pf, "development")
+		overlayRes, err := generateOverlay(projectDir, opts)
 		if err != nil {
 			return err
 		}
@@ -149,7 +151,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 			killProcessGroup(cmd)
 			<-doneCh
 			cleanupOverlay(overlayRes)
-			fmt.Println("\n  \033[36m↻ Go files changed, restarting...\033[0m\n")
+			fmt.Print("\n  \033[36m↻ Go files changed, restarting...\033[0m\n\n")
 			// Brief pause to let the OS release the listen port.
 			time.Sleep(500 * time.Millisecond)
 		}
@@ -214,7 +216,6 @@ func collectGoFiles(projectDir string) []string {
 func findProjectRoot() (string, error) {
 	return project.FindRoot()
 }
-
 
 // printStartupBanner displays a Next.js-style startup banner.
 func printStartupBanner(projectDir, port string) {

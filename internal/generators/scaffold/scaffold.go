@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/polagonow/pola/internal/generators"
+	"github.com/polagonow/pola/internal/generators/model"
 	"github.com/spf13/cobra"
 )
 
@@ -51,6 +52,12 @@ Use --skip-model, --skip-action, or --skip-route to omit specific parts.`,
 func (g *ScaffoldGenerator) run(cmd *cobra.Command, args []string) error {
 	name := args[0]
 
+	// Detect ID type from field args for downstream generators.
+	idGoType := "uint"
+	def, err := model.ParseArgs(args)
+	if err == nil && def.HasUUIDPrimaryKey() {
+		idGoType = "string"
+	}
 	skipModel, _ := cmd.Flags().GetBool("skip-model")
 	skipRepository, _ := cmd.Flags().GetBool("skip-repository")
 	skipService, _ := cmd.Flags().GetBool("skip-service")
@@ -84,6 +91,7 @@ func (g *ScaffoldGenerator) run(cmd *cobra.Command, args []string) error {
 		if !skipService {
 			actionArgs = append(actionArgs, "--service="+name)
 		}
+		actionArgs = append(actionArgs, "--id-type="+idGoType)
 		if err := generators.Run("action", cmd, actionArgs); err != nil {
 			return fmt.Errorf("action: %w", err)
 		}
@@ -95,6 +103,7 @@ func (g *ScaffoldGenerator) run(cmd *cobra.Command, args []string) error {
 		if !skipService {
 			routeArgs = append(routeArgs, "--service="+name)
 		}
+		routeArgs = append(routeArgs, "--id-type="+idGoType)
 		if err := generators.Run("route", cmd, routeArgs); err != nil {
 			return fmt.Errorf("route: %w", err)
 		}

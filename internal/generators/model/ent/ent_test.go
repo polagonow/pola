@@ -24,7 +24,7 @@ func TestEntGenerator_BasicModel(t *testing.T) {
 		t.Fatalf("Generate: %v", err)
 	}
 
-	outFile := filepath.Join(dir, "ent", "user.go")
+	outFile := filepath.Join(dir, "schema", "user.go")
 	data, err := os.ReadFile(outFile)
 	if err != nil {
 		t.Fatalf("read output: %v", err)
@@ -53,7 +53,7 @@ func TestEntGenerator_WithIndexes(t *testing.T) {
 		t.Fatalf("Generate: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, "ent", "user.go"))
+	data, err := os.ReadFile(filepath.Join(dir, "schema", "user.go"))
 	if err != nil {
 		t.Fatalf("read output: %v", err)
 	}
@@ -79,7 +79,7 @@ func TestEntGenerator_WithReferences(t *testing.T) {
 		t.Fatalf("Generate: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, "ent", "article.go"))
+	data, err := os.ReadFile(filepath.Join(dir, "schema", "article.go"))
 	if err != nil {
 		t.Fatalf("read output: %v", err)
 	}
@@ -104,7 +104,7 @@ func TestEntGenerator_WithUUIDReferences(t *testing.T) {
 		t.Fatalf("Generate: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, "ent", "article.go"))
+	data, err := os.ReadFile(filepath.Join(dir, "schema", "article.go"))
 	if err != nil {
 		t.Fatalf("read output: %v", err)
 	}
@@ -128,7 +128,7 @@ func TestEntGenerator_WithPolymorphicReferences(t *testing.T) {
 		t.Fatalf("Generate: %v", err)
 	}
 
-	data, err := os.ReadFile(filepath.Join(dir, "ent", "comment.go"))
+	data, err := os.ReadFile(filepath.Join(dir, "schema", "comment.go"))
 	if err != nil {
 		t.Fatalf("read output: %v", err)
 	}

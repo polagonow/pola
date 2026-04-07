@@ -90,6 +90,7 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 		CSRF:            buildFlags.csrf,
 		SecurityHeaders: buildFlags.securityHeaders,
 	}
+	populateDatabaseOpts(&baseOpts, &pf, "production")
 
 	// ── Stage 1: Bundle ──────────────────────────────────────────────────
 	// Full runtime with bundler, osfs, css — needed to produce assets.

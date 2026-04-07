@@ -128,9 +128,9 @@ type Verification struct {
 // Metadata is the top-level SEO metadata struct, mirroring the NextJS
 // Metadata type. Nil pointer fields are silently omitted from the rendered HTML.
 type Metadata struct {
-	Title           Title // custom: ResolveTitle()
-	Description     *string `meta:"name=description"`
-	ApplicationName *string `meta:"name=application-name"`
+	Title           Title    // custom: ResolveTitle()
+	Description     *string  `meta:"name=description"`
+	ApplicationName *string  `meta:"name=application-name"`
 	Authors         []Author // custom: mixed meta+link per element
 	Generator       *string  `meta:"name=generator"`
 	Keywords        []string `meta:"name=keywords" sep:", "`
@@ -139,9 +139,9 @@ type Metadata struct {
 	Publisher       *string  `meta:"name=publisher"`
 
 	// SEO
-	Robots     *Robots        // custom: HeadRenderer
-	Alternates *AlternateURLs // custom: HeadRenderer
-	Verification *Verification // tagged sub-struct
+	Robots       *Robots        // custom: HeadRenderer
+	Alternates   *AlternateURLs // custom: HeadRenderer
+	Verification *Verification  // tagged sub-struct
 
 	// Icons
 	Icons *Icons // custom: HeadRenderer

@@ -4,9 +4,12 @@ import (
 	"context"
 	"fmt"
 
-	"[[.ModulePath]]/ent"
-	ent[[.Name]] "[[.ModulePath]]/ent/[[.SnakeName]]"
+	"[[.ModulePath]]/[[.EntClientDir]]"
+	ent[[.Name]] "[[.ModulePath]]/[[.EntClientDir]]/[[.EntPackage]]"
 	"[[.ModulePath]]/repositories"
+[[- if eq .IDGoType "string"]]
+	"github.com/google/uuid"
+[[- end]]
 )
 
 type [[.LowerName]]Repository struct {
@@ -19,20 +22,41 @@ func New[[.Name]]Repository(client *ent.Client) repositories.[[.Name]]Repository
 }
 
 func (r *[[.LowerName]]Repository) Create(ctx context.Context, entity *repositories.[[.Name]]) error {
+[[- if eq .IDGoType "string"]]
+	if entity.ID == "" {
+		entity.ID = uuid.New().String()
+	}
+[[- end]]
 	_, err := r.client.[[.Name]].Create().
-		// TODO: set fields from entity
+	[[- if eq .IDGoType "string"]]
+		SetID(entity.ID).
+	[[- end]]
+	[[- range .Fields]]
+		Set[[.Name]](entity.[[.Name]]).
+	[[- end]]
 		Save(ctx)
 	return err
 }
 
-func (r *[[.LowerName]]Repository) Get(ctx context.Context, id uint) (*repositories.[[.Name]], error) {
+func (r *[[.LowerName]]Repository) Get(ctx context.Context, id [[.IDGoType]]) (*repositories.[[.Name]], error) {
+[[- if eq .IDGoType "string"]]
+	e, err := r.client.[[.Name]].Get(ctx, id)
+[[- else]]
 	e, err := r.client.[[.Name]].Get(ctx, int(id))
+[[- end]]
 	if err != nil {
 		return nil, fmt.Errorf("get [[.SnakeName]] by id: %w", err)
 	}
-	_ = e
-	// TODO: map ent entity to repository entity
-	return &repositories.[[.Name]]{ID: uint(e.ID)}, nil
+	return &repositories.[[.Name]]{
+[[- if eq .IDGoType "string"]]
+		ID: e.ID,
+[[- else]]
+		ID: uint(e.ID),
+[[- end]]
+	[[- range .Fields]]
+		[[.Name]]: e.[[.Name]],
+	[[- end]]
+	}, nil
 }
 
 func (r *[[.LowerName]]Repository) List(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.[[.Name]]], error) {
@@ -53,8 +77,16 @@ func (r *[[.LowerName]]Repository) List(ctx context.Context, params repositories
 
 	items := make([]*repositories.[[.Name]], len(entries))
 	for i, e := range entries {
-		items[i] = &repositories.[[.Name]]{ID: uint(e.ID)}
-		// TODO: map remaining fields
+		items[i] = &repositories.[[.Name]]{
+[[- if eq .IDGoType "string"]]
+			ID: e.ID,
+[[- else]]
+			ID: uint(e.ID),
+[[- end]]
+		[[- range $.Fields]]
+			[[.Name]]: e.[[.Name]],
+		[[- end]]
+		}
 	}
 
 	totalPages := total / params.PerPage
@@ -72,12 +104,25 @@ func (r *[[.LowerName]]Repository) List(ctx context.Context, params repositories
 }
 
 func (r *[[.LowerName]]Repository) Update(ctx context.Context, entity *repositories.[[.Name]]) error {
+[[- if eq .IDGoType "string"]]
+	_, err := r.client.[[.Name]].UpdateOneID(entity.ID).
+[[- else]]
 	_, err := r.client.[[.Name]].UpdateOneID(int(entity.ID)).
-		// TODO: set fields from entity
+[[- end]]
+	[[- range .Fields]]
+		Set[[.Name]](entity.[[.Name]]).
+	[[- end]]
 		Save(ctx)
 	return err
 }
 
-func (r *[[.LowerName]]Repository) Delete(ctx context.Context, id uint) error {
+func (r *[[.LowerName]]Repository) Delete(ctx context.Context, id [[.IDGoType]]) error {
+[[- if eq .IDGoType "string"]]
+	return r.client.[[.Name]].DeleteOneID(id).Exec(ctx)
+[[- else]]
 	return r.client.[[.Name]].DeleteOneID(int(id)).Exec(ctx)
+[[- end]]
 }
+
+// Ensure [[.SnakeName]] import is used.
+var _ = ent[[.Name]].Table
