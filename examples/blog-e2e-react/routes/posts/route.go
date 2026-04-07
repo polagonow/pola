@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"time"
-
 )
 
 // Route handles API requests for blog posts.
@@ -27,10 +26,10 @@ type Post struct {
 var posts = []Post{
 	{ID: 1, Slug: "go-react-ssr", Title: "Building SSR with Go and React",
 		Excerpt: "How to run React Server Components inside a Go process.",
-		Author: "Jane Doe", Date: "2024-01-15", Tags: []string{"go", "react"}},
+		Author:  "Jane Doe", Date: "2024-01-15", Tags: []string{"go", "react"}},
 	{ID: 2, Slug: "rsc-deep-dive", Title: "React Server Components Deep Dive",
 		Excerpt: "Understanding the Flight wire protocol.",
-		Author: "Jane Doe", Date: "2024-02-03", Tags: []string{"react", "rsc"}},
+		Author:  "Jane Doe", Date: "2024-02-03", Tags: []string{"react", "rsc"}},
 }
 
 func (r *Route) GET(w http.ResponseWriter, req *http.Request) {

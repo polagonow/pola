@@ -12,7 +12,7 @@ func devURLForAdapter(adapter string) (string, error) {
 	switch adapter {
 	case "sqlite":
 		return "sqlite://file?mode=memory&_fk=1", nil
-	case "postgresql", "postgres":
+	case "postgresql":
 		return "docker://postgres/15/dev?search_path=public", nil
 	case "mysql":
 		return "docker://mysql/8/dev", nil

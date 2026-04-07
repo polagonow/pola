@@ -53,6 +53,7 @@ type beegoData struct {
 	TableName   string
 	Fields      []beegoField
 	Imports     []string
+	HasUUIDPK   bool
 }
 
 type beegoField struct {
@@ -67,6 +68,10 @@ func buildBeegoData(def *schema.ModelDefinition) beegoData {
 	}
 
 	imports := map[string]bool{}
+
+	if def.HasUUIDPrimaryKey() {
+		data.HasUUIDPK = true
+	}
 
 	for _, f := range def.Fields {
 		if f.Type == schema.FieldReferences {

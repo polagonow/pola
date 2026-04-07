@@ -8,6 +8,9 @@ import (
 
 	"{{.PolaPackage}}/core"
 	"{{.PolaPackage}}/core/globals"
+{{- range .ConstructorImports}}
+	"{{.}}"
+{{- end}}
 )
 
 // Ensure unused imports are valid.
@@ -24,7 +27,11 @@ func Plugin() core.Plugin {
 		Fn: func(r *core.Registry) {
 			g := &generatedBridge{
 				{{- range .Actions}}
+				{{- if .Constructor}}
+				{{fieldName .StructName}}: {{.Constructor.FuncName}}({{range $i, $p := .Constructor.Params}}{{if $i}}, {{end}}core.MustInvoke[{{goTypeShort $p.GoType}}](r){{end}}),
+				{{- else}}
 				{{fieldName .StructName}}: &{{.StructName}}{},
+				{{- end}}
 				{{- end}}
 			}
 			r.AddInjector(g)

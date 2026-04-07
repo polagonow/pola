@@ -3,6 +3,7 @@ package cli
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -15,6 +16,7 @@ import (
 	atlassqlite "ariga.io/atlas/sql/sqlite"
 	_ "github.com/mattn/go-sqlite3"
 
+	"github.com/polagonow/pola/database/dsn"
 	"github.com/polagonow/pola/internal/project"
 	"github.com/polagonow/pola/polafile"
 	"github.com/spf13/cobra"
@@ -102,6 +104,9 @@ func runDBMigrate(cmd *cobra.Command, _ []string) error {
 		}
 		if err := ex.ExecuteN(ctx, len(pending)); err != nil {
 			return fmt.Errorf("migrate: %w", err)
+		}
+		for _, f := range pending {
+			fmt.Printf("  %s  %s\n", f.Version(), f.Desc())
 		}
 		fmt.Printf("Applied %d migration(s)\n", len(pending))
 	}
@@ -471,8 +476,17 @@ func loadDBConfig(cmd *cobra.Command) (*dbConfig, error) {
 	if url == "" {
 		url = pf.DatabaseURL(env)
 	}
+	// If no explicit URL, try building from individual fields.
 	if url == "" {
-		return nil, fmt.Errorf("no database URL; use --url flag or set url in Polafile.hcl database block")
+		merged := pf.DatabaseForEnv(env)
+		if merged.Host != "" || merged.Name != "" {
+			url = buildDSN(merged)
+		}
+	}
+	// If still no URL, derive a sensible default from the adapter (with env var fallback).
+	if url == "" {
+		adapter := pf.DatabaseAdapter(env)
+		url = dsn.Build(dsn.Config{Adapter: adapter}.WithEnvFallback())
 	}
 
 	adapter := pf.DatabaseAdapter(env)
@@ -487,6 +501,19 @@ func loadDBConfig(cmd *cobra.Command) (*dbConfig, error) {
 		url:           url,
 		adapter:       adapter,
 	}, nil
+}
+
+// buildDSN constructs a connection string from individual Polafile database fields.
+func buildDSN(db polafile.Database) string {
+	return dsn.Build(dsn.Config{
+		URL:      db.URL,
+		Host:     db.Host,
+		Port:     db.Port,
+		User:     db.User,
+		Password: db.Password,
+		Name:     db.Name,
+		Adapter:  db.Adapter,
+	})
 }
 
 // openDriver opens a database connection and returns an Atlas driver.
@@ -572,6 +599,9 @@ func (rw *sqlRevisionReadWriter) ReadRevision(ctx context.Context, version strin
 	var execTime int64
 	err := rw.db.QueryRowContext(ctx, `SELECT version, description, type, applied, total, executed_at, execution_time, error, error_stmt, hash, operator_version FROM atlas_schema_revisions WHERE version = ?`, version).
 		Scan(&r.Version, &r.Description, &r.Type, &r.Applied, &r.Total, &r.ExecutedAt, &execTime, &r.Error, &r.ErrorStmt, &r.Hash, &r.OperatorVersion)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, migrate.ErrRevisionNotExist
+	}
 	if err != nil {
 		return nil, err
 	}

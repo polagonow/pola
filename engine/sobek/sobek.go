@@ -203,7 +203,7 @@ func (r *Runtime) SetDependencyInjection(funcs map[string]func(args []any) (any,
 			r.di.Delete(key) //nolint:errcheck
 		}
 		for name, fn := range funcs {
-			fn := fn // capture
+			fn := fn                                                      // capture
 			r.di.Set(name, func(c sobeklib.FunctionCall) sobeklib.Value { //nolint:errcheck
 				args := exportArgs(c.Arguments)
 				p, resolve, reject := rt.NewPromise()
@@ -375,4 +375,3 @@ func exportArgs(vals []sobeklib.Value) []any {
 	}
 	return out
 }
-

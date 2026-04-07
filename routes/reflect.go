@@ -4,15 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"reflect"
-
-	"github.com/polagonow/pola/core"
 )
-
-// Initializer is optionally implemented by route structs to receive the
-// registry during Build(). Users resolve their own dependencies type-safely.
-type Initializer interface {
-	Init(registry *core.Registry) error
-}
 
 // Pather is optionally implemented by route structs to override the
 // auto-derived URL pattern. The returned string must start with "/".

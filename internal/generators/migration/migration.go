@@ -12,8 +12,8 @@ import (
 	"unicode"
 
 	"github.com/polagonow/pola/internal/generators"
-	"github.com/polagonow/pola/internal/generators/migration/diff"
 	beegodiff "github.com/polagonow/pola/internal/generators/migration/beego"
+	"github.com/polagonow/pola/internal/generators/migration/diff"
 	entdiff "github.com/polagonow/pola/internal/generators/migration/ent"
 	gormdiff "github.com/polagonow/pola/internal/generators/migration/gorm"
 	"github.com/polagonow/pola/internal/project"
@@ -34,9 +34,13 @@ func init() {
 	generators.Register(&MigrationGenerator{})
 }
 
-func (g *MigrationGenerator) Name() string                  { return "migration" }
-func (g *MigrationGenerator) Description() string           { return "Generate a versioned migration by diffing models" }
-func (g *MigrationGenerator) AfterHooks() []generators.Hook { return nil }
+func (g *MigrationGenerator) Name() string { return "migration" }
+func (g *MigrationGenerator) Description() string {
+	return "Generate a versioned migration by diffing models"
+}
+func (g *MigrationGenerator) AfterHooks() []generators.Hook {
+	return []generators.Hook{generators.CmdHook("gofmt", "-w", ".")}
+}
 
 func (g *MigrationGenerator) Command() *cobra.Command {
 	cmd := &cobra.Command{

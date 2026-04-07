@@ -25,6 +25,6 @@ func (c *Cache) Get(_ context.Context, _ string) ([]byte, bool, error) {
 func (c *Cache) Set(_ context.Context, _ string, _ []byte, _ core.CacheOptions) error {
 	return ErrNotImplemented
 }
-func (c *Cache) Delete(_ context.Context, _ string) error    { return ErrNotImplemented }
+func (c *Cache) Delete(_ context.Context, _ string) error     { return ErrNotImplemented }
 func (c *Cache) Invalidate(_ context.Context, _ string) error { return ErrNotImplemented }
 func (c *Cache) Clear(_ context.Context) error                { return ErrNotImplemented }

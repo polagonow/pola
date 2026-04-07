@@ -72,10 +72,10 @@ func (e *Engine) NewRuntime(_ context.Context) (core.JSRuntime, error) {
 
 // Runtime wraps a V8 isolate + context with a goroutine-pinned event loop.
 type Runtime struct {
-	iso     *v8.Isolate
-	ctx     *v8.Context
-	loop    *eventloop.EventLoop
-	diKeys  []string // keys currently set on __DEPENDENCY_INJECTION__; cleared in clearState
+	iso    *v8.Isolate
+	ctx    *v8.Context
+	loop   *eventloop.EventLoop
+	diKeys []string // keys currently set on __DEPENDENCY_INJECTION__; cleared in clearState
 }
 
 func newV8Runtime(source string, logger core.Logger) (*Runtime, error) {
@@ -291,7 +291,7 @@ func (r *Runtime) StartRender(exportName, propsJSON string) (RenderSession, erro
 		propsJSONLit, _ := json.Marshal(propsJSON)
 		var scriptBuf strings.Builder
 		_ = startRenderScriptTmpl.Execute(&scriptBuf, struct {
-			StreamHandle, RenderFn         string
+			StreamHandle, RenderFn      string
 			ExportNameLit, PropsJSONLit string
 		}{globals.StreamHandle, globals.RenderFn, string(exportNameLit), string(propsJSONLit)})
 		_, err := r.ctx.RunScript(scriptBuf.String(), "render.js")

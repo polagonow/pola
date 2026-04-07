@@ -36,6 +36,13 @@ func ParseArgs(args []string) (*schema.ModelDefinition, error) {
 		if err != nil {
 			return nil, fmt.Errorf("field %q: %w", arg, err)
 		}
+		if f.Name == "id" {
+			if f.Type != schema.FieldUUID {
+				return nil, fmt.Errorf("field \"id\": only uuid type is supported for custom primary keys")
+			}
+			def.IDType = f.Type
+			continue
+		}
 		def.Fields = append(def.Fields, f)
 	}
 

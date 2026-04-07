@@ -32,8 +32,20 @@ import (
 {{- if .Cache}}
 	"{{.PolaPackage}}/cache/{{.Cache}}"
 {{- end}}
+{{- if .Database}}
+	database{{.Database}} "{{.PolaPackage}}/database/{{.Database}}"
+{{- if .DatabaseAdapter}}
+	_ "{{.PolaPackage}}/database/{{.Database}}/{{.DatabaseAdapter}}"
+{{- end}}
+{{- end}}
 {{- if .HasRoutes}}
 	"{{.PolaPackage}}/routes"
+{{- end}}
+{{- if .RepoPlugins}}
+	repo{{.RepoPlugins.PkgName}} "{{.RepoPlugins.ImportPath}}"
+{{- end}}
+{{- if .ServicePlugins}}
+	{{.ServicePlugins.PkgName}} "{{.ServicePlugins.ImportPath}}"
 {{- end}}
 {{- if .ActionsImport}}
 	"{{.ActionsImport}}"
@@ -59,7 +71,7 @@ var PolaPlugins = []core.Plugin{
 	securityheaders.Plugin(),
 {{- end}}
 {{- if .CSRF}}
-	csrf.Plugin(),
+	csrf.Plugin({{- if .Dev}}csrf.WithSecure(false){{- end}}),
 {{- end}}
 {{- if not .Embed}}
 	{{.Bundler}}.Plugin(),
@@ -73,6 +85,41 @@ var PolaPlugins = []core.Plugin{
 {{- end}}
 {{- if .Cache}}
 	{{.Cache}}.Plugin(),
+{{- end}}
+{{- if .Database}}
+	database{{.Database}}.Plugin(
+{{- if .DatabaseAdapter}}
+		database{{.Database}}.WithAdapter("{{.DatabaseAdapter}}"),
+{{- end}}
+{{- if .DatabaseURL}}
+		database{{.Database}}.WithURL("{{.DatabaseURL}}"),
+{{- end}}
+{{- if .DatabaseHost}}
+		database{{.Database}}.WithHost("{{.DatabaseHost}}"),
+{{- end}}
+{{- if .DatabasePort}}
+		database{{.Database}}.WithPort("{{.DatabasePort}}"),
+{{- end}}
+{{- if .DatabaseUser}}
+		database{{.Database}}.WithUser("{{.DatabaseUser}}"),
+{{- end}}
+{{- if .DatabasePass}}
+		database{{.Database}}.WithPassword("{{.DatabasePass}}"),
+{{- end}}
+{{- if .DatabaseName}}
+		database{{.Database}}.WithName("{{.DatabaseName}}"),
+{{- end}}
+	),
+{{- end}}
+{{- if .RepoPlugins}}
+{{- range .RepoPlugins.Repositories}}
+	repo{{$.RepoPlugins.PkgName}}.{{.Name}}RepositoryPlugin(),
+{{- end}}
+{{- end}}
+{{- if .ServicePlugins}}
+{{- range .ServicePlugins.Services}}
+	{{$.ServicePlugins.PkgName}}.{{.Name}}ServicePlugin(),
+{{- end}}
 {{- end}}
 {{- if .HasRoutes}}
 	routes.Plugin(),

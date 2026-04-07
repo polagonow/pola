@@ -127,22 +127,22 @@ func runNew(_ *cobra.Command, args []string) error {
 
 	// Write Polafile.hcl to lock the user's choices with resolved versions.
 	pf := &polafile.Polafile{
-		Package:        appName,
-		Version:        version,
-		Renderer:       resolveVersion(newFlags.renderer),
-		Engine:         resolveVersion(newFlags.vm),
-		Bundler:        resolveVersion(newFlags.bundler),
-		Router:         newFlags.router,
-		CSS:            newFlags.css,
-		PackageManager: pm,
-		App:            "app",
-		Actions:        "actions",
-		Routes:         "routes",
-		Repositories:   "repositories",
-		Services:       "services",
-		CSRF:           &polafile.CSRF{Enabled: newFlags.csrf},
+		Package:         appName,
+		Version:         version,
+		Renderer:        resolveVersion(newFlags.renderer),
+		Engine:          resolveVersion(newFlags.vm),
+		Bundler:         resolveVersion(newFlags.bundler),
+		Router:          newFlags.router,
+		CSS:             newFlags.css,
+		PackageManager:  pm,
+		App:             "app",
+		Actions:         "actions",
+		Routes:          "routes",
+		Repositories:    "repositories",
+		Services:        "services",
+		CSRF:            &polafile.CSRF{Enabled: newFlags.csrf},
 		SecurityHeaders: &polafile.SecurityHeaders{Enabled: newFlags.securityHeaders},
-		Cache:          &polafile.Cache{Enabled: true, Adapter: "memory"},
+		Cache:           &polafile.Cache{Enabled: true, Adapter: "memory"},
 	}
 	if err := polafile.Save(targetDir, pf); err != nil {
 		return fmt.Errorf("write Polafile.hcl: %w", err)
@@ -165,12 +165,13 @@ func runNew(_ *cobra.Command, args []string) error {
 		Router:          newFlags.router,
 		CSS:             newFlags.css,
 		Cache:           "memory",
+		Database:        "", // Database plugin is added when user configures ORM via Polafile.
 		CSRF:            newFlags.csrf,
 		SecurityHeaders: newFlags.securityHeaders,
 		Dev:             true,
 	}, appName+"/actions", []routePackageInfo{
 		{ImportPath: appName + "/routes/health"},
-	})
+	}, nil, nil)
 	if err != nil {
 		return fmt.Errorf("generate plugins: %w", err)
 	}

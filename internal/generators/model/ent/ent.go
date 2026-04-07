@@ -25,7 +25,7 @@ type EntGenerator struct{}
 func (g *EntGenerator) Name() string { return "ent" }
 
 func (g *EntGenerator) Generate(def *schema.ModelDefinition, outDir string) error {
-	dir := filepath.Join(outDir, "ent")
+	dir := filepath.Join(outDir, "schema")
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("create dir %s: %w", dir, err)
 	}
@@ -48,13 +48,14 @@ func (g *EntGenerator) Generate(def *schema.ModelDefinition, outDir string) erro
 }
 
 type entData struct {
-	PackageName string
-	Name        string
-	Fields      []entField
-	Indexes     []string
-	Edges       []string
-	HasIndexes  bool
-	HasEdges    bool
+	PackageName   string
+	Name          string
+	Fields        []entField
+	Indexes       []string
+	Edges         []string
+	HasIndexes    bool
+	HasEdges      bool
+	HasUUIDImport bool
 }
 
 type entField struct {
@@ -63,8 +64,15 @@ type entField struct {
 
 func buildEntData(def *schema.ModelDefinition) entData {
 	data := entData{
-		PackageName: "ent",
+		PackageName: "schema",
 		Name:        def.Name,
+	}
+
+	if def.HasUUIDPrimaryKey() {
+		data.Fields = append(data.Fields, entField{
+			EntField: `field.String("id").DefaultFunc(func() string { return uuid.New().String() })`,
+		})
+		data.HasUUIDImport = true
 	}
 
 	for _, f := range def.Fields {

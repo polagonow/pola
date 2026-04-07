@@ -31,10 +31,15 @@ func init() {
 	generators.Register(&ServiceGenerator{})
 }
 
-func (g *ServiceGenerator) Name() string        { return "service" }
-func (g *ServiceGenerator) Description() string  { return "Scaffold a service with business logic methods" }
+func (g *ServiceGenerator) Name() string { return "service" }
+func (g *ServiceGenerator) Description() string {
+	return "Scaffold a service with business logic methods"
+}
 func (g *ServiceGenerator) AfterHooks() []generators.Hook {
-	return []generators.Hook{generators.CmdHook("go", "mod", "tidy")}
+	return []generators.Hook{
+		generators.CmdHook("go", "mod", "tidy"),
+		generators.CmdHook("gofmt", "-w", "."),
+	}
 }
 
 func (g *ServiceGenerator) Command() *cobra.Command {
@@ -106,14 +111,20 @@ type serviceData struct {
 	Name        string
 	SnakeName   string
 	PluralSnake string
+	IDGoType    string
 	ModulePath  string
 }
 
 func buildData(def *schema.ModelDefinition, modulePath string) serviceData {
+	idGoType := "uint"
+	if def.HasUUIDPrimaryKey() {
+		idGoType = "string"
+	}
 	return serviceData{
 		Name:        def.Name,
 		SnakeName:   schema.SnakeCase(def.Name),
 		PluralSnake: schema.SnakeCase(schema.Pluralize(def.Name)),
+		IDGoType:    idGoType,
 		ModulePath:  modulePath,
 	}
 }

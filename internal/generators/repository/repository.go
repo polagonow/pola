@@ -46,10 +46,15 @@ func init() {
 	generators.Register(&RepositoryGenerator{})
 }
 
-func (g *RepositoryGenerator) Name() string        { return "repository" }
-func (g *RepositoryGenerator) Description() string  { return "Scaffold a repository interface with ORM implementation" }
+func (g *RepositoryGenerator) Name() string { return "repository" }
+func (g *RepositoryGenerator) Description() string {
+	return "Scaffold a repository interface with ORM implementation"
+}
 func (g *RepositoryGenerator) AfterHooks() []generators.Hook {
-	return []generators.Hook{generators.CmdHook("go", "mod", "tidy")}
+	return []generators.Hook{
+		generators.CmdHook("go", "mod", "tidy"),
+		generators.CmdHook("gofmt", "-w", "."),
+	}
 }
 
 func (g *RepositoryGenerator) Command() *cobra.Command {
@@ -121,6 +126,8 @@ func (g *RepositoryGenerator) run(cmd *cobra.Command, args []string) error {
 	}
 
 	data := buildData(def, modulePath)
+	data.PolaPackage = pf.PolaPackage()
+	data.EntClientDir = pf.DatabaseEntClientDir()
 
 	// Ensure repository directory exists.
 	interfaceDir := filepath.Join(projectDir, repoDir)
@@ -182,27 +189,39 @@ func promptSelect(message string, options []string) (string, error) {
 }
 
 type repoData struct {
-	Name        string
-	LowerName   string
-	SnakeName   string
-	PluralSnake string
-	Fields      []repoField
-	Imports     []string
-	ModulePath  string
+	Name         string
+	LowerName    string
+	SnakeName    string
+	PluralSnake  string
+	EntPackage   string // all-lowercase name used by ent for sub-packages (e.g. "sampleentity")
+	EntClientDir string // directory for ent-generated client (e.g. "db/ent")
+	IDGoType     string // "uint" or "string"
+	Fields       []repoField
+	Imports      []string
+	ModulePath   string
+	PolaPackage  string
 }
 
 type repoField struct {
 	Name     string
 	JSONName string
 	GoType   string
+	ValidTag string
 }
 
 func buildData(def *schema.ModelDefinition, modulePath string) repoData {
+	idGoType := "uint"
+	if def.HasUUIDPrimaryKey() {
+		idGoType = "string"
+	}
+
 	data := repoData{
 		Name:        def.Name,
 		LowerName:   strings.ToLower(def.Name[:1]) + def.Name[1:],
 		SnakeName:   schema.SnakeCase(def.Name),
 		PluralSnake: schema.SnakeCase(schema.Pluralize(def.Name)),
+		EntPackage:  strings.ToLower(def.Name),
+		IDGoType:    idGoType,
 		ModulePath:  modulePath,
 	}
 
@@ -217,6 +236,7 @@ func buildData(def *schema.ModelDefinition, modulePath string) repoData {
 			Name:     schema.PascalCase(f.Name),
 			JSONName: schema.SnakeCase(f.Name),
 			GoType:   goType,
+			ValidTag: validTagForField(f),
 		})
 		switch f.Type {
 		case schema.FieldTime:
@@ -233,6 +253,20 @@ func buildData(def *schema.ModelDefinition, modulePath string) repoData {
 	}
 
 	return data
+}
+
+func validTagForField(f schema.Field) string {
+	if f.Type == schema.FieldBool {
+		return "-"
+	}
+	base := "required"
+	if f.Optional {
+		base = "optional"
+	}
+	if f.Type == schema.FieldUUID {
+		return base + ",uuidv4"
+	}
+	return base
 }
 
 func writeTemplate(tmpl *template.Template, path string, data repoData) error {

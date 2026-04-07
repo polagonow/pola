@@ -14,7 +14,12 @@ import (
 // directory and resolves the FK ID type from the referenced model's generated
 // source. It mutates def.Fields[i].RefIDType for each references field.
 func ValidateReferences(def *schema.ModelDefinition, outDir, plugin string) error {
-	pluginDir := filepath.Join(outDir, plugin)
+	// Ent schemas live under "schema/" subdirectory, other ORMs use their name.
+	subDir := plugin
+	if plugin == "ent" {
+		subDir = "schema"
+	}
+	pluginDir := filepath.Join(outDir, subDir)
 
 	for i := range def.Fields {
 		f := &def.Fields[i]

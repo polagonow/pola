@@ -53,4 +53,3 @@ func (f *qjsPolyfillFixture) Eval(src string) error {
 	}
 	return err
 }
-

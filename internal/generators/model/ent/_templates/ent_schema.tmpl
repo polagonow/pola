@@ -9,6 +9,9 @@ import (
 [[- if .HasEdges]]
 	"entgo.io/ent/schema/edge"
 [[- end]]
+[[- if .HasUUIDImport]]
+	"github.com/google/uuid"
+[[- end]]
 )
 
 // [[.Name]] holds the schema definition for the [[.Name]] entity.
