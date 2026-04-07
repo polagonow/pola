@@ -206,6 +206,7 @@ type repoField struct {
 	Name     string
 	JSONName string
 	GoType   string
+	ValidTag string
 }
 
 func buildData(def *schema.ModelDefinition, modulePath string) repoData {
@@ -235,6 +236,7 @@ func buildData(def *schema.ModelDefinition, modulePath string) repoData {
 			Name:     schema.PascalCase(f.Name),
 			JSONName: schema.SnakeCase(f.Name),
 			GoType:   goType,
+			ValidTag: validTagForField(f),
 		})
 		switch f.Type {
 		case schema.FieldTime:
@@ -251,6 +253,20 @@ func buildData(def *schema.ModelDefinition, modulePath string) repoData {
 	}
 
 	return data
+}
+
+func validTagForField(f schema.Field) string {
+	if f.Type == schema.FieldBool {
+		return "-"
+	}
+	base := "required"
+	if f.Optional {
+		base = "optional"
+	}
+	if f.Type == schema.FieldUUID {
+		return base + ",uuidv4"
+	}
+	return base
 }
 
 func writeTemplate(tmpl *template.Template, path string, data repoData) error {
