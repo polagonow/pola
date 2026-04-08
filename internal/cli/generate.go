@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/polagonow/pola/internal/autoload"
 	"github.com/polagonow/pola/internal/generators"
 	_ "github.com/polagonow/pola/internal/generators/all" // register all generators
 	"github.com/polagonow/pola/polafile"
@@ -52,7 +53,7 @@ func runGenerate(_ *cobra.Command, _ []string) error {
 		pf = *loaded
 	}
 
-	genOpts := pluginOpts{
+	genOpts := autoload.PluginOpts{
 		PolaPackage:     pf.PolaPackage(),
 		Engine:          cmp.Or(os.Getenv("POLA_VM"), nameOnly(pf.Engine), "goja"),
 		Bundler:         cmp.Or(os.Getenv("POLA_BUNDLER"), nameOnly(pf.Bundler), "esbuild"),
@@ -60,12 +61,14 @@ func runGenerate(_ *cobra.Command, _ []string) error {
 		Router:          cmp.Or(os.Getenv("POLA_ROUTER"), nameOnly(pf.Router), "nextjs"),
 		CSS:             cmp.Or(os.Getenv("POLA_CSS"), nameOnly(pf.CSS), "tailwind"),
 		Cache:           cmp.Or(os.Getenv("POLA_CACHE"), pf.CacheAdapter("default"), "memory"),
-		CSRF:            envOrBool("POLA_CSRF", pf.CSRFEnabled("default")),
-		SecurityHeaders: envOrBool("POLA_SECURITY_HEADERS", pf.SecurityHeadersEnabled("default")),
+		CSRF:            autoload.EnvOrBool("POLA_CSRF", pf.CSRFEnabled("default")),
+		SecurityHeaders: autoload.EnvOrBool("POLA_SECURITY_HEADERS", pf.SecurityHeadersEnabled("default")),
 		Dev:             true,
+		ActionsDir:      generateFlags.actionsDir,
+		TSOut:           generateFlags.tsOut,
 	}
-	populateDatabaseOpts(&genOpts, &pf, "development")
-	result, err := generateOverlay(projectDir, genOpts)
+	autoload.PopulateDatabaseOpts(&genOpts, &pf, "development")
+	result, err := autoload.Run(projectDir, genOpts, verbose)
 	if err != nil {
 		return err
 	}

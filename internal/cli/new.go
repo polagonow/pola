@@ -8,6 +8,9 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/polagonow/pola/internal/autoload"
+	"github.com/polagonow/pola/internal/autoload/pluginimports"
+	"github.com/polagonow/pola/internal/generators"
 	"github.com/polagonow/pola/internal/generators/app"
 	"github.com/polagonow/pola/internal/stubpkgs"
 	"github.com/polagonow/pola/polafile"
@@ -157,7 +160,7 @@ func runNew(_ *cobra.Command, args []string) error {
 	// Write a temporary pola_plugins.go so go mod tidy resolves plugin deps.
 	// This file is removed after tidy — at runtime it's injected via overlay.
 	pluginsPath := filepath.Join(targetDir, "pola_plugins.go")
-	pluginsSrc, err := generatePluginImports(pluginOpts{
+	pluginsSrc, err := pluginimports.GenerateSource(autoload.PluginOpts{
 		PolaPackage:     polafile.DefaultPackage,
 		Engine:          newFlags.vm,
 		Bundler:         newFlags.bundler,
@@ -169,8 +172,8 @@ func runNew(_ *cobra.Command, args []string) error {
 		CSRF:            newFlags.csrf,
 		SecurityHeaders: newFlags.securityHeaders,
 		Dev:             true,
-	}, appName+"/actions", []routePackageInfo{
-		{ImportPath: appName + "/routes/health"},
+	}, appName+"/actions", []string{
+		appName + "/routes/health",
 	}, nil, nil)
 	if err != nil {
 		return fmt.Errorf("generate plugins: %w", err)
@@ -199,6 +202,13 @@ func runNew(_ *cobra.Command, args []string) error {
 	// Stub @pola/actions and @pola/react into node_modules.
 	if err := stubpkgs.StubToNodeModules(targetDir); err != nil {
 		fmt.Printf("Warning: failed to stub @pola packages: %v\n", err)
+	}
+
+	// Run js:bridge generator to produce TypeScript declarations.
+	if err := generators.Run("js:bridge", nil, []string{}); err != nil {
+		if verbose {
+			fmt.Printf("js:bridge: %v\n", err)
+		}
 	}
 
 	// Print success message.

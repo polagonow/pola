@@ -12,6 +12,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/polagonow/pola/internal/autoload"
+	_ "github.com/polagonow/pola/internal/autoload/all" // register all autoloads
+	"github.com/polagonow/pola/internal/generators"
 	"github.com/polagonow/pola/internal/project"
 	"github.com/polagonow/pola/internal/stubpkgs"
 	"github.com/polagonow/pola/polafile"
@@ -80,6 +83,13 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("stub packages: %w", err)
 	}
 
+	// Run js:bridge generator to produce TypeScript declarations.
+	if err := generators.Run("js:bridge", nil, []string{}); err != nil {
+		if verbose {
+			fmt.Printf("js:bridge: %v\n", err)
+		}
+	}
+
 	printStartupBanner(projectDir, serveFlags.port)
 
 	// Forward OS signals.
@@ -89,7 +99,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	// Restart loop: on .go/.tmpl file change → kill → regenerate overlay → respawn.
 	for {
 		// Generate overlay (plugin imports + action bridge codegen).
-		opts := pluginOpts{
+		opts := autoload.PluginOpts{
 			PolaPackage:     pf.PolaPackage(),
 			Engine:          serveFlags.vm,
 			Bundler:         serveFlags.bundler,
@@ -100,9 +110,11 @@ func runServe(cmd *cobra.Command, _ []string) error {
 			CSRF:            serveFlags.csrf,
 			SecurityHeaders: serveFlags.securityHeaders,
 			Dev:             true,
+			ActionsDir:      generateFlags.actionsDir,
+			TSOut:           generateFlags.tsOut,
 		}
-		populateDatabaseOpts(&opts, &pf, "development")
-		overlayRes, err := generateOverlay(projectDir, opts)
+		autoload.PopulateDatabaseOpts(&opts, &pf, "development")
+		overlayRes, err := autoload.Run(projectDir, opts, verbose)
 		if err != nil {
 			return err
 		}
@@ -159,7 +171,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 }
 
 // buildGoRunCmd creates the exec.Cmd for `go run` with overlay.
-func buildGoRunCmd(projectDir string, overlayRes *overlayResult) *exec.Cmd {
+func buildGoRunCmd(projectDir string, overlayRes *autoload.Result) *exec.Cmd {
 	goArgs := []string{"run"}
 	if overlayRes != nil && overlayRes.OverlayPath != "" {
 		goArgs = append(goArgs, "-overlay", overlayRes.OverlayPath)
@@ -192,7 +204,7 @@ func killProcessGroup(cmd *exec.Cmd) {
 }
 
 // cleanupOverlay removes the temporary overlay directory.
-func cleanupOverlay(res *overlayResult) {
+func cleanupOverlay(res *autoload.Result) {
 	if res != nil && res.TmpDir != "" {
 		os.RemoveAll(res.TmpDir)
 	}
