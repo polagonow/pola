@@ -138,10 +138,16 @@ func (g *PageGenerator) run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("renderer not configured in Polafile.hcl; run 'pola new' to initialize a project")
 	}
 
+	// Use shadcn-specific templates when UI is configured.
+	effectiveRenderer := renderer
+	if pf.UI == "shadcn" {
+		effectiveRenderer = renderer + "-shadcn"
+	}
+
 	// Check that we have templates for this renderer.
-	rendererDir := fmt.Sprintf("_templates/renderers/%s", renderer)
+	rendererDir := fmt.Sprintf("_templates/renderers/%s", effectiveRenderer)
 	if _, err := fs.Stat(templates, rendererDir); err != nil {
-		return fmt.Errorf("page templates not available for renderer %q; supported: react", renderer)
+		return fmt.Errorf("page templates not available for renderer %q; supported: react", effectiveRenderer)
 	}
 
 	appDir := pf.AppDir()
@@ -156,7 +162,7 @@ func (g *PageGenerator) run(cmd *cobra.Command, args []string) error {
 	// Generate shared utils (skip if already exists).
 	utilsPath := filepath.Join(projectDir, appDir, "utils", "csrf.ts")
 	if _, err := os.Stat(utilsPath); os.IsNotExist(err) {
-		utilsTmpl, err := loadTemplate(renderer, "utils.ts.tmpl")
+		utilsTmpl, err := loadTemplate(effectiveRenderer, "utils.ts.tmpl")
 		if err != nil {
 			return err
 		}
@@ -174,7 +180,7 @@ func (g *PageGenerator) run(cmd *cobra.Command, args []string) error {
 	}
 
 	for _, spec := range pageSpecs {
-		tmpl, err := loadTemplate(renderer, spec.templateName)
+		tmpl, err := loadTemplate(effectiveRenderer, spec.templateName)
 		if err != nil {
 			return err
 		}

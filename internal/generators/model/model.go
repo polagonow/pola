@@ -82,22 +82,36 @@ func (g *ModelGenerator) run(cmd *cobra.Command, args []string) error {
 		pf = &polafile.Polafile{}
 	}
 
-	// Ensure database block exists; prompt interactively for missing ORM.
+	// Ensure database block exists; prompt interactively for missing ORM/adapter.
+	dirty := false
 	if pf.Database == nil {
 		pf.Database = &polafile.Database{
 			Models: "db/models",
 			Migrations: &polafile.Migrations{
 				Directory: "db/migrations",
+				Format:    "hcl",
+			},
+			Envs: []polafile.DatabaseEnvironment{
+				{Environment: "development", Adapter: "sqlite"},
+				{Environment: "production", Adapter: "postgresql"},
 			},
 		}
+		dirty = true
 	}
-	dirty := false
 	if pf.Database.ORM == "" {
 		orm, err := promptSelect("ORM:", []string{"beego", "ent", "gorm"})
 		if err != nil {
 			return err
 		}
 		pf.Database.ORM = orm
+		dirty = true
+	}
+	if pf.Database.Adapter == "" {
+		adapter, err := promptSelect("Database adapter:", []string{"postgresql", "mysql", "sqlite"})
+		if err != nil {
+			return err
+		}
+		pf.Database.Adapter = adapter
 		dirty = true
 	}
 	if dirty {

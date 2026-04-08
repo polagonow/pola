@@ -52,6 +52,7 @@ var newFlags struct {
 	router          string
 	css             string
 	vm              string
+	ui              string
 	polaPath        string
 	pm              string
 	csrf            bool
@@ -76,6 +77,7 @@ func init() {
 	newCmd.Flags().StringVar(&newFlags.router, "router", "nextjs", "router style (nextjs)")
 	newCmd.Flags().StringVar(&newFlags.css, "css", "tailwind", "CSS processor (tailwind, none)")
 	newCmd.Flags().StringVar(&newFlags.vm, "vm", "goja", "JS engine (goja)")
+	newCmd.Flags().StringVar(&newFlags.ui, "ui", "none", "UI component library (shadcn, none)")
 	newCmd.Flags().StringVar(&newFlags.polaPath, "pola-path", "", "local path to pola framework source (adds replace directive)")
 	newCmd.Flags().StringVar(&newFlags.pm, "pm", "", "package manager to use (npm, pnpm, yarn); auto-detected if not set")
 	newCmd.Flags().BoolVar(&newFlags.csrf, "csrf", true, "enable CSRF protection")
@@ -94,6 +96,16 @@ func runNew(_ *cobra.Command, args []string) error {
 		return fmt.Errorf("directory %q already exists", appName)
 	}
 
+	// Validate --ui flag.
+	if newFlags.ui == "shadcn" {
+		if newFlags.css != "tailwind" {
+			return fmt.Errorf("--ui=shadcn requires --css=tailwind")
+		}
+		if newFlags.renderer != "react" {
+			return fmt.Errorf("--ui=shadcn requires --renderer=react")
+		}
+	}
+
 	fmt.Printf("Creating %s...\n", appName)
 
 	// If running from a dev build, detect the local pola source for a replace directive.
@@ -107,6 +119,7 @@ func runNew(_ *cobra.Command, args []string) error {
 		Bundler:       newFlags.bundler,
 		Router:        newFlags.router,
 		CSS:           newFlags.css,
+		UI:            newFlags.ui,
 		VM:            newFlags.vm,
 		PolaVersion:   version,
 		PolaLocalPath: polaLocalPath,
@@ -137,8 +150,9 @@ func runNew(_ *cobra.Command, args []string) error {
 		Bundler:         resolveVersion(newFlags.bundler),
 		Router:          newFlags.router,
 		CSS:             newFlags.css,
+		UI:              newFlags.ui,
 		PackageManager:  pm,
-		App:             "app",
+		App:             "web",
 		Actions:         "actions",
 		Routes:          "routes",
 		Repositories:    "repositories",
@@ -192,23 +206,29 @@ func runNew(_ *cobra.Command, args []string) error {
 	// Remove the temporary plugins file — overlay handles it at serve/build time.
 	os.Remove(pluginsPath)
 
-	// Run package manager install.
+	// Run package manager install in the web/ directory (frontend root).
+	webDir := filepath.Join(targetDir, "web")
 	fmt.Printf("Running %s install...\n", pm)
-	if err := runInDir(targetDir, pm, "install"); err != nil {
+	if err := runInDir(webDir, pm, "install"); err != nil {
 		fmt.Printf("Warning: %s install failed: %v\n", pm, err)
 		fmt.Printf("You may need to run '%s install' manually.\n", pm)
 	}
 
 	// Stub @pola/actions and @pola/react into node_modules.
-	if err := stubpkgs.StubToNodeModules(targetDir); err != nil {
+	if err := stubpkgs.StubToNodeModules(webDir); err != nil {
 		fmt.Printf("Warning: failed to stub @pola packages: %v\n", err)
 	}
 
-	// Run js:bridge generator to produce TypeScript declarations.
-	if err := generators.Run("js:bridge", nil, []string{}); err != nil {
-		if verbose {
-			fmt.Printf("js:bridge: %v\n", err)
+	// Run js:bridge generator from the new project directory so it can
+	// find the Polafile and go.mod.
+	origDir, _ := os.Getwd()
+	if err := os.Chdir(targetDir); err == nil {
+		if err := generators.Run("js:bridge", nil, []string{}); err != nil {
+			if verbose {
+				fmt.Printf("js:bridge: %v\n", err)
+			}
 		}
+		os.Chdir(origDir)
 	}
 
 	// Print success message.
