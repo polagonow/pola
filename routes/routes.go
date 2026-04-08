@@ -118,18 +118,49 @@ func (r *Router) Build(registry *core.Registry) error {
 			return err
 		}
 
-		compiled := patternmatch.CompilePattern(basePattern)
-		for _, action := range discovered {
-			ar := &apiRoute{
-				pattern:  basePattern,
-				method:   action.Method,
-				compiled: compiled,
-				handler:  action.Handler,
-			}
+		// Split actions into collection (base pattern) and member (base + /:id).
+		// PUT, PATCH, DELETE always target a specific resource.
+		memberMethods := map[string]bool{"PUT": true, "PATCH": true, "DELETE": true}
 
-			if compiled.IsStatic {
-				r.staticRoutes[basePattern] = append(r.staticRoutes[basePattern], ar)
+		var collectionActions, memberActions []discoveredAction
+		for _, action := range discovered {
+			if memberMethods[action.Method] {
+				memberActions = append(memberActions, action)
 			} else {
+				collectionActions = append(collectionActions, action)
+			}
+		}
+
+		// Register collection actions on base pattern.
+		if len(collectionActions) > 0 {
+			compiled := patternmatch.CompilePattern(basePattern)
+			for _, action := range collectionActions {
+				ar := &apiRoute{
+					pattern:  basePattern,
+					method:   action.Method,
+					compiled: compiled,
+					handler:  action.Handler,
+				}
+				if compiled.IsStatic {
+					r.staticRoutes[basePattern] = append(r.staticRoutes[basePattern], ar)
+				} else {
+					r.dynamicRoutes = append(r.dynamicRoutes, ar)
+				}
+			}
+		}
+
+		// Register member actions on base pattern + /:id.
+		if len(memberActions) > 0 {
+			memberPattern := basePattern + "/:id"
+			compiled := patternmatch.CompilePattern(memberPattern)
+			for _, action := range memberActions {
+				ar := &apiRoute{
+					pattern:  memberPattern,
+					method:   action.Method,
+					compiled: compiled,
+					handler:  action.Handler,
+				}
+				// Member patterns always have a dynamic segment.
 				r.dynamicRoutes = append(r.dynamicRoutes, ar)
 			}
 		}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/routes"
 )
 
 // contextKey is an unexported type for context keys in this package.
@@ -16,7 +17,6 @@ type contextKey int
 
 const (
 	routePatternKey contextKey = iota
-	apiParamsKey
 )
 
 // Orchestrator implements http.Handler and wires all Pola components together.
@@ -137,10 +137,11 @@ func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
 	isPageGET := route != nil && r.Method == http.MethodGet
 	if !isPageGET && o.apiRouter != nil {
 		if handler, apiParams, ok := o.apiRouter.Match(r); ok {
+			req := r.WithContext(ctx)
 			if apiParams != nil {
-				ctx = context.WithValue(ctx, apiParamsKey, apiParams)
+				req = routes.WithParams(req, apiParams)
 			}
-			handler(w, r.WithContext(ctx))
+			handler(w, req)
 			return
 		}
 	}

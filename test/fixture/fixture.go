@@ -81,7 +81,7 @@ func RegisterPolyfillVM(name string, factory func(t *testing.T) PolyfillFixture)
 // ── Public iteration helpers ──────────────────────────────────────────────────
 
 // AppDir is the path to the test application, relative to the e2e package root.
-const AppDir = "../../examples/blog-e2e-react"
+const AppDir = "../../examples/blog-e2e-react/web"
 
 // ForEachApp runs fn as a sub-test for every registered AppFixture.
 func ForEachApp(t *testing.T, fn func(*testing.T, AppFixture)) {

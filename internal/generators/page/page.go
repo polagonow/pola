@@ -41,13 +41,16 @@ func (g *PageGenerator) AfterHooks() []generators.Hook {
 			if err == nil && pf != nil && pf.PackageManager != "" {
 				pm = pf.PackageManager
 			}
+			if pf == nil {
+				pf = &polafile.Polafile{}
+			}
 
 			deps := []string{"react-hook-form", "@hookform/resolvers"}
 			args := append([]string{"install"}, deps...)
 
 			fmt.Printf("Running: %s %s\n", pm, strings.Join(args, " "))
 			cmd := exec.Command(pm, args...)
-			cmd.Dir = projectDir
+			cmd.Dir = filepath.Join(projectDir, pf.AppDir())
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 			return cmd.Run()
@@ -80,26 +83,38 @@ type pageSpec struct {
 var pageSpecs = []pageSpec{
 	{
 		templateName: "list_page.tsx.tmpl",
-		outputPath:   func(appDir, ps string) string { return filepath.Join(appDir, ps, "page.tsx") },
+		outputPath:   func(appDir, ps string) string { return filepath.Join(appDir, "app", ps, "page.tsx") },
 	},
 	{
 		templateName: "show_page.tsx.tmpl",
-		outputPath:   func(appDir, ps string) string { return filepath.Join(appDir, ps, "[id]", "page.tsx") },
+		outputPath:   func(appDir, ps string) string { return filepath.Join(appDir, "app", ps, "[id]", "page.tsx") },
 	},
 	{
 		templateName: "create_page.tsx.tmpl",
-		outputPath:   func(appDir, ps string) string { return filepath.Join(appDir, ps, "create", "page.tsx") },
+		outputPath:   func(appDir, ps string) string { return filepath.Join(appDir, "app", ps, "create", "page.tsx") },
 	},
 	{
 		templateName: "edit_page.tsx.tmpl",
 		outputPath: func(appDir, ps string) string {
-			return filepath.Join(appDir, ps, "[id]", "edit", "page.tsx")
+			return filepath.Join(appDir, "app", ps, "[id]", "edit", "page.tsx")
 		},
 	},
 	{
 		templateName: "delete_button.tsx.tmpl",
 		outputPath: func(appDir, ps string) string {
-			return filepath.Join(appDir, ps, "_components", "delete-button.tsx")
+			return filepath.Join(appDir, "components", ps, "delete-button.tsx")
+		},
+	},
+	{
+		templateName: "edit_form.tsx.tmpl",
+		outputPath: func(appDir, ps string) string {
+			return filepath.Join(appDir, "components", ps, "edit-form.tsx")
+		},
+	},
+	{
+		templateName: "create_form.tsx.tmpl",
+		outputPath: func(appDir, ps string) string {
+			return filepath.Join(appDir, "components", ps, "create-form.tsx")
 		},
 	},
 }
@@ -137,6 +152,26 @@ func (g *PageGenerator) run(cmd *cobra.Command, args []string) error {
 	}
 
 	data := buildPageData(def)
+
+	// Generate shared utils (skip if already exists).
+	utilsPath := filepath.Join(projectDir, appDir, "utils", "csrf.ts")
+	if _, err := os.Stat(utilsPath); os.IsNotExist(err) {
+		utilsTmpl, err := loadTemplate(renderer, "utils.ts.tmpl")
+		if err != nil {
+			return err
+		}
+		if err := os.MkdirAll(filepath.Dir(utilsPath), 0o755); err != nil {
+			return fmt.Errorf("create utils dir: %w", err)
+		}
+		var buf strings.Builder
+		if err := utilsTmpl.Execute(&buf, nil); err != nil {
+			return fmt.Errorf("execute utils template: %w", err)
+		}
+		if err := os.WriteFile(utilsPath, []byte(buf.String()), 0o644); err != nil {
+			return fmt.Errorf("write %s: %w", utilsPath, err)
+		}
+		fmt.Printf("Created %s\n", utilsPath)
+	}
 
 	for _, spec := range pageSpecs {
 		tmpl, err := loadTemplate(renderer, spec.templateName)
@@ -182,6 +217,7 @@ func loadTemplate(renderer, name string) (*template.Template, error) {
 // pageData holds the template data for page generation.
 type pageData struct {
 	Name         string      // PascalCase: "Product"
+	ActionName   string      // PascalCase action: "ProductAction"
 	PluralName   string      // PascalCase plural: "Products"
 	SnakeName    string      // snake_case: "product"
 	PluralSnake  string      // snake_case plural: "products"
@@ -205,6 +241,7 @@ func buildPageData(def *schema.ModelDefinition) pageData {
 	snakeName := schema.SnakeCase(def.Name)
 	data := pageData{
 		Name:         def.Name,
+		ActionName:   def.Name + "Action",
 		PluralName:   plural,
 		SnakeName:    snakeName,
 		PluralSnake:  schema.SnakeCase(plural),

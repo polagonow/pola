@@ -1,13 +1,13 @@
-import { [[ .Name ]] } from "@pola/actions";
+import { [[ .ActionName ]] } from "@pola/actions";
 
-import DeleteButton from "@/[[ .PluralSnake ]]/_components/delete-button";
+import DeleteButton from "@/components/[[ .PluralSnake ]]/delete-button";
 
 export default async function [[ .Name ]]ShowPage({
   params,
 }: {
   params: { id: string };
 }) {
-  const item = await [[ .Name ]].get(parseInt(params.id, 10));
+  const item = await [[ .ActionName ]].get(parseInt(params.id, 10));
 
   return (
     <div>

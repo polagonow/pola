@@ -1,181 +1,21 @@
-"use client";
+import { [[ .ActionName ]] } from "@pola/actions";
 
-import { useEffect, useState, useTransition } from "react";
-import { useForm } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
-import { [[ .SnakeName ]]Schema, type [[ .Name ]] } from "[[ .SchemaImport ]]";
+import Edit[[ .Name ]]Form from "@/components/[[ .PluralSnake ]]/edit-form";
 
-export default function Edit[[ .Name ]]Page({
+export default async function Edit[[ .Name ]]Page({
   params,
 }: {
   params: { id: string };
 }) {
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [isPending, startTransition] = useTransition();
-  const {
-    register,
-    handleSubmit,
-    reset,
-    formState: { errors },
-  } = useForm<[[ .Name ]]>({
-    resolver: zodResolver([[ .SnakeName ]]Schema),
-  });
-
-  useEffect(() => {
-    fetch(`/[[ .PluralSnake ]]/${params.id}`)
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load [[ .SnakeName ]]");
-        return res.json();
-      })
-      .then((item) => {
-        reset(item);
-        setLoading(false);
-      })
-      .catch((err) => {
-        setError(err.message);
-        setLoading(false);
-      });
-  }, [params.id, reset]);
-
-  function onSubmit(data: [[ .Name ]]) {
-    setError(null);
-
-    startTransition(async () => {
-      try {
-        const res = await fetch(`/[[ .PluralSnake ]]/${params.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
-        });
-        if (!res.ok) {
-          const text = await res.text();
-          throw new Error(text || res.statusText);
-        }
-        window.location.href = `/[[ .PluralSnake ]]/${params.id}`;
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "An error occurred");
-      }
-    });
-  }
-
-  if (loading) {
-    return <p>Loading...</p>;
-  }
+  const id = parseInt(params.id, 10);
+  const item = await [[ .ActionName ]].get(id);
 
   return (
     <div>
       <h1 style={{ fontSize: "1.5rem", fontWeight: 700, marginBottom: "1.5rem" }}>
         Edit [[ .Name ]] #{params.id}
       </h1>
-
-      {error && (
-        <div
-          style={{
-            padding: "0.75rem 1rem",
-            marginBottom: "1rem",
-            background: "#fef2f2",
-            border: "1px solid #fecaca",
-            borderRadius: "var(--radius-md, 6px)",
-            color: "#dc2626",
-            fontSize: "0.875rem",
-          }}
-        >
-          {error}
-        </div>
-      )}
-
-      <form onSubmit={handleSubmit(onSubmit)}>
-        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
-          [[- range .Fields ]]
-          <div>
-            <label
-              htmlFor="[[ .JSONName ]]"
-              style={{
-                display: "block",
-                marginBottom: "0.25rem",
-                fontSize: "0.875rem",
-                fontWeight: 500,
-              }}
-            >
-              [[ .Label ]][[ if .Optional ]] (optional)[[ end ]]
-            </label>
-            [[ if .IsTextarea -]]
-            <textarea
-              id="[[ .JSONName ]]"
-              {...register("[[ .JSONName ]]")}
-              rows={4}
-              style={{
-                width: "100%",
-                padding: "0.5rem",
-                border: "1px solid var(--color-border, #e5e7eb)",
-                borderRadius: "var(--radius-md, 6px)",
-                fontSize: "0.875rem",
-              }}
-            />
-            [[ else if eq .InputType "checkbox" -]]
-            <input
-              type="checkbox"
-              id="[[ .JSONName ]]"
-              {...register("[[ .JSONName ]]")}
-            />
-            [[ else -]]
-            <input
-              type="[[ .InputType ]]"
-              id="[[ .JSONName ]]"
-              {...register("[[ .JSONName ]]"[[ if eq .InputType "number" ]], { valueAsNumber: true }[[ end ]])}
-              [[ if .IsFloat ]]step="any"[[ end ]]
-              style={{
-                width: "100%",
-                padding: "0.5rem",
-                border: "1px solid var(--color-border, #e5e7eb)",
-                borderRadius: "var(--radius-md, 6px)",
-                fontSize: "0.875rem",
-              }}
-            />
-            [[ end -]]
-            {errors.[[ .JSONName ]]?.message && (
-              <p style={{ color: "#dc2626", fontSize: "0.75rem", marginTop: "0.25rem" }}>
-                {errors.[[ .JSONName ]].message}
-              </p>
-            )}
-          </div>
-          [[- end ]]
-        </div>
-
-        <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.5rem" }}>
-          <button
-            type="submit"
-            disabled={isPending}
-            style={{
-              padding: "0.5rem 1.5rem",
-              background: "var(--color-accent, #3b82f6)",
-              color: "#fff",
-              border: "none",
-              borderRadius: "var(--radius-md, 6px)",
-              fontSize: "0.875rem",
-              fontWeight: 500,
-              cursor: isPending ? "not-allowed" : "pointer",
-              opacity: isPending ? 0.6 : 1,
-            }}
-          >
-            {isPending ? "Saving..." : "Save [[ .Name ]]"}
-          </button>
-          <a
-            href={`/[[ .PluralSnake ]]/${params.id}`}
-            style={{
-              padding: "0.5rem 1.5rem",
-              border: "1px solid var(--color-border, #e5e7eb)",
-              borderRadius: "var(--radius-md, 6px)",
-              textDecoration: "none",
-              color: "inherit",
-              fontSize: "0.875rem",
-            }}
-          >
-            Cancel
-          </a>
-        </div>
-      </form>
+      <Edit[[ .Name ]]Form id={id} initialData={item} />
     </div>
   );
 }

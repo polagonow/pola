@@ -1,0 +1,64 @@
+import { ArticleAction } from "@pola/actions";
+
+import DeleteButton from "@/components/articles/delete-button";
+
+export default async function ArticleShowPage({
+  params,
+}: {
+  params: { id: string };
+}) {
+  const item = await ArticleAction.get(parseInt(params.id, 10));
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
+        <h1 style={{ fontSize: "1.5rem", fontWeight: 700 }}>Article #{params.id}</h1>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <a
+            href={`/articles/${params.id}/edit`}
+            style={{
+              display: "inline-block",
+              padding: "0.5rem 1rem",
+              background: "var(--color-accent, #3b82f6)",
+              color: "#fff",
+              borderRadius: "var(--radius-md, 6px)",
+              textDecoration: "none",
+              fontSize: "0.875rem",
+              fontWeight: 500,
+            }}
+          >
+            Edit
+          </a>
+          <DeleteButton id={item.id} />
+        </div>
+      </div>
+
+      <div style={{
+        border: "1px solid var(--color-border, #e5e7eb)",
+        borderRadius: "var(--radius-lg, 8px)",
+        overflow: "hidden",
+      }}>
+        <dl style={{ margin: 0 }}>
+          <div style={{ display: "flex", padding: "0.75rem 1rem", borderBottom: "1px solid var(--color-border, #e5e7eb)" }}>
+            <dt style={{ width: "12rem", flexShrink: 0, fontWeight: 500, color: "var(--color-muted, #6b7280)", fontSize: "0.875rem" }}>ID</dt>
+            <dd style={{ margin: 0 }}>{item.id}</dd>
+          </div>
+          <div style={{ display: "flex", padding: "0.75rem 1rem", borderBottom: "1px solid var(--color-border, #e5e7eb)" }}>
+            <dt style={{ width: "12rem", flexShrink: 0, fontWeight: 500, color: "var(--color-muted, #6b7280)", fontSize: "0.875rem" }}>Title</dt>
+            <dd style={{ margin: 0 }}>{String(item.title ?? "")}</dd>
+          </div>
+          <div style={{ display: "flex", padding: "0.75rem 1rem", borderBottom: "1px solid var(--color-border, #e5e7eb)" }}>
+            <dt style={{ width: "12rem", flexShrink: 0, fontWeight: 500, color: "var(--color-muted, #6b7280)", fontSize: "0.875rem" }}>Body</dt>
+            <dd style={{ margin: 0 }}>{String(item.body ?? "")}</dd>
+          </div>
+        </dl>
+      </div>
+
+      <div style={{ marginTop: "1.5rem" }}>
+        <a href="/articles" style={{ color: "var(--color-accent, #3b82f6)", textDecoration: "none", fontSize: "0.875rem" }}>
+          ← Back to Articles
+        </a>
+      </div>
+    </div>
+  );
+}

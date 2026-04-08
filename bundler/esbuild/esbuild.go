@@ -34,11 +34,6 @@ func (b *Bundler) Build(_ context.Context, req core.BundleInput) (*core.BundleOu
 		return nil, fmt.Errorf("esbuild: mkdir %s: %w", req.OutDir, err)
 	}
 
-	absDir, err := filepath.Abs(".")
-	if err != nil {
-		return nil, fmt.Errorf("esbuild: abs cwd: %w", err)
-	}
-
 	absAppDir, err := filepath.Abs(req.AppDir)
 	if err != nil {
 		return nil, fmt.Errorf("esbuild: abs appdir: %w", err)
@@ -46,7 +41,7 @@ func (b *Bundler) Build(_ context.Context, req core.BundleInput) (*core.BundleOu
 
 	// Probe: auto-discover "use client" files and CSS imports referenced from
 	// the server entry (framework packages, third-party libraries, etc.).
-	probe := probeServerEntry(req, absDir)
+	probe := probeServerEntry(req, absAppDir)
 	if len(probe.clientFiles) > 0 {
 		seen := make(map[string]bool, len(req.ClientComponents))
 		for _, c := range req.ClientComponents {
@@ -63,7 +58,7 @@ func (b *Bundler) Build(_ context.Context, req core.BundleInput) (*core.BundleOu
 	// Pass 1 — Client bundle (browser ESM).
 	// CSS files discovered during the probe are passed as additional entries
 	// so the CSS plugin can process them and esbuild emits hashed output.
-	clientFiles, clientEntryOutput, metafile, cssURLs, err := buildClientBundle(req, absDir, probe.cssFiles)
+	clientFiles, clientEntryOutput, metafile, cssURLs, err := buildClientBundle(req, absAppDir, probe.cssFiles)
 	if err != nil {
 		return nil, err
 	}
@@ -72,7 +67,7 @@ func (b *Bundler) Build(_ context.Context, req core.BundleInput) (*core.BundleOu
 	if err != nil {
 		return nil, fmt.Errorf("esbuild: abs outdir: %w", err)
 	}
-	inputChunkURLs := buildInputChunkURLs(metafile, absDir, absOutDir, req.AssetsURLPath)
+	inputChunkURLs := buildInputChunkURLs(metafile, absAppDir, absOutDir, req.AssetsURLPath)
 
 	mfst, importURLs, err := buildManifest(
 		req.ClientComponents, clientFiles, req.AppDir, req.AssetsURLPath, inputChunkURLs)
@@ -103,7 +98,7 @@ func (b *Bundler) Build(_ context.Context, req core.BundleInput) (*core.BundleOu
 		}
 	}
 
-	serverBundlePath, err := buildPagesBundle(req, absDir, absAppDir, string(manifestDefine), serverEntry)
+	serverBundlePath, err := buildPagesBundle(req, absAppDir, string(manifestDefine), serverEntry)
 	if err != nil {
 		return nil, fmt.Errorf("esbuild: pages pass: %w", err)
 	}
@@ -280,7 +275,7 @@ func computeModuleID(absAppDir, absPath string) string {
 // ── passes ───────────────────────────────────────────────────────────────────
 
 func buildPagesBundle(
-	req core.BundleInput, absDir, absAppDir, manifestDefineJSON, serverOutFile string,
+	req core.BundleInput, absAppDir, manifestDefineJSON, serverOutFile string,
 ) (string, error) {
 	if req.ServerEntryContent == "" {
 		return "", nil
@@ -359,14 +354,14 @@ func buildPagesBundle(
 		JSX:               api.JSXAutomatic,
 		Target:            api.ES2020,
 		External:          req.External,
-		AbsWorkingDir:     absDir,
+		AbsWorkingDir:     absAppDir,
 		Outfile:           serverOutFile,
 		Write:             true,
 		Sourcemap:         api.SourceMapNone,
 		MinifyWhitespace:  true,
 		MinifyIdentifiers: true,
 		MinifySyntax:      true,
-		Plugins:           serverPlugins(absDir, req.ServerPlugins, useClientPlugin),
+		Plugins:           serverPlugins(absAppDir, req.ServerPlugins, useClientPlugin),
 		Conditions:        req.ServerBundleConditions,
 		Define:            defines,
 	})

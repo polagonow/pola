@@ -1,6 +1,7 @@
 "use client";
 
 import { useTransition } from "react";
+import { csrfToken } from "@/utils/csrf";
 
 export default function DeleteButton({ id }: { id: number }) {
   const [isPending, startTransition] = useTransition();
@@ -14,6 +15,7 @@ export default function DeleteButton({ id }: { id: number }) {
       try {
         const res = await fetch(`/[[ .PluralSnake ]]/${id}`, {
           method: "DELETE",
+          headers: { "X-CSRF-Token": csrfToken() },
         });
 
         if (!res.ok) {

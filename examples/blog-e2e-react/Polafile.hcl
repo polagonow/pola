@@ -6,7 +6,7 @@ pola {
   router          = "nextjs"
   css             = "tailwind"
   package_manager = "pnpm"
-  app             = "app"
+  app             = "web"
   actions         = "actions"
   routes          = "routes"
 

@@ -46,7 +46,7 @@ func init() {
 	buildCmd.Flags().StringVar(&buildFlags.css, "css", cmp.Or(os.Getenv("POLA_CSS"), "tailwind"), "CSS processor")
 	buildCmd.Flags().StringVar(&buildFlags.vm, "vm", cmp.Or(os.Getenv("POLA_VM"), "goja"), "JS engine")
 	buildCmd.Flags().StringVar(&buildFlags.cgo, "cgo", cmp.Or(os.Getenv("CGO_ENABLED"), "1"), "CGO_ENABLED value")
-	buildCmd.Flags().StringVar(&buildFlags.appPath, "app-path", cmp.Or(os.Getenv("POLA_WEBAPP_PATH"), "./app"), "path to the web app directory")
+	buildCmd.Flags().StringVar(&buildFlags.appPath, "app-path", cmp.Or(os.Getenv("POLA_WEBAPP_PATH"), "./web"), "path to the web app directory")
 	buildCmd.Flags().BoolVar(&buildFlags.csrf, "csrf", os.Getenv("POLA_CSRF") != "false", "enable CSRF protection")
 	buildCmd.Flags().BoolVar(&buildFlags.securityHeaders, "security-headers", os.Getenv("POLA_SECURITY_HEADERS") != "false", "enable security headers")
 }
@@ -76,7 +76,7 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 	}
 
 	// Stub @pola/actions and @pola/react into node_modules.
-	if err := stubpkgs.StubToNodeModules(projectDir); err != nil {
+	if err := stubpkgs.StubToNodeModules(filepath.Join(projectDir, buildFlags.appPath)); err != nil {
 		return fmt.Errorf("stub packages: %w", err)
 	}
 
@@ -90,6 +90,7 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 		Cache:           "memory",
 		CSRF:            buildFlags.csrf,
 		SecurityHeaders: buildFlags.securityHeaders,
+		AppDir:          pf.AppDir(),
 		ActionsDir:      generateFlags.actionsDir,
 		TSOut:           generateFlags.tsOut,
 	}

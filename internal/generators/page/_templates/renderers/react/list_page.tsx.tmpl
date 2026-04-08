@@ -1,6 +1,6 @@
-import { [[ .Name ]] } from "@pola/actions";
+import { [[ .ActionName ]] } from "@pola/actions";
 
-import DeleteButton from "@/[[ .PluralSnake ]]/_components/delete-button";
+import DeleteButton from "@/components/[[ .PluralSnake ]]/delete-button";
 
 export default async function [[ .PluralName ]]Page({
   searchParams,
@@ -9,7 +9,7 @@ export default async function [[ .PluralName ]]Page({
 }) {
   const page = parseInt(searchParams?.page || "1", 10);
   const perPage = parseInt(searchParams?.per_page || "25", 10);
-  const result = await [[ .Name ]].list(page, perPage);
+  const result = await [[ .ActionName ]].list(page, perPage);
 
   return (
     <div>
@@ -44,7 +44,7 @@ export default async function [[ .PluralName ]]Page({
             </tr>
           </thead>
           <tbody>
-            {result.data.map((item) => (
+            {result.items.map((item) => (
               <tr key={item.id} style={{ borderBottom: "1px solid var(--color-border, #e5e7eb)" }}>
                 <td style={{ padding: "0.75rem 0.5rem" }}>{item.id}</td>
                 [[- range .Fields ]]
@@ -67,7 +67,7 @@ export default async function [[ .PluralName ]]Page({
         </table>
       </div>
 
-      {result.data.length === 0 && (
+      {result.items.length === 0 && (
         <p style={{ color: "var(--color-muted, #6b7280)", textAlign: "center", padding: "2rem 0" }}>
           No [[ .PluralSnake ]] found.
         </p>

@@ -55,7 +55,7 @@ func (g *JSBridgeGenerator) run(_ *cobra.Command, _ []string) error {
 		return nil
 	}
 
-	tsOut := filepath.Join(projectDir, "node_modules", "@pola", "actions", "src", "generated.ts")
+	tsOut := filepath.Join(projectDir, pf.AppDir(), "node_modules", "@pola", "actions", "src", "generated.ts")
 
 	tmpDir, err := os.MkdirTemp("", "pola-bridge-*")
 	if err != nil {

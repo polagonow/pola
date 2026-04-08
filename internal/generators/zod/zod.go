@@ -44,13 +44,16 @@ func (g *ZodGenerator) AfterHooks() []generators.Hook {
 			if err == nil && pf != nil && pf.PackageManager != "" {
 				pm = pf.PackageManager
 			}
+			if pf == nil {
+				pf = &polafile.Polafile{}
+			}
 
 			deps := []string{"zod"}
 			args := append([]string{"install"}, deps...)
 
 			fmt.Printf("Running: %s %s\n", pm, strings.Join(args, " "))
 			cmd := exec.Command(pm, args...)
-			cmd.Dir = projectDir
+			cmd.Dir = filepath.Join(projectDir, pf.AppDir())
 			cmd.Stdout = os.Stdout
 			cmd.Stderr = os.Stderr
 			return cmd.Run()

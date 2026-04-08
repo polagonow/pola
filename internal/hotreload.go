@@ -98,7 +98,7 @@ func NewHotReloader(cfg *core.Config, registry *core.Registry, initial *core.App
 	// Use the same bundle input shape, derived from config.
 	webAppPath := cfg.WebAppPath
 	if webAppPath == "" {
-		webAppPath = "./app"
+		webAppPath = "./web"
 	}
 	publicDir := cfg.PublicDir
 	if publicDir == "" {

@@ -181,7 +181,7 @@ func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, er
 	// ── Resolve paths ─────────────────────────────────────────────────────
 	webAppPath := cfg.WebAppPath
 	if webAppPath == "" {
-		webAppPath = "./app"
+		webAppPath = "./web"
 	}
 	absWebAppPath, err := filepath.Abs(webAppPath)
 	if err != nil {
