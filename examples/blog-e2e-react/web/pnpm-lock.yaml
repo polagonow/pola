@@ -5,18 +5,30 @@ settings:
   excludeLinksFromLockfile: false
 
 dependencies:
+  '@hookform/resolvers':
+    specifier: ^5.2.2
+    version: 5.2.2(react-hook-form@7.72.1)
+  '@tailwindcss/oxide-darwin-arm64':
+    specifier: ^4.2.2
+    version: 4.2.2
   react:
     specifier: 19.2.4
     version: 19.2.4
   react-dom:
     specifier: 19.2.4
     version: 19.2.4(react@19.2.4)
+  react-hook-form:
+    specifier: ^7.72.1
+    version: 7.72.1(react@19.2.4)
   react-server-dom-esm:
     specifier: npm:@kentcdodds/tmp-react-server-dom-esm@^19.0.1
     version: /@kentcdodds/tmp-react-server-dom-esm@19.0.1(react-dom@19.2.4)(react@19.2.4)
   react-server-dom-webpack:
     specifier: 19.3.0-canary-5e9eedb5-20260312
-    version: 19.3.0-canary-5e9eedb5-20260312(react-dom@19.2.4)(react@19.2.4)(webpack@5.105.4)
+    version: 19.3.0-canary-5e9eedb5-20260312(react-dom@19.2.4)(react@19.2.4)(webpack@5.106.0)
+  zod:
+    specifier: ^4.3.6
+    version: 4.3.6
 
 devDependencies:
   '@tailwindcss/cli':
@@ -33,6 +45,15 @@ devDependencies:
     version: 4.2.2
 
 packages:
+
+  /@hookform/resolvers@5.2.2(react-hook-form@7.72.1):
+    resolution: {integrity: sha512-A/IxlMLShx3KjV/HeTcTfaMxdwy690+L/ZADoeaTltLx+CVuzkeVIPuybK3jrRfw7YZnmdKsVVHAlEPIAEUNlA==}
+    peerDependencies:
+      react-hook-form: ^7.55.0
+    dependencies:
+      '@standard-schema/utils': 0.3.0
+      react-hook-form: 7.72.1(react@19.2.4)
+    dev: false
 
   /@jridgewell/gen-mapping@0.3.13:
     resolution: {integrity: sha512-2kkt/7niJ6MgEPxF0bYdQ6etZaA+fQvDcLKckhy1yIQOzaoKjBBjSj63/aLVjYE3qhRt5dvM+uUyfCg6UKCBbA==}
@@ -221,6 +242,10 @@ packages:
       '@parcel/watcher-win32-x64': 2.5.6
     dev: true
 
+  /@standard-schema/utils@0.3.0:
+    resolution: {integrity: sha512-e7Mew686owMaPJVNNLs55PUvgz371nKgwsc4vxE49zsODpJEnxgxRo2y/OKrqueavXgZNMDVj3DdHFlaSAeU8g==}
+    dev: false
+
   /@tailwindcss/cli@4.2.2:
     resolution: {integrity: sha512-iJS+8kAFZ8HPqnh0O5DHCLjo4L6dD97DBQEkrhfSO4V96xeefUus2jqsBs1dUMt3OU9Ks4qIkiY0mpL5UW+4LQ==}
     hasBin: true
@@ -261,8 +286,6 @@ packages:
     cpu: [arm64]
     os: [darwin]
     requiresBuild: true
-    dev: true
-    optional: true
 
   /@tailwindcss/oxide-darwin-x64@4.2.2:
     resolution: {integrity: sha512-BlR+2c3nzc8f2G639LpL89YY4bdcIdUmiOOkv2GQv4/4M0vJlpXEa0JXNHhCHU7VWOKWT/CjqHdTP8aUuDJkuw==}
@@ -598,7 +621,7 @@ packages:
     dependencies:
       baseline-browser-mapping: 2.10.16
       caniuse-lite: 1.0.30001787
-      electron-to-chromium: 1.5.332
+      electron-to-chromium: 1.5.334
       node-releases: 2.0.37
       update-browserslist-db: 1.2.3(browserslist@4.28.2)
     dev: false
@@ -629,8 +652,8 @@ packages:
     engines: {node: '>=8'}
     dev: true
 
-  /electron-to-chromium@1.5.332:
-    resolution: {integrity: sha512-7OOtytmh/rINMLwaFTbcMVvYXO3AUm029X0LcyfYk0B557RlPkdpTpnH9+htMlfu5dKwOmT0+Zs2Aw+lnn6TeQ==}
+  /electron-to-chromium@1.5.334:
+    resolution: {integrity: sha512-mgjZAz7Jyx1SRCwEpy9wefDS7GvNPazLthHg8eQMJ76wBdGQQDW33TCrUTvQ4wzpmOrv2zrFoD3oNufMdyMpog==}
     dev: false
 
   /enhanced-resolve@5.20.1:
@@ -912,7 +935,16 @@ packages:
       scheduler: 0.27.0
     dev: false
 
-  /react-server-dom-webpack@19.3.0-canary-5e9eedb5-20260312(react-dom@19.2.4)(react@19.2.4)(webpack@5.105.4):
+  /react-hook-form@7.72.1(react@19.2.4):
+    resolution: {integrity: sha512-RhwBoy2ygeVZje+C+bwJ8g0NjTdBmDlJvAUHTxRjTmSUKPYsKfMphkS2sgEMotsY03bP358yEYlnUeZy//D9Ig==}
+    engines: {node: '>=18.0.0'}
+    peerDependencies:
+      react: ^16.8.0 || ^17 || ^18 || ^19
+    dependencies:
+      react: 19.2.4
+    dev: false
+
+  /react-server-dom-webpack@19.3.0-canary-5e9eedb5-20260312(react-dom@19.2.4)(react@19.2.4)(webpack@5.106.0):
     resolution: {integrity: sha512-dYp9xyCF4KLcFN5Civ7hAS6RZjB0XeTUu0L/JSIkDJ4h2V6jgcLYjlPMeyVUp7SDa4TR2Ue/HeIT967yuG6+Zw==}
     engines: {node: '>=0.10.0'}
     peerDependencies:
@@ -924,7 +956,7 @@ packages:
       neo-async: 2.6.2
       react: 19.2.4
       react-dom: 19.2.4(react@19.2.4)
-      webpack: 5.105.4
+      webpack: 5.106.0
       webpack-sources: 3.3.4
     dev: false
 
@@ -984,7 +1016,7 @@ packages:
     resolution: {integrity: sha512-1MOpMXuhGzGL5TTCZFItxCc0AARf1EZFQkGqMm7ERKj8+Hgr5oLvJOVFcC+lRmR8hCe2S3jC4T5D7Vg/d7/fhA==}
     engines: {node: '>=6'}
 
-  /terser-webpack-plugin@5.4.0(webpack@5.105.4):
+  /terser-webpack-plugin@5.4.0(webpack@5.106.0):
     resolution: {integrity: sha512-Bn5vxm48flOIfkdl5CaD2+1CiUVbonWQ3KQPyP7/EuIl9Gbzq/gQFOzaMFUEgVjB1396tcK0SG8XcNJ/2kDH8g==}
     engines: {node: '>= 10.13.0'}
     peerDependencies:
@@ -1004,7 +1036,7 @@ packages:
       jest-worker: 27.5.1
       schema-utils: 4.3.3
       terser: 5.46.1
-      webpack: 5.105.4
+      webpack: 5.106.0
     dev: false
 
   /terser@5.46.1:
@@ -1046,8 +1078,8 @@ packages:
     engines: {node: '>=10.13.0'}
     dev: false
 
-  /webpack@5.105.4:
-    resolution: {integrity: sha512-jTywjboN9aHxFlToqb0K0Zs9SbBoW4zRUlGzI2tYNxVYcEi/IPpn+Xi4ye5jTLvX2YeLuic/IvxNot+Q1jMoOw==}
+  /webpack@5.106.0:
+    resolution: {integrity: sha512-Pkx5joZ9RrdgO5LBkyX1L2ZAJeK/Taz3vqZ9CbcP0wS5LEMx5QkKsEwLl29QJfihZ+DKRBFldzy1O30pJ1MDpA==}
     engines: {node: '>=10.13.0'}
     hasBin: true
     peerDependencies:
@@ -1078,11 +1110,15 @@ packages:
       neo-async: 2.6.2
       schema-utils: 4.3.3
       tapable: 2.3.2
-      terser-webpack-plugin: 5.4.0(webpack@5.105.4)
+      terser-webpack-plugin: 5.4.0(webpack@5.106.0)
       watchpack: 2.5.1
       webpack-sources: 3.3.4
     transitivePeerDependencies:
       - '@swc/core'
       - esbuild
       - uglify-js
+    dev: false
+
+  /zod@4.3.6:
+    resolution: {integrity: sha512-rftlrkhHZOcjDwkGlnUtZZkvaPHCsDATp4pGpuOOMDaTdDDXF91wuVDJoWoPsKX/3YPQ5fHuF3STjcYyKr+Qhg==}
     dev: false

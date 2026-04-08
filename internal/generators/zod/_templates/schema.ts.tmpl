@@ -1,0 +1,9 @@
+import { z } from "zod";
+
+export const [[ .SnakeName ]]Schema = z.object({
+[[- range .Fields ]]
+  [[ .JSONName ]]: [[ .ZodType ]][[ if .Optional ]].optional()[[ end ]],
+[[- end ]]
+});
+
+export type [[ .Name ]] = z.infer<typeof [[ .SnakeName ]]Schema>;

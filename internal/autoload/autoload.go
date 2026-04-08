@@ -77,6 +77,7 @@ type PluginOpts struct {
 	SecurityHeaders bool
 	Dev             bool
 	Embed           bool
+	AppDir          string // path to the web app directory (default: web)
 	ActionsDir      string // path to actions directory (default: ./actions)
 	TSOut           string // path to generated .d.ts file
 }

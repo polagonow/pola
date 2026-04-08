@@ -497,7 +497,7 @@ func (r *Runtime) clearState() error {
 		r.wroteAny = false
 		_, runErr = r.inner.Eval(
 			"globalThis."+globals.RequestContext+" = undefined; "+
-				"Object.keys("+globals.BridgeObject+").forEach(function(k) { delete "+globals.BridgeObject+"[k]; });",
+				"globalThis."+globals.BridgeObject+" = {};",
 			mquickjs.EvalGlobal,
 		)
 	})

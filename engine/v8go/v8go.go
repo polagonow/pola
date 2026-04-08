@@ -373,6 +373,8 @@ func (r *Runtime) clearState() error {
 			r.ctx.RunScript(delBuf.String(), "di_clear.js") //nolint:errcheck
 		}
 		r.diKeys = r.diKeys[:0]
+		// Reset bridge object to discard memoization Proxy and stale cache.
+		r.ctx.RunScript("globalThis."+globals.BridgeObject+" = {};", "di_reset.js") //nolint:errcheck
 		var clearBuf strings.Builder
 		_ = clearStateTmpl.Execute(&clearBuf, struct{ RequestContext, StreamHandle string }{
 			globals.RequestContext, globals.StreamHandle,

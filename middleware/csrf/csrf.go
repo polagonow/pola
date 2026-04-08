@@ -39,7 +39,7 @@ func WithCookieName(name string) Option {
 
 type mw struct {
 	protect   func(http.Handler) http.Handler
-	plaintext bool
+	plaintext bool // true when Secure=false (dev over HTTP)
 }
 
 // New creates a CSRF protection middleware.
@@ -86,6 +86,8 @@ func (m *mw) Wrap(next http.Handler) http.Handler {
 	})
 	protected := m.protect(tokenInjector)
 	if m.plaintext {
+		// In dev mode (HTTP), tell gorilla/csrf to use http:// scheme for
+		// origin checking instead of defaulting to https://.
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			protected.ServeHTTP(w, gorillacsrf.PlaintextHTTPRequest(r))
 		})

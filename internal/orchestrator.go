@@ -5,10 +5,12 @@ package internal
 import (
 	"context"
 	"net/http"
+	"slices"
 	"strings"
 	"time"
 
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/routes"
 )
 
 // contextKey is an unexported type for context keys in this package.
@@ -16,7 +18,6 @@ type contextKey int
 
 const (
 	routePatternKey contextKey = iota
-	apiParamsKey
 )
 
 // Orchestrator implements http.Handler and wires all Pola components together.
@@ -27,7 +28,8 @@ type Orchestrator struct {
 	logger     core.Logger
 	metrics    core.Metrics
 	tracer     core.Tracer
-	pprof      core.Pprof // may be nil
+	pprof      core.Pprof  // may be nil
+	cache      core.Cache  // may be nil; SSR cache for invalidation after mutations
 	middleware []core.Middleware
 	injectors  []core.RuntimeInjector
 	routes     []core.Route
@@ -45,6 +47,7 @@ func NewOrchestrator(
 	metrics core.Metrics,
 	tracer core.Tracer,
 	pprof core.Pprof,
+	cache core.Cache,
 	middleware []core.Middleware,
 	injectors []core.RuntimeInjector,
 	routes []core.Route,
@@ -59,6 +62,7 @@ func NewOrchestrator(
 		metrics:    metrics,
 		tracer:     tracer,
 		pprof:      pprof,
+		cache:      cache,
 		middleware: middleware,
 		injectors:  injectors,
 		routes:     routes,
@@ -137,10 +141,18 @@ func (o *Orchestrator) handle(w http.ResponseWriter, r *http.Request) {
 	isPageGET := route != nil && r.Method == http.MethodGet
 	if !isPageGET && o.apiRouter != nil {
 		if handler, apiParams, ok := o.apiRouter.Match(r); ok {
+			req := r.WithContext(ctx)
 			if apiParams != nil {
-				ctx = context.WithValue(ctx, apiParamsKey, apiParams)
+				req = routes.WithParams(req, apiParams)
 			}
-			handler(w, r.WithContext(ctx))
+			// Wrap response to capture status for cache invalidation.
+			rec := &responseRecorder{ResponseWriter: w, code: http.StatusOK}
+			handler(rec, req)
+			// Invalidate SSR cache after successful mutations so pages
+			// reflect the latest data without requiring a server restart.
+			if o.cache != nil && slices.Contains(mutationMethods, r.Method) && rec.code >= 200 && rec.code < 300 {
+				o.cache.Invalidate(ctx, "ssr:"+resourcePrefix(r.URL.Path))
+			}
 			return
 		}
 	}
@@ -200,6 +212,20 @@ var allowedHeaders = map[string]struct{}{
 	"Range":             {},
 	"Referer":           {},
 	"User-Agent":        {},
+}
+
+// mutationMethods are HTTP methods that modify server state.
+var mutationMethods = []string{"POST", "PUT", "PATCH", "DELETE"}
+
+// resourcePrefix extracts the top-level resource path from a URL.
+// e.g. "/articles/1/edit" → "/articles", "/articles" → "/articles".
+func resourcePrefix(path string) string {
+	path = strings.TrimSuffix(path, "/")
+	parts := strings.Split(path, "/")
+	if len(parts) > 2 {
+		return "/" + parts[1]
+	}
+	return path
 }
 
 func buildRequestContext(r *http.Request) map[string]any {

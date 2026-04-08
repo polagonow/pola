@@ -181,7 +181,7 @@ func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, er
 	// ── Resolve paths ─────────────────────────────────────────────────────
 	webAppPath := cfg.WebAppPath
 	if webAppPath == "" {
-		webAppPath = "./app"
+		webAppPath = "./web"
 	}
 	absWebAppPath, err := filepath.Abs(webAppPath)
 	if err != nil {
@@ -323,7 +323,7 @@ func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, er
 	// Wrap injectors with per-request memoization to deduplicate Go calls.
 	memoInjectors := WrapInjectorsWithMemo(runtimeInjectors)
 
-	orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, middleware, memoInjectors, routes, assets, cfg.Dev)
+	orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, renderCache, middleware, memoInjectors, routes, assets, cfg.Dev)
 
 	// ── Copy static public files ────────────────────────────────────────
 	srcPublic := filepath.Join(absWebAppPath, "public")
@@ -488,7 +488,7 @@ func buildFromPrebuilt(
 		}
 		apiRouter = ar
 	}
-	orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, middleware, memoInjectors, artifacts.Routes, assets, false)
+	orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, renderCache, middleware, memoInjectors, artifacts.Routes, assets, false)
 	app := newApp(cfg, registry, orch)
 	app.SetArtifacts(artifacts.BundleOutput)
 	return app, nil

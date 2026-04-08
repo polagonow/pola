@@ -12,6 +12,7 @@ function fetchFlight(url: string, signal?: AbortSignal): Promise<React.ReactNode
     method: "GET",
     headers: { "Content-Type": FLIGHT_CONTENT_TYPE },
     signal,
+    cache: "no-store",
   });
   return createFromFetch(resp);
 }

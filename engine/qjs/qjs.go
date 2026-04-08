@@ -350,7 +350,7 @@ func (r *Runtime) clearState() {
 			globals.RequestContext+" = undefined; "+
 				globals.StreamHandle+" = undefined; "+
 				globals.OutputChunk+" = undefined; "+
-				"Object.keys("+globals.BridgeObject+").forEach(function(k) { delete "+globals.BridgeObject+"[k]; });",
+				"globalThis."+globals.BridgeObject+" = {};",
 			"clear_state.js")
 	})
 }

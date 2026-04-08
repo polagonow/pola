@@ -10,7 +10,7 @@ type Env struct {
 	Renderer    string `env:"POLA_RENDERER"     envDefault:"react"`
 	Router      string `env:"POLA_ROUTER"       envDefault:"nextjs"`
 	CSS         string `env:"POLA_CSS"          envDefault:"none"`
-	WebAppPath  string `env:"POLA_WEBAPP_PATH"  envDefault:"./app"`
+	WebAppPath  string `env:"POLA_WEBAPP_PATH"  envDefault:"./web"`
 	Env         string `env:"POLA_ENV"           envDefault:"production"`
 	EmbedAssets bool   `env:"POLA_EMBED"        envDefault:"true"`
 
