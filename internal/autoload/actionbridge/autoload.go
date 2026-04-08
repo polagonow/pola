@@ -41,7 +41,11 @@ func (a *autoloadImpl) Contribute(ctx *autoload.Context) error {
 
 	tsOut := ctx.Opts.TSOut
 	if tsOut == "" {
-		tsOut = filepath.Join(ctx.ProjectDir, "node_modules", "@pola", "actions", "src", "generated.ts")
+		appDir := ctx.Opts.AppDir
+		if appDir == "" {
+			appDir = "web"
+		}
+		tsOut = filepath.Join(ctx.ProjectDir, appDir, "node_modules", "@pola", "actions", "src", "generated.ts")
 	}
 	if !filepath.IsAbs(tsOut) {
 		tsOut = filepath.Join(ctx.ProjectDir, tsOut)

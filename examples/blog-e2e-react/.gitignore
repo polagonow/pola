@@ -9,7 +9,7 @@ node_modules/
 public/assets/
 public/prebuild-meta.json
 public/_server.js
-app/public/
+web/public/
 
 # IDE
 .idea/

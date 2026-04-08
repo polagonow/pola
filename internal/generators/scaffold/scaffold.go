@@ -45,6 +45,8 @@ Use --skip-model, --skip-action, or --skip-route to omit specific parts.`,
 	cmd.Flags().Bool("skip-service", false, "skip service generation")
 	cmd.Flags().Bool("skip-action", false, "skip action generation")
 	cmd.Flags().Bool("skip-route", false, "skip route generation")
+	cmd.Flags().Bool("skip-zod", false, "skip Zod schema generation")
+	cmd.Flags().Bool("skip-views", false, "skip page generation")
 	cmd.Flags().Bool("skip-migration", false, "skip migration generation (propagated to model generator)")
 	return cmd
 }
@@ -106,6 +108,22 @@ func (g *ScaffoldGenerator) run(cmd *cobra.Command, args []string) error {
 		routeArgs = append(routeArgs, "--id-type="+idGoType)
 		if err := generators.Run("route", cmd, routeArgs); err != nil {
 			return fmt.Errorf("route: %w", err)
+		}
+	}
+
+	skipZod, _ := cmd.Flags().GetBool("skip-zod")
+	if !skipZod {
+		fmt.Printf("Generating zod schema %s...\n", name)
+		if err := generators.Run("zod", cmd, args); err != nil {
+			return fmt.Errorf("zod: %w", err)
+		}
+	}
+
+	skipViews, _ := cmd.Flags().GetBool("skip-views")
+	if !skipViews {
+		fmt.Printf("Generating pages %s...\n", name)
+		if err := generators.Run("page", cmd, args); err != nil {
+			return fmt.Errorf("page: %w", err)
 		}
 	}
 

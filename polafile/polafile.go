@@ -355,6 +355,14 @@ func (pf *Polafile) CacheAdapter(env string) string {
 	return "memory"
 }
 
+// AppDir returns the configured app directory, defaulting to "web".
+func (pf *Polafile) AppDir() string {
+	if pf.App != "" {
+		return pf.App
+	}
+	return "web"
+}
+
 // RepositoriesDir returns the configured repositories directory, defaulting to "repositories".
 func (pf *Polafile) RepositoriesDir() string {
 	if pf.Repositories != "" {

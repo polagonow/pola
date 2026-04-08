@@ -1,0 +1,1 @@
+"use client";import{a as t}from"./chunks/chunk-PX2ZJMDF.js";import{c as o}from"./chunks/chunk-Z2Q6GPLD.js";var r=o(t());function n({error:i,reset:e}){return(0,r.jsx)("html",{children:(0,r.jsxs)("body",{children:[(0,r.jsx)("h2",{children:"Something went wrong!"}),(0,r.jsx)("button",{onClick:()=>e(),children:"Try again"})]})})}export{n as default};

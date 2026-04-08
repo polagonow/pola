@@ -98,7 +98,7 @@ func NewHotReloader(cfg *core.Config, registry *core.Registry, initial *core.App
 	// Use the same bundle input shape, derived from config.
 	webAppPath := cfg.WebAppPath
 	if webAppPath == "" {
-		webAppPath = "./app"
+		webAppPath = "./web"
 	}
 	publicDir := cfg.PublicDir
 	if publicDir == "" {
@@ -272,7 +272,7 @@ func NewHotReloader(cfg *core.Config, registry *core.Registry, initial *core.App
 				if ar, err := core.Invoke[core.APIRouter](registry); err == nil {
 					apiRouter = ar
 				}
-				orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, mws, WrapInjectorsWithMemo(injs), nil, assets, true)
+				orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, renderCache, mws, WrapInjectorsWithMemo(injs), nil, assets, true)
 
 				newApp := newApp(cfg, registry, orch)
 				newApp.SetArtifacts(newOutput)

@@ -385,6 +385,9 @@ func (r *Runtime) clearState() error {
 		for _, key := range r.di.Keys() {
 			r.di.Delete(key) //nolint:errcheck
 		}
+		// Reset bridge object to discard memoization Proxy and stale cache.
+		r.di = rt.NewObject()
+		rt.Set(globals.BridgeObject, r.di) //nolint:errcheck
 		return nil
 	})
 }

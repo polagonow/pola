@@ -168,6 +168,10 @@ func (r *Renderer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 
 // serveFlight handles RSC Flight requests with caching and streaming.
 func (r *Renderer) serveFlight(ctx context.Context, w http.ResponseWriter, req *http.Request, renderReq core.RenderRequest, status int, deps *core.RenderDeps) {
+	// Prevent browsers from caching Flight responses so mutations are
+	// reflected immediately on the next navigation.
+	w.Header().Set("Cache-Control", "no-store")
+
 	// Cache integration for Flight requests.
 	if deps.Cache != nil {
 		cacheKey := "ssr:" + req.URL.Path + "?" + req.URL.RawQuery
