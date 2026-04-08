@@ -8,3 +8,4 @@ cmd/server/public/
 coverage.out
 go.work
 go.work.sum
+bin/pola

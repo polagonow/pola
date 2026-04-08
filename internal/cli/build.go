@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 
+	"github.com/polagonow/pola/internal/autoload"
 	"github.com/polagonow/pola/internal/stubpkgs"
 	"github.com/polagonow/pola/polafile"
 	"github.com/spf13/cobra"
@@ -79,7 +80,7 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("stub packages: %w", err)
 	}
 
-	baseOpts := pluginOpts{
+	baseOpts := autoload.PluginOpts{
 		PolaPackage:     pf.PolaPackage(),
 		Engine:          buildFlags.vm,
 		Bundler:         buildFlags.bundler,
@@ -89,8 +90,10 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 		Cache:           "memory",
 		CSRF:            buildFlags.csrf,
 		SecurityHeaders: buildFlags.securityHeaders,
+		ActionsDir:      generateFlags.actionsDir,
+		TSOut:           generateFlags.tsOut,
 	}
-	populateDatabaseOpts(&baseOpts, &pf, "production")
+	autoload.PopulateDatabaseOpts(&baseOpts, &pf, "production")
 
 	// ── Stage 1: Bundle ──────────────────────────────────────────────────
 	// Full runtime with bundler, osfs, css — needed to produce assets.
@@ -100,15 +103,15 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 	stage1Opts.Dev = false
 	stage1Opts.Embed = false
 
-	stage1Overlay, err := generateOverlay(projectDir, stage1Opts)
+	stage1Result, err := autoload.Run(projectDir, stage1Opts, verbose)
 	if err != nil {
 		return err
 	}
-	defer cleanupOverlay(stage1Overlay)
+	defer cleanupOverlay(stage1Result)
 
 	bundleArgs := []string{"run"}
-	if stage1Overlay != nil && stage1Overlay.OverlayPath != "" {
-		bundleArgs = append(bundleArgs, "-overlay", stage1Overlay.OverlayPath)
+	if stage1Result != nil && stage1Result.OverlayPath != "" {
+		bundleArgs = append(bundleArgs, "-overlay", stage1Result.OverlayPath)
 	}
 	bundleArgs = append(bundleArgs, ".")
 
@@ -121,6 +124,9 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 		"POLA_BUILD_ONLY=true",
 		"POLA_PUBLIC_DIR=./public",
 		"POLA_WEBAPP_PATH="+buildFlags.appPath,
+		"GONOSUMCHECK=*",
+		"GONOSUMDB=*",
+		"GOFLAGS=-mod=mod",
 	)
 
 	if err := bundleCmd.Run(); err != nil {
@@ -135,11 +141,11 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 	stage2Opts.Dev = false
 	stage2Opts.Embed = true
 
-	stage2Overlay, err := generateOverlay(projectDir, stage2Opts)
+	stage2Result, err := autoload.Run(projectDir, stage2Opts, verbose)
 	if err != nil {
 		return err
 	}
-	defer cleanupOverlay(stage2Overlay)
+	defer cleanupOverlay(stage2Result)
 
 	// Ensure output directory exists.
 	if err := os.MkdirAll(filepath.Dir(output), 0o755); err != nil {
@@ -147,8 +153,8 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 	}
 
 	compileArgs := []string{"build"}
-	if stage2Overlay != nil && stage2Overlay.OverlayPath != "" {
-		compileArgs = append(compileArgs, "-overlay", stage2Overlay.OverlayPath)
+	if stage2Result != nil && stage2Result.OverlayPath != "" {
+		compileArgs = append(compileArgs, "-overlay", stage2Result.OverlayPath)
 	}
 	compileArgs = append(compileArgs, "-ldflags", "-s -w", "-o", output, ".")
 
@@ -158,6 +164,9 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 	compileCmd.Stderr = os.Stderr
 	compileCmd.Env = append(os.Environ(),
 		"CGO_ENABLED="+buildFlags.cgo,
+		"GONOSUMCHECK=*",
+		"GONOSUMDB=*",
+		"GOFLAGS=-mod=mod",
 	)
 
 	if err := compileCmd.Run(); err != nil {
