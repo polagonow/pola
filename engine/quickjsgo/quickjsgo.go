@@ -410,7 +410,7 @@ func (r *Runtime) clearState() error {
 			globals.RequestContext+" = undefined; "+
 				globals.StreamHandle+" = undefined; "+
 				globals.OutputChunk+" = undefined; "+
-				"Object.keys("+globals.BridgeObject+").forEach(function(k) { delete "+globals.BridgeObject+"[k]; });",
+				"globalThis."+globals.BridgeObject+" = {};",
 			quickjs.EvalFileName("clear_state.js"),
 		)
 		clearRet.Free()
