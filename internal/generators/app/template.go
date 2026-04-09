@@ -45,8 +45,8 @@ func Execute(targetDir string, data Data) error {
 
 	// Pass 2: renderer-specific templates.
 	rendererDir := data.Renderer
-	if data.UI == "shadcn" {
-		rendererDir = data.Renderer + "-shadcn"
+	if data.UI != "" && data.UI != "none" {
+		rendererDir = data.Renderer + "-" + data.UI
 	}
 	rendererRoot := filepath.Join("_templates", "renderers", rendererDir)
 	if _, err := fs.Stat(templates, rendererRoot); err != nil {

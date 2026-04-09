@@ -138,10 +138,10 @@ func (g *PageGenerator) run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("renderer not configured in Polafile.hcl; run 'pola new' to initialize a project")
 	}
 
-	// Use shadcn-specific templates when UI is configured.
+	// Use UI-specific templates when configured (e.g., react-shadcn, react-mui).
 	effectiveRenderer := renderer
-	if pf.UI == "shadcn" {
-		effectiveRenderer = renderer + "-shadcn"
+	if pf.UI != "" && pf.UI != "none" {
+		effectiveRenderer = renderer + "-" + pf.UI
 	}
 
 	// Check that we have templates for this renderer.
