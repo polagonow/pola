@@ -84,7 +84,7 @@ func init() {
 	newCmd.Flags().BoolVar(&newFlags.securityHeaders, "security-headers", true, "enable security headers")
 }
 
-func runNew(_ *cobra.Command, args []string) error {
+func runNew(cmd *cobra.Command, args []string) error {
 	appName := args[0]
 	targetDir, err := filepath.Abs(appName)
 	if err != nil {
@@ -105,12 +105,13 @@ func runNew(_ *cobra.Command, args []string) error {
 			return fmt.Errorf("--ui=shadcn requires --renderer=react")
 		}
 	}
-	if newFlags.ui == "mui" {
-		if newFlags.renderer != "react" {
-			return fmt.Errorf("--ui=mui requires --renderer=react")
+
+	// Auto-detect CSS requirement: if the UI template doesn't include
+	// tailwindcss, default css to "none" (unless user explicitly set --css).
+	if newFlags.ui != "" && newFlags.ui != "none" && !cmd.Flags().Lookup("css").Changed {
+		if !app.UIRequiresTailwind(newFlags.renderer, newFlags.ui) {
+			newFlags.css = "none"
 		}
-		// MUI uses Emotion CSS-in-JS; Tailwind is not needed.
-		newFlags.css = "none"
 	}
 
 	fmt.Printf("Creating %s...\n", appName)
