@@ -1,0 +1,115 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { [[ .SnakeName ]]Schema, type [[ .Name ]] } from "[[ .SchemaImport ]]";
+import { csrfToken } from "@/utils/csrf";
+import TextField from "@mui/material/TextField";
+import Button from "@mui/material/Button";
+import FormControlLabel from "@mui/material/FormControlLabel";
+import Checkbox from "@mui/material/Checkbox";
+import Alert from "@mui/material/Alert";
+import Box from "@mui/material/Box";
+import Stack from "@mui/material/Stack";
+
+export default function Create[[ .Name ]]Form() {
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const {
+    register,
+    handleSubmit,
+    control,
+    formState: { errors },
+  } = useForm<[[ .Name ]]>({
+    resolver: zodResolver([[ .SnakeName ]]Schema),
+  });
+
+  function onSubmit(data: [[ .Name ]]) {
+    setError(null);
+
+    startTransition(async () => {
+      try {
+        const res = await fetch("/[[ .PluralSnake ]]/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
+          body: JSON.stringify(data),
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || res.statusText);
+        }
+        window.location.href = "/[[ .PluralSnake ]]";
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An error occurred");
+      }
+    });
+  }
+
+  return (
+    <>
+      {error && (
+        <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
+      )}
+
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <Stack spacing={2.5}>
+          [[- range .Fields ]]
+          [[ if eq .InputType "checkbox" -]]
+          <Controller
+            name="[[ .JSONName ]]"
+            control={control}
+            render={({ field }) => (
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={!!field.value}
+                    onChange={(e) => field.onChange(e.target.checked)}
+                  />
+                }
+                label="[[ .Label ]][[ if .Optional ]] (optional)[[ end ]]"
+              />
+            )}
+          />
+          [[ else -]]
+          [[ if .IsTextarea -]]
+          <TextField
+            label="[[ .Label ]][[ if .Optional ]] (optional)[[ end ]]"
+            id="[[ .JSONName ]]"
+            {...register("[[ .JSONName ]]")}
+            multiline
+            rows={4}
+            size="small"
+            fullWidth
+            error={!!errors.[[ .JSONName ]]}
+            helperText={errors.[[ .JSONName ]]?.message}
+          />
+          [[ else -]]
+          <TextField
+            label="[[ .Label ]][[ if .Optional ]] (optional)[[ end ]]"
+            type="[[ .InputType ]]"
+            id="[[ .JSONName ]]"
+            {...register("[[ .JSONName ]]"[[ if eq .InputType "number" ]], { valueAsNumber: true }[[ end ]])}
+            [[ if .IsFloat ]]inputProps={{ step: "any" }}[[ end ]]
+            size="small"
+            fullWidth
+            error={!!errors.[[ .JSONName ]]}
+            helperText={errors.[[ .JSONName ]]?.message}
+          />
+          [[ end -]]
+          [[ end -]]
+          [[- end ]]
+        </Stack>
+
+        <Box sx={{ display: "flex", gap: 1.5, mt: 3 }}>
+          <Button type="submit" variant="contained" disabled={isPending}>
+            {isPending ? "Creating..." : "Create [[ .Name ]]"}
+          </Button>
+          <Button variant="outlined" href="/[[ .PluralSnake ]]">
+            Cancel
+          </Button>
+        </Box>
+      </form>
+    </>
+  );
+}

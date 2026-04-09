@@ -70,7 +70,7 @@ func (b *Bundler) Build(_ context.Context, req core.BundleInput) (*core.BundleOu
 	inputChunkURLs := buildInputChunkURLs(metafile, absAppDir, absOutDir, req.AssetsURLPath)
 
 	mfst, importURLs, err := buildManifest(
-		req.ClientComponents, clientFiles, req.AppDir, req.AssetsURLPath, inputChunkURLs)
+		req.ClientComponents, clientFiles, req.AppDir, req.AssetsURLPath, inputChunkURLs, metafile)
 	if err != nil {
 		return nil, fmt.Errorf("esbuild: manifest: %w", err)
 	}
@@ -98,7 +98,8 @@ func (b *Bundler) Build(_ context.Context, req core.BundleInput) (*core.BundleOu
 		}
 	}
 
-	serverBundlePath, err := buildPagesBundle(req, absAppDir, string(manifestDefine), serverEntry)
+	clientExports := parseMetafileExports(metafile, absAppDir)
+	serverBundlePath, err := buildPagesBundle(req, absAppDir, string(manifestDefine), serverEntry, clientExports)
 	if err != nil {
 		return nil, fmt.Errorf("esbuild: pages pass: %w", err)
 	}
@@ -202,9 +203,12 @@ type manifestEntry struct {
 
 // buildManifest builds a webpack-format client component manifest and an
 // importURLs map from absolute component path → browser chunk URL.
+// The metafile string (esbuild JSON) is used to discover named exports so
+// that the manifest contains entries for every export, not just "default".
 func buildManifest(
 	clientComponents []string, clientFiles map[string][]byte,
 	appDir string, assetsURLPath string, inputChunkURLs map[string]string,
+	metafile string,
 ) (map[string]manifestEntry, map[string]string, error) {
 	if assetsURLPath == "" {
 		assetsURLPath = "/public/assets"
@@ -213,6 +217,10 @@ func buildManifest(
 	if err != nil {
 		return nil, nil, fmt.Errorf("esbuild: abs appdir: %w", err)
 	}
+
+	// Parse metafile to build a map from entry point → exported names.
+	exportsByEntry := parseMetafileExports(metafile, absAppDir)
+
 	m := make(map[string]manifestEntry)
 	importURLs := make(map[string]string)
 
@@ -235,11 +243,55 @@ func buildManifest(
 		}
 		importURLs[id] = chunkURL
 
+		// Always register the bare and default entries.
 		entry := manifestEntry{ID: id, Name: "default", Chunks: []string{"default"}}
 		m[id+"#"] = entry
 		m[id+"#default"] = entry
+
+		// Register every named export discovered from the client bundle metafile.
+		// The Chunks field is set to [exportName] so that the ESM client (which
+		// reads metadata[1] as the export name) correctly resolves named exports.
+		// JS coerces ["Button"].toString() → "Button" for property access.
+		if exports, ok := exportsByEntry[absSrc]; ok {
+			for _, name := range exports {
+				if name == "default" {
+					continue
+				}
+				m[id+"#"+name] = manifestEntry{ID: id, Name: name, Chunks: []string{name}}
+			}
+		}
 	}
 	return m, importURLs, nil
+}
+
+// parseMetafileExports extracts the exported names for each entry point from
+// the esbuild metafile JSON. Returns a map from absolute entry path → export names.
+func parseMetafileExports(metafile string, absAppDir string) map[string][]string {
+	if metafile == "" {
+		return nil
+	}
+	var meta struct {
+		Outputs map[string]struct {
+			EntryPoint string   `json:"entryPoint"`
+			Exports    []string `json:"exports"`
+		} `json:"outputs"`
+	}
+	if err := json.Unmarshal([]byte(metafile), &meta); err != nil {
+		return nil
+	}
+	result := make(map[string][]string)
+	for _, out := range meta.Outputs {
+		if out.EntryPoint == "" || len(out.Exports) == 0 {
+			continue
+		}
+		abs := out.EntryPoint
+		if !filepath.IsAbs(abs) {
+			abs = filepath.Join(absAppDir, abs)
+		}
+		abs = filepath.Clean(abs)
+		result[abs] = out.Exports
+	}
+	return result
 }
 
 // computeModuleID returns a stable module ID for a client component file.
@@ -276,6 +328,7 @@ func computeModuleID(absAppDir, absPath string) string {
 
 func buildPagesBundle(
 	req core.BundleInput, absAppDir, manifestDefineJSON, serverOutFile string,
+	clientExports map[string][]string,
 ) (string, error) {
 	if req.ServerEntryContent == "" {
 		return "", nil
@@ -301,6 +354,21 @@ func buildPagesBundle(
 				moduleID, ok := clientSet[args.Path]
 				if !ok {
 					return api.OnLoadResult{}, nil
+				}
+				// When we know the named exports (from client metafile), generate
+				// ESM-style stubs with explicit named exports. This avoids the
+				// __toESM interop destroying the Proxy created by
+				// createClientModuleProxy — __toESM copies own properties from
+				// the Proxy target (which has none for named exports) to a plain
+				// object, losing the dynamic property access. With ESM exports,
+				// esbuild keeps the module's exports object intact.
+				if exports := clientExports[args.Path]; len(exports) > 0 {
+					stub := buildESMClientStub(moduleID, exports)
+					return api.OnLoadResult{
+						Contents:   &stub,
+						Loader:     api.LoaderJS,
+						ResolveDir: absAppDir,
+					}, nil
 				}
 				var stub string
 				if req.ClientModuleStub != nil {
@@ -645,6 +713,30 @@ func newAtAliasPlugin(absProjectDir string) api.Plugin {
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────
+
+// buildESMClientStub generates an ESM stub for a "use client" module with
+// explicit named exports. This avoids the __toESM interop issue where CJS
+// module.exports = Proxy loses named exports during property copying.
+//
+// Each export accesses the Proxy by name (e.g. _mod["Button"]), which
+// triggers the Proxy's get handler and creates a proper client reference
+// with $$id = "moduleID#exportName".
+func buildESMClientStub(moduleID string, exports []string) string {
+	var b strings.Builder
+	b.WriteString(`import { createClientModuleProxy } from "react-server-dom-webpack/server.browser";` + "\n")
+	b.WriteString(fmt.Sprintf("const _mod = createClientModuleProxy(%q);\n", moduleID))
+	for _, name := range exports {
+		// Access _mod[name] to trigger the Proxy's get trap, producing a
+		// client reference with $$id = moduleID + "#" + name.
+		b.WriteString(fmt.Sprintf("const _export_%s = _mod[%q];\n", name, name))
+		if name == "default" {
+			b.WriteString("export { _export_default as default };\n")
+		} else {
+			b.WriteString(fmt.Sprintf("export { _export_%s as %s };\n", name, name))
+		}
+	}
+	return b.String()
+}
 
 func fmtErrors(pass string, errs []api.Message) error {
 	msgs := make([]string, len(errs))

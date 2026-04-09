@@ -23,9 +23,26 @@ type Data struct {
 	Bundler       string
 	Router        string
 	CSS           string
+	UI            string
 	VM            string
 	PolaVersion   string
 	PolaLocalPath string // if set, generates a replace directive in go.mod
+}
+
+// UIRequiresTailwind checks whether the given renderer+UI template set
+// includes tailwindcss as a dependency. Returns true if the template's
+// package.json.tmpl contains "tailwindcss", or if the template doesn't exist.
+func UIRequiresTailwind(renderer, ui string) bool {
+	rendererDir := renderer
+	if ui != "" && ui != "none" {
+		rendererDir = renderer + "-" + ui
+	}
+	pkgPath := filepath.Join("_templates", "renderers", rendererDir, "package.json.tmpl")
+	content, err := fs.ReadFile(templates, pkgPath)
+	if err != nil {
+		return true // fallback: assume tailwind needed if we can't read
+	}
+	return strings.Contains(string(content), "tailwindcss")
 }
 
 // Execute renders all embedded templates into targetDir.
@@ -43,11 +60,17 @@ func Execute(targetDir string, data Data) error {
 	}
 
 	// Pass 2: renderer-specific templates.
-	rendererRoot := filepath.Join("_templates", "renderers", data.Renderer)
+	rendererDir := data.Renderer
+	if data.UI != "" && data.UI != "none" {
+		rendererDir = data.Renderer + "-" + data.UI
+	}
+	rendererRoot := filepath.Join("_templates", "renderers", rendererDir)
 	if _, err := fs.Stat(templates, rendererRoot); err != nil {
 		return fmt.Errorf("no templates for renderer %q", data.Renderer)
 	}
-	if err := renderTree(templates, rendererRoot, targetDir, data, func(rel string) (string, bool) {
+	// Renderer-specific templates (frontend files) go into the web/ subdirectory.
+	webDir := filepath.Join(targetDir, "web")
+	if err := renderTree(templates, rendererRoot, webDir, data, func(rel string) (string, bool) {
 		return rel, true
 	}); err != nil {
 		return fmt.Errorf("renderer %s templates: %w", data.Renderer, err)

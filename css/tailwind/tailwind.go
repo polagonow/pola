@@ -49,7 +49,7 @@ func (t *Tailwind) Process(ctx context.Context, inputPath, outputPath string) er
 		args = append(args, "--minify")
 	}
 	cmd := exec.CommandContext(ctx, bin, args...)
-	cmd.Dir = filepath.Dir(inputPath)
+	cmd.Dir = nodeModulesRoot(inputPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
@@ -67,7 +67,7 @@ func (t *Tailwind) Watch(ctx context.Context, inputPath, outputPath string, onCh
 		args = append(args, "--config", t.ConfigPath)
 	}
 	cmd := exec.CommandContext(ctx, bin, args...)
-	cmd.Dir = filepath.Dir(inputPath)
+	cmd.Dir = nodeModulesRoot(inputPath)
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 	go func() {
@@ -105,4 +105,23 @@ func (t *Tailwind) resolvedBin(inputPath string) (string, []string) {
 		dir = parent
 	}
 	return "npx", []string{"tailwindcss"}
+}
+
+// nodeModulesRoot walks up from the CSS file's directory to find the nearest
+// ancestor containing node_modules. This is used as the Tailwind CLI working
+// directory so that CSS @import paths like "shadcn/tailwind.css" resolve
+// correctly via Node module resolution.
+func nodeModulesRoot(inputPath string) string {
+	dir := filepath.Dir(inputPath)
+	for {
+		if info, err := os.Stat(filepath.Join(dir, "node_modules")); err == nil && info.IsDir() {
+			return dir
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break
+		}
+		dir = parent
+	}
+	return filepath.Dir(inputPath)
 }

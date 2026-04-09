@@ -47,6 +47,7 @@ func TestSaveAndLoad(t *testing.T) {
 		Bundler:         "esbuild@^0.21.0",
 		Router:          "nextjs",
 		CSS:             "tailwind@^4.0.0",
+		UI:              "shadcn",
 		PackageManager:  "pnpm@^9.0.0",
 		Cache:           &Cache{Enabled: true, Adapter: "memory"},
 		CSRF:            &CSRF{Enabled: true},
@@ -89,6 +90,9 @@ func TestSaveAndLoad(t *testing.T) {
 	}
 	if loaded.CSS != "tailwind@^4.0.0" {
 		t.Errorf("CSS = %q, want %q", loaded.CSS, "tailwind@^4.0.0")
+	}
+	if loaded.UI != "shadcn" {
+		t.Errorf("UI = %q, want %q", loaded.UI, "shadcn")
 	}
 	if loaded.CacheAdapter("default") != "memory" {
 		t.Errorf("CacheAdapter(default) = %q, want %q", loaded.CacheAdapter("default"), "memory")

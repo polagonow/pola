@@ -1,0 +1,72 @@
+import { [[ .ActionName ]] } from "@pola/actions";
+import DeleteButton from "@/components/[[ .PluralSnake ]]/delete-button";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
+import Paper from "@mui/material/Paper";
+import Typography from "@mui/material/Typography";
+import Button from "@mui/material/Button";
+import Box from "@mui/material/Box";
+
+export default async function [[ .PluralName ]]Page({
+  searchParams,
+}: {
+  searchParams?: Record<string, string>;
+}) {
+  const page = parseInt(searchParams?.page || "1", 10);
+  const perPage = parseInt(searchParams?.per_page || "25", 10);
+  const result = await [[ .ActionName ]].list(page, perPage);
+
+  return (
+    <Box>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 3 }}>
+        <Typography variant="h5" component="h1" fontWeight={700}>
+          [[ .PluralName ]]
+        </Typography>
+        <Button variant="contained" href="/[[ .PluralSnake ]]/create">
+          New [[ .Name ]]
+        </Button>
+      </Box>
+
+      <TableContainer component={Paper} variant="outlined">
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell sx={{ fontWeight: 600 }}>ID</TableCell>
+              [[- range .Fields ]]
+              <TableCell sx={{ fontWeight: 600 }}>[[ .Label ]]</TableCell>
+              [[- end ]]
+              <TableCell align="right" sx={{ fontWeight: 600 }}>Actions</TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {result.items.map((item) => (
+              <TableRow key={item.id}>
+                <TableCell>{item.id}</TableCell>
+                [[- range .Fields ]]
+                <TableCell>{[[ if eq .InputType "checkbox" ]]item.[[ .JSONName ]] ? "Yes" : "No"[[ else ]]String(item.[[ .JSONName ]] ?? "")[[ end ]]}</TableCell>
+                [[- end ]]
+                <TableCell align="right">
+                  <Box sx={{ display: "inline-flex", gap: 1 }}>
+                    <Button size="small" href={`/[[ $.PluralSnake ]]/${item.id}`}>View</Button>
+                    <Button size="small" href={`/[[ $.PluralSnake ]]/${item.id}/edit`}>Edit</Button>
+                    <DeleteButton id={item.id} />
+                  </Box>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
+
+      {result.items.length === 0 && (
+        <Typography sx={{ py: 4, textAlign: "center", color: "text.secondary" }}>
+          No [[ .PluralSnake ]] found.
+        </Typography>
+      )}
+    </Box>
+  );
+}
