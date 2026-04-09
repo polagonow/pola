@@ -2,6 +2,7 @@ package react
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -61,6 +62,12 @@ func (g *EntryGenerator) ServerGlobalName() string { return globals.RenderFn }
 func (g *EntryGenerator) Generate(cfg EntryGenConfig) (string, error) { //nolint:gocyclo
 	absAppDir, _ := filepath.Abs(cfg.AppDir)
 	absPagesDir := absAppDir
+	// The router uses appDir/app as the pages root when the "app" subdirectory
+	// exists. Segment directories are relative to that path, so isRootSegment
+	// must compare against the same directory.
+	if info, err := os.Stat(filepath.Join(absAppDir, "app")); err == nil && info.IsDir() {
+		absPagesDir = filepath.Join(absAppDir, "app")
+	}
 
 	var entry strings.Builder
 

@@ -23,6 +23,7 @@ require (
 	github.com/grafana/sobek v0.0.0-20260309140132-c198b3f43d96
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/hashicorp/hcl/v2 v2.24.0
+	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
 	github.com/magefile/mage v1.16.1
 	github.com/mattn/go-sqlite3 v1.14.28

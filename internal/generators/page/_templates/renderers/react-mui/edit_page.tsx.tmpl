@@ -1,0 +1,23 @@
+import { [[ .ActionName ]] } from "@pola/actions";
+import Edit[[ .Name ]]Form from "@/components/[[ .PluralSnake ]]/edit-form";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import CardHeader from "@mui/material/CardHeader";
+
+export default async function Edit[[ .Name ]]Page({
+  params,
+}: {
+  params: { id: string };
+}) {
+  const id = parseInt(params.id, 10);
+  const item = await [[ .ActionName ]].get(id);
+
+  return (
+    <Card variant="outlined">
+      <CardHeader title={`Edit [[ .Name ]] #${params.id}`} titleTypographyProps={{ variant: "h6", fontWeight: 600 }} />
+      <CardContent>
+        <Edit[[ .Name ]]Form id={id} initialData={item} />
+      </CardContent>
+    </Card>
+  );
+}

@@ -62,6 +62,7 @@ type Polafile struct {
 	Bundler        string `hcl:"bundler,optional"`
 	Router         string `hcl:"router,optional"`
 	CSS            string `hcl:"css,optional"`
+	UI             string `hcl:"ui,optional"`
 	PackageManager string `hcl:"package_manager,optional"`
 
 	App          string `hcl:"app,optional"`
@@ -425,6 +426,7 @@ func Save(dir string, pf *Polafile) error {
 	setAttr(blockBody, "bundler", pf.Bundler)
 	setAttr(blockBody, "router", pf.Router)
 	setAttr(blockBody, "css", pf.CSS)
+	setAttr(blockBody, "ui", pf.UI)
 	setAttr(blockBody, "package_manager", pf.PackageManager)
 	setAttr(blockBody, "app", pf.App)
 	setAttr(blockBody, "actions", pf.Actions)
