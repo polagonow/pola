@@ -1,0 +1,74 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { csrfToken } from "@/utils/csrf";
+import ThemeProvider from "@/lib/theme-provider";
+import {
+  Button,
+  Dialog,
+  DialogTrigger,
+  DialogSurface,
+  DialogBody,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+} from "@fluentui/react-components";
+
+export default function DeleteButton({ id }: { id: number }) {
+  const [open, setOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  function handleDelete() {
+    startTransition(async () => {
+      try {
+        const res = await fetch(`/[[ .PluralSnake ]]/${id}`, {
+          method: "DELETE",
+          headers: { "X-CSRF-Token": csrfToken() },
+        });
+
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || res.statusText);
+        }
+
+        window.location.href = "/[[ .PluralSnake ]]";
+      } catch (err) {
+        alert(err instanceof Error ? err.message : "Delete failed");
+        setOpen(false);
+      }
+    });
+  }
+
+  return (
+    <ThemeProvider>
+      <Dialog open={open} onOpenChange={(_e, data) => setOpen(data.open)}>
+        <DialogTrigger disableButtonEnhancement>
+          <Button size="small" style={{ color: "#d32f2f" }}>
+            Delete
+          </Button>
+        </DialogTrigger>
+        <DialogSurface>
+          <DialogBody>
+            <DialogTitle>Confirm Delete</DialogTitle>
+            <DialogContent>
+              Are you sure you want to delete this [[ .SnakeName ]]? This action cannot be undone.
+            </DialogContent>
+            <DialogActions>
+              <DialogTrigger disableButtonEnhancement>
+                <Button appearance="secondary">Cancel</Button>
+              </DialogTrigger>
+              <Button
+                appearance="primary"
+                onClick={handleDelete}
+                disabled={isPending}
+                style={{ backgroundColor: "#d32f2f" }}
+              >
+                {isPending ? "Deleting..." : "Delete"}
+              </Button>
+            </DialogActions>
+          </DialogBody>
+        </DialogSurface>
+      </Dialog>
+    </ThemeProvider>
+  );
+}
