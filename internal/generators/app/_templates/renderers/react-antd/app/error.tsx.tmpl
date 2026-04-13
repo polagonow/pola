@@ -1,0 +1,28 @@
+"use client";
+import { useEffect } from "react";
+
+export default function Error({
+  error,
+  reset,
+}: {
+  error: Error & { digest?: string };
+  reset: () => void;
+}) {
+  useEffect(() => {
+    console.error(error);
+  }, [error]);
+  return (
+    <div style={{ marginTop: 16, border: "1px solid #ff4d4f", borderRadius: 8, padding: 16, background: "#fff2f0", color: "#ff4d4f" }}>
+      <strong>Something went wrong</strong>
+      <p style={{ margin: "8px 0", fontSize: "0.875rem" }}>
+        {error.digest ?? error.message}
+      </p>
+      <button
+        onClick={reset}
+        style={{ border: "1px solid #d9d9d9", background: "#fff", borderRadius: 6, padding: "4px 15px", fontSize: "0.875rem", cursor: "pointer", color: "rgba(0, 0, 0, 0.88)" }}
+      >
+        Try again
+      </button>
+    </div>
+  );
+}
