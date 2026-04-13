@@ -1,0 +1,11 @@
+export default function GlobalNotFound() {
+  return (
+    <div style={{ paddingTop: 64, paddingBottom: 64, textAlign: "center" }}>
+      <h1 style={{ fontSize: "3rem", fontWeight: 700 }}>404</h1>
+      <p style={{ color: "#666" }}>This page does not exist</p>
+      <a href="/" style={{ display: "inline-block", marginTop: 16 }}>
+        Back to home
+      </a>
+    </div>
+  );
+}

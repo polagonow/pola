@@ -1,0 +1,71 @@
+"use client";
+
+import ThemeProvider from "@/lib/theme-provider";
+import DeleteButton from "@/components/[[ .PluralSnake ]]/delete-button";
+import {
+  Table,
+  TableHeader,
+  TableHeaderCell,
+  TableBody,
+  TableRow,
+  TableCell,
+  Button,
+  Title2,
+  Text,
+} from "@fluentui/react-components";
+
+export default function [[ .PluralName ]]ListView({
+  items,
+}: {
+  items: any[];
+}) {
+  return (
+    <ThemeProvider>
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+        <Title2 as="h1">
+          [[ .PluralName ]]
+        </Title2>
+        <Button appearance="primary" as="a" href="/[[ .PluralSnake ]]/create">
+          New [[ .Name ]]
+        </Button>
+      </div>
+
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHeaderCell><strong>ID</strong></TableHeaderCell>
+            [[- range .Fields ]]
+            <TableHeaderCell><strong>[[ .Label ]]</strong></TableHeaderCell>
+            [[- end ]]
+            <TableHeaderCell style={{ textAlign: "right" }}><strong>Actions</strong></TableHeaderCell>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {items.map((item) => (
+            <TableRow key={item.id}>
+              <TableCell>{item.id}</TableCell>
+              [[- range .Fields ]]
+              <TableCell>{[[ if eq .InputType "checkbox" ]]item.[[ .JSONName ]] ? "Yes" : "No"[[ else ]]String(item.[[ .JSONName ]] ?? "")[[ end ]]}</TableCell>
+              [[- end ]]
+              <TableCell style={{ textAlign: "right" }}>
+                <div style={{ display: "inline-flex", gap: 4 }}>
+                  <Button size="small" as="a" href={`/[[ $.PluralSnake ]]/${item.id}`}>View</Button>
+                  <Button size="small" as="a" href={`/[[ $.PluralSnake ]]/${item.id}/edit`}>Edit</Button>
+                  <DeleteButton id={item.id} />
+                </div>
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+
+      {items.length === 0 && (
+        <Text style={{ display: "block", padding: "32px 0", textAlign: "center", color: "#666" }}>
+          No [[ .PluralSnake ]] found.
+        </Text>
+      )}
+    </div>
+    </ThemeProvider>
+  );
+}

@@ -1,0 +1,19 @@
+{
+  "name": "fluent-test",
+  "private": true,
+  "dependencies": {
+    "@fluentui/react-components": "^9.56.0",
+    "@fluentui/react-icons": "^2.0.258",
+    "@hookform/resolvers": "^5.2.2",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-hook-form": "^7.72.1",
+    "react-server-dom-esm": "npm:@kentcdodds/tmp-react-server-dom-esm@^19.0.1",
+    "react-server-dom-webpack": "19.3.0-canary-5e9eedb5-20260312",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3"
+  }
+}
