@@ -1,0 +1,121 @@
+"use client";
+
+import { useState, useTransition, useCallback, useEffect } from "react";
+import { csrfToken } from "@/utils/csrf";
+
+function ConfirmModal({
+  title,
+  message,
+  onConfirm,
+  onCancel,
+  isLoading,
+}: {
+  title: string;
+  message: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  isLoading: boolean;
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onCancel();
+    }
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [onCancel]);
+
+  return (
+    <div
+      style={{ position: "fixed", inset: 0, zIndex: 510, display: "flex", alignItems: "center", justifyContent: "center" }}
+      onClick={onCancel}
+    >
+      <div style={{ position: "fixed", inset: 0, background: "var(--ds-blanket, rgba(9, 30, 66, 0.54))" }} />
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          position: "relative",
+          width: "100%",
+          maxWidth: 400,
+          margin: 16,
+          borderRadius: 3,
+          background: "var(--ds-surface-overlay, #fff)",
+          boxShadow: "var(--ds-shadow-overlay, 0 20px 32px -8px rgba(9, 30, 66, 0.25), 0 0 1px rgba(9, 30, 66, 0.31))",
+        }}
+      >
+        <div style={{ padding: "24px 24px 16px" }}>
+          <h4 style={{ margin: 0, fontSize: "1.25rem", fontWeight: 500, color: "var(--ds-text, #172B4D)" }}>
+            {title}
+          </h4>
+        </div>
+        <div style={{ padding: "0 24px 24px" }}>
+          <p style={{ margin: 0, fontSize: "0.875rem", color: "var(--ds-text, #172B4D)" }}>
+            {message}
+          </p>
+        </div>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, padding: "16px 24px", borderTop: "1px solid var(--ds-border, #DFE1E6)" }}>
+          <button
+            onClick={onCancel}
+            disabled={isLoading}
+            style={{ padding: "6px 12px", borderRadius: 3, border: "none", background: "var(--ds-background-neutral, #F4F5F7)", color: "var(--ds-text, #172B4D)", fontWeight: 500, fontSize: "0.875rem", cursor: "pointer" }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isLoading}
+            style={{ padding: "6px 12px", borderRadius: 3, border: "none", background: "var(--ds-background-danger-bold, #DE350B)", color: "var(--ds-text-inverse, #fff)", fontWeight: 500, fontSize: "0.875rem", cursor: "pointer", opacity: isLoading ? 0.6 : 1 }}
+          >
+            {isLoading ? "Deleting..." : "Delete"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function DeleteButton({ id }: { id: number }) {
+  const [open, setOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  const handleConfirm = useCallback(() => {
+    startTransition(async () => {
+      try {
+        const res = await fetch(`/[[ .PluralSnake ]]/${id}`, {
+          method: "DELETE",
+          headers: { "X-CSRF-Token": csrfToken() },
+        });
+
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || res.statusText);
+        }
+
+        window.location.href = "/[[ .PluralSnake ]]";
+      } catch (err) {
+        setOpen(false);
+        alert(err instanceof Error ? err.message : "Delete failed");
+      }
+    });
+  }, [id]);
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        disabled={isPending}
+        style={{ padding: "4px 8px", borderRadius: 3, border: "none", background: "transparent", color: "var(--ds-text-danger, #DE350B)", fontWeight: 500, fontSize: "0.875rem", cursor: "pointer" }}
+      >
+        Delete
+      </button>
+      {open && (
+        <ConfirmModal
+          title="Delete [[ .SnakeName ]]"
+          message="This [[ .SnakeName ]] will be permanently deleted. This action cannot be undone."
+          onConfirm={handleConfirm}
+          onCancel={() => setOpen(false)}
+          isLoading={isPending}
+        />
+      )}
+    </>
+  );
+}
