@@ -1,0 +1,71 @@
+"use client";
+
+import DeleteButton from "@/components/[[ .PluralSnake ]]/delete-button";
+import {
+  Button,
+  Toolbar,
+  ToolbarContent,
+  ToolbarItem,
+  Title,
+  Content,
+  ContentVariants,
+} from "@patternfly/react-core";
+import { Table, Thead, Tbody, Tr, Th, Td } from "@patternfly/react-table";
+
+export default function [[ .PluralName ]]ListView({
+  items,
+}: {
+  items: any[];
+}) {
+  return (
+    <div>
+      <Toolbar>
+        <ToolbarContent>
+          <ToolbarItem>
+            <Title headingLevel="h1" size="xl">
+              [[ .PluralName ]]
+            </Title>
+          </ToolbarItem>
+          <ToolbarItem align={{ default: "alignEnd" }}>
+            <Button variant="primary" component="a" href="/[[ .PluralSnake ]]/create">
+              New [[ .Name ]]
+            </Button>
+          </ToolbarItem>
+        </ToolbarContent>
+      </Toolbar>
+
+      <Table variant="compact">
+        <Thead>
+          <Tr>
+            <Th>ID</Th>
+            [[- range .Fields ]]
+            <Th>[[ .Label ]]</Th>
+            [[- end ]]
+            <Th style={{ textAlign: "right" }}>Actions</Th>
+          </Tr>
+        </Thead>
+        <Tbody>
+          {items.map((item) => (
+            <Tr key={item.id}>
+              <Td>{item.id}</Td>
+              [[- range .Fields ]]
+              <Td>{[[ if eq .InputType "checkbox" ]]item.[[ .JSONName ]] ? "Yes" : "No"[[ else ]]String(item.[[ .JSONName ]] ?? "")[[ end ]]}</Td>
+              [[- end ]]
+              <Td style={{ textAlign: "right" }}>
+                <Button variant="link" component="a" href={`/[[ $.PluralSnake ]]/${item.id}`}>View</Button>
+                <Button variant="link" component="a" href={`/[[ $.PluralSnake ]]/${item.id}/edit`}>Edit</Button>
+                <DeleteButton id={item.id} />
+              </Td>
+            </Tr>
+          ))}
+        </Tbody>
+      </Table>
+
+      {items.length === 0 && (
+        <Content component={ContentVariants.p} style={{ padding: "32px 0", textAlign: "center", color: "#6a6e73" }}>
+          No [[ .PluralSnake ]] found.
+        </Content>
+      )}
+    </div>
+  );
+}

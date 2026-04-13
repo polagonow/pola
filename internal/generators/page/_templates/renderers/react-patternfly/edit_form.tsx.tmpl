@@ -1,0 +1,126 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { [[ .SnakeName ]]Schema, type [[ .Name ]] } from "[[ .SchemaImport ]]";
+import { csrfToken } from "@/utils/csrf";
+import {
+  ActionGroup,
+  Alert,
+  Button,
+  Checkbox,
+  Form,
+  FormGroup,
+  TextArea,
+  TextInput,
+} from "@patternfly/react-core";
+
+export default function Edit[[ .Name ]]Form({
+  id,
+  initialData,
+}: {
+  id: number;
+  initialData: [[ .Name ]];
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const {
+    handleSubmit,
+    control,
+    formState: { errors },
+  } = useForm<[[ .Name ]]>({
+    resolver: zodResolver([[ .SnakeName ]]Schema),
+    defaultValues: initialData,
+  });
+
+  function onSubmit(data: [[ .Name ]]) {
+    setError(null);
+
+    startTransition(async () => {
+      try {
+        const res = await fetch(`/[[ .PluralSnake ]]/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
+          body: JSON.stringify(data),
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || res.statusText);
+        }
+        window.location.href = `/[[ .PluralSnake ]]/${id}`;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An error occurred");
+      }
+    });
+  }
+
+  return (
+    <>
+      {error && (
+        <Alert variant="danger" title={error} style={{ marginBottom: 16 }} />
+      )}
+
+      <Form onSubmit={handleSubmit(onSubmit)}>
+        [[- range .Fields ]]
+        [[ if eq .InputType "checkbox" -]]
+        <Controller
+          name="[[ .JSONName ]]"
+          control={control}
+          render={({ field }) => (
+            <Checkbox
+              id="[[ .JSONName ]]"
+              label="[[ .Label ]][[ if .Optional ]] (optional)[[ end ]]"
+              isChecked={!!field.value}
+              onChange={(_event, checked) => field.onChange(checked)}
+            />
+          )}
+        />
+        [[ else -]]
+        <Controller
+          name="[[ .JSONName ]]"
+          control={control}
+          render={({ field }) => (
+            <FormGroup
+              label="[[ .Label ]][[ if .Optional ]] (optional)[[ end ]]"
+              fieldId="[[ .JSONName ]]"
+              helperText={errors.[[ .JSONName ]]?.message}
+              validated={errors.[[ .JSONName ]] ? "error" : "default"}
+            >
+              [[ if .IsTextarea -]]
+              <TextArea
+                id="[[ .JSONName ]]"
+                value={field.value as string ?? ""}
+                onChange={(_event, value) => field.onChange(value)}
+                validated={errors.[[ .JSONName ]] ? "error" : "default"}
+                rows={4}
+                resizeOrientation="vertical"
+              />
+              [[ else -]]
+              <TextInput
+                id="[[ .JSONName ]]"
+                type="[[ .InputType ]]"
+                value={field.value as string ?? ""}
+                onChange={(_event, value) => field.onChange([[ if eq .InputType "number" ]]value === "" ? "" : Number(value)[[ else ]]value[[ end ]])}
+                validated={errors.[[ .JSONName ]] ? "error" : "default"}
+                [[ if .IsFloat ]]step="any"[[ end ]]
+              />
+              [[ end -]]
+            </FormGroup>
+          )}
+        />
+        [[ end -]]
+        [[- end ]]
+
+        <ActionGroup>
+          <Button type="submit" variant="primary" isDisabled={isPending}>
+            {isPending ? "Saving..." : "Save [[ .Name ]]"}
+          </Button>
+          <Button variant="link" component="a" href={`/[[ .PluralSnake ]]/${id}`}>
+            Cancel
+          </Button>
+        </ActionGroup>
+      </Form>
+    </>
+  );
+}

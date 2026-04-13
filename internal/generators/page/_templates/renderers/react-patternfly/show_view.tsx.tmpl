@@ -1,0 +1,67 @@
+"use client";
+
+import DeleteButton from "@/components/[[ .PluralSnake ]]/delete-button";
+import {
+  Button,
+  Card,
+  CardBody,
+  Title,
+  DescriptionList,
+  DescriptionListGroup,
+  DescriptionListTerm,
+  DescriptionListDescription,
+  Toolbar,
+  ToolbarContent,
+  ToolbarItem,
+} from "@patternfly/react-core";
+
+export default function [[ .Name ]]ShowView({
+  item,
+  id,
+}: {
+  item: any;
+  id: string;
+}) {
+  return (
+    <div>
+      <Toolbar>
+        <ToolbarContent>
+          <ToolbarItem>
+            <Title headingLevel="h1" size="xl">
+              [[ .Name ]] #{id}
+            </Title>
+          </ToolbarItem>
+          <ToolbarItem align={{ default: "alignEnd" }}>
+            <Button variant="primary" component="a" href={`/[[ .PluralSnake ]]/${id}/edit`}>
+              Edit
+            </Button>{" "}
+            <DeleteButton id={item.id} />
+          </ToolbarItem>
+        </ToolbarContent>
+      </Toolbar>
+
+      <Card>
+        <CardBody>
+          <DescriptionList>
+            <DescriptionListGroup>
+              <DescriptionListTerm>ID</DescriptionListTerm>
+              <DescriptionListDescription>{item.id}</DescriptionListDescription>
+            </DescriptionListGroup>
+            [[- range .Fields ]]
+            <DescriptionListGroup>
+              <DescriptionListTerm>[[ .Label ]]</DescriptionListTerm>
+              <DescriptionListDescription>{[[ if eq .InputType "checkbox" ]]item.[[ .JSONName ]] ? "Yes" : "No"[[ else ]]String(item.[[ .JSONName ]] ?? "")[[ end ]]}</DescriptionListDescription>
+            </DescriptionListGroup>
+            [[- end ]]
+          </DescriptionList>
+        </CardBody>
+      </Card>
+
+      <div style={{ marginTop: 16 }}>
+        <Button variant="link" component="a" href="/[[ .PluralSnake ]]">
+          ← Back to [[ .PluralName ]]
+        </Button>
+      </div>
+    </div>
+  );
+}
