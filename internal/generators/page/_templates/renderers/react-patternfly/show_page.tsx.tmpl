@@ -1,0 +1,12 @@
+import { [[ .ActionName ]] } from "@pola/actions";
+import [[ .Name ]]ShowView from "@/components/[[ .PluralSnake ]]/show-view";
+
+export default async function [[ .Name ]]ShowPage({
+  params,
+}: {
+  params: { id: string };
+}) {
+  const item = await [[ .ActionName ]].get(parseInt(params.id, 10));
+
+  return <[[ .Name ]]ShowView item={item} id={params.id} />;
+}

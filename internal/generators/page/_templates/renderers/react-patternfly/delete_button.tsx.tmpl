@@ -1,0 +1,43 @@
+"use client";
+
+import { useTransition } from "react";
+import { csrfToken } from "@/utils/csrf";
+import { Button } from "@patternfly/react-core";
+
+export default function DeleteButton({ id }: { id: number }) {
+  const [isPending, startTransition] = useTransition();
+
+  function handleDelete() {
+    if (!window.confirm("Are you sure you want to delete this [[ .SnakeName ]]?")) {
+      return;
+    }
+
+    startTransition(async () => {
+      try {
+        const res = await fetch(`/[[ .PluralSnake ]]/${id}`, {
+          method: "DELETE",
+          headers: { "X-CSRF-Token": csrfToken() },
+        });
+
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || res.statusText);
+        }
+
+        window.location.href = "/[[ .PluralSnake ]]";
+      } catch (err) {
+        alert(err instanceof Error ? err.message : "Delete failed");
+      }
+    });
+  }
+
+  return (
+    <Button
+      variant="danger"
+      isDisabled={isPending}
+      onClick={handleDelete}
+    >
+      {isPending ? "Deleting..." : "Delete"}
+    </Button>
+  );
+}
