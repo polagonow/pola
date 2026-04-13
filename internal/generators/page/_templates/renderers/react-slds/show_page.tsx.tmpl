@@ -1,0 +1,43 @@
+import { [[ .ActionName ]] } from "@pola/actions";
+import DeleteButton from "@/components/[[ .PluralSnake ]]/delete-button";
+
+export default async function [[ .Name ]]ShowPage({
+  params,
+}: {
+  params: { id: string };
+}) {
+  const item = await [[ .ActionName ]].get(parseInt(params.id, 10));
+
+  return (
+    <div>
+      <div className="slds-grid slds-grid_align-spread slds-grid_vertical-align-center slds-m-bottom_medium">
+        <h1 className="slds-text-heading_medium">[[ .Name ]] #{params.id}</h1>
+        <div className="slds-button-group" role="group">
+          <a href={`/[[ .PluralSnake ]]/${params.id}/edit`} className="slds-button slds-button_brand">
+            Edit
+          </a>
+          <DeleteButton id={item.id} />
+        </div>
+      </div>
+
+      <article className="slds-card">
+        <div className="slds-card__body slds-card__body_inner">
+          <dl className="slds-dl_horizontal">
+            <dt className="slds-dl_horizontal__label slds-text-color_weak">ID</dt>
+            <dd className="slds-dl_horizontal__detail">{item.id}</dd>
+            [[- range .Fields ]]
+            <dt className="slds-dl_horizontal__label slds-text-color_weak">[[ .Label ]]</dt>
+            <dd className="slds-dl_horizontal__detail">{[[ if eq .InputType "checkbox" ]]item.[[ .JSONName ]] ? "Yes" : "No"[[ else ]]String(item.[[ .JSONName ]] ?? "")[[ end ]]}</dd>
+            [[- end ]]
+          </dl>
+        </div>
+      </article>
+
+      <div className="slds-m-top_medium">
+        <a href="/[[ .PluralSnake ]]" className="slds-button slds-button_neutral">
+          ← Back to [[ .PluralName ]]
+        </a>
+      </div>
+    </div>
+  );
+}

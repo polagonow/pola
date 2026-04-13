@@ -1,0 +1,58 @@
+import { [[ .ActionName ]] } from "@pola/actions";
+import DeleteButton from "@/components/[[ .PluralSnake ]]/delete-button";
+
+export default async function [[ .PluralName ]]Page({
+  searchParams,
+}: {
+  searchParams?: Record<string, string>;
+}) {
+  const page = parseInt(searchParams?.page || "1", 10);
+  const perPage = parseInt(searchParams?.per_page || "25", 10);
+  const result = await [[ .ActionName ]].list(page, perPage);
+
+  return (
+    <div>
+      <div className="slds-grid slds-grid_align-spread slds-grid_vertical-align-center slds-m-bottom_medium">
+        <h1 className="slds-text-heading_medium">[[ .PluralName ]]</h1>
+        <a href="/[[ .PluralSnake ]]/create" className="slds-button slds-button_brand">
+          New [[ .Name ]]
+        </a>
+      </div>
+
+      <table className="slds-table slds-table_cell-buffer slds-table_bordered slds-table_striped">
+        <thead>
+          <tr className="slds-line-height_reset">
+            <th scope="col"><div className="slds-truncate" title="ID">ID</div></th>
+            [[- range .Fields ]]
+            <th scope="col"><div className="slds-truncate" title="[[ .Label ]]">[[ .Label ]]</div></th>
+            [[- end ]]
+            <th scope="col" style={{ textAlign: "right" }}><div className="slds-truncate" title="Actions">Actions</div></th>
+          </tr>
+        </thead>
+        <tbody>
+          {result.items.map((item) => (
+            <tr key={item.id}>
+              <td><div className="slds-truncate">{item.id}</div></td>
+              [[- range .Fields ]]
+              <td><div className="slds-truncate">{[[ if eq .InputType "checkbox" ]]item.[[ .JSONName ]] ? "Yes" : "No"[[ else ]]String(item.[[ .JSONName ]] ?? "")[[ end ]]}</div></td>
+              [[- end ]]
+              <td style={{ textAlign: "right" }}>
+                <div className="slds-button-group" role="group">
+                  <a href={`/[[ $.PluralSnake ]]/${item.id}`} className="slds-button slds-button_neutral">View</a>
+                  <a href={`/[[ $.PluralSnake ]]/${item.id}/edit`} className="slds-button slds-button_neutral">Edit</a>
+                  <DeleteButton id={item.id} />
+                </div>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      {result.items.length === 0 && (
+        <div className="slds-text-align_center slds-p-vertical_large slds-text-color_weak">
+          No [[ .PluralSnake ]] found.
+        </div>
+      )}
+    </div>
+  );
+}
