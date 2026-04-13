@@ -1,0 +1,64 @@
+"use client";
+
+import { Table, Button, Space, Typography } from "antd";
+import { PlusOutlined, EyeOutlined, EditOutlined } from "@ant-design/icons";
+import DeleteButton from "@/components/[[ .PluralSnake ]]/delete-button";
+
+const { Title } = Typography;
+
+export default function [[ .PluralName ]]ListView({
+  items,
+}: {
+  items: any[];
+}) {
+  const columns = [
+    { title: "ID", dataIndex: "id", key: "id" },
+    [[- range .Fields ]]
+    {
+      title: "[[ .Label ]]",
+      dataIndex: "[[ .JSONName ]]",
+      key: "[[ .JSONName ]]",
+      [[ if eq .InputType "checkbox" -]]
+      render: (value: boolean) => (value ? "Yes" : "No"),
+      [[ else -]]
+      render: (value: unknown) => String(value ?? ""),
+      [[ end -]]
+    },
+    [[- end ]]
+    {
+      title: "Actions",
+      key: "actions",
+      align: "right" as const,
+      render: (_: unknown, record: { id: number }) => (
+        <Space>
+          <Button type="link" size="small" href={`/[[ $.PluralSnake ]]/${record.id}`} icon={<EyeOutlined />}>
+            View
+          </Button>
+          <Button type="link" size="small" href={`/[[ $.PluralSnake ]]/${record.id}/edit`} icon={<EditOutlined />}>
+            Edit
+          </Button>
+          <DeleteButton id={record.id} />
+        </Space>
+      ),
+    },
+  ];
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+        <Title level={3} style={{ margin: 0 }}>[[ .PluralName ]]</Title>
+        <Button type="primary" href="/[[ .PluralSnake ]]/create" icon={<PlusOutlined />}>
+          New [[ .Name ]]
+        </Button>
+      </div>
+
+      <Table
+        dataSource={items}
+        columns={columns}
+        rowKey="id"
+        pagination={false}
+        locale={{ emptyText: "No [[ .PluralSnake ]] found." }}
+      />
+    </div>
+  );
+}

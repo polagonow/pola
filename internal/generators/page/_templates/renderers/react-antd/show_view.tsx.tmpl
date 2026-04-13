@@ -1,0 +1,42 @@
+"use client";
+
+import { Descriptions, Button, Space, Typography } from "antd";
+import { EditOutlined, ArrowLeftOutlined } from "@ant-design/icons";
+import DeleteButton from "@/components/[[ .PluralSnake ]]/delete-button";
+
+const { Title } = Typography;
+
+export default function [[ .Name ]]ShowView({
+  item,
+  id,
+}: {
+  item: any;
+  id: string;
+}) {
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+        <Title level={3} style={{ margin: 0 }}>[[ .Name ]] #{id}</Title>
+        <Space>
+          <Button type="primary" href={`/[[ .PluralSnake ]]/${id}/edit`} icon={<EditOutlined />}>
+            Edit
+          </Button>
+          <DeleteButton id={item.id} />
+        </Space>
+      </div>
+
+      <Descriptions bordered column={1}>
+        <Descriptions.Item label="ID">{item.id}</Descriptions.Item>
+        [[- range .Fields ]]
+        <Descriptions.Item label="[[ .Label ]]">{[[ if eq .InputType "checkbox" ]]item.[[ .JSONName ]] ? "Yes" : "No"[[ else ]]String(item.[[ .JSONName ]] ?? "")[[ end ]]}</Descriptions.Item>
+        [[- end ]]
+      </Descriptions>
+
+      <div style={{ marginTop: 24 }}>
+        <Button type="link" href="/[[ .PluralSnake ]]" icon={<ArrowLeftOutlined />} style={{ paddingLeft: 0 }}>
+          Back to [[ .PluralName ]]
+        </Button>
+      </div>
+    </div>
+  );
+}

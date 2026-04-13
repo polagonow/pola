@@ -1,0 +1,14 @@
+import { [[ .ActionName ]] } from "@pola/actions";
+import [[ .PluralName ]]ListView from "@/components/[[ .PluralSnake ]]/list-view";
+
+export default async function [[ .PluralName ]]Page({
+  searchParams,
+}: {
+  searchParams?: Record<string, string>;
+}) {
+  const page = parseInt(searchParams?.page || "1", 10);
+  const perPage = parseInt(searchParams?.per_page || "25", 10);
+  const result = await [[ .ActionName ]].list(page, perPage);
+
+  return <[[ .PluralName ]]ListView items={result.items} />;
+}
