@@ -1,0 +1,14 @@
+import Create[[ .Name ]]Form from "@/components/[[ .PluralSnake ]]/create-form";
+
+export default function Create[[ .Name ]]Page() {
+  return (
+    <div style={{ border: "1px solid var(--ds-border, #DFE1E6)", borderRadius: 3, overflow: "hidden" }}>
+      <div style={{ padding: "16px 24px", borderBottom: "1px solid var(--ds-border, #DFE1E6)", background: "var(--ds-background-neutral, #F4F5F7)" }}>
+        <h2 style={{ margin: 0, fontSize: "1.125rem", fontWeight: 600 }}>Create [[ .Name ]]</h2>
+      </div>
+      <div style={{ padding: 24 }}>
+        <Create[[ .Name ]]Form />
+      </div>
+    </div>
+  );
+}
