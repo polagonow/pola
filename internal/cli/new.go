@@ -77,7 +77,7 @@ func init() {
 	newCmd.Flags().StringVar(&newFlags.router, "router", "nextjs", "router style (nextjs)")
 	newCmd.Flags().StringVar(&newFlags.css, "css", "tailwind", "CSS processor (tailwind, none)")
 	newCmd.Flags().StringVar(&newFlags.vm, "vm", "goja", "JS engine (goja)")
-	newCmd.Flags().StringVar(&newFlags.ui, "ui", "none", "UI component library (shadcn, mui, patternfly, none)")
+	newCmd.Flags().StringVar(&newFlags.ui, "ui", "none", "UI component library (shadcn, mui, carbon, patternfly, none)")
 	newCmd.Flags().StringVar(&newFlags.polaPath, "pola-path", "", "local path to pola framework source (adds replace directive)")
 	newCmd.Flags().StringVar(&newFlags.pm, "pm", "", "package manager to use (npm, pnpm, yarn); auto-detected if not set")
 	newCmd.Flags().BoolVar(&newFlags.csrf, "csrf", true, "enable CSRF protection")
@@ -105,11 +105,18 @@ func runNew(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("--ui=shadcn requires --renderer=react")
 		}
 	}
+	if newFlags.ui == "carbon" {
+		if newFlags.renderer != "react" {
+			return fmt.Errorf("--ui=carbon requires --renderer=react")
+		}
+	}
 
-	// Auto-detect CSS requirement: if the UI template doesn't include
-	// tailwindcss, default css to "none" (unless user explicitly set --css).
+	// Auto-detect CSS requirement from the UI template's dependencies
+	// (unless user explicitly set --css).
 	if newFlags.ui != "" && newFlags.ui != "none" && !cmd.Flags().Lookup("css").Changed {
-		if !app.UIRequiresTailwind(newFlags.renderer, newFlags.ui) {
+		if app.UIRequiresSass(newFlags.renderer, newFlags.ui) {
+			newFlags.css = "sass"
+		} else if !app.UIRequiresTailwind(newFlags.renderer, newFlags.ui) {
 			newFlags.css = "none"
 		}
 	}
