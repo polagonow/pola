@@ -1,5 +1,5 @@
 import { [[ .ActionName ]] } from "@pola/actions";
-import DeleteButton from "@/components/[[ .PluralSnake ]]/delete-button";
+import [[ .Name ]]ShowView from "@/components/[[ .PluralSnake ]]/show-view";
 
 export default async function [[ .Name ]]ShowPage({
   params,
@@ -8,41 +8,5 @@ export default async function [[ .Name ]]ShowPage({
 }) {
   const item = await [[ .ActionName ]].get(parseInt(params.id, 10));
 
-  return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-        <h1 style={{ fontSize: "1.5rem", fontWeight: 600, margin: 0 }}>
-          [[ .Name ]] #{params.id}
-        </h1>
-        <div style={{ display: "flex", gap: 8 }}>
-          <a
-            href={`/[[ .PluralSnake ]]/${params.id}/edit`}
-            style={{ display: "inline-flex", alignItems: "center", padding: "4px 15px", borderRadius: 6, background: "#1677ff", color: "#fff", fontWeight: 400, fontSize: "0.875rem", textDecoration: "none" }}
-          >
-            Edit
-          </a>
-          <DeleteButton id={item.id} />
-        </div>
-      </div>
-
-      <div style={{ border: "1px solid #d9d9d9", borderRadius: 8, overflow: "hidden" }}>
-        <div style={{ display: "flex", padding: "12px 16px", borderBottom: "1px solid #f0f0f0", background: "#fafafa" }}>
-          <span style={{ width: 192, flexShrink: 0, fontWeight: 500, color: "rgba(0, 0, 0, 0.45)", fontSize: "0.875rem" }}>ID</span>
-          <span style={{ fontSize: "0.875rem" }}>{item.id}</span>
-        </div>
-        [[- range .Fields ]]
-        <div style={{ display: "flex", padding: "12px 16px", borderBottom: "1px solid #f0f0f0" }}>
-          <span style={{ width: 192, flexShrink: 0, fontWeight: 500, color: "rgba(0, 0, 0, 0.45)", fontSize: "0.875rem" }}>[[ .Label ]]</span>
-          <span style={{ fontSize: "0.875rem" }}>{[[ if eq .InputType "checkbox" ]]item.[[ .JSONName ]] ? "Yes" : "No"[[ else ]]String(item.[[ .JSONName ]] ?? "")[[ end ]]}</span>
-        </div>
-        [[- end ]]
-      </div>
-
-      <div style={{ marginTop: 24 }}>
-        <a href="/[[ .PluralSnake ]]" style={{ color: "#1677ff", fontSize: "0.875rem" }}>
-          ← Back to [[ .PluralName ]]
-        </a>
-      </div>
-    </div>
-  );
+  return <[[ .Name ]]ShowView item={item} id={params.id} />;
 }

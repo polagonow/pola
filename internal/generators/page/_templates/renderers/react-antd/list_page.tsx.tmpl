@@ -1,5 +1,5 @@
 import { [[ .ActionName ]] } from "@pola/actions";
-import DeleteButton from "@/components/[[ .PluralSnake ]]/delete-button";
+import [[ .PluralName ]]ListView from "@/components/[[ .PluralSnake ]]/list-view";
 
 export default async function [[ .PluralName ]]Page({
   searchParams,
@@ -10,56 +10,5 @@ export default async function [[ .PluralName ]]Page({
   const perPage = parseInt(searchParams?.per_page || "25", 10);
   const result = await [[ .ActionName ]].list(page, perPage);
 
-  return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
-        <h1 style={{ fontSize: "1.5rem", fontWeight: 600, margin: 0 }}>
-          [[ .PluralName ]]
-        </h1>
-        <a
-          href="/[[ .PluralSnake ]]/create"
-          style={{ display: "inline-flex", alignItems: "center", padding: "4px 15px", borderRadius: 6, background: "#1677ff", color: "#fff", fontWeight: 400, fontSize: "0.875rem", textDecoration: "none", lineHeight: "1.5714285714285714" }}
-        >
-          New [[ .Name ]]
-        </a>
-      </div>
-
-      <div style={{ border: "1px solid #d9d9d9", borderRadius: 8, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
-          <thead>
-            <tr style={{ background: "#fafafa" }}>
-              <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 600, borderBottom: "1px solid #d9d9d9" }}>ID</th>
-              [[- range .Fields ]]
-              <th style={{ padding: "12px 16px", textAlign: "left", fontWeight: 600, borderBottom: "1px solid #d9d9d9" }}>[[ .Label ]]</th>
-              [[- end ]]
-              <th style={{ padding: "12px 16px", textAlign: "right", fontWeight: 600, borderBottom: "1px solid #d9d9d9" }}>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {result.items.map((item) => (
-              <tr key={item.id} style={{ borderBottom: "1px solid #f0f0f0" }}>
-                <td style={{ padding: "12px 16px" }}>{item.id}</td>
-                [[- range .Fields ]]
-                <td style={{ padding: "12px 16px" }}>{[[ if eq .InputType "checkbox" ]]item.[[ .JSONName ]] ? "Yes" : "No"[[ else ]]String(item.[[ .JSONName ]] ?? "")[[ end ]]}</td>
-                [[- end ]]
-                <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                  <span style={{ display: "inline-flex", gap: 8 }}>
-                    <a href={`/[[ $.PluralSnake ]]/${item.id}`} style={{ color: "#1677ff", fontSize: "0.875rem" }}>View</a>
-                    <a href={`/[[ $.PluralSnake ]]/${item.id}/edit`} style={{ color: "#1677ff", fontSize: "0.875rem" }}>Edit</a>
-                    <DeleteButton id={item.id} />
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      {result.items.length === 0 && (
-        <p style={{ padding: "32px 0", textAlign: "center", color: "rgba(0, 0, 0, 0.45)" }}>
-          No [[ .PluralSnake ]] found.
-        </p>
-      )}
-    </div>
-  );
+  return <[[ .PluralName ]]ListView items={result.items} />;
 }

@@ -1,9 +1,10 @@
 import { Server } from "@pola/actions";
+import { Card, Row, Col } from "antd";
 
 async function ServerInfo() {
   const info = await Server.getServerInfo();
   return (
-    <div style={{ border: "1px solid #d9d9d9", borderRadius: 8, padding: 20, fontFamily: "'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, Courier, monospace", fontSize: "0.875rem" }}>
+    <Card size="small" style={{ fontFamily: "monospace", fontSize: "0.875rem" }}>
       <div style={{ marginBottom: 8, fontWeight: 600 }}>
         Server Info <span style={{ fontWeight: 400, color: "rgba(0, 0, 0, 0.45)" }}>(from Go)</span>
       </div>
@@ -12,7 +13,7 @@ async function ServerInfo() {
         <span style={{ color: "rgba(0, 0, 0, 0.45)" }}>OS</span>   <span>{info.os}/{info.arch}</span>
         <span style={{ color: "rgba(0, 0, 0, 0.45)" }}>Time</span> <span>{info.time}</span>
       </div>
-    </div>
+    </Card>
   );
 }
 
@@ -45,18 +46,20 @@ export default async function HomePage() {
         <ServerInfo />
       </div>
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
+      <Row gutter={16}>
         {[
           { title: "Actions Bridge", description: "Define Go structs in actions/ and call them from React: import { Server } from '@pola/actions'." },
           { title: "File-based Routing", description: "Create app/about/page.tsx and it becomes /about. Supports layouts, loading states, and error boundaries." },
           { title: "Single Binary", description: "Run 'pola build' to compile your entire app — Go server, JS bundle, and static assets — into one binary." },
         ].map((card) => (
-          <div key={card.title} style={{ border: "1px solid #d9d9d9", borderRadius: 8, padding: 24 }}>
-            <h3 style={{ margin: "0 0 8px", fontWeight: 600 }}>{card.title}</h3>
-            <p style={{ margin: 0, fontSize: "0.875rem", color: "rgba(0, 0, 0, 0.45)" }}>{card.description}</p>
-          </div>
+          <Col key={card.title} xs={24} sm={8}>
+            <Card style={{ height: "100%" }}>
+              <h3 style={{ margin: "0 0 8px", fontWeight: 600 }}>{card.title}</h3>
+              <p style={{ margin: 0, fontSize: "0.875rem", color: "rgba(0, 0, 0, 0.45)" }}>{card.description}</p>
+            </Card>
+          </Col>
         ))}
-      </div>
+      </Row>
     </div>
   );
 }

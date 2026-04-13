@@ -1,11 +1,12 @@
+import { Result, Button } from "antd";
+
 export default function GlobalNotFound() {
   return (
-    <div style={{ paddingTop: 64, paddingBottom: 64, textAlign: "center" }}>
-      <h1 style={{ fontSize: "3rem", fontWeight: 700 }}>404</h1>
-      <p style={{ color: "rgba(0, 0, 0, 0.45)" }}>This page does not exist</p>
-      <a href="/" style={{ display: "inline-block", marginTop: 16, color: "#1677ff" }}>
-        Back to home
-      </a>
-    </div>
+    <Result
+      status="404"
+      title="404"
+      subTitle="This page does not exist"
+      extra={<Button type="primary" href="/">Back to home</Button>}
+    />
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 import { useEffect } from "react";
+import { Result, Button } from "antd";
 
 export default function GlobalError({
   error,
@@ -12,17 +13,11 @@ export default function GlobalError({
     console.error(error);
   }, [error]);
   return (
-    <div style={{ display: "flex", minHeight: "100vh", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 16 }}>
-      <h1 style={{ fontSize: "1.5rem", fontWeight: 700 }}>Something went wrong</h1>
-      <p style={{ color: "rgba(0, 0, 0, 0.45)" }}>
-        {error.digest ?? error.message}
-      </p>
-      <button
-        onClick={reset}
-        style={{ border: "1px solid #d9d9d9", background: "#fff", borderRadius: 6, padding: "4px 15px", cursor: "pointer" }}
-      >
-        Try again
-      </button>
-    </div>
+    <Result
+      status="error"
+      title="Something went wrong"
+      subTitle={error.digest ?? error.message}
+      extra={<Button onClick={reset}>Try again</Button>}
+    />
   );
 }
