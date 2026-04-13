@@ -1,0 +1,58 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { csrfToken } from "@/utils/csrf";
+import { Button, Modal } from "@carbon/react";
+
+export default function DeleteButton({ id }: { id: number }) {
+  const [open, setOpen] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  function handleDelete() {
+    startTransition(async () => {
+      try {
+        const res = await fetch(`/[[ .PluralSnake ]]/${id}`, {
+          method: "DELETE",
+          headers: { "X-CSRF-Token": csrfToken() },
+        });
+
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || res.statusText);
+        }
+
+        window.location.href = "/[[ .PluralSnake ]]";
+      } catch (err) {
+        setOpen(false);
+        alert(err instanceof Error ? err.message : "Delete failed");
+      }
+    });
+  }
+
+  return (
+    <>
+      <Button
+        kind="danger--ghost"
+        size="sm"
+        onClick={() => setOpen(true)}
+        disabled={isPending}
+      >
+        Delete
+      </Button>
+      <Modal
+        open={open}
+        danger
+        modalHeading="Delete [[ .SnakeName ]]"
+        modalLabel="Confirm deletion"
+        primaryButtonText={isPending ? "Deleting..." : "Delete"}
+        primaryButtonDisabled={isPending}
+        secondaryButtonText="Cancel"
+        onRequestClose={() => setOpen(false)}
+        onRequestSubmit={handleDelete}
+        size="sm"
+      >
+        <p>Are you sure you want to delete this [[ .SnakeName ]]? This action cannot be undone.</p>
+      </Modal>
+    </>
+  );
+}

@@ -1,0 +1,62 @@
+import { Server } from "@pola/actions";
+
+async function ServerInfo() {
+  const info = await Server.getServerInfo();
+  return (
+    <div className="cds--tile" style={{ fontFamily: "'IBM Plex Mono', monospace", fontSize: "0.875rem" }}>
+      <div style={{ marginBottom: 8, fontFamily: "'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif", fontWeight: 600 }}>
+        Server Info <span style={{ fontWeight: 400, color: "#525252" }}>(from Go)</span>
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "4px 16px" }}>
+        <span style={{ color: "#525252" }}>Go</span>   <span>{info.goVersion}</span>
+        <span style={{ color: "#525252" }}>OS</span>   <span>{info.os}/{info.arch}</span>
+        <span style={{ color: "#525252" }}>Time</span> <span>{info.time}</span>
+      </div>
+    </div>
+  );
+}
+
+async function Greeting() {
+  const { message } = await Server.greet("carbon-tf");
+  return <p style={{ fontStyle: "italic", color: "#525252" }}>{message}</p>;
+}
+
+export default async function HomePage() {
+  return (
+    <div style={{ maxWidth: 1000, margin: "0 auto", padding: "0 2rem" }}>
+      <div style={{ paddingBottom: 32, paddingTop: 64 }}>
+        <h1 style={{ fontSize: "2.5rem", fontFamily: "'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif", fontWeight: 600, letterSpacing: "-0.02em", margin: 0 }}>
+          Welcome to <span style={{ color: "#0f62fe" }}>carbon-tf</span>
+        </h1>
+        <p style={{ marginTop: 12, maxWidth: 520, fontSize: "1.125rem", color: "#525252" }}>
+          Your Pola app is running. Edit <code style={{ background: "#e0e0e0", borderRadius: 4, padding: "2px 6px", fontSize: "0.875rem" }}>app/page.tsx</code> and <code style={{ background: "#e0e0e0", borderRadius: 4, padding: "2px 6px", fontSize: "0.875rem" }}>actions/server.go</code> to get started.
+        </p>
+        <Greeting />
+      </div>
+
+      <div style={{ marginBottom: 32 }}>
+        <h2 style={{ fontSize: "1.25rem", fontFamily: "'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif", fontWeight: 600, marginBottom: 12 }}>
+          Go → React Bridge
+        </h2>
+        <p style={{ marginBottom: 16, fontSize: "0.9375rem", color: "#525252" }}>
+          The data below is fetched from Go functions defined in <code style={{ background: "#e0e0e0", borderRadius: 4, padding: "2px 6px", fontSize: "0.875rem" }}>actions/server.go</code>,
+          called during server-side rendering via <code style={{ background: "#e0e0e0", borderRadius: 4, padding: "2px 6px", fontSize: "0.875rem" }}>{"await Server.getServerInfo()"}</code>.
+        </p>
+        <ServerInfo />
+      </div>
+
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: 16 }}>
+        {[
+          { title: "Actions Bridge", description: "Define Go structs in actions/ and call them from React: import { Server } from '@pola/actions'." },
+          { title: "File-based Routing", description: "Create app/about/page.tsx and it becomes /about. Supports layouts, loading states, and error boundaries." },
+          { title: "Single Binary", description: "Run 'pola build' to compile your entire app — Go server, JS bundle, and static assets — into one binary." },
+        ].map((card) => (
+          <div key={card.title} className="cds--tile" style={{ padding: 24 }}>
+            <h3 style={{ margin: "0 0 8px", fontFamily: "'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif", fontWeight: 600 }}>{card.title}</h3>
+            <p style={{ margin: 0, fontSize: "0.875rem", color: "#525252" }}>{card.description}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}

@@ -484,7 +484,7 @@ func buildClientBundle(req core.BundleInput, absDir string, cssFiles []string) (
 		clientDefines[k] = string(quoted)
 	}
 
-	clientPlugins := []api.Plugin{newAtAliasPlugin(absDir)}
+	clientPlugins := []api.Plugin{newAtAliasPlugin(absDir), newTildeResolverPlugin(absDir)}
 	clientPlugins = append(clientPlugins, castPlugins(req.ClientPlugins)...)
 	if req.CSSProcessor != nil {
 		clientPlugins = append(clientPlugins, newCSSPlugin(req.CSSProcessor))
@@ -619,11 +619,11 @@ func probeServerEntry(req core.BundleInput, absDir string) probeResult {
 		},
 	}
 
-	// Collect CSS file paths discovered during import resolution, then stub them.
+	// Collect CSS/SCSS file paths discovered during import resolution, then stub them.
 	cssCollector := api.Plugin{
 		Name: "probe-css",
 		Setup: func(build api.PluginBuild) {
-			build.OnResolve(api.OnResolveOptions{Filter: `\.css$`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
+			build.OnResolve(api.OnResolveOptions{Filter: `\.(css|s[ac]ss)$`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
 				resolved := args.Path
 				if strings.HasPrefix(args.Path, ".") {
 					resolved = filepath.Join(args.ResolveDir, args.Path)
@@ -717,6 +717,29 @@ func newAtAliasPlugin(absProjectDir string) api.Plugin {
 	}
 }
 
+// newTildeResolverPlugin handles the webpack-style ~ prefix in CSS url()
+// references (e.g. url('~@ibm/plex/...')). It strips the tilde and resolves
+// the remainder from the project's node_modules, allowing esbuild's built-in
+// file loaders to process font and image assets from npm packages.
+func newTildeResolverPlugin(absDir string) api.Plugin {
+	return api.Plugin{
+		Name: "tilde-resolver",
+		Setup: func(build api.PluginBuild) {
+			build.OnResolve(api.OnResolveOptions{Filter: `^~`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
+				stripped := args.Path[1:] // "~@ibm/plex/..." → "@ibm/plex/..."
+				result := build.Resolve(stripped, api.ResolveOptions{
+					ResolveDir: absDir,
+					Kind:       args.Kind,
+				})
+				if len(result.Errors) > 0 {
+					return api.OnResolveResult{}, fmt.Errorf("%s", result.Errors[0].Text)
+				}
+				return api.OnResolveResult{Path: result.Path}, nil
+			})
+		},
+	}
+}
+
 // ── helpers ──────────────────────────────────────────────────────────────────
 
 // buildESMClientStub generates an ESM stub for a "use client" module with
@@ -764,7 +787,7 @@ func newCSSNodeModulesStubPlugin() api.Plugin {
 	return api.Plugin{
 		Name: "css-node-modules-stub",
 		Setup: func(build api.PluginBuild) {
-			build.OnResolve(api.OnResolveOptions{Filter: `\.css$`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
+			build.OnResolve(api.OnResolveOptions{Filter: `\.(css|s[ac]ss)$`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
 				if strings.Contains(filepath.ToSlash(args.ResolveDir), "/node_modules/") {
 					return api.OnResolveResult{
 						Path:      args.Path,
@@ -787,7 +810,7 @@ func newCSSStubPlugin() api.Plugin {
 	return api.Plugin{
 		Name: "css-stub",
 		Setup: func(build api.PluginBuild) {
-			build.OnResolve(api.OnResolveOptions{Filter: `\.css$`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
+			build.OnResolve(api.OnResolveOptions{Filter: `\.(css|s[ac]ss)$`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
 				return api.OnResolveResult{
 					Path:      args.Path,
 					Namespace: "css-stub",
@@ -810,7 +833,7 @@ func newCSSPlugin(processor core.CSS) api.Plugin {
 	return api.Plugin{
 		Name: "css-process",
 		Setup: func(build api.PluginBuild) {
-			build.OnResolve(api.OnResolveOptions{Filter: `\.css$`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
+			build.OnResolve(api.OnResolveOptions{Filter: `\.(css|s[ac]ss)$`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
 				// Skip if already in our namespace (avoid infinite recursion).
 				if args.Namespace == "css-process" {
 					return api.OnResolveResult{}, nil
