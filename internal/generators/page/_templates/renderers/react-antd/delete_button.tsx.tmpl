@@ -1,56 +1,63 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Button, Modal } from "antd";
-import { DeleteOutlined, ExclamationCircleFilled } from "@ant-design/icons";
+import { DeleteOutlined, ExclamationCircleOutlined } from "@ant-design/icons";
 import { csrfToken } from "@/utils/csrf";
 
 export default function DeleteButton({ id }: { id: number }) {
+  const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
 
-  function handleDelete() {
-    Modal.confirm({
-      title: "Delete [[ .SnakeName ]]",
-      icon: <ExclamationCircleFilled />,
-      content: "This [[ .SnakeName ]] will be permanently deleted. This action cannot be undone.",
-      okText: "Delete",
-      okType: "danger",
-      cancelText: "Cancel",
-      onOk() {
-        return new Promise<void>((resolve, reject) => {
-          startTransition(async () => {
-            try {
-              const res = await fetch(`/[[ .PluralSnake ]]/${id}`, {
-                method: "DELETE",
-                headers: { "X-CSRF-Token": csrfToken() },
-              });
-
-              if (!res.ok) {
-                const text = await res.text();
-                throw new Error(text || res.statusText);
-              }
-
-              window.location.href = "/[[ .PluralSnake ]]";
-              resolve();
-            } catch (err) {
-              reject(err);
-            }
-          });
+  function handleOk() {
+    startTransition(async () => {
+      try {
+        const res = await fetch(`/[[ .PluralSnake ]]/${id}`, {
+          method: "DELETE",
+          headers: { "X-CSRF-Token": csrfToken() },
         });
-      },
+
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || res.statusText);
+        }
+
+        window.location.href = "/[[ .PluralSnake ]]";
+      } catch (err) {
+        setOpen(false);
+        alert(err instanceof Error ? err.message : "Delete failed");
+      }
     });
   }
 
   return (
-    <Button
-      type="link"
-      danger
-      size="small"
-      icon={<DeleteOutlined />}
-      onClick={handleDelete}
-      loading={isPending}
-    >
-      Delete
-    </Button>
+    <>
+      <Button
+        type="link"
+        danger
+        size="small"
+        icon={<DeleteOutlined />}
+        onClick={() => setOpen(true)}
+        loading={isPending}
+      >
+        Delete
+      </Button>
+      <Modal
+        title={
+          <span>
+            <ExclamationCircleOutlined style={{ color: "#faad14", marginRight: 8 }} />
+            Delete [[ .SnakeName ]]
+          </span>
+        }
+        open={open}
+        onOk={handleOk}
+        onCancel={() => setOpen(false)}
+        okText="Delete"
+        okType="danger"
+        confirmLoading={isPending}
+      >
+        <p>This [[ .SnakeName ]] will be permanently deleted. This action cannot be undone.</p>
+      </Modal>
+    </>
   );
 }
