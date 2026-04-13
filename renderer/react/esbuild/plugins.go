@@ -91,6 +91,11 @@ func newAutoDedupePlugin(absAppDir string) api.Plugin {
 				if !strings.Contains(filepath.ToSlash(args.ResolveDir), "/node_modules/") {
 					return api.OnResolveResult{}, nil
 				}
+				// Skip CSS imports — they are literal file paths, not npm
+				// modules, and re-resolving from the app root breaks them.
+				if strings.HasSuffix(args.Path, ".css") {
+					return api.OnResolveResult{}, nil
+				}
 				result := build.Resolve(args.Path, api.ResolveOptions{
 					ResolveDir: absAppDir,
 					Kind:       args.Kind,

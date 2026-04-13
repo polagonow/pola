@@ -78,6 +78,7 @@ Field definitions follow the same syntax as the model generator.`,
 type pageSpec struct {
 	templateName string // filename inside _templates/renderers/<renderer>/
 	outputPath   func(appDir, pluralSnake string) string
+	optional     bool // when true, skip silently if the template does not exist
 }
 
 var pageSpecs = []pageSpec{
@@ -116,6 +117,23 @@ var pageSpecs = []pageSpec{
 		outputPath: func(appDir, ps string) string {
 			return filepath.Join(appDir, "components", ps, "create-form.tsx")
 		},
+	},
+	// Optional client-side view components for UI libraries that lack
+	// "use client" directives (e.g. PatternFly). Renderers that don't
+	// need them simply omit the template files.
+	{
+		templateName: "list_view.tsx.tmpl",
+		outputPath: func(appDir, ps string) string {
+			return filepath.Join(appDir, "components", ps, "list-view.tsx")
+		},
+		optional: true,
+	},
+	{
+		templateName: "show_view.tsx.tmpl",
+		outputPath: func(appDir, ps string) string {
+			return filepath.Join(appDir, "components", ps, "show-view.tsx")
+		},
+		optional: true,
 	},
 }
 
@@ -182,6 +200,9 @@ func (g *PageGenerator) run(cmd *cobra.Command, args []string) error {
 	for _, spec := range pageSpecs {
 		tmpl, err := loadTemplate(effectiveRenderer, spec.templateName)
 		if err != nil {
+			if spec.optional {
+				continue
+			}
 			return err
 		}
 

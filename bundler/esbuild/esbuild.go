@@ -484,18 +484,13 @@ func buildClientBundle(req core.BundleInput, absDir string, cssFiles []string) (
 		clientDefines[k] = string(quoted)
 	}
 
-	// Use the CSS processing plugin when a processor is available,
-	// otherwise stub CSS imports as empty JS.
-	var cssPlugin api.Plugin
-	if req.CSSProcessor != nil {
-		cssPlugin = newCSSPlugin(req.CSSProcessor)
-	} else {
-		cssPlugin = newCSSStubPlugin()
-	}
-
 	clientPlugins := []api.Plugin{newAtAliasPlugin(absDir)}
 	clientPlugins = append(clientPlugins, castPlugins(req.ClientPlugins)...)
-	clientPlugins = append(clientPlugins, cssPlugin)
+	if req.CSSProcessor != nil {
+		clientPlugins = append(clientPlugins, newCSSPlugin(req.CSSProcessor))
+	} else {
+		clientPlugins = append(clientPlugins, newCSSNodeModulesStubPlugin())
+	}
 
 	r := api.Build(api.BuildOptions{
 		EntryPoints:       entries,
@@ -519,6 +514,16 @@ func buildClientBundle(req core.BundleInput, absDir string, cssFiles []string) (
 		Plugins:           clientPlugins,
 		Metafile:          true,
 		Define:            clientDefines,
+		Loader: map[string]api.Loader{
+			".woff":  api.LoaderFile,
+			".woff2": api.LoaderFile,
+			".ttf":   api.LoaderFile,
+			".eot":   api.LoaderFile,
+			".svg":   api.LoaderFile,
+			".png":   api.LoaderFile,
+			".jpg":   api.LoaderFile,
+			".gif":   api.LoaderFile,
+		},
 	})
 	if len(r.Errors) > 0 {
 		return nil, "", "", nil, fmtErrors("client", r.Errors)
@@ -748,6 +753,32 @@ func fmtErrors(pass string, errs []api.Message) error {
 		}
 	}
 	return fmt.Errorf("esbuild [%s]:\n%s", pass, strings.Join(msgs, "\n"))
+}
+
+// newCSSNodeModulesStubPlugin stubs CSS imports that originate from within
+// node_modules (e.g. side-effect imports in PatternFly components) while
+// letting app-level CSS (like globals.css) pass through for native esbuild
+// bundling. This prevents per-component CSS duplication in the client bundle
+// when libraries import their own CSS as side effects.
+func newCSSNodeModulesStubPlugin() api.Plugin {
+	return api.Plugin{
+		Name: "css-node-modules-stub",
+		Setup: func(build api.PluginBuild) {
+			build.OnResolve(api.OnResolveOptions{Filter: `\.css$`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
+				if strings.Contains(filepath.ToSlash(args.ResolveDir), "/node_modules/") {
+					return api.OnResolveResult{
+						Path:      args.Path,
+						Namespace: "css-stub",
+					}, nil
+				}
+				return api.OnResolveResult{}, nil
+			})
+			build.OnLoad(api.OnLoadOptions{Filter: `.*`, Namespace: "css-stub"}, func(args api.OnLoadArgs) (api.OnLoadResult, error) {
+				empty := ""
+				return api.OnLoadResult{Contents: &empty, Loader: api.LoaderJS}, nil
+			})
+		},
+	}
 }
 
 // newCSSStubPlugin returns an esbuild plugin that stubs out .css imports
