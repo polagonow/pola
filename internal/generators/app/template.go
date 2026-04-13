@@ -45,6 +45,22 @@ func UIRequiresTailwind(renderer, ui string) bool {
 	return strings.Contains(string(content), "tailwindcss")
 }
 
+// UIRequiresSass checks whether the given renderer+UI template set includes
+// sass as a dependency. Returns true if the template's package.json.tmpl
+// contains "sass", indicating SCSS compilation is needed.
+func UIRequiresSass(renderer, ui string) bool {
+	rendererDir := renderer
+	if ui != "" && ui != "none" {
+		rendererDir = renderer + "-" + ui
+	}
+	pkgPath := filepath.Join("_templates", "renderers", rendererDir, "package.json.tmpl")
+	content, err := fs.ReadFile(templates, pkgPath)
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(content), `"sass"`)
+}
+
 // Execute renders all embedded templates into targetDir.
 // It first copies shared templates (everything outside renderers/),
 // then overlays renderer-specific templates from renderers/<renderer>/.
