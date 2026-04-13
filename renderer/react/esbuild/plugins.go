@@ -96,6 +96,14 @@ func newAutoDedupePlugin(absAppDir string) api.Plugin {
 				if strings.HasSuffix(args.Path, ".css") {
 					return api.OnResolveResult{}, nil
 				}
+				// Skip non-file paths that appear inside CSS url() references:
+				// fragment identifiers (#...), data URIs, and absolute URLs.
+				if strings.HasPrefix(args.Path, "#") ||
+					strings.HasPrefix(args.Path, "data:") ||
+					strings.HasPrefix(args.Path, "http:") ||
+					strings.HasPrefix(args.Path, "https:") {
+					return api.OnResolveResult{}, nil
+				}
 				result := build.Resolve(args.Path, api.ResolveOptions{
 					ResolveDir: absAppDir,
 					Kind:       args.Kind,
