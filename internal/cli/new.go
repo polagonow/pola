@@ -77,7 +77,7 @@ func init() {
 	newCmd.Flags().StringVar(&newFlags.router, "router", "nextjs", "router style (nextjs)")
 	newCmd.Flags().StringVar(&newFlags.css, "css", "tailwind", "CSS processor (tailwind, none)")
 	newCmd.Flags().StringVar(&newFlags.vm, "vm", "goja", "JS engine (goja)")
-	newCmd.Flags().StringVar(&newFlags.ui, "ui", "none", "UI component library (shadcn, mui, ads, carbon, patternfly, fluentui, none)")
+	newCmd.Flags().StringVar(&newFlags.ui, "ui", "none", "UI component library (shadcn, mui, ads, carbon, patternfly, fluentui, antd, none)")
 	newCmd.Flags().StringVar(&newFlags.polaPath, "pola-path", "", "local path to pola framework source (adds replace directive)")
 	newCmd.Flags().StringVar(&newFlags.pm, "pm", "", "package manager to use (npm, pnpm, yarn); auto-detected if not set")
 	newCmd.Flags().BoolVar(&newFlags.csrf, "csrf", true, "enable CSRF protection")
@@ -118,6 +118,11 @@ func runNew(cmd *cobra.Command, args []string) error {
 	if newFlags.ui == "fluentui" {
 		if newFlags.renderer != "react" {
 			return fmt.Errorf("--ui=fluentui requires --renderer=react")
+		}
+	}
+	if newFlags.ui == "antd" {
+		if newFlags.renderer != "react" {
+			return fmt.Errorf("--ui=antd requires --renderer=react")
 		}
 	}
 
