@@ -1,0 +1,22 @@
+{
+  "name": "slds-test",
+  "private": true,
+  "scripts": {
+    "postinstall": "cp -r node_modules/@salesforce-ux/design-system/assets public/assets 2>/dev/null || true"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
+    "@salesforce-ux/design-system": "^2.25.5",
+    "@salesforce/design-system-react": "^0.10.64",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-hook-form": "^7.72.1",
+    "react-server-dom-esm": "npm:@kentcdodds/tmp-react-server-dom-esm@^19.0.1",
+    "react-server-dom-webpack": "19.3.0-canary-5e9eedb5-20260312",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3"
+  }
+}

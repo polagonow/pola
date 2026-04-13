@@ -1,0 +1,117 @@
+"use client";
+
+import { useState, useTransition } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { [[ .SnakeName ]]Schema, type [[ .Name ]] } from "[[ .SchemaImport ]]";
+import { csrfToken } from "@/utils/csrf";
+
+export default function Edit[[ .Name ]]Form({
+  id,
+  initialData,
+}: {
+  id: number;
+  initialData: [[ .Name ]];
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<[[ .Name ]]>({
+    resolver: zodResolver([[ .SnakeName ]]Schema),
+    defaultValues: initialData,
+  });
+
+  function onSubmit(data: [[ .Name ]]) {
+    setError(null);
+
+    startTransition(async () => {
+      try {
+        const res = await fetch(`/[[ .PluralSnake ]]/${id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
+          body: JSON.stringify(data),
+        });
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || res.statusText);
+        }
+        window.location.href = `/[[ .PluralSnake ]]/${id}`;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An error occurred");
+      }
+    });
+  }
+
+  return (
+    <>
+      {error && (
+        <div className="slds-notify slds-notify_alert slds-alert_error slds-m-bottom_medium" role="alert">
+          <span className="slds-assistive-text">error</span>
+          <h2>{error}</h2>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit(onSubmit)}>
+        [[- range .Fields ]]
+        [[ if eq .InputType "checkbox" -]]
+        <div className="slds-form-element slds-m-bottom_small">
+          <label className="slds-checkbox">
+            <input type="checkbox" {...register("[[ .JSONName ]]")} />
+            <span className="slds-checkbox_faux"></span>
+            <span className="slds-form-element__label">[[ .Label ]][[ if .Optional ]] (optional)[[ end ]]</span>
+          </label>
+          {errors.[[ .JSONName ]] && (
+            <div className="slds-form-element__help slds-text-color_error">{errors.[[ .JSONName ]]?.message}</div>
+          )}
+        </div>
+        [[ else -]]
+        [[ if .IsTextarea -]]
+        <div className={`slds-form-element slds-m-bottom_small${errors.[[ .JSONName ]] ? " slds-has-error" : ""}`}>
+          <label className="slds-form-element__label" htmlFor="[[ .JSONName ]]">[[ .Label ]][[ if .Optional ]] (optional)[[ end ]]</label>
+          <div className="slds-form-element__control">
+            <textarea
+              id="[[ .JSONName ]]"
+              className="slds-textarea"
+              rows={4}
+              {...register("[[ .JSONName ]]")}
+            />
+          </div>
+          {errors.[[ .JSONName ]] && (
+            <div className="slds-form-element__help slds-text-color_error">{errors.[[ .JSONName ]]?.message}</div>
+          )}
+        </div>
+        [[ else -]]
+        <div className={`slds-form-element slds-m-bottom_small${errors.[[ .JSONName ]] ? " slds-has-error" : ""}`}>
+          <label className="slds-form-element__label" htmlFor="[[ .JSONName ]]">[[ .Label ]][[ if .Optional ]] (optional)[[ end ]]</label>
+          <div className="slds-form-element__control">
+            <input
+              type="[[ .InputType ]]"
+              id="[[ .JSONName ]]"
+              className="slds-input"
+              [[ if .IsFloat ]]step="any"[[ end ]]
+              {...register("[[ .JSONName ]]"[[ if eq .InputType "number" ]], { valueAsNumber: true }[[ end ]])}
+            />
+          </div>
+          {errors.[[ .JSONName ]] && (
+            <div className="slds-form-element__help slds-text-color_error">{errors.[[ .JSONName ]]?.message}</div>
+          )}
+        </div>
+        [[ end -]]
+        [[ end -]]
+        [[- end ]]
+
+        <div className="slds-m-top_medium">
+          <button type="submit" className="slds-button slds-button_brand" disabled={isPending}>
+            {isPending ? "Saving..." : "Save [[ .Name ]]"}
+          </button>
+          <a href={`/[[ .PluralSnake ]]/${id}`} className="slds-button slds-button_neutral slds-m-left_x-small">
+            Cancel
+          </a>
+        </div>
+      </form>
+    </>
+  );
+}
