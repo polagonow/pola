@@ -362,20 +362,20 @@ func (pf *Polafile) CacheAdapter(env string) string {
 // StorageEnvironment holds per-environment storage overrides.
 type StorageEnvironment struct {
 	Environment string `hcl:"env,label"`
-	Driver     string `hcl:"driver,optional"`
-	Root       string `hcl:"root,optional"`
-	Remote     string `hcl:"remote,optional"`
-	Bucket     string `hcl:"bucket,optional"`
-	ConfigPath string `hcl:"config_path,optional"`
+	Driver      string `hcl:"driver,optional"`
+	Root        string `hcl:"root,optional"`
+	ConfigPath  string `hcl:"config_path,optional"`
 }
 
 // StorageConfig holds file storage configuration with optional per-environment overrides.
+// Driver is "fs" (local filesystem) or "rclone" (any rclone-supported backend).
+// Root is the storage path: a local directory for fs, or an rclone remote path
+// (e.g. "myremote:bucket/path") for rclone.
+// ConfigPath is the path to the rclone config file (optional, defaults to rclone's default).
 type StorageConfig struct {
-	Driver     string               `hcl:"driver,optional"`     // "fs" or "s3"
-	Root       string               `hcl:"root,optional"`       // local root for fs driver
-	Remote     string               `hcl:"remote,optional"`     // rclone remote for s3 driver
-	Bucket     string               `hcl:"bucket,optional"`     // rclone bucket/path
-	ConfigPath string               `hcl:"config_path,optional"` // rclone config file path
+	Driver     string               `hcl:"driver,optional"`
+	Root       string               `hcl:"root,optional"`
+	ConfigPath string               `hcl:"config_path,optional"`
 	Envs       []StorageEnvironment `hcl:"env,block"`
 }
 
@@ -387,8 +387,6 @@ func (pf *Polafile) StorageForEnv(env string) StorageConfig {
 	base := StorageConfig{
 		Driver:     pf.Storage.Driver,
 		Root:       pf.Storage.Root,
-		Remote:     pf.Storage.Remote,
-		Bucket:     pf.Storage.Bucket,
 		ConfigPath: pf.Storage.ConfigPath,
 	}
 	for _, e := range pf.Storage.Envs {
@@ -396,8 +394,6 @@ func (pf *Polafile) StorageForEnv(env string) StorageConfig {
 			override := StorageConfig{
 				Driver:     e.Driver,
 				Root:       e.Root,
-				Remote:     e.Remote,
-				Bucket:     e.Bucket,
 				ConfigPath: e.ConfigPath,
 			}
 			_ = mergo.Merge(&base, &override, mergo.WithOverride)
@@ -599,16 +595,12 @@ func Save(dir string, pf *Polafile) error {
 		sBody := sBlock.Body()
 		setAttr(sBody, "driver", pf.Storage.Driver)
 		setAttr(sBody, "root", pf.Storage.Root)
-		setAttr(sBody, "remote", pf.Storage.Remote)
-		setAttr(sBody, "bucket", pf.Storage.Bucket)
 		setAttr(sBody, "config_path", pf.Storage.ConfigPath)
 		for _, e := range pf.Storage.Envs {
 			envBlock := sBody.AppendNewBlock("env", []string{e.Environment})
 			envBody := envBlock.Body()
 			setAttr(envBody, "driver", e.Driver)
 			setAttr(envBody, "root", e.Root)
-			setAttr(envBody, "remote", e.Remote)
-			setAttr(envBody, "bucket", e.Bucket)
 			setAttr(envBody, "config_path", e.ConfigPath)
 		}
 	}

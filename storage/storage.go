@@ -20,8 +20,8 @@ type StorageDriver string
 const (
 	// Filesystem is the local filesystem driver.
 	Filesystem StorageDriver = "fs"
-	// AmazonS3 is the rclone-based S3 driver.
-	AmazonS3 StorageDriver = "s3"
+	// Rclone is the rclone-based driver supporting 50+ cloud providers.
+	Rclone StorageDriver = "rclone"
 )
 
 // Storage is the storage interface.

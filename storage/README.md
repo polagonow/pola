@@ -14,11 +14,11 @@ File metadata is persisted via `StorageBlob` and `StorageAttachment` ORM models,
 ## Quick Start
 
 ```bash
-# Generate storage models and configure Polafile
+# Generate storage models and configure Polafile (defaults to fs driver)
 pola generate storage
 
-# Or with a specific driver
-pola generate storage --driver s3 --bucket my-uploads
+# Or with rclone driver
+pola generate storage --driver rclone --root myremote:bucket/path
 pola generate storage --driver fs --root ./uploads
 ```
 
@@ -75,17 +75,19 @@ store := fs.NewStorage(fs.Config{
 })
 ```
 
-### Rclone (S3 / Cloud)
+### Rclone (Cloud Storage)
 
 ```go
 import "github.com/polagonow/pola/storage/rclone"
 
-// S3 backend
+// Inline backend (S3)
 store := rclone.NewStorage("s3", "my-bucket")
 
-// Local filesystem via rclone
-store := rclone.NewStorage("local", "/tmp/uploads")
+// Named remote (configured via `rclone config`)
+store := rclone.NewStorage("", "myremote:bucket/path")
 ```
+
+Rclone configuration (credentials, regions, etc.) is managed externally via `rclone config` or the `RCLONE_CONFIG` environment variable — not in Polafile.
 
 To add more rclone backends, import them:
 
@@ -136,14 +138,13 @@ pola {
 }
 ```
 
-With S3:
+With rclone:
 
 ```hcl
 pola {
   storage {
-    driver = "s3"
-    remote = "s3"
-    bucket = "my-app-uploads"
+    driver = "rclone"
+    root   = "myremote:bucket/path"
   }
 }
 ```
@@ -157,13 +158,14 @@ pola {
     root   = "./uploads"
 
     env "production" {
-      driver = "s3"
-      remote = "s3"
-      bucket = "prod-uploads"
+      driver = "rclone"
+      root   = "myremote:prod-uploads"
     }
   }
 }
 ```
+
+Rclone backend credentials and settings are configured externally via `rclone config`, not in Polafile.
 
 ## Generated Models
 

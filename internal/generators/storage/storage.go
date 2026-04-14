@@ -6,6 +6,7 @@ package storage
 import (
 	"fmt"
 
+	survey "github.com/AlecAivazis/survey/v2"
 	"github.com/polagonow/pola/internal/generators"
 	"github.com/polagonow/pola/internal/project"
 	"github.com/polagonow/pola/polafile"
@@ -36,22 +37,20 @@ StorageAttachment is a polymorphic join table linking any model to blobs.
 After running this, you can associate files with models:
 
   # Direct relationship (User has one avatar blob)
-  pola generate model User name:string avatar:references
+  pola generate model User name:string avatar:references{StorageBlob}
 
   # Polymorphic (via StorageAttachment, any model can have attachments)
   # StorageAttachment already has record:references{polymorphic}`,
 		Args: cobra.NoArgs,
 		RunE: g.run,
 		Example: `  pola generate storage
-  pola generate storage --driver s3 --bucket my-uploads
-  pola generate storage --driver s3 --bucket my-uploads --config-path /etc/rclone/rclone.conf
+  pola generate storage --driver rclone --root myremote:bucket/path
+  pola generate storage --driver rclone --root myremote:bucket/path --config-path /etc/rclone/rclone.conf
   pola generate storage --driver fs --root ./uploads`,
 	}
-	cmd.Flags().String("driver", "fs", "storage driver: fs or s3")
-	cmd.Flags().String("root", "uploads", "local root directory (fs driver)")
-	cmd.Flags().String("remote", "s3", "rclone remote name (s3 driver)")
-	cmd.Flags().String("bucket", "", "rclone bucket or path (s3 driver)")
-	cmd.Flags().String("config-path", "", "rclone config file path (s3 driver)")
+	cmd.Flags().String("driver", "fs", "storage driver: fs or rclone")
+	cmd.Flags().String("root", "uploads", "storage root path (local dir for fs, remote:path for rclone)")
+	cmd.Flags().String("config-path", "", "path to rclone config file (rclone driver)")
 	return cmd
 }
 
@@ -63,8 +62,6 @@ func (g *StorageGenerator) run(cmd *cobra.Command, _ []string) error {
 
 	driver, _ := cmd.Flags().GetString("driver")
 	root, _ := cmd.Flags().GetString("root")
-	remote, _ := cmd.Flags().GetString("remote")
-	bucket, _ := cmd.Flags().GetString("bucket")
 	configPath, _ := cmd.Flags().GetString("config-path")
 
 	// --- Update Polafile with storage config ---
@@ -78,15 +75,38 @@ func (g *StorageGenerator) run(cmd *cobra.Command, _ []string) error {
 	}
 
 	pf.Storage = &polafile.StorageConfig{
-		Driver: driver,
+		Driver:     driver,
+		Root:       root,
+		ConfigPath: configPath,
 	}
-	switch driver {
-	case "fs":
-		pf.Storage.Root = root
-	case "s3":
-		pf.Storage.Remote = remote
-		pf.Storage.Bucket = bucket
-		pf.Storage.ConfigPath = configPath
+
+	// Ensure database block exists; prompt interactively for missing ORM/adapter.
+	if pf.Database == nil {
+		pf.Database = &polafile.Database{
+			Models: "db/models",
+			Migrations: &polafile.Migrations{
+				Directory: "db/migrations",
+				Format:    "hcl",
+			},
+			Envs: []polafile.DatabaseEnvironment{
+				{Environment: "development", Adapter: "sqlite"},
+				{Environment: "production", Adapter: "postgresql"},
+			},
+		}
+	}
+	if pf.Database.ORM == "" {
+		orm, err := promptSelect("ORM:", []string{"beego", "ent", "gorm"})
+		if err != nil {
+			return err
+		}
+		pf.Database.ORM = orm
+	}
+	if pf.Database.Adapter == "" {
+		adapter, err := promptSelect("Database adapter:", []string{"postgresql", "mysql", "sqlite"})
+		if err != nil {
+			return err
+		}
+		pf.Database.Adapter = adapter
 	}
 
 	if err := polafile.Save(projectDir, pf); err != nil {
@@ -115,8 +135,8 @@ func (g *StorageGenerator) run(cmd *cobra.Command, _ []string) error {
 	attachmentArgs := []string{
 		"StorageAttachment",
 		"name:string:index",
-		"record:references{polymorphic}",
-		"blob:references",
+		"owner:references{polymorphic}",
+		"storage_blob_id:int:index",
 	}
 	if err := generators.Run("model", cmd, attachmentArgs); err != nil {
 		return fmt.Errorf("model StorageAttachment: %w", err)
@@ -124,8 +144,20 @@ func (g *StorageGenerator) run(cmd *cobra.Command, _ []string) error {
 
 	fmt.Println("\nStorage setup complete!")
 	fmt.Println("You can now associate models with files:")
-	fmt.Println("  pola generate model User name:string avatar:references  # direct FK to StorageBlob")
+	fmt.Println("  pola generate model User name:string avatar:references{StorageBlob}  # direct FK to StorageBlob")
 	fmt.Println("  # Or use StorageAttachment for polymorphic attachments")
 
 	return nil
+}
+
+func promptSelect(message string, options []string) (string, error) {
+	var answer string
+	prompt := &survey.Select{
+		Message: message,
+		Options: options,
+	}
+	if err := survey.AskOne(prompt, &answer); err != nil {
+		return "", fmt.Errorf("prompt: %w", err)
+	}
+	return answer, nil
 }
