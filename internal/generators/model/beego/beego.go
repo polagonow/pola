@@ -97,11 +97,12 @@ func buildBeegoData(def *schema.ModelDefinition) beegoData {
 				})
 			} else {
 				// Association pointer field.
-				refName := schema.PascalCase(f.Name)
+				fieldName := schema.PascalCase(f.Name)
+				refType := f.ReferencedModel()
 				jsonName := schema.SnakeCase(f.Name)
 				data.Fields = append(data.Fields, beegoField{
 					StructField: fmt.Sprintf("%s *%s `orm:\"rel(fk)\" json:\"%s\"`",
-						refName, refName, jsonName),
+						fieldName, refType, jsonName),
 				})
 			}
 		} else {

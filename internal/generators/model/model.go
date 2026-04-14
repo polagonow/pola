@@ -54,14 +54,15 @@ ORM-specific schema files using the plugin configured in Polafile.hcl.
 
 Field syntax: field:type{options}:modifier1:modifier2
   Types:    string, int, int64, float, bool, time, uuid, text, bytes, json, references
-  Options:  {polymorphic} (only on references)
+  Options:  {polymorphic} or {ModelName} (only on references)
   Modifiers: index, uniq`,
 		Args:    cobra.MinimumNArgs(1),
 		RunE:    g.run,
 		Aliases: []string{"m"},
 		Example: `  pola generate model User name:string email:string:uniq age:int
   pola generate model Article title:string:index body:text author:references
-  pola generate model Comment body:text commentable:references{polymorphic}`,
+  pola generate model Comment body:text commentable:references{polymorphic}
+  pola generate model User name:string avatar:references{StorageBlob}`,
 	}
 	cmd.Flags().Bool("skip-migration", false, "Skip auto-generating a migration after model creation")
 	return cmd

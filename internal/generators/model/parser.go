@@ -86,8 +86,9 @@ func parseField(spec string) (schema.Field, error) {
 		return schema.Field{}, fmt.Errorf("unknown type %q; valid types: string, int, int64, float, bool, time, uuid, text, bytes, json, references", typeStr)
 	}
 
-	// Validate options: numeric {N} for sized types, "polymorphic" for references.
+	// Validate options: numeric {N} for sized types, "polymorphic" or model name for references.
 	polymorphic := false
+	var refModel string
 	limit := 0
 	if opts != "" {
 		if n, err := strconv.Atoi(opts); err == nil {
@@ -104,10 +105,12 @@ func parseField(spec string) (schema.Field, error) {
 			if ft != schema.FieldReferences {
 				return schema.Field{}, fmt.Errorf("{%s} option is only valid on references type", opts)
 			}
-			if opts != "polymorphic" {
-				return schema.Field{}, fmt.Errorf("unknown option {%s}; valid options: polymorphic", opts)
+			if opts == "polymorphic" {
+				polymorphic = true
+			} else {
+				// Explicit target model name, e.g. references{StorageBlob}.
+				refModel = schema.PascalCase(opts)
 			}
-			polymorphic = true
 		}
 	}
 
@@ -131,6 +134,7 @@ func parseField(spec string) (schema.Field, error) {
 		Index:       index,
 		Unique:      unique,
 		Polymorphic: polymorphic,
+		RefModel:    refModel,
 		Limit:       limit,
 	}, nil
 }

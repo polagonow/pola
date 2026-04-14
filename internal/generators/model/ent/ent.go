@@ -111,7 +111,7 @@ func buildEntData(def *schema.ModelDefinition) entData {
 				edge := fmt.Sprintf(
 					"edge.From(%q, %s.Type).Ref(%q).Field(%q).Unique().Required()",
 					f.Name,
-					schema.PascalCase(f.Name),
+					f.ReferencedModel(),
 					schema.Pluralize(schema.SnakeCase(def.Name)),
 					f.Name+"_id",
 				)
