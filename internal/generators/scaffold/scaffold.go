@@ -9,6 +9,7 @@ import (
 
 	"github.com/polagonow/pola/internal/generators"
 	"github.com/polagonow/pola/internal/generators/model"
+	"github.com/polagonow/pola/internal/generators/model/schema"
 	"github.com/spf13/cobra"
 )
 
@@ -106,6 +107,14 @@ func (g *ScaffoldGenerator) run(cmd *cobra.Command, args []string) error {
 			routeArgs = append(routeArgs, "--service="+name)
 		}
 		routeArgs = append(routeArgs, "--id-type="+idGoType)
+		if def.HasBlobFields() {
+			routeArgs = append(routeArgs, "--has-file-upload")
+			var fileFields []string
+			for _, f := range def.BlobFields() {
+				fileFields = append(fileFields, schema.SnakeCase(f.Name))
+			}
+			routeArgs = append(routeArgs, "--file-fields="+strings.Join(fileFields, ","))
+		}
 		if err := generators.Run("route", cmd, routeArgs); err != nil {
 			return fmt.Errorf("route: %w", err)
 		}

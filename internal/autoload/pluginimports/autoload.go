@@ -63,33 +63,38 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 	hasDatabase := opts.Database != ""
 	hasCSRF := opts.CSRF
 	hasSecurityHeaders := opts.SecurityHeaders
+	hasStorage := opts.StorageDriver != ""
 
 	var buf strings.Builder
 	err := pluginsTmpl.Execute(&buf, struct {
-		PolaPackage     string
-		Engine          string
-		Bundler         string
-		Renderer        string
-		Router          string
-		CSS             string
-		Cache           string
-		Database        string
-		DatabaseAdapter string
-		DatabaseURL     string
-		DatabaseHost    string
-		DatabasePort    string
-		DatabaseUser    string
-		DatabasePass    string
-		DatabaseName    string
-		CSRF            bool
-		SecurityHeaders bool
-		Dev             bool
-		Embed           bool
-		HasRoutes       bool
-		ActionsImport   string
-		RouteImports    []string
-		RepoPlugins     *autoload.RepoDiscovery
-		ServicePlugins  *autoload.SvcDiscovery
+		PolaPackage      string
+		Engine           string
+		Bundler          string
+		Renderer         string
+		Router           string
+		CSS              string
+		Cache            string
+		Database         string
+		DatabaseAdapter  string
+		DatabaseURL      string
+		DatabaseHost     string
+		DatabasePort     string
+		DatabaseUser     string
+		DatabasePass     string
+		DatabaseName     string
+		CSRF             bool
+		SecurityHeaders  bool
+		Dev              bool
+		Embed            bool
+		HasRoutes        bool
+		ActionsImport    string
+		RouteImports     []string
+		RepoPlugins      *autoload.RepoDiscovery
+		ServicePlugins   *autoload.SvcDiscovery
+		HasStorage    bool
+		StorageDriver string // "fs" or "rclone"
+		StorageRoot   string // local dir for fs, "remote:path" for rclone
+		StorageConfig string // optional rclone config path
 	}{
 		PolaPackage:     opts.PolaPackage,
 		Engine:          opts.Engine,
@@ -115,6 +120,10 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		RouteImports:    routeImports,
 		RepoPlugins:     repoDisco,
 		ServicePlugins:  svcDisco,
+		HasStorage:    hasStorage,
+		StorageDriver: opts.StorageDriver,
+		StorageRoot:   opts.StorageRoot,
+		StorageConfig: opts.StorageConfig,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("execute plugins template: %w", err)

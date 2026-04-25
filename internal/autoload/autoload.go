@@ -80,6 +80,9 @@ type PluginOpts struct {
 	AppDir          string // path to the web app directory (default: web)
 	ActionsDir      string // path to actions directory (default: ./actions)
 	TSOut           string // path to generated .d.ts file
+	StorageDriver   string // "fs", "rclone", or "" for none
+	StorageRoot     string // local dir for fs, "remote:path" for rclone
+	StorageConfig   string // optional rclone config path
 }
 
 // RoutePackageInfo holds metadata about a discovered route package.
@@ -120,6 +123,8 @@ type RouteServiceDep struct {
 	ServicePkg  string // e.g. "services"
 	ServiceType string // e.g. "PostService"
 	ServicePath string // e.g. "myapp/services"
+	HasStorage  bool   // true if Route struct has a storage.Storage field
+	BlobRepo    string // e.g. "StorageBlobRepository" if Route depends on a *Repository field; empty if none
 }
 
 // EnvOrBool returns the boolean value from an env var if set, otherwise the fallback.
@@ -137,6 +142,17 @@ func DatabaseORM(pf *polafile.Polafile) string {
 		return ""
 	}
 	return pf.DatabaseORM()
+}
+
+// PopulateStorageOpts fills storage-related fields in PluginOpts from the Polafile.
+func PopulateStorageOpts(opts *PluginOpts, pf *polafile.Polafile, env string) {
+	if pf == nil || pf.Storage == nil {
+		return
+	}
+	merged := pf.StorageForEnv(env)
+	opts.StorageDriver = merged.Driver
+	opts.StorageRoot = merged.Root
+	opts.StorageConfig = merged.ConfigPath
 }
 
 // PopulateDatabaseOpts fills database-related fields in PluginOpts from the Polafile.

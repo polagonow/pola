@@ -44,6 +44,15 @@ func (g *EntGenerator) Generate(def *schema.ModelDefinition, outDir string) erro
 		return fmt.Errorf("write %s: %w", filePath, err)
 	}
 
+	// Add reverse edges on referenced models so ent codegen succeeds.
+	for _, f := range def.Fields {
+		if f.Type == schema.FieldReferences && !f.Polymorphic {
+			if err := addReverseEdge(outDir, def, f); err != nil {
+				return fmt.Errorf("add reverse edge for %q: %w", f.Name, err)
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -175,4 +184,75 @@ func entFieldCall(typeName, fieldName string, optional bool) string {
 		s += ".Optional()"
 	}
 	return s
+}
+
+// addReverseEdge patches the target model's schema file to add a reverse
+// edge.To(...) for a non-polymorphic reference. This is required by ent
+// which mandates both sides of a relation to be declared.
+func addReverseEdge(outDir string, def *schema.ModelDefinition, f schema.Field) error {
+	refModel := f.ReferencedModel()
+	refFile := filepath.Join(outDir, "schema", schema.SnakeCase(refModel)+".go")
+
+	data, err := os.ReadFile(refFile)
+	if err != nil {
+		return fmt.Errorf("read %s: %w", refFile, err)
+	}
+	content := string(data)
+
+	edgeName := schema.Pluralize(schema.SnakeCase(def.Name))
+	toEdge := fmt.Sprintf("\t\tedge.To(%q, %s.Type),", edgeName, def.Name)
+
+	// Check if this reverse edge already exists.
+	if strings.Contains(content, fmt.Sprintf("edge.To(%q, %s.Type)", edgeName, def.Name)) {
+		return nil
+	}
+
+	if strings.Contains(content, "Edges() []ent.Edge") {
+		// Append to existing Edges method: insert before the closing "}"
+		marker := "\t\tedge.To("
+		if !strings.Contains(content, marker) {
+			// Has Edges() but only From edges or empty — find the return slice
+			marker = "return []ent.Edge{"
+		}
+
+		// Find last edge entry before closing and insert our new edge
+		idx := strings.LastIndex(content, "\t}")
+		edgesIdx := strings.Index(content, "Edges() []ent.Edge")
+		if edgesIdx < 0 || idx < edgesIdx {
+			return fmt.Errorf("could not find Edges() closing brace in %s", refFile)
+		}
+		// Find the closing of the return slice (the line with just "\t}" after "return []ent.Edge{")
+		returnIdx := strings.Index(content[edgesIdx:], "return []ent.Edge{")
+		if returnIdx < 0 {
+			return fmt.Errorf("could not find return statement in Edges() in %s", refFile)
+		}
+		absReturnIdx := edgesIdx + returnIdx
+		closingIdx := strings.Index(content[absReturnIdx:], "\t}")
+		if closingIdx < 0 {
+			return fmt.Errorf("could not find closing brace for return in Edges() in %s", refFile)
+		}
+		insertPos := absReturnIdx + closingIdx
+		content = content[:insertPos] + toEdge + "\n" + content[insertPos:]
+	} else {
+		// No Edges method — add one before the final closing.
+		edgesMethod := fmt.Sprintf(
+			"\n// Edges of the %s.\nfunc (%s) Edges() []ent.Edge {\n\treturn []ent.Edge{\n%s\n\t}\n}\n",
+			refModel, refModel, toEdge,
+		)
+		content = content + edgesMethod
+
+		// Add edge import if missing.
+		if !strings.Contains(content, `"entgo.io/ent/schema/edge"`) {
+			content = strings.Replace(content,
+				`"entgo.io/ent/schema/field"`,
+				"\"entgo.io/ent/schema/field\"\n\t\"entgo.io/ent/schema/edge\"",
+				1,
+			)
+		}
+	}
+
+	if err := os.WriteFile(refFile, []byte(content), 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", refFile, err)
+	}
+	return nil
 }

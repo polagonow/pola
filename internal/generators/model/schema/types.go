@@ -88,3 +88,24 @@ func (m *ModelDefinition) HasIndexes() bool {
 	}
 	return false
 }
+
+// HasBlobFields returns true if any field references StorageBlob (file upload).
+func (m *ModelDefinition) HasBlobFields() bool {
+	for _, f := range m.Fields {
+		if f.Type == FieldReferences && f.RefModel == "StorageBlob" {
+			return true
+		}
+	}
+	return false
+}
+
+// BlobFields returns all fields that reference StorageBlob.
+func (m *ModelDefinition) BlobFields() []Field {
+	var result []Field
+	for _, f := range m.Fields {
+		if f.Type == FieldReferences && f.RefModel == "StorageBlob" {
+			result = append(result, f)
+		}
+	}
+	return result
+}

@@ -43,6 +43,20 @@ export default async function [[ .Name ]]ShowPage({
             <div className="cds--structured-list-td">{[[ if eq .InputType "checkbox" ]]item.[[ .JSONName ]] ? "Yes" : "No"[[ else ]]String(item.[[ .JSONName ]] ?? "")[[ end ]]}</div>
           </div>
           [[- end ]]
+          [[- range .FileFields ]]
+          <div className="cds--structured-list-row">
+            <div className="cds--structured-list-td" style={{ width: 192, fontWeight: 500, color: "#525252" }}>[[ .Label ]]</div>
+            <div className="cds--structured-list-td">
+              {item.[[ .JSONName ]]_id ? (
+                <span style={{ color: "#0f62fe", fontSize: "0.875rem" }}>
+                  File attached (ID: {item.[[ .JSONName ]]_id})
+                </span>
+              ) : (
+                <span style={{ color: "#525252" }}>No file</span>
+              )}
+            </div>
+          </div>
+          [[- end ]]
         </div>
       </div>
 

@@ -39,6 +39,12 @@ export default async function [[ .Name ]]ShowPage({
             <Typography variant="body2">{[[ if eq .InputType "checkbox" ]]item.[[ .JSONName ]] ? "Yes" : "No"[[ else ]]String(item.[[ .JSONName ]] ?? "")[[ end ]]}</Typography>
           </Box>
           [[- end ]]
+          [[- range .FileFields ]]
+          <Box sx={{ display: "flex", px: 2, py: 1.5, borderBottom: "1px solid", borderColor: "divider" }}>
+            <Typography sx={{ width: 192, flexShrink: 0, fontWeight: 500, color: "text.secondary" }} variant="body2">[[ .Label ]]</Typography>
+            <Typography variant="body2">{String(item.[[ .JSONName ]] ?? "")}</Typography>
+          </Box>
+          [[- end ]]
         </CardContent>
       </Card>
 

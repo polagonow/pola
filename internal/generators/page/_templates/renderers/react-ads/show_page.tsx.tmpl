@@ -36,6 +36,20 @@ export default async function [[ .Name ]]ShowPage({
           <span style={{ fontSize: "0.875rem" }}>{[[ if eq .InputType "checkbox" ]]item.[[ .JSONName ]] ? "Yes" : "No"[[ else ]]String(item.[[ .JSONName ]] ?? "")[[ end ]]}</span>
         </div>
         [[- end ]]
+        [[- range .FileFields ]]
+        <div style={{ display: "flex", padding: "12px 16px", borderBottom: "1px solid var(--ds-border, #DFE1E6)" }}>
+          <span style={{ width: 192, flexShrink: 0, fontWeight: 500, color: "var(--ds-text-subtlest, #626F86)", fontSize: "0.875rem" }}>[[ .Label ]]</span>
+          <span style={{ fontSize: "0.875rem" }}>
+            {item.[[ .JSONName ]]_id ? (
+              <span style={{ color: "var(--ds-link, #0052CC)" }}>
+                File attached (ID: {item.[[ .JSONName ]]_id})
+              </span>
+            ) : (
+              <span style={{ color: "var(--ds-text-subtlest, #626F86)" }}>No file</span>
+            )}
+          </span>
+        </div>
+        [[- end ]]
       </div>
 
       <div style={{ marginTop: 24 }}>

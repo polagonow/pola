@@ -25,7 +25,16 @@ var (
 	routeServiceTmpl = template.Must(
 		template.New("route_service_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/route_service_go.tmpl"),
 	)
+	routeServiceUploadTmpl = template.Must(
+		template.New("route_service_upload_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/route_service_upload_go.tmpl"),
+	)
 )
+
+// fileField describes a file upload field for the upload route template.
+type fileField struct {
+	Name       string // snake_case: "avatar"
+	PascalName string // PascalCase: "Avatar"
+}
 
 // validHTTPMethods is the set of accepted HTTP methods.
 var validHTTPMethods = map[string]bool{
@@ -66,6 +75,10 @@ Use --service=Name to wire the route to a generated service via DI.`,
 	cmd.Flags().String("service", "", "wire route handlers to the named service via DI")
 	cmd.Flags().String("id-type", "uint", "Go type for the entity ID (uint or string)")
 	cmd.Flags().MarkHidden("id-type")
+	cmd.Flags().Bool("has-file-upload", false, "generate multipart file upload handling")
+	cmd.Flags().MarkHidden("has-file-upload")
+	cmd.Flags().String("file-fields", "", "comma-separated snake_case file field names")
+	cmd.Flags().MarkHidden("file-fields")
 	return cmd
 }
 
@@ -122,7 +135,40 @@ func (g *RouteGenerator) run(cmd *cobra.Command, args []string) error {
 			idType = "uint"
 		}
 
-		if err := routeServiceTmpl.Execute(&buf, struct {
+		hasFileUpload, _ := cmd.Flags().GetBool("has-file-upload")
+		fileFieldsStr, _ := cmd.Flags().GetString("file-fields")
+
+		if hasFileUpload && fileFieldsStr != "" {
+			var fields []fileField
+			for _, name := range strings.Split(fileFieldsStr, ",") {
+				name = strings.TrimSpace(name)
+				if name != "" {
+					fields = append(fields, fileField{
+						Name:       name,
+						PascalName: schema.PascalCase(name),
+					})
+				}
+			}
+			if err := routeServiceUploadTmpl.Execute(&buf, struct {
+				Package     string
+				RoutePath   string
+				Methods     []string
+				ServiceName string
+				IDGoType    string
+				ModulePath  string
+				FileFields  []fileField
+			}{
+				Package:     pkgName,
+				RoutePath:   routePath,
+				Methods:     methods,
+				ServiceName: serviceName,
+				IDGoType:    idType,
+				ModulePath:  modulePath,
+				FileFields:  fields,
+			}); err != nil {
+				return fmt.Errorf("execute route service upload template: %w", err)
+			}
+		} else if err := routeServiceTmpl.Execute(&buf, struct {
 			Package     string
 			RoutePath   string
 			Methods     []string

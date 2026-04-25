@@ -11,3 +11,4 @@ go.work.sum
 bin/pola
 examples/carbon-tf/
 examples/carbon-ads/
+examples/storage-test/

@@ -41,6 +41,20 @@ export default async function [[ .Name ]]ShowPage({
               <dd>{[[ if eq .InputType "checkbox" ]]item.[[ .JSONName ]] ? "Yes" : "No"[[ else ]]String(item.[[ .JSONName ]] ?? "")[[ end ]]}</dd>
             </div>
             [[- end ]]
+            [[- range .FileFields ]]
+            <div className="flex px-4 py-3">
+              <dt className="w-48 shrink-0 text-sm font-medium text-muted-foreground">[[ .Label ]]</dt>
+              <dd>
+                {item.[[ .JSONName ]]_id ? (
+                  <span className="text-sm text-accent-foreground">
+                    File attached (ID: {item.[[ .JSONName ]]_id})
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">No file</span>
+                )}
+              </dd>
+            </div>
+            [[- end ]]
           </dl>
         </CardContent>
       </Card>

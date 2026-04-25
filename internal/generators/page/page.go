@@ -243,13 +243,22 @@ func loadTemplate(renderer, name string) (*template.Template, error) {
 
 // pageData holds the template data for page generation.
 type pageData struct {
-	Name         string      // PascalCase: "Product"
-	ActionName   string      // PascalCase action: "ProductAction"
-	PluralName   string      // PascalCase plural: "Products"
-	SnakeName    string      // snake_case: "product"
-	PluralSnake  string      // snake_case plural: "products"
-	SchemaImport string      // "@/schemas/product"
-	Fields       []pageField // non-reference, non-bytes fields
+	Name         string          // PascalCase: "Product"
+	ActionName   string          // PascalCase action: "ProductAction"
+	PluralName   string          // PascalCase plural: "Products"
+	SnakeName    string          // snake_case: "product"
+	PluralSnake  string          // snake_case plural: "products"
+	SchemaImport string          // "@/schemas/product"
+	Fields       []pageField     // non-reference, non-bytes fields
+	FileFields   []pageFileField // blob reference fields (file uploads)
+	HasFiles     bool            // true if FileFields is non-empty
+}
+
+// pageFileField describes a file upload field for page templates.
+type pageFileField struct {
+	Name     string // PascalCase: "Avatar"
+	JSONName string // snake_case: "avatar"
+	Label    string // Human readable: "Avatar"
 }
 
 // pageField describes a single field for page templates.
@@ -276,7 +285,18 @@ func buildPageData(def *schema.ModelDefinition) pageData {
 	}
 
 	for _, f := range def.Fields {
-		if f.Type == schema.FieldReferences || f.Type == schema.FieldBytes {
+		if f.Type == schema.FieldBytes {
+			continue
+		}
+		if f.Type == schema.FieldReferences {
+			if f.RefModel == "StorageBlob" {
+				data.FileFields = append(data.FileFields, pageFileField{
+					Name:     schema.PascalCase(f.Name),
+					JSONName: schema.SnakeCase(f.Name),
+					Label:    humanize(f.Name),
+				})
+				data.HasFiles = true
+			}
 			continue
 		}
 		pf := pageField{

@@ -68,6 +68,7 @@ func runGenerate(_ *cobra.Command, _ []string) error {
 		TSOut:           generateFlags.tsOut,
 	}
 	autoload.PopulateDatabaseOpts(&genOpts, &pf, "development")
+	autoload.PopulateStorageOpts(&genOpts, &pf, "development")
 	result, err := autoload.Run(projectDir, genOpts, verbose)
 	if err != nil {
 		return err

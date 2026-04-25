@@ -5,6 +5,9 @@ package storage
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
 
 	survey "github.com/AlecAivazis/survey/v2"
 	"github.com/polagonow/pola/internal/generators"
@@ -12,6 +15,69 @@ import (
 	"github.com/polagonow/pola/polafile"
 	"github.com/spf13/cobra"
 )
+
+const blobRouteSource = `package storage_blobs
+
+import (
+	"io"
+	"net/http"
+	"strconv"
+
+	"github.com/polagonow/pola/routes"
+	"github.com/polagonow/pola/storage"
+	"{{MODULE}}/repositories"
+)
+
+// Route serves StorageBlob files by ID.
+type Route struct {
+	store storage.Storage
+	blobs repositories.StorageBlobRepository
+}
+
+// NewRoute creates a Route with its dependencies.
+func NewRoute(store storage.Storage, blobs repositories.StorageBlobRepository) *Route {
+	return &Route{store: store, blobs: blobs}
+}
+
+// Path overrides the auto-derived URL pattern so GET maps to /storage_blobs/:id
+// (a member-style URL) instead of the collection /storage_blobs.
+func (r *Route) Path() string { return "/storage_blobs/:id" }
+
+// GET /storage_blobs/:id streams the blob's bytes back to the client.
+func (r *Route) GET(w http.ResponseWriter, req *http.Request) {
+	idStr := routes.Param(req, "id")
+	if idStr == "" {
+		routes.WriteError(w, http.StatusBadRequest, "missing id")
+		return
+	}
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		routes.WriteError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+
+	blob, err := r.blobs.Get(req.Context(), uint(id))
+	if err != nil {
+		routes.WriteError(w, http.StatusNotFound, "blob not found")
+		return
+	}
+
+	rc, err := r.store.Open(req.Context(), blob.Key)
+	if err != nil {
+		routes.WriteError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	defer rc.Close()
+
+	if blob.ContentType != "" {
+		w.Header().Set("Content-Type", blob.ContentType)
+	}
+	if blob.Filename != "" {
+		w.Header().Set("Content-Disposition", "inline; filename=\""+blob.Filename+"\"")
+	}
+	io.Copy(w, rc)
+}
+`
 
 // StorageGenerator scaffolds file storage infrastructure.
 type StorageGenerator struct{}
@@ -129,6 +195,19 @@ func (g *StorageGenerator) run(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("model StorageBlob: %w", err)
 	}
 
+	// --- Generate StorageBlob repository ---
+
+	fmt.Println("Generating StorageBlob repository...")
+	if err := generators.Run("repository", cmd, blobArgs); err != nil {
+		return fmt.Errorf("repository StorageBlob: %w", err)
+	}
+
+	// --- Generate StorageBlob serving route ---
+
+	if err := writeBlobRoute(projectDir, pf); err != nil {
+		return fmt.Errorf("write blob route: %w", err)
+	}
+
 	// --- Generate StorageAttachment model ---
 
 	fmt.Println("Generating StorageAttachment model...")
@@ -148,6 +227,52 @@ func (g *StorageGenerator) run(cmd *cobra.Command, _ []string) error {
 	fmt.Println("  # Or use StorageAttachment for polymorphic attachments")
 
 	return nil
+}
+
+// writeBlobRoute writes routes/storage_blobs/route.go that serves blob files
+// by ID. It's a static file (no template variation needed) — only the module
+// path is substituted.
+func writeBlobRoute(projectDir string, pf *polafile.Polafile) error {
+	routesDir := pf.Routes
+	if routesDir == "" {
+		routesDir = "routes"
+	}
+	blobRouteDir := filepath.Join(projectDir, routesDir, "storage_blobs")
+	if err := os.MkdirAll(blobRouteDir, 0o755); err != nil {
+		return fmt.Errorf("create dir: %w", err)
+	}
+
+	module, err := readModuleName(projectDir)
+	if err != nil {
+		return err
+	}
+
+	routeFile := filepath.Join(blobRouteDir, "route.go")
+	if _, err := os.Stat(routeFile); err == nil {
+		fmt.Printf("Skipping existing %s\n", routeFile)
+		return nil
+	}
+
+	src := strings.ReplaceAll(blobRouteSource, "{{MODULE}}", module)
+	if err := os.WriteFile(routeFile, []byte(src), 0o644); err != nil {
+		return fmt.Errorf("write %s: %w", routeFile, err)
+	}
+	fmt.Printf("Created %s\n", routeFile)
+	return nil
+}
+
+func readModuleName(projectDir string) (string, error) {
+	data, err := os.ReadFile(filepath.Join(projectDir, "go.mod"))
+	if err != nil {
+		return "", fmt.Errorf("read go.mod: %w", err)
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "module ") {
+			return strings.TrimSpace(strings.TrimPrefix(line, "module ")), nil
+		}
+	}
+	return "", fmt.Errorf("module directive not found")
 }
 
 func promptSelect(message string, options []string) (string, error) {
