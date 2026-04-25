@@ -42,8 +42,19 @@ type Field struct {
 	Index       bool      // :index modifier
 	Unique      bool      // :uniq modifier
 	Polymorphic bool      // {polymorphic} option (only valid on references)
+	RefModel    string    // explicit target model for references, e.g. references{StorageBlob} (empty = derive from Name)
 	Limit       int       // {N} option for sized types, e.g. string{255} → varchar(255). 0 means default.
 	RefIDType   FieldType // resolved ID type of referenced model (set by ValidateReferences, not parsing)
+}
+
+// ReferencedModel returns the PascalCase name of the model this references field
+// points to. If RefModel is set explicitly, it is returned as-is. Otherwise,
+// PascalCase(Name) is used.
+func (f *Field) ReferencedModel() string {
+	if f.RefModel != "" {
+		return f.RefModel
+	}
+	return PascalCase(f.Name)
 }
 
 // ModelDefinition is the parsed model definition from CLI arguments.
@@ -76,4 +87,25 @@ func (m *ModelDefinition) HasIndexes() bool {
 		}
 	}
 	return false
+}
+
+// HasBlobFields returns true if any field references StorageBlob (file upload).
+func (m *ModelDefinition) HasBlobFields() bool {
+	for _, f := range m.Fields {
+		if f.Type == FieldReferences && f.RefModel == "StorageBlob" {
+			return true
+		}
+	}
+	return false
+}
+
+// BlobFields returns all fields that reference StorageBlob.
+func (m *ModelDefinition) BlobFields() []Field {
+	var result []Field
+	for _, f := range m.Fields {
+		if f.Type == FieldReferences && f.RefModel == "StorageBlob" {
+			result = append(result, f)
+		}
+	}
+	return result
 }

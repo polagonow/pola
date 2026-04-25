@@ -1,9 +1,13 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition[[ if .HasFiles ]], useRef[[ end ]] } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+[[ if .HasFiles -]]
+import { [[ .SnakeName ]]EditSchema, type [[ .Name ]]Edit } from "[[ .SchemaImport ]]";
+[[ else -]]
 import { [[ .SnakeName ]]Schema, type [[ .Name ]] } from "[[ .SchemaImport ]]";
+[[ end -]]
 import { csrfToken } from "@/utils/csrf";
 
 export default function Edit[[ .Name ]]Form({
@@ -11,7 +15,11 @@ export default function Edit[[ .Name ]]Form({
   initialData,
 }: {
   id: number;
+[[ if .HasFiles -]]
+  initialData: [[ .Name ]]Edit;
+[[ else -]]
   initialData: [[ .Name ]];
+[[ end -]]
 }) {
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
@@ -19,21 +27,48 @@ export default function Edit[[ .Name ]]Form({
     register,
     handleSubmit,
     formState: { errors },
+[[ if .HasFiles -]]
+  } = useForm<[[ .Name ]]Edit>({
+    resolver: zodResolver([[ .SnakeName ]]EditSchema),
+[[ else -]]
   } = useForm<[[ .Name ]]>({
     resolver: zodResolver([[ .SnakeName ]]Schema),
+[[ end -]]
     defaultValues: initialData,
   });
+[[ range .FileFields ]]
+  const [[ .JSONName ]]Ref = useRef<HTMLInputElement>(null);
+[[- end ]]
 
-  function onSubmit(data: [[ .Name ]]) {
+[[ if .HasFiles -]]
+  function onSubmit(data: [[ .Name ]]Edit)
+[[ else -]]
+  function onSubmit(data: [[ .Name ]])
+[[ end -]] {
     setError(null);
 
     startTransition(async () => {
       try {
+[[ if .HasFiles -]]
+        const formData = new FormData();
+        formData.append("data", JSON.stringify(data));
+[[ range .FileFields ]]
+        if ([[ .JSONName ]]Ref.current?.files?.[0]) {
+          formData.append("[[ .JSONName ]]", [[ .JSONName ]]Ref.current.files[0]);
+        }
+[[- end ]]
+        const res = await fetch(`/[[ .PluralSnake ]]/${id}`, {
+          method: "PUT",
+          headers: { "X-CSRF-Token": csrfToken() },
+          body: formData,
+        });
+[[ else -]]
         const res = await fetch(`/[[ .PluralSnake ]]/${id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
           body: JSON.stringify(data),
         });
+[[ end -]]
         if (!res.ok) {
           const text = await res.text();
           throw new Error(text || res.statusText);
@@ -101,6 +136,19 @@ export default function Edit[[ .Name ]]Form({
         </div>
         [[ end -]]
         [[ end -]]
+        [[- end ]]
+        [[- range .FileFields ]]
+        <div className="slds-form-element slds-m-bottom_small">
+          <label className="slds-form-element__label" htmlFor="[[ .JSONName ]]">[[ .Label ]] (optional)</label>
+          <div className="slds-form-element__control">
+            <input
+              type="file"
+              id="[[ .JSONName ]]"
+              ref={[[ .JSONName ]]Ref}
+              className="slds-input"
+            />
+          </div>
+        </div>
         [[- end ]]
 
         <div className="slds-m-top_medium">

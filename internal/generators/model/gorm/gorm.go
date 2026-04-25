@@ -101,11 +101,12 @@ func buildGormData(def *schema.ModelDefinition) gormData {
 				})
 			} else {
 				// Association struct field.
-				refName := schema.PascalCase(f.Name)
+				fieldName := schema.PascalCase(f.Name)
+				refType := f.ReferencedModel()
 				data.Fields = append(data.Fields, gormField{
 					StructField: fmt.Sprintf(
 						"%s %s `gorm:\"foreignKey:%sID\" json:\"%s\"`",
-						refName, refName, refName, f.Name,
+						fieldName, refType, fieldName, f.Name,
 					),
 				})
 			}

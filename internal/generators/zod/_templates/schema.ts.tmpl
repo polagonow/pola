@@ -7,3 +7,12 @@ export const [[ .SnakeName ]]Schema = z.object({
 });
 
 export type [[ .Name ]] = z.infer<typeof [[ .SnakeName ]]Schema>;
+[[ if .HasFiles ]]
+export const [[ .SnakeName ]]EditSchema = z.object({
+[[- range .Fields ]]
+  [[ .JSONName ]]: [[ .ZodType ]][[ if or .Optional .IsFile ]].optional()[[ end ]],
+[[- end ]]
+});
+
+export type [[ .Name ]]Edit = z.infer<typeof [[ .SnakeName ]]EditSchema>;
+[[ end -]]

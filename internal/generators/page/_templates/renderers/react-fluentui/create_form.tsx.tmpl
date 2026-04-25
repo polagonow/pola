@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition[[ if .HasFiles ]], useRef[[ end ]] } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { [[ .SnakeName ]]Schema, type [[ .Name ]] } from "[[ .SchemaImport ]]";
@@ -27,17 +27,35 @@ export default function Create[[ .Name ]]Form() {
   } = useForm<[[ .Name ]]>({
     resolver: zodResolver([[ .SnakeName ]]Schema),
   });
+[[ range .FileFields ]]
+  const [[ .JSONName ]]Ref = useRef<HTMLInputElement>(null);
+[[- end ]]
 
   function onSubmit(data: [[ .Name ]]) {
     setError(null);
 
     startTransition(async () => {
       try {
+[[ if .HasFiles -]]
+        const formData = new FormData();
+        formData.append("data", JSON.stringify(data));
+[[ range .FileFields ]]
+        if ([[ .JSONName ]]Ref.current?.files?.[0]) {
+          formData.append("[[ .JSONName ]]", [[ .JSONName ]]Ref.current.files[0]);
+        }
+[[- end ]]
+        const res = await fetch("/[[ .PluralSnake ]]/", {
+          method: "POST",
+          headers: { "X-CSRF-Token": csrfToken() },
+          body: formData,
+        });
+[[ else -]]
         const res = await fetch("/[[ .PluralSnake ]]/", {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
           body: JSON.stringify(data),
         });
+[[ end -]]
         if (!res.ok) {
           const text = await res.text();
           throw new Error(text || res.statusText);
@@ -101,6 +119,16 @@ export default function Create[[ .Name ]]Form() {
           </Field>
           [[ end -]]
           [[ end -]]
+          [[- end ]]
+          [[- range .FileFields ]]
+          <Field label="[[ .Label ]]">
+            <input
+              type="file"
+              id="[[ .JSONName ]]"
+              ref={[[ .JSONName ]]Ref}
+              style={{ padding: "6px 0" }}
+            />
+          </Field>
           [[- end ]]
         </div>
 

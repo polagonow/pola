@@ -126,6 +126,7 @@ type zodData struct {
 	Name      string     // PascalCase: "Product"
 	SnakeName string     // snake_case: "product"
 	Fields    []zodField // non-reference, non-bytes fields
+	HasFiles  bool       // true if any field is a file upload
 }
 
 // zodField describes a single field for Zod schema templates.
@@ -133,16 +134,29 @@ type zodField struct {
 	JSONName string // snake_case: "name"
 	ZodType  string // e.g. "z.string()", "z.number().int()"
 	Optional bool
+	IsFile   bool // true for blob reference fields (file upload)
 }
 
 func buildZodData(def *schema.ModelDefinition) zodData {
 	data := zodData{
 		Name:      def.Name,
 		SnakeName: schema.SnakeCase(def.Name),
+		HasFiles:  def.HasBlobFields(),
 	}
 
 	for _, f := range def.Fields {
-		if f.Type == schema.FieldReferences || f.Type == schema.FieldBytes {
+		if f.Type == schema.FieldBytes {
+			continue
+		}
+		if f.Type == schema.FieldReferences {
+			if f.RefModel == "StorageBlob" {
+				data.Fields = append(data.Fields, zodField{
+					JSONName: schema.SnakeCase(f.Name),
+					ZodType:  "z.preprocess((v) => (v instanceof FileList ? v[0] : v), z.instanceof(File))",
+					Optional: f.Optional,
+					IsFile:   true,
+				})
+			}
 			continue
 		}
 		zf := zodField{

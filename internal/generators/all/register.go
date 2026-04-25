@@ -12,5 +12,6 @@ import (
 	_ "github.com/polagonow/pola/internal/generators/route"
 	_ "github.com/polagonow/pola/internal/generators/scaffold"
 	_ "github.com/polagonow/pola/internal/generators/service"
+	_ "github.com/polagonow/pola/internal/generators/storage"
 	_ "github.com/polagonow/pola/internal/generators/zod"
 )

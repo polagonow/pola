@@ -1,0 +1,262 @@
+package [[ .Package ]]
+
+import (
+	"fmt"
+	"net/http"
+	"path"
+
+	"github.com/google/uuid"
+	"[[ .ModulePath ]]/repositories"
+	"[[ .ModulePath ]]/services"
+	"github.com/polagonow/pola/routes"
+	"github.com/polagonow/pola/storage"
+)
+
+// Route handles [[ .RoutePath ]] requests with file upload support.
+type Route struct {
+	svc   *services.[[ .ServiceName ]]Service
+	store storage.Storage
+	blobs repositories.StorageBlobRepository
+}
+
+// NewRoute creates a Route with its dependencies.
+func NewRoute(svc *services.[[ .ServiceName ]]Service, store storage.Storage, blobs repositories.StorageBlobRepository) *Route {
+	return &Route{svc: svc, store: store, blobs: blobs}
+}
+[[ range .Methods ]]
+[[ if eq . "GET" -]]
+// GET [[ $.RoutePath ]]
+func (r *Route) GET(w http.ResponseWriter, req *http.Request) {
+	id := routes.Param(req, "id")
+	if id != "" {
+[[ if eq $.IDGoType "string" -]]
+		entity, err := r.svc.Get(req.Context(), id)
+[[ else -]]
+		n, err := routes.ParseUintID(req)
+		if err != nil {
+			routes.WriteError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		entity, err := r.svc.Get(req.Context(), n)
+[[ end -]]
+		if err != nil {
+			routes.WriteError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		routes.WriteJSON(w, http.StatusOK, entity)
+		return
+	}
+
+	params := repositories.ListParams{
+		Page:    routes.QueryInt(req, "page", 1),
+		PerPage: routes.QueryInt(req, "per_page", repositories.DefaultPerPage),
+	}
+	result, err := r.svc.List(req.Context(), params)
+	if err != nil {
+		routes.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	routes.WriteJSON(w, http.StatusOK, result)
+}
+[[ else if eq . "POST" -]]
+// POST [[ $.RoutePath ]]
+func (r *Route) POST(w http.ResponseWriter, req *http.Request) {
+	var entity repositories.[[ $.ServiceName ]]
+	if err := routes.DecodeMultipartJSON(req, &entity, 32<<20); err != nil {
+		routes.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := routes.Validate(&entity); err != nil {
+		routes.WriteError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+
+	ctx := req.Context()
+[[ range $.FileFields ]]
+	if fh, ok := req.MultipartForm.File["[[ .Name ]]"]; ok && len(fh) > 0 {
+		f, err := fh[0].Open()
+		if err != nil {
+			routes.WriteError(w, http.StatusBadRequest, fmt.Sprintf("open file %q: %v", "[[ .Name ]]", err))
+			return
+		}
+		defer f.Close()
+
+		key := path.Join("uploads", "[[ $.Package ]]", uuid.New().String(), fh[0].Filename)
+		if err := r.store.Save(ctx, f, key); err != nil {
+			routes.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("save file: %v", err))
+			return
+		}
+
+		blob := repositories.StorageBlob{
+			Key:         key,
+			Filename:    fh[0].Filename,
+			ContentType: fh[0].Header.Get("Content-Type"),
+			ByteSize:    fh[0].Size,
+		}
+		if err := r.blobs.Create(ctx, &blob); err != nil {
+			routes.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("create blob: %v", err))
+			return
+		}
+		entity.[[ .PascalName ]]ID = blob.ID
+	}
+[[ end ]]
+	if err := r.svc.Create(ctx, &entity); err != nil {
+		routes.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	routes.WriteJSON(w, http.StatusCreated, entity)
+}
+[[ else if eq . "PUT" -]]
+// PUT [[ $.RoutePath ]]
+func (r *Route) PUT(w http.ResponseWriter, req *http.Request) {
+[[ if eq $.IDGoType "string" -]]
+	id, ok := routes.IDParam(req)
+	if !ok {
+		routes.WriteError(w, http.StatusBadRequest, "missing id")
+		return
+	}
+[[ else -]]
+	id, err := routes.ParseUintID(req)
+	if err != nil {
+		routes.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+[[ end -]]
+	var entity repositories.[[ $.ServiceName ]]
+	if err := routes.DecodeMultipartJSON(req, &entity, 32<<20); err != nil {
+		routes.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := routes.Validate(&entity); err != nil {
+		routes.WriteError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	entity.ID = id
+
+	ctx := req.Context()
+[[ range $.FileFields ]]
+	if fh, ok := req.MultipartForm.File["[[ .Name ]]"]; ok && len(fh) > 0 {
+		f, err := fh[0].Open()
+		if err != nil {
+			routes.WriteError(w, http.StatusBadRequest, fmt.Sprintf("open file %q: %v", "[[ .Name ]]", err))
+			return
+		}
+		defer f.Close()
+
+		key := path.Join("uploads", "[[ $.Package ]]", uuid.New().String(), fh[0].Filename)
+		if err := r.store.Save(ctx, f, key); err != nil {
+			routes.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("save file: %v", err))
+			return
+		}
+
+		blob := repositories.StorageBlob{
+			Key:         key,
+			Filename:    fh[0].Filename,
+			ContentType: fh[0].Header.Get("Content-Type"),
+			ByteSize:    fh[0].Size,
+		}
+		if err := r.blobs.Create(ctx, &blob); err != nil {
+			routes.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("create blob: %v", err))
+			return
+		}
+		entity.[[ .PascalName ]]ID = blob.ID
+	}
+[[ end ]]
+	if err := r.svc.Update(ctx, &entity); err != nil {
+		routes.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	routes.WriteJSON(w, http.StatusOK, entity)
+}
+[[ else if eq . "PATCH" -]]
+// PATCH [[ $.RoutePath ]]
+func (r *Route) PATCH(w http.ResponseWriter, req *http.Request) {
+[[ if eq $.IDGoType "string" -]]
+	id, ok := routes.IDParam(req)
+	if !ok {
+		routes.WriteError(w, http.StatusBadRequest, "missing id")
+		return
+	}
+[[ else -]]
+	id, err := routes.ParseUintID(req)
+	if err != nil {
+		routes.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+[[ end -]]
+	var entity repositories.[[ $.ServiceName ]]
+	if err := routes.DecodeMultipartJSON(req, &entity, 32<<20); err != nil {
+		routes.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := routes.Validate(&entity); err != nil {
+		routes.WriteError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	entity.ID = id
+
+	ctx := req.Context()
+[[ range $.FileFields ]]
+	if fh, ok := req.MultipartForm.File["[[ .Name ]]"]; ok && len(fh) > 0 {
+		f, err := fh[0].Open()
+		if err != nil {
+			routes.WriteError(w, http.StatusBadRequest, fmt.Sprintf("open file %q: %v", "[[ .Name ]]", err))
+			return
+		}
+		defer f.Close()
+
+		key := path.Join("uploads", "[[ $.Package ]]", uuid.New().String(), fh[0].Filename)
+		if err := r.store.Save(ctx, f, key); err != nil {
+			routes.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("save file: %v", err))
+			return
+		}
+
+		blob := repositories.StorageBlob{
+			Key:         key,
+			Filename:    fh[0].Filename,
+			ContentType: fh[0].Header.Get("Content-Type"),
+			ByteSize:    fh[0].Size,
+		}
+		if err := r.blobs.Create(ctx, &blob); err != nil {
+			routes.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("create blob: %v", err))
+			return
+		}
+		entity.[[ .PascalName ]]ID = blob.ID
+	}
+[[ end ]]
+	if err := r.svc.Update(ctx, &entity); err != nil {
+		routes.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	routes.WriteJSON(w, http.StatusOK, entity)
+}
+[[ else if eq . "DELETE" -]]
+// DELETE [[ $.RoutePath ]]
+func (r *Route) DELETE(w http.ResponseWriter, req *http.Request) {
+[[ if eq $.IDGoType "string" -]]
+	id, ok := routes.IDParam(req)
+	if !ok {
+		routes.WriteError(w, http.StatusBadRequest, "missing id")
+		return
+	}
+	if err := r.svc.Delete(req.Context(), id); err != nil {
+[[ else -]]
+	id, err := routes.ParseUintID(req)
+	if err != nil {
+		routes.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := r.svc.Delete(req.Context(), id); err != nil {
+[[ end -]]
+		routes.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+[[ else -]]
+// [[ . ]] [[ $.RoutePath ]]
+func (r *Route) [[ . ]](w http.ResponseWriter, req *http.Request) {
+	// TODO: implement
+}
+[[ end -]]
+[[ end -]]

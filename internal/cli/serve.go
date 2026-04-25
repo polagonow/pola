@@ -115,6 +115,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 			TSOut:           generateFlags.tsOut,
 		}
 		autoload.PopulateDatabaseOpts(&opts, &pf, "development")
+		autoload.PopulateStorageOpts(&opts, &pf, "development")
 		overlayRes, err := autoload.Run(projectDir, opts, verbose)
 		if err != nil {
 			return err
