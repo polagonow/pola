@@ -229,7 +229,16 @@ func buildData(def *schema.ModelDefinition, modulePath string) repoData {
 
 	for _, f := range def.Fields {
 		if f.Type == schema.FieldReferences {
-			continue // skip reference fields for repository entity
+			if f.RefModel == "StorageBlob" {
+				// Include blob FK field (e.g. AvatarID uint) so routes can set it.
+				data.Fields = append(data.Fields, repoField{
+					Name:     schema.PascalCase(f.Name) + "ID",
+					JSONName: schema.SnakeCase(f.Name) + "_id",
+					GoType:   "uint",
+					ValidTag: "optional",
+				})
+			}
+			continue
 		}
 		goType := schema.GoType(f.Type)
 		data.Fields = append(data.Fields, repoField{

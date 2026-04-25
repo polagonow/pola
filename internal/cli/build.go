@@ -95,6 +95,7 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 		TSOut:           generateFlags.tsOut,
 	}
 	autoload.PopulateDatabaseOpts(&baseOpts, &pf, "production")
+	autoload.PopulateStorageOpts(&baseOpts, &pf, "production")
 
 	// ── Stage 1: Bundle ──────────────────────────────────────────────────
 	// Full runtime with bundler, osfs, css — needed to produce assets.

@@ -35,15 +35,16 @@ func ValidateReferences(def *schema.ModelDefinition, outDir, plugin string) erro
 		}
 
 		// Non-polymorphic: the referenced model must exist.
-		refFile := filepath.Join(pluginDir, schema.SnakeCase(f.Name)+".go")
+		refModelName := f.ReferencedModel()
+		refFile := filepath.Join(pluginDir, schema.SnakeCase(refModelName)+".go")
 		if _, err := os.Stat(refFile); err != nil {
 			if os.IsNotExist(err) {
 				return fmt.Errorf(
 					"model %q not found in %s; generate it first with:\n  pola generate model %s ...",
-					schema.PascalCase(f.Name), pluginDir, schema.PascalCase(f.Name),
+					refModelName, pluginDir, refModelName,
 				)
 			}
-			return fmt.Errorf("check referenced model %q: %w", f.Name, err)
+			return fmt.Errorf("check referenced model %q: %w", refModelName, err)
 		}
 
 		idType, err := parseModelIDType(refFile, plugin)
