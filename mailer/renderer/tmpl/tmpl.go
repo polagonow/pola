@@ -37,7 +37,7 @@ func Plugin() core.Plugin {
 			renderer := &Renderer{logger: logger}
 			core.ProvideValue[mailer.EmailRenderer](r, renderer)
 			core.ProvideValue[mailer.TemplateLoader](r, renderer)
-			core.ProvideValue[*Renderer](r, renderer)
+			core.ProvideValue(r, renderer)
 		},
 	}
 }

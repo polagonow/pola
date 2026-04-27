@@ -5,6 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -313,38 +314,30 @@ func humanize(s string) string {
 }
 
 // installReactEmail installs @react-email/components and @react-email/render
-// using the project's configured package manager.
+// using the project's configured package manager, in the web/ directory.
 func installReactEmail(projectDir string) error {
 	pm := "npm"
 	pf, err := polafile.Load(projectDir)
 	if err == nil && pf != nil && pf.PackageManager != "" {
 		pm = pf.PackageManager
 	}
-
-	var args []string
-	switch pm {
-	case "pnpm":
-		args = []string{"pnpm", "add", "@react-email/components", "@react-email/render", "react"}
-	case "yarn":
-		args = []string{"yarn", "add", "@react-email/components", "@react-email/render", "react"}
-	case "bun":
-		args = []string{"bun", "add", "@react-email/components", "@react-email/render", "react"}
-	default:
-		args = []string{"npm", "install", "@react-email/components", "@react-email/render", "react"}
+	if pf == nil {
+		pf = &polafile.Polafile{}
 	}
 
-	return generators.RunAfterHooks(&npmRunner{args: args}, projectDir)
-}
+	deps := []string{"@react-email/components", "@react-email/render", "react"}
+	var args []string
+	switch pm {
+	case "pnpm", "yarn", "bun":
+		args = append([]string{"add"}, deps...)
+	default:
+		args = append([]string{"install"}, deps...)
+	}
 
-// npmRunner is a minimal Generator implementation used to run npm install
-// as an after-hook.
-type npmRunner struct {
-	args []string
-}
-
-func (r *npmRunner) Name() string                   { return "npm-install" }
-func (r *npmRunner) Description() string            { return "Install npm packages" }
-func (r *npmRunner) Command() *cobra.Command        { return nil }
-func (r *npmRunner) AfterHooks() []generators.Hook {
-	return []generators.Hook{generators.CmdHook(r.args...)}
+	fmt.Printf("Running: %s %s\n", pm, strings.Join(args, " "))
+	cmd := exec.Command(pm, args...)
+	cmd.Dir = filepath.Join(projectDir, pf.AppDir())
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	return cmd.Run()
 }
