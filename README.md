@@ -41,6 +41,7 @@ A Go framework for **React Server Components (RSC)** — implements the Flight s
 - [Go ↔ JS bridge (JSI)](#go--js-bridge-jsi)
 - [Hot reload](#hot-reload)
 - [Selecting a JS VM](#selecting-a-js-vm)
+- [Image processing](#image-processing)
 - [Field syntax for generators](#field-syntax-for-generators)
 - [Architecture decisions](#architecture-decisions)
 - [Dependencies](#dependencies)
@@ -257,6 +258,7 @@ pola dev [flags]
 | `--app-path` | `./web` (`POLA_WEBAPP_PATH`) | Path to the web app directory |
 | `--csrf` | `true` (`POLA_CSRF`) | Enable CSRF protection |
 | `--security-headers` | `true` (`POLA_SECURITY_HEADERS`) | Enable security headers |
+| `--image-processing` | — (`POLA_IMAGE_PROCESSING`) | Image processing adapter (`imaging`); enables `/_image` endpoint and `JSI.ImageProcessing.processURL` |
 
 Defaults fall back through: CLI flag → env var → `Polafile.hcl` → hardcoded default.
 
@@ -299,6 +301,7 @@ pola build [flags]
 | `--app-path` | `./web` (`POLA_WEBAPP_PATH`) | Path to the web app directory |
 | `--csrf` | `true` (`POLA_CSRF`) | Enable CSRF protection |
 | `--security-headers` | `true` (`POLA_SECURITY_HEADERS`) | Enable security headers |
+| `--image-processing` | — (`POLA_IMAGE_PROCESSING`) | Image processing adapter (`imaging`) |
 
 **Examples**
 
@@ -786,6 +789,15 @@ pola {
     env "development" { adapter = "sqlite" }
     env "production"  { adapter = "postgresql" }
   }
+
+  image_processing {
+    enabled    = true
+    adapter    = "imaging"
+    path       = "/_image"
+    max_width  = 4096
+    max_height = 4096
+    format     = "jpeg"
+  }
 }
 ```
 
@@ -819,6 +831,7 @@ All attributes are optional.
 | `cache { adapter, host, port, password, db }` | Cache backend | yes |
 | `database { url, dev_url, models, adapter, orm }` | Database connection + ORM | yes |
 | `database > migrations { directory, format }` | Migration files | no |
+| `image_processing { enabled, adapter, path, max_width, max_height, format }` | On-the-fly image transforms (resize, crop, rotate, blur, format) | yes |
 
 ### Resolution order
 
@@ -844,6 +857,11 @@ For any setting (e.g. `bundler`, `vm`, `port`), the CLI resolves in this order �
 | `POLA_CACHE` | Cache adapter | `memory` |
 | `POLA_CSRF` | Enable CSRF (`false` disables) | `true` |
 | `POLA_SECURITY_HEADERS` | Enable security headers | `true` |
+| `POLA_IMAGE_PROCESSING` | Image processing adapter (`imaging`, `none`) | — |
+| `POLA_IMAGE_PROCESSING_PATH` | HTTP path prefix for the image endpoint | `/_image` |
+| `POLA_IMAGE_PROCESSING_MAX_WIDTH` | Max output width clamp | `4096` |
+| `POLA_IMAGE_PROCESSING_MAX_HEIGHT` | Max output height clamp | `4096` |
+| `POLA_IMAGE_PROCESSING_FORMAT` | Default output format | `jpeg` |
 | `POLA_WEBAPP_PATH` | Path to the web app dir | `./web` |
 | `POLA_PM` | JS package manager | autodetect |
 | `POLA_ENV` | Environment label exposed to runtime | `development` (in `pola dev`) |
@@ -1011,6 +1029,59 @@ POLA_VM=qjs pola build
 
 ---
 
+## Image processing
+
+Pola ships with an optional image processing plugin (imgproxy-style) that exposes an HTTP endpoint and a JSI binding for on-the-fly resize, crop, rotate, blur, sharpen, and format conversion. Enable it via `Polafile.hcl` or `--image-processing imaging`.
+
+The default `imaging` adapter is pure Go (no CGO), backed by [`disintegration/imaging`](https://github.com/disintegration/imaging).
+
+### HTTP endpoint
+
+Mounted at the configured prefix (default `/_image`). Supports `GET` with a `?url=` source or `POST` with a raw image body. All `ProcessOptions` fields are accepted as query params.
+
+```bash
+# Fetch a remote image and resize to fit 800×600
+curl "http://localhost:3000/_image?url=https://example.com/cat.jpg&width=800&height=600&fit=cover"
+
+# POST a local image, blur, convert to PNG
+curl -X POST --data-binary @photo.jpg \
+  "http://localhost:3000/_image?blur=2&format=png"
+```
+
+| Query param | Type | Description |
+|-------------|------|-------------|
+| `url` | string | Source URL (GET only) |
+| `width`, `height` | int | Target dimensions; clamped to `max_width`/`max_height` |
+| `fit` | string | `cover`, `contain`, or `fill` (default) |
+| `format` | string | `jpeg`, `png`, or `gif` |
+| `quality` | int | 1–100 (JPEG only; default 85) |
+| `blur`, `sharpen` | float | Gaussian sigma |
+| `rotate` | int | 0, 90, 180, or 270 |
+
+### From Server Components
+
+The plugin registers `ImageProcessing.processURL` on the JSI bridge, returning a base64 data URI suitable for inline `<img src>`.
+
+```tsx
+import JSI from "@pola/jsi"
+
+export default async function Avatar({ src }: { src: string }) {
+  const dataURI = await JSI.ImageProcessing.processURL(src, {
+    width: 128,
+    height: 128,
+    fit: "cover",
+    format: "jpeg",
+  })
+  return <img src={dataURI} alt="" />
+}
+```
+
+### Security
+
+The HTTP client validates resolved IPs at dial time, rejecting requests to private, loopback, link-local, and unspecified addresses, and re-validates redirect targets — closing the usual SSRF and DNS-rebinding attack vectors. The request body is capped at 10 MB.
+
+---
+
 ## Field syntax for generators
 
 The generators that accept fields (`model`, `repository`, `service`, `scaffold`, `zod`, `page`) all use the same syntax:
@@ -1079,3 +1150,4 @@ pola generate scaffold Product \
 | `github.com/spf13/cobra` | CLI command framework |
 | `github.com/hashicorp/hcl/v2` | Polafile parser |
 | `ariga.io/atlas` | Migration engine |
+| `github.com/disintegration/imaging` | Pure-Go image processing (resize, crop, blur) |
