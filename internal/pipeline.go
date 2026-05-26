@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/mailer"
+	reactrenderer "github.com/polagonow/pola/mailer/renderer/react"
 )
 
 // prebuildMeta is the JSON schema for prebuild-meta.json written during mage Bundle
@@ -277,6 +279,9 @@ func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, er
 		}
 	}
 
+	// ── 6.55. Build email templates bundle (if mailers exist) ───────────
+	buildEmailBundle(ctx, absWebAppPath, renderer, bundler, engine, logger, registry)
+
 	// ── 6.6. Extract document props from root layout ────────────────────
 	var docProps *core.DocumentProps
 	if extractor, ok := renderer.(interface {
@@ -492,4 +497,81 @@ func buildFromPrebuilt(
 	app := newApp(cfg, registry, orch)
 	app.SetArtifacts(artifacts.BundleOutput)
 	return app, nil
+}
+
+// buildEmailBundle checks for email templates under appDir/mailers/ and, if
+// found, loads them into the registered mailer renderer. For filesystem-based
+// renderers (e.g. tmpl) it calls LoadTemplates directly; for the react
+// renderer it generates a TypeScript entry, bundles it, and loads the bundle.
+func buildEmailBundle(
+	ctx context.Context,
+	appDir string,
+	renderer core.Renderer,
+	bundler core.Bundler,
+	engine core.JSEngine,
+	logger core.Logger,
+	registry *core.Registry,
+) {
+	mailersDir := filepath.Join(appDir, "mailers")
+	if _, err := os.Stat(mailersDir); os.IsNotExist(err) {
+		return
+	}
+
+	// Try filesystem-based template loader first (e.g. tmpl renderer).
+	if loader, err := core.Invoke[mailer.TemplateLoader](registry); err == nil {
+		if err := loader.LoadTemplates(mailersDir); err != nil {
+			logger.Warn("pola: load email templates", "err", err)
+		}
+		return
+	}
+
+	// Fall back to react email bundle path.
+	emailRenderer, err := core.Invoke[*reactrenderer.Renderer](registry)
+	if err != nil {
+		return // mailer plugin not registered — nothing to do
+	}
+
+	exts := renderer.FileExtensions()
+	templates, layouts, err := mailer.ScanMailers(mailersDir, exts)
+	if err != nil {
+		logger.Warn("pola: scan mailers", "err", err)
+		return
+	}
+	if len(templates) == 0 {
+		return
+	}
+
+	// Generate the email entry TypeScript source.
+	entrySource := mailer.GenerateEmailEntry(templates, layouts, mailersDir)
+
+	// Bundle the email entry using a temp output directory.
+	tmpDir, err := os.MkdirTemp("", "pola-email-bundle-*")
+	if err != nil {
+		logger.Warn("pola: email bundle tmpdir", "err", err)
+		return
+	}
+	defer os.RemoveAll(tmpDir)
+
+	emailBundleInput := core.BundleInput{
+		AppDir:                 appDir,
+		OutDir:                 filepath.Join(tmpDir, "out"),
+		ServerEntryContent:     entrySource,
+		ServerBundleConditions: []string{"module", "default"},
+	}
+
+	output, err := bundler.Build(ctx, emailBundleInput)
+	if err != nil {
+		logger.Warn("pola: bundle email templates", "err", err)
+		return
+	}
+	if output == nil || len(output.ServerBundle) == 0 {
+		logger.Warn("pola: email bundle produced no output")
+		return
+	}
+
+	if err := emailRenderer.LoadBundle(output.ServerBundle); err != nil {
+		logger.Warn("pola: load email bundle", "err", err)
+	} else {
+		logger.Info("pola: email templates loaded", "templates", len(templates), "layouts", len(layouts))
+	}
 }

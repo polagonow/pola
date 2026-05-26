@@ -70,8 +70,12 @@ func runServe(cmd *cobra.Command, _ []string) error {
 
 	// Load Polafile for PolaPackage.
 	var pf polafile.Polafile
-	if loaded, err := polafile.Load(projectDir); err == nil && loaded != nil {
-		pf = *loaded
+	pfPtr, err := polafile.Load(projectDir)
+	if err != nil {
+		return fmt.Errorf("load Polafile: %w", err)
+	}
+	if pfPtr != nil {
+		pf = *pfPtr
 	}
 
 	if verbose {
@@ -116,6 +120,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		}
 		autoload.PopulateDatabaseOpts(&opts, &pf, "development")
 		autoload.PopulateStorageOpts(&opts, &pf, "development")
+		autoload.ApplyMailerOpts(&opts, &pf, "development")
 		overlayRes, err := autoload.Run(projectDir, opts, verbose)
 		if err != nil {
 			return err

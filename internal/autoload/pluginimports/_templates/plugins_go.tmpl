@@ -42,6 +42,11 @@ import (
 	_ "{{.PolaPackage}}/database/{{.Database}}/{{.DatabaseAdapter}}"
 {{- end}}
 {{- end}}
+{{- if .HasMailer}}
+	"{{.PolaPackage}}/mailer"
+	mailerrenderer "{{.PolaPackage}}/mailer/renderer/{{.MailerRenderer}}"
+	mailertransport "{{.PolaPackage}}/mailer/transport/{{.MailerTransport}}"
+{{- end}}
 {{- if .HasRoutes}}
 	"{{.PolaPackage}}/routes"
 {{- end}}
@@ -142,6 +147,23 @@ var PolaPlugins = []core.Plugin{
 {{- range .ServicePlugins.Services}}
 	{{$.ServicePlugins.PkgName}}.{{.Name}}ServicePlugin(),
 {{- end}}
+{{- end}}
+{{- if .HasMailer}}
+	mailerrenderer.Plugin(),
+{{- if eq .MailerTransport "smtp"}}
+	mailertransport.Plugin(mailertransport.Config{
+		Host:     "{{.SMTPHost}}",
+		Port:     "{{.SMTPPort}}",
+		Username: "{{.SMTPUsername}}",
+		Password: "{{.SMTPPassword}}",
+		TLS:      {{.SMTPTLS}},
+	}),
+{{- else}}
+	mailertransport.Plugin(),
+{{- end}}
+	mailer.Plugin(mailer.Config{
+		From: "{{.MailerFrom}}",
+	}),
 {{- end}}
 {{- if .HasRoutes}}
 	routes.Plugin(),

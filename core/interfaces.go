@@ -251,3 +251,22 @@ type AssetServerFactory func(publicDir string) AssetServer
 // embedded FS). When registered, the pipeline skips route scanning and JS
 // bundling at startup.
 type PrebuildLoader func() (*PrebuildArtifacts, error)
+
+// MailMessage is a fully-rendered, ready-to-send email.
+type MailMessage struct {
+	From    string
+	To      []string
+	CC      []string
+	BCC     []string
+	ReplyTo string
+	Subject string
+	HTML    string
+	Text    string
+	Headers map[string]string
+}
+
+// MailTransport delivers a composed email message.
+type MailTransport interface {
+	Name() string
+	Send(ctx context.Context, msg *MailMessage) error
+}
