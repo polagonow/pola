@@ -32,6 +32,7 @@ var serveFlags struct {
 	appPath         string
 	csrf            bool
 	securityHeaders bool
+	imageProcessing string
 }
 
 var serveCmd = &cobra.Command{
@@ -55,6 +56,7 @@ func init() {
 	serveCmd.Flags().StringVar(&serveFlags.appPath, "app-path", cmp.Or(os.Getenv("POLA_WEBAPP_PATH"), "./web"), "path to the web app directory")
 	serveCmd.Flags().BoolVar(&serveFlags.csrf, "csrf", os.Getenv("POLA_CSRF") != "false", "enable CSRF protection")
 	serveCmd.Flags().BoolVar(&serveFlags.securityHeaders, "security-headers", os.Getenv("POLA_SECURITY_HEADERS") != "false", "enable security headers")
+	serveCmd.Flags().StringVar(&serveFlags.imageProcessing, "image-processing", os.Getenv("POLA_IMAGE_PROCESSING"), "image processing adapter")
 }
 
 // goWatchExts are the file extensions that trigger a Go process restart.
@@ -113,6 +115,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 			Cache:           "memory",
 			CSRF:            serveFlags.csrf,
 			SecurityHeaders: serveFlags.securityHeaders,
+			ImageProcessing: serveFlags.imageProcessing,
 			Dev:             true,
 			AppDir:          pf.AppDir(),
 			ActionsDir:      generateFlags.actionsDir,

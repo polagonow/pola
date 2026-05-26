@@ -92,6 +92,7 @@ type PluginOpts struct {
 	SMTPUsername    string
 	SMTPPassword    string
 	SMTPTLS         bool
+	ImageProcessing string
 }
 
 // RoutePackageInfo holds metadata about a discovered route package.
