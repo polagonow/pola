@@ -4,6 +4,7 @@
 package autoload
 
 import (
+	"cmp"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -83,6 +84,14 @@ type PluginOpts struct {
 	StorageDriver   string // "fs", "rclone", or "" for none
 	StorageRoot     string // local dir for fs, "remote:path" for rclone
 	StorageConfig   string // optional rclone config path
+	MailerRenderer  string
+	MailerTransport string
+	MailerFrom      string
+	SMTPHost        string
+	SMTPPort        string
+	SMTPUsername    string
+	SMTPPassword    string
+	SMTPTLS         bool
 }
 
 // RoutePackageInfo holds metadata about a discovered route package.
@@ -169,6 +178,23 @@ func PopulateDatabaseOpts(opts *PluginOpts, pf *polafile.Polafile, env string) {
 	opts.DatabaseUser = merged.User
 	opts.DatabasePass = merged.Password
 	opts.DatabaseName = merged.Name
+}
+
+// ApplyMailerOpts populates mailer-related fields in PluginOpts from the Polafile.
+func ApplyMailerOpts(opts *PluginOpts, pf *polafile.Polafile, env string) {
+	if pf == nil || pf.Mailer == nil {
+		return
+	}
+	merged := pf.MailerForEnv(env)
+	opts.MailerRenderer = cmp.Or(merged.Renderer, "react")
+	opts.MailerTransport = cmp.Or(merged.Transport, "log")
+	opts.MailerFrom = cmp.Or(merged.From, os.Getenv("MAILER_FROM"))
+	opts.SMTPHost = cmp.Or(merged.Host, os.Getenv("SMTP_HOST"))
+	opts.SMTPPort = cmp.Or(merged.Port, os.Getenv("SMTP_PORT"))
+	opts.SMTPUsername = cmp.Or(merged.Username, os.Getenv("SMTP_USERNAME"))
+	opts.SMTPPassword = cmp.Or(merged.Password, os.Getenv("SMTP_PASSWORD"))
+	tlsVal := cmp.Or(merged.TLS, os.Getenv("SMTP_TLS"))
+	opts.SMTPTLS = tlsVal == "true" || tlsVal == "starttls"
 }
 
 // ReadModulePath reads the module path from go.mod in the given directory.

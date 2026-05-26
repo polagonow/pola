@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"log"
 	"os"
@@ -69,6 +70,10 @@ func main() {
 	pl := atlas.NewPlanner(replayDrv, dir, atlas.WithFormatter(atlas.DefaultFormatter))
 	plan, err := pl.Plan(ctx, os.Args[2], atlas.Realm(desired))
 	if err != nil {
+		if errors.Is(err, atlas.ErrNoPlan) {
+			fmt.Println("No schema changes detected; migration already up-to-date.")
+			return
+		}
 		log.Fatalf("plan migration: %v", err)
 	}
 

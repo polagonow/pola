@@ -49,8 +49,12 @@ func runGenerate(_ *cobra.Command, _ []string) error {
 
 	// Load Polafile defaults (env vars take precedence, then Polafile, then hardcoded).
 	var pf polafile.Polafile
-	if loaded, err := polafile.Load(projectDir); err == nil && loaded != nil {
-		pf = *loaded
+	pfPtr, err := polafile.Load(projectDir)
+	if err != nil {
+		return fmt.Errorf("load Polafile: %w", err)
+	}
+	if pfPtr != nil {
+		pf = *pfPtr
 	}
 
 	genOpts := autoload.PluginOpts{
@@ -69,6 +73,7 @@ func runGenerate(_ *cobra.Command, _ []string) error {
 	}
 	autoload.PopulateDatabaseOpts(&genOpts, &pf, "development")
 	autoload.PopulateStorageOpts(&genOpts, &pf, "development")
+	autoload.ApplyMailerOpts(&genOpts, &pf, "development")
 	result, err := autoload.Run(projectDir, genOpts, verbose)
 	if err != nil {
 		return err

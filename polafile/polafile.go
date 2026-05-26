@@ -76,6 +76,7 @@ type Polafile struct {
 	Cache           *Cache           `hcl:"cache,block"`
 	Database        *Database        `hcl:"database,block"`
 	Storage         *StorageConfig   `hcl:"storage,block"`
+	Mailer          *Mailer          `hcl:"mailer,block"`
 }
 
 // ---------- CSRF ----------
@@ -433,6 +434,94 @@ func (pf *Polafile) AppDir() string {
 	return "web"
 }
 
+// ---------- Mailer ----------
+
+// MailerEnvironment holds per-environment mailer overrides.
+type MailerEnvironment struct {
+	Environment string `hcl:"env,label"`
+	Renderer    string `hcl:"renderer,optional"`
+	Transport   string `hcl:"transport,optional"`
+	From        string `hcl:"from,optional"`
+	Host        string `hcl:"host,optional"`
+	Port        string `hcl:"port,optional"`
+	Username    string `hcl:"username,optional"`
+	Password    string `hcl:"password,optional"`
+	TLS         string `hcl:"tls,optional"`
+}
+
+// Mailer holds mailer configuration with optional per-environment overrides.
+type Mailer struct {
+	Renderer  string             `hcl:"renderer,optional"`
+	Transport string             `hcl:"transport,optional"`
+	From      string             `hcl:"from,optional"`
+	Host      string             `hcl:"host,optional"`
+	Port      string             `hcl:"port,optional"`
+	Username  string             `hcl:"username,optional"`
+	Password  string             `hcl:"password,optional"`
+	TLS       string             `hcl:"tls,optional"`
+	Envs      []MailerEnvironment `hcl:"env,block"`
+}
+
+// MailerForEnv merges the base mailer config with env-specific overrides.
+func (pf *Polafile) MailerForEnv(env string) Mailer {
+	if pf.Mailer == nil {
+		return Mailer{}
+	}
+	base := Mailer{
+		Renderer:  pf.Mailer.Renderer,
+		Transport: pf.Mailer.Transport,
+		From:      pf.Mailer.From,
+		Host:      pf.Mailer.Host,
+		Port:      pf.Mailer.Port,
+		Username:  pf.Mailer.Username,
+		Password:  pf.Mailer.Password,
+		TLS:       pf.Mailer.TLS,
+	}
+	for _, e := range pf.Mailer.Envs {
+		if e.Environment == env {
+			override := Mailer{
+				Renderer:  e.Renderer,
+				Transport: e.Transport,
+				From:      e.From,
+				Host:      e.Host,
+				Port:      e.Port,
+				Username:  e.Username,
+				Password:  e.Password,
+				TLS:       e.TLS,
+			}
+			_ = mergo.Merge(&base, &override, mergo.WithOverride)
+			break
+		}
+	}
+	return base
+}
+
+// MailerTransport returns the configured mailer transport for the given environment,
+// falling back to base config, then "log".
+func (pf *Polafile) MailerTransport(env string) string {
+	merged := pf.MailerForEnv(env)
+	if merged.Transport != "" {
+		return merged.Transport
+	}
+	return "log"
+}
+
+// MailerFrom returns the configured default from address for the given environment.
+func (pf *Polafile) MailerFrom(env string) string {
+	merged := pf.MailerForEnv(env)
+	return merged.From
+}
+
+// MailerRenderer returns the configured mailer renderer for the given environment,
+// falling back to base config, then "react".
+func (pf *Polafile) MailerRenderer(env string) string {
+	merged := pf.MailerForEnv(env)
+	if merged.Renderer != "" {
+		return merged.Renderer
+	}
+	return "react"
+}
+
 // RepositoriesDir returns the configured repositories directory, defaulting to "repositories".
 func (pf *Polafile) RepositoriesDir() string {
 	if pf.Repositories != "" {
@@ -602,6 +691,33 @@ func Save(dir string, pf *Polafile) error {
 			setAttr(envBody, "driver", e.Driver)
 			setAttr(envBody, "root", e.Root)
 			setAttr(envBody, "config_path", e.ConfigPath)
+		}
+	}
+
+	// Mailer block.
+	if pf.Mailer != nil {
+		blockBody.AppendNewline()
+		mBlock := blockBody.AppendNewBlock("mailer", nil)
+		mBody := mBlock.Body()
+		setAttr(mBody, "renderer", pf.Mailer.Renderer)
+		setAttr(mBody, "transport", pf.Mailer.Transport)
+		setAttr(mBody, "from", pf.Mailer.From)
+		setAttr(mBody, "host", pf.Mailer.Host)
+		setAttr(mBody, "port", pf.Mailer.Port)
+		setAttr(mBody, "username", pf.Mailer.Username)
+		setAttr(mBody, "password", pf.Mailer.Password)
+		setAttr(mBody, "tls", pf.Mailer.TLS)
+		for _, e := range pf.Mailer.Envs {
+			envBlock := mBody.AppendNewBlock("env", []string{e.Environment})
+			envBody := envBlock.Body()
+			setAttr(envBody, "renderer", e.Renderer)
+			setAttr(envBody, "transport", e.Transport)
+			setAttr(envBody, "from", e.From)
+			setAttr(envBody, "host", e.Host)
+			setAttr(envBody, "port", e.Port)
+			setAttr(envBody, "username", e.Username)
+			setAttr(envBody, "password", e.Password)
+			setAttr(envBody, "tls", e.TLS)
 		}
 	}
 
