@@ -1,0 +1,65 @@
+import { [[ .ActionName ]] } from "@pola/actions";
+import DeleteButton from "@/components/[[ .PluralSnake ]]/delete-button";
+
+export default async function [[ .PluralName ]]Page({
+  searchParams,
+}: {
+  searchParams?: Record<string, string>;
+}) {
+  const page = parseInt(searchParams?.page || "1", 10);
+  const perPage = parseInt(searchParams?.per_page || "25", 10);
+  const result = await [[ .ActionName ]].list(page, perPage);
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 24 }}>
+        <h1 style={{ fontSize: "1.5rem", fontWeight: 600, margin: 0 }}>
+          [[ .PluralName ]]
+        </h1>
+        <a
+          href="/[[ .PluralSnake ]]/create"
+          style={{ display: "inline-flex", alignItems: "center", padding: "6px 12px", borderRadius: 3, background: "var(--ds-background-brand-bold, #0052CC)", color: "var(--ds-text-inverse, #fff)", fontWeight: 500, fontSize: "0.875rem", textDecoration: "none" }}
+        >
+          New [[ .Name ]]
+        </a>
+      </div>
+
+      <div style={{ border: "1px solid var(--ds-border, #DFE1E6)", borderRadius: 3, overflow: "hidden" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "0.875rem" }}>
+          <thead>
+            <tr style={{ background: "var(--ds-background-neutral, #F4F5F7)" }}>
+              <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, borderBottom: "2px solid var(--ds-border, #DFE1E6)" }}>ID</th>
+              [[- range .Fields ]]
+              <th style={{ padding: "8px 12px", textAlign: "left", fontWeight: 600, borderBottom: "2px solid var(--ds-border, #DFE1E6)" }}>[[ .Label ]]</th>
+              [[- end ]]
+              <th style={{ padding: "8px 12px", textAlign: "right", fontWeight: 600, borderBottom: "2px solid var(--ds-border, #DFE1E6)" }}>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            {result.items.map((item) => (
+              <tr key={item.id} style={{ borderBottom: "1px solid var(--ds-border, #DFE1E6)" }}>
+                <td style={{ padding: "8px 12px" }}>{item.id}</td>
+                [[- range .Fields ]]
+                <td style={{ padding: "8px 12px" }}>{[[ if eq .InputType "checkbox" ]]item.[[ .JSONName ]] ? "Yes" : "No"[[ else ]]String(item.[[ .JSONName ]] ?? "")[[ end ]]}</td>
+                [[- end ]]
+                <td style={{ padding: "8px 12px", textAlign: "right" }}>
+                  <span style={{ display: "inline-flex", gap: 8 }}>
+                    <a href={`/[[ $.PluralSnake ]]/${item.id}`} style={{ color: "var(--ds-link, #0052CC)", fontSize: "0.875rem" }}>View</a>
+                    <a href={`/[[ $.PluralSnake ]]/${item.id}/edit`} style={{ color: "var(--ds-link, #0052CC)", fontSize: "0.875rem" }}>Edit</a>
+                    <DeleteButton id={item.id} />
+                  </span>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      {result.items.length === 0 && (
+        <p style={{ padding: "32px 0", textAlign: "center", color: "var(--ds-text-subtlest, #626F86)" }}>
+          No [[ .PluralSnake ]] found.
+        </p>
+      )}
+    </div>
+  );
+}

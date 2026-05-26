@@ -1,0 +1,132 @@
+"use client";
+
+import { useState, useTransition[[ if .HasFiles ]], useRef[[ end ]] } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { [[ .SnakeName ]]Schema, type [[ .Name ]] } from "[[ .SchemaImport ]]";
+import { csrfToken } from "@/utils/csrf";
+
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
+
+export default function Create[[ .Name ]]Form() {
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    formState: { errors },
+  } = useForm<[[ .Name ]]>({
+    resolver: zodResolver([[ .SnakeName ]]Schema),
+  });
+[[ range .FileFields ]]
+  const [[ .JSONName ]]Ref = useRef<HTMLInputElement>(null);
+[[- end ]]
+  function onSubmit(data: [[ .Name ]]) {
+    setError(null);
+
+    startTransition(async () => {
+      try {
+        [[ if .HasFiles -]]
+        const formData = new FormData();
+        formData.append("data", JSON.stringify(data));
+        [[ range .FileFields -]]
+        if ([[ .JSONName ]]Ref.current?.files?.[0]) {
+          formData.append("[[ .JSONName ]]", [[ .JSONName ]]Ref.current.files[0]);
+        }
+        [[ end -]]
+        const res = await fetch("/[[ .PluralSnake ]]/", {
+          method: "POST",
+          headers: { "X-CSRF-Token": csrfToken() },
+          body: formData,
+        });
+        [[ else -]]
+        const res = await fetch("/[[ .PluralSnake ]]/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
+          body: JSON.stringify(data),
+        });
+        [[ end -]]
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || res.statusText);
+        }
+        window.location.href = "/[[ .PluralSnake ]]";
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An error occurred");
+      }
+    });
+  }
+
+  return (
+    <>
+      {error && (
+        <div className="mb-4 rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <div className="flex flex-col gap-4">
+          [[- range .Fields ]]
+          <div className="space-y-2">
+            [[ if eq .InputType "checkbox" -]]
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="[[ .JSONName ]]"
+                onCheckedChange={(checked) => setValue("[[ .JSONName ]]", !!checked)}
+              />
+              <Label htmlFor="[[ .JSONName ]]">[[ .Label ]][[ if .Optional ]] (optional)[[ end ]]</Label>
+            </div>
+            [[ else -]]
+            <Label htmlFor="[[ .JSONName ]]">[[ .Label ]][[ if .Optional ]] (optional)[[ end ]]</Label>
+            [[ if .IsTextarea -]]
+            <Textarea
+              id="[[ .JSONName ]]"
+              {...register("[[ .JSONName ]]")}
+              rows={4}
+            />
+            [[ else -]]
+            <Input
+              type="[[ .InputType ]]"
+              id="[[ .JSONName ]]"
+              {...register("[[ .JSONName ]]"[[ if eq .InputType "number" ]], { valueAsNumber: true }[[ end ]])}
+              [[ if .IsFloat ]]step="any"[[ end ]]
+            />
+            [[ end -]]
+            [[ end -]]
+            {errors.[[ .JSONName ]]?.message && (
+              <p className="text-xs text-destructive">
+                {errors.[[ .JSONName ]].message}
+              </p>
+            )}
+          </div>
+          [[- end ]]
+          [[- range .FileFields ]]
+          <div className="space-y-2">
+            <Label htmlFor="[[ .JSONName ]]">[[ .Label ]]</Label>
+            <Input
+              type="file"
+              id="[[ .JSONName ]]"
+              ref={[[ .JSONName ]]Ref}
+            />
+          </div>
+          [[- end ]]
+        </div>
+
+        <div className="mt-6 flex gap-3">
+          <Button type="submit" disabled={isPending}>
+            {isPending ? "Creating..." : "Create [[ .Name ]]"}
+          </Button>
+          <Button variant="outline" asChild>
+            <a href="/[[ .PluralSnake ]]">Cancel</a>
+          </Button>
+        </div>
+      </form>
+    </>
+  );
+}

@@ -1,0 +1,81 @@
+import { [[ .ActionName ]] } from "@pola/actions";
+
+import DeleteButton from "@/components/[[ .PluralSnake ]]/delete-button";
+
+export default async function [[ .Name ]]ShowPage({
+  params,
+}: {
+  params: { id: string };
+}) {
+  const item = await [[ .ActionName ]].get(parseInt(params.id, 10));
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
+        <h1 style={{ fontSize: "1.5rem", fontWeight: 700 }}>[[ .Name ]] #{params.id}</h1>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <a
+            href={`/[[ .PluralSnake ]]/${params.id}/edit`}
+            style={{
+              display: "inline-block",
+              padding: "0.5rem 1rem",
+              background: "var(--color-accent, #3b82f6)",
+              color: "#fff",
+              borderRadius: "var(--radius-md, 6px)",
+              textDecoration: "none",
+              fontSize: "0.875rem",
+              fontWeight: 500,
+            }}
+          >
+            Edit
+          </a>
+          <DeleteButton id={item.id} />
+        </div>
+      </div>
+
+      <div style={{
+        border: "1px solid var(--color-border, #e5e7eb)",
+        borderRadius: "var(--radius-lg, 8px)",
+        overflow: "hidden",
+      }}>
+        <dl style={{ margin: 0 }}>
+          <div style={{ display: "flex", padding: "0.75rem 1rem", borderBottom: "1px solid var(--color-border, #e5e7eb)" }}>
+            <dt style={{ width: "12rem", flexShrink: 0, fontWeight: 500, color: "var(--color-muted, #6b7280)", fontSize: "0.875rem" }}>ID</dt>
+            <dd style={{ margin: 0 }}>{item.id}</dd>
+          </div>
+          [[- range .Fields ]]
+          <div style={{ display: "flex", padding: "0.75rem 1rem", borderBottom: "1px solid var(--color-border, #e5e7eb)" }}>
+            <dt style={{ width: "12rem", flexShrink: 0, fontWeight: 500, color: "var(--color-muted, #6b7280)", fontSize: "0.875rem" }}>[[ .Label ]]</dt>
+            <dd style={{ margin: 0 }}>{[[ if eq .InputType "checkbox" ]]item.[[ .JSONName ]] ? "Yes" : "No"[[ else ]]String(item.[[ .JSONName ]] ?? "")[[ end ]]}</dd>
+          </div>
+          [[- end ]]
+          [[- range .FileFields ]]
+          <div style={{ display: "flex", padding: "0.75rem 1rem", borderBottom: "1px solid var(--color-border, #e5e7eb)" }}>
+            <dt style={{ width: "12rem", flexShrink: 0, fontWeight: 500, color: "var(--color-muted, #6b7280)", fontSize: "0.875rem" }}>[[ .Label ]]</dt>
+            <dd style={{ margin: 0 }}>
+              {item.[[ .JSONName ]]_id ? (
+                <a
+                  href={`/storage_blobs/${item.[[ .JSONName ]]_id}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ color: "var(--color-accent, #3b82f6)", fontSize: "0.875rem", textDecoration: "underline" }}
+                >
+                  View file
+                </a>
+              ) : (
+                <span style={{ color: "var(--color-muted, #6b7280)" }}>No file</span>
+              )}
+            </dd>
+          </div>
+          [[- end ]]
+        </dl>
+      </div>
+
+      <div style={{ marginTop: "1.5rem" }}>
+        <a href="/[[ .PluralSnake ]]" style={{ color: "var(--color-accent, #3b82f6)", textDecoration: "none", fontSize: "0.875rem" }}>
+          &larr; Back to [[ .PluralName ]]
+        </a>
+      </div>
+    </div>
+  );
+}

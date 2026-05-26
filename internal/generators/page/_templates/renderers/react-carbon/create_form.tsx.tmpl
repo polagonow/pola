@@ -1,0 +1,160 @@
+"use client";
+
+import { useState, useTransition[[ if .HasFiles ]], useRef[[ end ]] } from "react";
+import { useForm, Controller } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { [[ .SnakeName ]]Schema, type [[ .Name ]] } from "[[ .SchemaImport ]]";
+import { csrfToken } from "@/utils/csrf";
+import {
+  TextInput,
+  TextArea,
+  NumberInput,
+  Checkbox,
+  Button,
+  InlineNotification,
+  Stack,
+} from "@carbon/react";
+
+export default function Create[[ .Name ]]Form() {
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const {
+    register,
+    handleSubmit,
+    control,
+    formState: { errors },
+  } = useForm<[[ .Name ]]>({
+    resolver: zodResolver([[ .SnakeName ]]Schema),
+  });
+[[ range .FileFields ]]
+  const [[ .JSONName ]]Ref = useRef<HTMLInputElement>(null);
+[[- end ]]
+
+  function onSubmit(data: [[ .Name ]]) {
+    setError(null);
+
+    startTransition(async () => {
+      try {
+[[ if .HasFiles -]]
+        const formData = new FormData();
+        formData.append("data", JSON.stringify(data));
+[[ range .FileFields ]]
+        if ([[ .JSONName ]]Ref.current?.files?.[0]) {
+          formData.append("[[ .JSONName ]]", [[ .JSONName ]]Ref.current.files[0]);
+        }
+[[- end ]]
+        const res = await fetch("/[[ .PluralSnake ]]/", {
+          method: "POST",
+          headers: { "X-CSRF-Token": csrfToken() },
+          body: formData,
+        });
+[[ else -]]
+        const res = await fetch("/[[ .PluralSnake ]]/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
+          body: JSON.stringify(data),
+        });
+[[ end -]]
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || res.statusText);
+        }
+        window.location.href = "/[[ .PluralSnake ]]";
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An error occurred");
+      }
+    });
+  }
+
+  return (
+    <>
+      {error && (
+        <InlineNotification
+          kind="error"
+          title="Error"
+          subtitle={error}
+          lowContrast
+          style={{ marginBottom: "1rem" }}
+        />
+      )}
+
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <Stack gap={6}>
+          [[- range .Fields ]]
+          [[ if eq .InputType "checkbox" -]]
+          <Controller
+            name="[[ .JSONName ]]"
+            control={control}
+            render={({ field }) => (
+              <Checkbox
+                id="[[ .JSONName ]]"
+                labelText="[[ .Label ]][[ if .Optional ]] (optional)[[ end ]]"
+                checked={!!field.value}
+                onChange={(_: React.ChangeEvent<HTMLInputElement>, { checked }: { checked: boolean }) => field.onChange(checked)}
+              />
+            )}
+          />
+          [[ else -]]
+          [[ if .IsTextarea -]]
+          <TextArea
+            id="[[ .JSONName ]]"
+            labelText="[[ .Label ]][[ if .Optional ]] (optional)[[ end ]]"
+            rows={4}
+            {...register("[[ .JSONName ]]")}
+            invalid={!!errors.[[ .JSONName ]]}
+            invalidText={errors.[[ .JSONName ]]?.message}
+          />
+          [[ else if eq .InputType "number" -]]
+          <Controller
+            name="[[ .JSONName ]]"
+            control={control}
+            render={({ field }) => (
+              <NumberInput
+                id="[[ .JSONName ]]"
+                label="[[ .Label ]][[ if .Optional ]] (optional)[[ end ]]"
+                [[ if .IsFloat ]]step="any"[[ end ]]
+                value={field.value ?? ""}
+                onChange={(_: React.MouseEvent<HTMLButtonElement>, { value }: { value: string | number }) => field.onChange(Number(value))}
+                invalid={!!errors.[[ .JSONName ]]}
+                invalidText={errors.[[ .JSONName ]]?.message}
+              />
+            )}
+          />
+          [[ else -]]
+          <TextInput
+            id="[[ .JSONName ]]"
+            labelText="[[ .Label ]][[ if .Optional ]] (optional)[[ end ]]"
+            type="[[ .InputType ]]"
+            {...register("[[ .JSONName ]]")}
+            invalid={!!errors.[[ .JSONName ]]}
+            invalidText={errors.[[ .JSONName ]]?.message}
+          />
+          [[ end -]]
+          [[ end -]]
+          [[- end ]]
+          [[- range .FileFields ]]
+          <div>
+            <label htmlFor="[[ .JSONName ]]" className="cds--label">[[ .Label ]]</label>
+            <input
+              type="file"
+              id="[[ .JSONName ]]"
+              ref={[[ .JSONName ]]Ref}
+              className="cds--text-input"
+              style={{ padding: "0.5rem" }}
+            />
+          </div>
+          [[- end ]]
+        </Stack>
+
+        <div style={{ display: "flex", gap: "0.75rem", marginTop: "1.5rem" }}>
+          <Button type="submit" kind="primary" disabled={isPending}>
+            {isPending ? "Creating..." : "Create [[ .Name ]]"}
+          </Button>
+          <Button kind="secondary" href="/[[ .PluralSnake ]]">
+            Cancel
+          </Button>
+        </div>
+      </form>
+    </>
+  );
+}

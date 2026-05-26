@@ -1,0 +1,49 @@
+package [[.PackageName]]
+
+import (
+	"entgo.io/ent"
+	"entgo.io/ent/schema/field"
+[[- if .HasIndexes]]
+	"entgo.io/ent/schema/index"
+[[- end]]
+[[- if .HasEdges]]
+	"entgo.io/ent/schema/edge"
+[[- end]]
+[[- if .HasUUIDImport]]
+	"github.com/google/uuid"
+[[- end]]
+)
+
+// [[.Name]] holds the schema definition for the [[.Name]] entity.
+type [[.Name]] struct {
+	ent.Schema
+}
+
+// Fields of the [[.Name]].
+func ([[.Name]]) Fields() []ent.Field {
+	return []ent.Field{
+[[- range .Fields]]
+		[[.EntField]],
+[[- end]]
+	}
+}
+[[if .HasIndexes]]
+// Indexes of the [[.Name]].
+func ([[.Name]]) Indexes() []ent.Index {
+	return []ent.Index{
+[[- range .Indexes]]
+		[[.]],
+[[- end]]
+	}
+}
+[[end]]
+[[- if .HasEdges]]
+// Edges of the [[.Name]].
+func ([[.Name]]) Edges() []ent.Edge {
+	return []ent.Edge{
+[[- range .Edges]]
+		[[.]],
+[[- end]]
+	}
+}
+[[end]]

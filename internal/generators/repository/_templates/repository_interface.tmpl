@@ -1,0 +1,25 @@
+package repositories
+
+import (
+	"context"
+[[- range .Imports]]
+	[[.]]
+[[- end]]
+)
+
+// [[.Name]] represents the [[.SnakeName]] entity for the repository layer.
+type [[.Name]] struct {
+	ID [[.IDGoType]] `json:"id"`
+[[- range .Fields]]
+	[[.Name]] [[.GoType]] `json:"[[.JSONName]]" valid:"[[.ValidTag]]"`
+[[- end]]
+}
+
+// [[.Name]]Repository defines the contract for [[.SnakeName]] persistence operations.
+type [[.Name]]Repository interface {
+	Create(ctx context.Context, entity *[[.Name]]) error
+	Get(ctx context.Context, id [[.IDGoType]]) (*[[.Name]], error)
+	List(ctx context.Context, params ListParams) (*ListResult[*[[.Name]]], error)
+	Update(ctx context.Context, entity *[[.Name]]) error
+	Delete(ctx context.Context, id [[.IDGoType]]) error
+}

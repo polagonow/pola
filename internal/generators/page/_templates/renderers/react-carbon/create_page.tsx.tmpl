@@ -1,0 +1,12 @@
+import Create[[ .Name ]]Form from "@/components/[[ .PluralSnake ]]/create-form";
+
+export default function Create[[ .Name ]]Page() {
+  return (
+    <div className="cds--tile" style={{ maxWidth: 640 }}>
+      <h2 style={{ fontSize: "1.25rem", fontWeight: 600, marginTop: 0, marginBottom: "1.5rem" }}>
+        Create [[ .Name ]]
+      </h2>
+      <Create[[ .Name ]]Form />
+    </div>
+  );
+}

@@ -1,0 +1,70 @@
+import { [[ .ActionName ]] } from "@pola/actions";
+import DeleteButton from "@/components/[[ .PluralSnake ]]/delete-button";
+
+export default async function [[ .Name ]]ShowPage({
+  params,
+}: {
+  params: { id: string };
+}) {
+  const item = await [[ .ActionName ]].get(parseInt(params.id, 10));
+
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "1.5rem" }}>
+        <h1 style={{ fontSize: "1.25rem", fontWeight: 600, margin: 0 }}>
+          [[ .Name ]] #{params.id}
+        </h1>
+        <div style={{ display: "flex", gap: "0.5rem" }}>
+          <a
+            href={`/[[ .PluralSnake ]]/${params.id}/edit`}
+            className="cds--btn cds--btn--primary"
+          >
+            Edit
+          </a>
+          <DeleteButton id={item.id} />
+        </div>
+      </div>
+
+      <div className="cds--structured-list">
+        <div className="cds--structured-list-thead">
+          <div className="cds--structured-list-row cds--structured-list-row--header-row">
+            <div className="cds--structured-list-th" style={{ width: 192 }}>Field</div>
+            <div className="cds--structured-list-th">Value</div>
+          </div>
+        </div>
+        <div className="cds--structured-list-tbody">
+          <div className="cds--structured-list-row">
+            <div className="cds--structured-list-td" style={{ width: 192, fontWeight: 500, color: "#525252" }}>ID</div>
+            <div className="cds--structured-list-td">{item.id}</div>
+          </div>
+          [[- range .Fields ]]
+          <div className="cds--structured-list-row">
+            <div className="cds--structured-list-td" style={{ width: 192, fontWeight: 500, color: "#525252" }}>[[ .Label ]]</div>
+            <div className="cds--structured-list-td">{[[ if eq .InputType "checkbox" ]]item.[[ .JSONName ]] ? "Yes" : "No"[[ else ]]String(item.[[ .JSONName ]] ?? "")[[ end ]]}</div>
+          </div>
+          [[- end ]]
+          [[- range .FileFields ]]
+          <div className="cds--structured-list-row">
+            <div className="cds--structured-list-td" style={{ width: 192, fontWeight: 500, color: "#525252" }}>[[ .Label ]]</div>
+            <div className="cds--structured-list-td">
+              {item.[[ .JSONName ]]_id ? (
+                <span style={{ color: "#0f62fe", fontSize: "0.875rem" }}>
+                  File attached (ID: {item.[[ .JSONName ]]_id})
+                </span>
+              ) : (
+                <span style={{ color: "#525252" }}>No file</span>
+              )}
+            </div>
+          </div>
+          [[- end ]]
+        </div>
+      </div>
+
+      <div style={{ marginTop: "1.5rem" }}>
+        <a href="/[[ .PluralSnake ]]" className="cds--btn cds--btn--ghost cds--btn--sm">
+          ← Back to [[ .PluralName ]]
+        </a>
+      </div>
+    </div>
+  );
+}

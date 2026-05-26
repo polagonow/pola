@@ -1,0 +1,31 @@
+package [[.PackageName]]
+
+import (
+[[- range .Imports]]
+	[[.]]
+[[- end]]
+)
+
+// [[.Name]] represents the [[.SnakeName]] database table.
+type [[.Name]] struct {
+[[- if .HasUUIDPK]]
+	ID        string         `gorm:"primaryKey;type:varchar(36)" json:"id"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
+[[- else]]
+	gorm.Model
+[[- end]]
+[[- range .Fields]]
+	[[.StructField]]
+[[- end]]
+}
+[[- if .HasUUIDPK]]
+
+// BeforeCreate generates a UUID primary key if not already set.
+func (m *[[.Name]]) BeforeCreate(tx *gorm.DB) error {
+	if m.ID == "" {
+		m.ID = uuid.New().String()
+	}
+	return nil
+}
+[[- end]]

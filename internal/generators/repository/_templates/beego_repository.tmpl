@@ -1,0 +1,78 @@
+package beego
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/beego/beego/v2/client/orm"
+	"[[.ModulePath]]/repositories"
+[[- if eq .IDGoType "string"]]
+	"github.com/google/uuid"
+[[- end]]
+)
+
+type [[.LowerName]]Repository struct {
+	ormer orm.Ormer
+}
+
+// New[[.Name]]Repository creates a new Beego ORM-backed [[.Name]]Repository.
+func New[[.Name]]Repository(o orm.Ormer) repositories.[[.Name]]Repository {
+	return &[[.LowerName]]Repository{ormer: o}
+}
+
+func (r *[[.LowerName]]Repository) Create(_ context.Context, entity *repositories.[[.Name]]) error {
+[[- if eq .IDGoType "string"]]
+	if entity.ID == "" {
+		entity.ID = uuid.New().String()
+	}
+[[- end]]
+	_, err := r.ormer.Insert(entity)
+	return err
+}
+
+func (r *[[.LowerName]]Repository) Get(_ context.Context, id [[.IDGoType]]) (*repositories.[[.Name]], error) {
+	entity := &repositories.[[.Name]]{ID: id}
+	if err := r.ormer.Read(entity); err != nil {
+		return nil, fmt.Errorf("get [[.SnakeName]] by id: %w", err)
+	}
+	return entity, nil
+}
+
+func (r *[[.LowerName]]Repository) List(_ context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.[[.Name]]], error) {
+	params = params.Normalize()
+
+	qs := r.ormer.QueryTable(new(repositories.[[.Name]]))
+
+	total, err := qs.Count()
+	if err != nil {
+		return nil, fmt.Errorf("count [[.PluralSnake]]: %w", err)
+	}
+
+	var items []*repositories.[[.Name]]
+	if _, err := qs.Limit(params.PerPage, params.Offset()).All(&items); err != nil {
+		return nil, fmt.Errorf("list [[.PluralSnake]]: %w", err)
+	}
+
+	totalPages := int(total) / params.PerPage
+	if int(total)%params.PerPage != 0 {
+		totalPages++
+	}
+
+	return &repositories.ListResult[*repositories.[[.Name]]]{
+		Items:      items,
+		Total:      int(total),
+		Page:       params.Page,
+		PerPage:    params.PerPage,
+		TotalPages: totalPages,
+	}, nil
+}
+
+func (r *[[.LowerName]]Repository) Update(_ context.Context, entity *repositories.[[.Name]]) error {
+	_, err := r.ormer.Update(entity)
+	return err
+}
+
+func (r *[[.LowerName]]Repository) Delete(_ context.Context, id [[.IDGoType]]) error {
+	_, err := r.ormer.Delete(&repositories.[[.Name]]{ID: id})
+	return err
+}

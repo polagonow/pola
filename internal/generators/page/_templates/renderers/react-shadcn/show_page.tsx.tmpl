@@ -1,0 +1,69 @@
+import { [[ .ActionName ]] } from "@pola/actions";
+
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import DeleteButton from "@/components/[[ .PluralSnake ]]/delete-button";
+
+export default async function [[ .Name ]]ShowPage({
+  params,
+}: {
+  params: { id: string };
+}) {
+  const item = await [[ .ActionName ]].get(parseInt(params.id, 10));
+
+  return (
+    <div>
+      <div className="mb-6 flex items-center justify-between">
+        <h1 className="text-2xl font-bold">[[ .Name ]] #{params.id}</h1>
+        <div className="flex gap-2">
+          <Button asChild>
+            <a href={`/[[ .PluralSnake ]]/${params.id}/edit`}>Edit</a>
+          </Button>
+          <DeleteButton id={item.id} />
+        </div>
+      </div>
+
+      <Card>
+        <CardContent className="p-0">
+          <dl className="divide-y">
+            <div className="flex px-4 py-3">
+              <dt className="w-48 shrink-0 text-sm font-medium text-muted-foreground">ID</dt>
+              <dd>{item.id}</dd>
+            </div>
+            [[- range .Fields ]]
+            <div className="flex px-4 py-3">
+              <dt className="w-48 shrink-0 text-sm font-medium text-muted-foreground">[[ .Label ]]</dt>
+              <dd>{[[ if eq .InputType "checkbox" ]]item.[[ .JSONName ]] ? "Yes" : "No"[[ else ]]String(item.[[ .JSONName ]] ?? "")[[ end ]]}</dd>
+            </div>
+            [[- end ]]
+            [[- range .FileFields ]]
+            <div className="flex px-4 py-3">
+              <dt className="w-48 shrink-0 text-sm font-medium text-muted-foreground">[[ .Label ]]</dt>
+              <dd>
+                {item.[[ .JSONName ]]_id ? (
+                  <span className="text-sm text-accent-foreground">
+                    File attached (ID: {item.[[ .JSONName ]]_id})
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">No file</span>
+                )}
+              </dd>
+            </div>
+            [[- end ]]
+          </dl>
+        </CardContent>
+      </Card>
+
+      <div className="mt-6">
+        <Button variant="link" asChild className="px-0">
+          <a href="/[[ .PluralSnake ]]">← Back to [[ .PluralName ]]</a>
+        </Button>
+      </div>
+    </div>
+  );
+}

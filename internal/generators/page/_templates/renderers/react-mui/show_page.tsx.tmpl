@@ -1,0 +1,58 @@
+import { [[ .ActionName ]] } from "@pola/actions";
+import DeleteButton from "@/components/[[ .PluralSnake ]]/delete-button";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Typography from "@mui/material/Typography";
+import Button from "@mui/material/Button";
+import Box from "@mui/material/Box";
+
+export default async function [[ .Name ]]ShowPage({
+  params,
+}: {
+  params: { id: string };
+}) {
+  const item = await [[ .ActionName ]].get(parseInt(params.id, 10));
+
+  return (
+    <Box>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 3 }}>
+        <Typography variant="h5" component="h1" fontWeight={700}>
+          [[ .Name ]] #{params.id}
+        </Typography>
+        <Box sx={{ display: "flex", gap: 1 }}>
+          <Button variant="contained" href={`/[[ .PluralSnake ]]/${params.id}/edit`}>
+            Edit
+          </Button>
+          <DeleteButton id={item.id} />
+        </Box>
+      </Box>
+
+      <Card variant="outlined">
+        <CardContent sx={{ p: 0, "&:last-child": { pb: 0 } }}>
+          <Box sx={{ display: "flex", px: 2, py: 1.5, borderBottom: "1px solid", borderColor: "divider" }}>
+            <Typography sx={{ width: 192, flexShrink: 0, fontWeight: 500, color: "text.secondary" }} variant="body2">ID</Typography>
+            <Typography variant="body2">{item.id}</Typography>
+          </Box>
+          [[- range .Fields ]]
+          <Box sx={{ display: "flex", px: 2, py: 1.5, borderBottom: "1px solid", borderColor: "divider" }}>
+            <Typography sx={{ width: 192, flexShrink: 0, fontWeight: 500, color: "text.secondary" }} variant="body2">[[ .Label ]]</Typography>
+            <Typography variant="body2">{[[ if eq .InputType "checkbox" ]]item.[[ .JSONName ]] ? "Yes" : "No"[[ else ]]String(item.[[ .JSONName ]] ?? "")[[ end ]]}</Typography>
+          </Box>
+          [[- end ]]
+          [[- range .FileFields ]]
+          <Box sx={{ display: "flex", px: 2, py: 1.5, borderBottom: "1px solid", borderColor: "divider" }}>
+            <Typography sx={{ width: 192, flexShrink: 0, fontWeight: 500, color: "text.secondary" }} variant="body2">[[ .Label ]]</Typography>
+            <Typography variant="body2">{String(item.[[ .JSONName ]] ?? "")}</Typography>
+          </Box>
+          [[- end ]]
+        </CardContent>
+      </Card>
+
+      <Box sx={{ mt: 3 }}>
+        <Button href="/[[ .PluralSnake ]]" size="small">
+          ← Back to [[ .PluralName ]]
+        </Button>
+      </Box>
+    </Box>
+  );
+}

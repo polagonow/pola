@@ -1,0 +1,22 @@
+# Go
+bin/
+*.exe
+
+# Node
+node_modules/
+
+# Pola build artifacts
+public/assets/
+public/prebuild-meta.json
+public/_server.js
+web/public/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

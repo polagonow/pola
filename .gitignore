@@ -4,3 +4,11 @@ dist
 .env*
 public/assets
 _server.js
+cmd/server/public/
+coverage.out
+go.work
+go.work.sum
+bin/pola
+examples/carbon-tf/
+examples/carbon-ads/
+examples/storage-test/

@@ -1,0 +1,20 @@
+import { [[ .ActionName ]] } from "@pola/actions";
+import Edit[[ .Name ]]Form from "@/components/[[ .PluralSnake ]]/edit-form";
+
+export default async function Edit[[ .Name ]]Page({
+  params,
+}: {
+  params: { id: string };
+}) {
+  const id = parseInt(params.id, 10);
+  const item = await [[ .ActionName ]].get(id);
+
+  return (
+    <div className="cds--tile" style={{ maxWidth: 640 }}>
+      <h2 style={{ fontSize: "1.25rem", fontWeight: 600, marginTop: 0, marginBottom: "1.5rem" }}>
+        {`Edit [[ .Name ]] #${params.id}`}
+      </h2>
+      <Edit[[ .Name ]]Form id={id} initialData={item} />
+    </div>
+  );
+}

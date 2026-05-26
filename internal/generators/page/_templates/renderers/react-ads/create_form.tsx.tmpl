@@ -1,0 +1,142 @@
+"use client";
+
+import { useState, useTransition[[ if .HasFiles ]], useRef[[ end ]] } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { [[ .SnakeName ]]Schema, type [[ .Name ]] } from "[[ .SchemaImport ]]";
+import { csrfToken } from "@/utils/csrf";
+
+export default function Create[[ .Name ]]Form() {
+  const [error, setError] = useState<string | null>(null);
+  const [isPending, startTransition] = useTransition();
+  const {
+    register,
+    handleSubmit,
+    formState: { errors },
+  } = useForm<[[ .Name ]]>({
+    resolver: zodResolver([[ .SnakeName ]]Schema),
+  });
+[[ range .FileFields ]]
+  const [[ .JSONName ]]Ref = useRef<HTMLInputElement>(null);
+[[- end ]]
+
+  function onSubmit(data: [[ .Name ]]) {
+    setError(null);
+
+    startTransition(async () => {
+      try {
+[[ if .HasFiles -]]
+        const formData = new FormData();
+        formData.append("data", JSON.stringify(data));
+[[ range .FileFields ]]
+        if ([[ .JSONName ]]Ref.current?.files?.[0]) {
+          formData.append("[[ .JSONName ]]", [[ .JSONName ]]Ref.current.files[0]);
+        }
+[[- end ]]
+        const res = await fetch("/[[ .PluralSnake ]]/", {
+          method: "POST",
+          headers: { "X-CSRF-Token": csrfToken() },
+          body: formData,
+        });
+[[ else -]]
+        const res = await fetch("/[[ .PluralSnake ]]/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-CSRF-Token": csrfToken() },
+          body: JSON.stringify(data),
+        });
+[[ end -]]
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || res.statusText);
+        }
+        window.location.href = "/[[ .PluralSnake ]]";
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "An error occurred");
+      }
+    });
+  }
+
+  return (
+    <>
+      {error && (
+        <div style={{ marginBottom: 16, padding: "12px 16px", borderRadius: 3, background: "var(--ds-background-danger, #FFEBE6)", border: "1px solid var(--ds-border-danger, #FF5630)" }}>
+          <strong style={{ color: "var(--ds-text-danger, #DE350B)" }}>Error</strong>
+          <p style={{ margin: "4px 0 0", fontSize: "0.875rem", color: "var(--ds-text-danger, #DE350B)" }}>{error}</p>
+        </div>
+      )}
+
+      <form onSubmit={handleSubmit(onSubmit)}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          [[- range .Fields ]]
+          [[ if eq .InputType "checkbox" -]]
+          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
+            <input
+              type="checkbox"
+              {...register("[[ .JSONName ]]")}
+              style={{ width: 16, height: 16, accentColor: "var(--ds-background-brand-bold, #0052CC)" }}
+            />
+            <span style={{ fontSize: "0.875rem", color: "var(--ds-text, #172B4D)" }}>[[ .Label ]][[ if .Optional ]] (optional)[[ end ]]</span>
+          </label>
+          [[ else -]]
+          <div>
+            <label htmlFor="[[ .JSONName ]]" style={{ display: "block", marginBottom: 4, fontSize: "0.875rem", fontWeight: 600, color: "var(--ds-text, #172B4D)" }}>
+              [[ .Label ]][[ if .Optional ]] <span style={{ fontWeight: 400, color: "var(--ds-text-subtlest, #626F86)" }}>(optional)</span>[[ end ]]
+            </label>
+            [[ if .IsTextarea -]]
+            <textarea
+              id="[[ .JSONName ]]"
+              {...register("[[ .JSONName ]]")}
+              rows={4}
+              style={{ width: "100%", padding: "8px 6px", borderRadius: 3, border: "2px solid var(--ds-border-input, #DFE1E6)", fontSize: "0.875rem", fontFamily: "inherit", resize: "vertical", background: "var(--ds-background-input, #FAFBFC)", color: "var(--ds-text, #172B4D)" }}
+            />
+            [[ else -]]
+            <input
+              type="[[ .InputType ]]"
+              id="[[ .JSONName ]]"
+              {...register("[[ .JSONName ]]"[[ if eq .InputType "number" ]], { valueAsNumber: true }[[ end ]])}
+              [[ if .IsFloat ]]step="any"[[ end ]]
+              style={{ width: "100%", padding: "8px 6px", borderRadius: 3, border: "2px solid var(--ds-border-input, #DFE1E6)", fontSize: "0.875rem", fontFamily: "inherit", background: "var(--ds-background-input, #FAFBFC)", color: "var(--ds-text, #172B4D)", boxSizing: "border-box" }}
+            />
+            [[ end -]]
+            {errors.[[ .JSONName ]] && (
+              <div style={{ marginTop: 4, fontSize: "0.75rem", color: "var(--ds-text-danger, #DE350B)" }}>
+                {errors.[[ .JSONName ]]?.message}
+              </div>
+            )}
+          </div>
+          [[ end -]]
+          [[- end ]]
+          [[- range .FileFields ]]
+          <div>
+            <label htmlFor="[[ .JSONName ]]" style={{ display: "block", marginBottom: 4, fontSize: "0.875rem", fontWeight: 600, color: "var(--ds-text, #172B4D)" }}>
+              [[ .Label ]]
+            </label>
+            <input
+              type="file"
+              id="[[ .JSONName ]]"
+              ref={[[ .JSONName ]]Ref}
+              style={{ width: "100%", padding: "8px 6px", borderRadius: 3, border: "2px solid var(--ds-border-input, #DFE1E6)", fontSize: "0.875rem", fontFamily: "inherit", background: "var(--ds-background-input, #FAFBFC)", color: "var(--ds-text, #172B4D)", boxSizing: "border-box" }}
+            />
+          </div>
+          [[- end ]]
+        </div>
+
+        <div style={{ display: "flex", gap: 8, marginTop: 24 }}>
+          <button
+            type="submit"
+            disabled={isPending}
+            style={{ padding: "6px 12px", borderRadius: 3, border: "none", background: "var(--ds-background-brand-bold, #0052CC)", color: "var(--ds-text-inverse, #fff)", fontWeight: 500, fontSize: "0.875rem", cursor: "pointer", opacity: isPending ? 0.6 : 1 }}
+          >
+            {isPending ? "Creating..." : "Create [[ .Name ]]"}
+          </button>
+          <a
+            href="/[[ .PluralSnake ]]"
+            style={{ padding: "6px 12px", borderRadius: 3, border: "none", background: "var(--ds-background-neutral, #F4F5F7)", color: "var(--ds-text, #172B4D)", fontWeight: 500, fontSize: "0.875rem", textDecoration: "none", display: "inline-flex", alignItems: "center" }}
+          >
+            Cancel
+          </a>
+        </div>
+      </form>
+    </>
+  );
+}

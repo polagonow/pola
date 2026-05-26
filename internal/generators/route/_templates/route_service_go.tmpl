@@ -1,0 +1,166 @@
+package [[ .Package ]]
+
+import (
+	"net/http"
+
+	"[[ .ModulePath ]]/repositories"
+	"[[ .ModulePath ]]/services"
+	"github.com/polagonow/pola/routes"
+)
+
+// Route handles [[ .RoutePath ]] requests.
+type Route struct {
+	svc *services.[[ .ServiceName ]]Service
+}
+
+// NewRoute creates a Route with its service dependency.
+func NewRoute(svc *services.[[ .ServiceName ]]Service) *Route {
+	return &Route{svc: svc}
+}
+[[ range .Methods ]]
+[[ if eq . "GET" -]]
+// GET [[ $.RoutePath ]]
+func (r *Route) GET(w http.ResponseWriter, req *http.Request) {
+	id := routes.Param(req, "id")
+	if id != "" {
+[[ if eq $.IDGoType "string" -]]
+		entity, err := r.svc.Get(req.Context(), id)
+[[ else -]]
+		n, err := routes.ParseUintID(req)
+		if err != nil {
+			routes.WriteError(w, http.StatusBadRequest, err.Error())
+			return
+		}
+		entity, err := r.svc.Get(req.Context(), n)
+[[ end -]]
+		if err != nil {
+			routes.WriteError(w, http.StatusNotFound, err.Error())
+			return
+		}
+		routes.WriteJSON(w, http.StatusOK, entity)
+		return
+	}
+
+	params := repositories.ListParams{
+		Page:    routes.QueryInt(req, "page", 1),
+		PerPage: routes.QueryInt(req, "per_page", repositories.DefaultPerPage),
+	}
+	result, err := r.svc.List(req.Context(), params)
+	if err != nil {
+		routes.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	routes.WriteJSON(w, http.StatusOK, result)
+}
+[[ else if eq . "POST" -]]
+// POST [[ $.RoutePath ]]
+func (r *Route) POST(w http.ResponseWriter, req *http.Request) {
+	var entity repositories.[[ $.ServiceName ]]
+	if err := routes.DecodeJSON(req, &entity); err != nil {
+		routes.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := routes.Validate(&entity); err != nil {
+		routes.WriteError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	if err := r.svc.Create(req.Context(), &entity); err != nil {
+		routes.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	routes.WriteJSON(w, http.StatusCreated, entity)
+}
+[[ else if eq . "PUT" -]]
+// PUT [[ $.RoutePath ]]
+func (r *Route) PUT(w http.ResponseWriter, req *http.Request) {
+[[ if eq $.IDGoType "string" -]]
+	id, ok := routes.IDParam(req)
+	if !ok {
+		routes.WriteError(w, http.StatusBadRequest, "missing id")
+		return
+	}
+[[ else -]]
+	id, err := routes.ParseUintID(req)
+	if err != nil {
+		routes.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+[[ end -]]
+	var entity repositories.[[ $.ServiceName ]]
+	if err := routes.DecodeJSON(req, &entity); err != nil {
+		routes.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := routes.Validate(&entity); err != nil {
+		routes.WriteError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	entity.ID = id
+	if err := r.svc.Update(req.Context(), &entity); err != nil {
+		routes.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	routes.WriteJSON(w, http.StatusOK, entity)
+}
+[[ else if eq . "PATCH" -]]
+// PATCH [[ $.RoutePath ]]
+func (r *Route) PATCH(w http.ResponseWriter, req *http.Request) {
+[[ if eq $.IDGoType "string" -]]
+	id, ok := routes.IDParam(req)
+	if !ok {
+		routes.WriteError(w, http.StatusBadRequest, "missing id")
+		return
+	}
+[[ else -]]
+	id, err := routes.ParseUintID(req)
+	if err != nil {
+		routes.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+[[ end -]]
+	var entity repositories.[[ $.ServiceName ]]
+	if err := routes.DecodeJSON(req, &entity); err != nil {
+		routes.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := routes.Validate(&entity); err != nil {
+		routes.WriteError(w, http.StatusUnprocessableEntity, err.Error())
+		return
+	}
+	entity.ID = id
+	if err := r.svc.Update(req.Context(), &entity); err != nil {
+		routes.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	routes.WriteJSON(w, http.StatusOK, entity)
+}
+[[ else if eq . "DELETE" -]]
+// DELETE [[ $.RoutePath ]]
+func (r *Route) DELETE(w http.ResponseWriter, req *http.Request) {
+[[ if eq $.IDGoType "string" -]]
+	id, ok := routes.IDParam(req)
+	if !ok {
+		routes.WriteError(w, http.StatusBadRequest, "missing id")
+		return
+	}
+	if err := r.svc.Delete(req.Context(), id); err != nil {
+[[ else -]]
+	id, err := routes.ParseUintID(req)
+	if err != nil {
+		routes.WriteError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	if err := r.svc.Delete(req.Context(), id); err != nil {
+[[ end -]]
+		routes.WriteError(w, http.StatusInternalServerError, err.Error())
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+[[ else -]]
+// [[ . ]] [[ $.RoutePath ]]
+func (r *Route) [[ . ]](w http.ResponseWriter, req *http.Request) {
+	// TODO: implement
+}
+[[ end -]]
+[[ end -]]

@@ -1,0 +1,44 @@
+package services
+
+import (
+	"context"
+
+	"[[.ModulePath]]/repositories"
+)
+
+// [[.Name]]Service handles business logic for [[.SnakeName]] operations.
+type [[.Name]]Service struct {
+	repo repositories.[[.Name]]Repository
+}
+
+// New[[.Name]]Service creates a new [[.Name]]Service.
+func New[[.Name]]Service(repo repositories.[[.Name]]Repository) *[[.Name]]Service {
+	return &[[.Name]]Service{repo: repo}
+}
+
+// Create creates a new [[.SnakeName]].
+func (s *[[.Name]]Service) Create(ctx context.Context, entity *repositories.[[.Name]]) error {
+	// TODO: add business logic / validation
+	return s.repo.Create(ctx, entity)
+}
+
+// Get returns a [[.SnakeName]] by its ID.
+func (s *[[.Name]]Service) Get(ctx context.Context, id [[.IDGoType]]) (*repositories.[[.Name]], error) {
+	return s.repo.Get(ctx, id)
+}
+
+// List returns a paginated list of [[.PluralSnake]].
+func (s *[[.Name]]Service) List(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.[[.Name]]], error) {
+	return s.repo.List(ctx, params)
+}
+
+// Update updates an existing [[.SnakeName]].
+func (s *[[.Name]]Service) Update(ctx context.Context, entity *repositories.[[.Name]]) error {
+	// TODO: add business logic / validation
+	return s.repo.Update(ctx, entity)
+}
+
+// Delete removes a [[.SnakeName]] by its ID.
+func (s *[[.Name]]Service) Delete(ctx context.Context, id [[.IDGoType]]) error {
+	return s.repo.Delete(ctx, id)
+}
