@@ -1,0 +1,37 @@
+package resources
+
+import (
+	"context"
+
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/polagonow/pola/core"
+)
+
+// [[.Name]]Resource is an MCP resource. Add dependency fields here and resolve
+// them in New[[.Name]]Resource using core.MustInvoke[T](r).
+type [[.Name]]Resource struct{}
+
+// New[[.Name]]Resource is discovered by the mcp autoload.
+func New[[.Name]]Resource(r *core.Registry) *[[.Name]]Resource {
+	_ = r
+	return &[[.Name]]Resource{}
+}
+
+func (r *[[.Name]]Resource) Resource() *sdk.Resource {
+	return &sdk.Resource{
+		URI:         "[[.URI]]",
+		Name:        "[[.Name]]",
+		Description: "TODO: describe this resource",
+		MIMEType:    "application/json",
+	}
+}
+
+
+func (r *[[.Name]]Resource) Handle(ctx context.Context, req *sdk.ReadResourceRequest) (*sdk.ReadResourceResult, error) {
+	return &sdk.ReadResourceResult{
+		Contents: []*sdk.ResourceContents{
+			{URI: req.Params.URI, MIMEType: "application/json", Text: `{"message":"TODO: implement [[.Name]]"}`},
+		},
+	}, nil
+}

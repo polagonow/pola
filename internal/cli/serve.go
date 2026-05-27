@@ -124,6 +124,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		autoload.PopulateDatabaseOpts(&opts, &pf, "development")
 		autoload.PopulateStorageOpts(&opts, &pf, "development")
 		autoload.ApplyMailerOpts(&opts, &pf, "development")
+		autoload.PopulateMCPOpts(&opts, &pf, "development")
 		overlayRes, err := autoload.Run(projectDir, opts, verbose)
 		if err != nil {
 			return err

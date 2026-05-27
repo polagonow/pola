@@ -223,7 +223,7 @@ func runNew(cmd *cobra.Command, args []string) error {
 		Dev:             true,
 	}, appName+"/actions", []string{
 		appName + "/routes/health",
-	}, nil, nil)
+	}, nil, nil, nil)
 	if err != nil {
 		return fmt.Errorf("generate plugins: %w", err)
 	}

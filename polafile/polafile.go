@@ -78,6 +78,7 @@ type Polafile struct {
 	Storage         *StorageConfig   `hcl:"storage,block"`
 	Mailer          *Mailer          `hcl:"mailer,block"`
 	ImageProcessing *ImageProcessing `hcl:"image_processing,block"`
+	MCP             *MCP             `hcl:"mcp,block"`
 }
 
 // ---------- CSRF ----------
@@ -655,6 +656,115 @@ func (pf *Polafile) ImageProcessingFormat(env string) string {
 	return "jpeg"
 }
 
+// ---------- MCP ----------
+
+// MCPEnvironment holds per-environment MCP overrides.
+type MCPEnvironment struct {
+	Environment  string `hcl:"env,label"`
+	Enabled      *bool  `hcl:"enabled,optional"`
+	Transport    string `hcl:"transport,optional"`
+	Mount        string `hcl:"mount,optional"`
+	Name         string `hcl:"name,optional"`
+	Version      string `hcl:"version,optional"`
+	Instructions string `hcl:"instructions,optional"`
+}
+
+// MCP holds Model Context Protocol server configuration with optional
+// per-environment overrides. Transport is "http" (default), "sse", or "stdio".
+type MCP struct {
+	Enabled      bool             `hcl:"enabled,optional"`
+	Transport    string           `hcl:"transport,optional"`
+	Mount        string           `hcl:"mount,optional"`
+	Name         string           `hcl:"name,optional"`
+	Version      string           `hcl:"version,optional"`
+	Instructions string           `hcl:"instructions,optional"`
+	Envs         []MCPEnvironment `hcl:"env,block"`
+}
+
+// MCPEnabled returns whether the MCP server is enabled for the given environment.
+// Resolution: env override > base > default (false).
+func (pf *Polafile) MCPEnabled(env string) bool {
+	if pf.MCP == nil {
+		return false
+	}
+	for _, e := range pf.MCP.Envs {
+		if e.Environment == env && e.Enabled != nil {
+			return *e.Enabled
+		}
+	}
+	return pf.MCP.Enabled
+}
+
+// MCPForEnv merges the base MCP config with env-specific overrides.
+func (pf *Polafile) MCPForEnv(env string) MCP {
+	if pf.MCP == nil {
+		return MCP{}
+	}
+	base := MCP{
+		Transport:    pf.MCP.Transport,
+		Mount:        pf.MCP.Mount,
+		Name:         pf.MCP.Name,
+		Version:      pf.MCP.Version,
+		Instructions: pf.MCP.Instructions,
+	}
+	for _, e := range pf.MCP.Envs {
+		if e.Environment == env {
+			override := MCP{
+				Transport:    e.Transport,
+				Mount:        e.Mount,
+				Name:         e.Name,
+				Version:      e.Version,
+				Instructions: e.Instructions,
+			}
+			_ = mergo.Merge(&base, &override, mergo.WithOverride)
+			break
+		}
+	}
+	return base
+}
+
+// MCPTransport returns the configured MCP transport for the given environment,
+// defaulting to "http".
+func (pf *Polafile) MCPTransport(env string) string {
+	merged := pf.MCPForEnv(env)
+	if merged.Transport != "" {
+		return merged.Transport
+	}
+	return "http"
+}
+
+// MCPMount returns the configured MCP mount path, defaulting to "/mcp".
+func (pf *Polafile) MCPMount(env string) string {
+	merged := pf.MCPForEnv(env)
+	if merged.Mount != "" {
+		return merged.Mount
+	}
+	return "/mcp"
+}
+
+// MCPName returns the configured MCP server name, falling back to "pola-mcp".
+func (pf *Polafile) MCPName(env string) string {
+	merged := pf.MCPForEnv(env)
+	if merged.Name != "" {
+		return merged.Name
+	}
+	return "pola-mcp"
+}
+
+// MCPVersion returns the configured MCP server version, falling back to "0.1.0".
+func (pf *Polafile) MCPVersion(env string) string {
+	merged := pf.MCPForEnv(env)
+	if merged.Version != "" {
+		return merged.Version
+	}
+	return "0.1.0"
+}
+
+// MCPInstructions returns the configured MCP instructions string.
+func (pf *Polafile) MCPInstructions(env string) string {
+	return pf.MCPForEnv(env).Instructions
+}
+
 // RepositoriesDir returns the configured repositories directory, defaulting to "repositories".
 func (pf *Polafile) RepositoriesDir() string {
 	if pf.Repositories != "" {
@@ -881,6 +991,31 @@ func Save(dir string, pf *Polafile) error {
 				envBody.SetAttributeValue("max_height", cty.NumberIntVal(int64(e.MaxHeight)))
 			}
 			setAttr(envBody, "format", e.Format)
+		}
+	}
+
+	// MCP block.
+	if pf.MCP != nil {
+		blockBody.AppendNewline()
+		mcpBlock := blockBody.AppendNewBlock("mcp", nil)
+		mcpBody := mcpBlock.Body()
+		mcpBody.SetAttributeValue("enabled", cty.BoolVal(pf.MCP.Enabled))
+		setAttr(mcpBody, "transport", pf.MCP.Transport)
+		setAttr(mcpBody, "mount", pf.MCP.Mount)
+		setAttr(mcpBody, "name", pf.MCP.Name)
+		setAttr(mcpBody, "version", pf.MCP.Version)
+		setAttr(mcpBody, "instructions", pf.MCP.Instructions)
+		for _, e := range pf.MCP.Envs {
+			envBlock := mcpBody.AppendNewBlock("env", []string{e.Environment})
+			envBody := envBlock.Body()
+			if e.Enabled != nil {
+				envBody.SetAttributeValue("enabled", cty.BoolVal(*e.Enabled))
+			}
+			setAttr(envBody, "transport", e.Transport)
+			setAttr(envBody, "mount", e.Mount)
+			setAttr(envBody, "name", e.Name)
+			setAttr(envBody, "version", e.Version)
+			setAttr(envBody, "instructions", e.Instructions)
 		}
 	}
 

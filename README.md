@@ -18,6 +18,7 @@ A Go framework for **React Server Components (RSC)** — implements the Flight s
   - [`pola generate`](#pola-generate) — code generators
     - [`generate action`](#pola-generate-action)
     - [`generate js:bridge`](#pola-generate-jsbridge)
+    - [`generate mcp`](#pola-generate-mcp)
     - [`generate migration`](#pola-generate-migration)
     - [`generate model`](#pola-generate-model)
     - [`generate page`](#pola-generate-page)
@@ -42,6 +43,7 @@ A Go framework for **React Server Components (RSC)** — implements the Flight s
 - [Hot reload](#hot-reload)
 - [Selecting a JS VM](#selecting-a-js-vm)
 - [Image processing](#image-processing)
+- [MCP (AI-native)](#mcp-ai-native)
 - [Field syntax for generators](#field-syntax-for-generators)
 - [Architecture decisions](#architecture-decisions)
 - [Dependencies](#dependencies)
@@ -53,6 +55,8 @@ A Go framework for **React Server Components (RSC)** — implements the Flight s
 Pola lets you write React Server Components in TSX that run inside a Go process. Go functions are exposed to the JS runtime via a typed bridge (`JSI`), so your components can call your database, cache, or any Go service directly — no API layer required.
 
 The server streams output using the **RSC Flight Protocol** — React's native wire format. Suspense boundaries resolve concurrently and stream their content as they complete.
+
+Pola is **AI-native**: the same Go services that power your pages can be exposed to LLM agents over the **Model Context Protocol** with one HCL block and one generator command. See [MCP (AI-native)](#mcp-ai-native).
 
 ```tsx
 // app/posts/page.tsx — runs in Go's JS VM, not in Node.js
@@ -369,6 +373,37 @@ Parse Go action structs and write TypeScript declarations so client-side code ge
 
 ```bash
 pola generate js:bridge
+```
+
+#### `pola generate mcp`
+
+Scaffold Model Context Protocol artifacts — tools, resources, and prompts — that an MCP client (e.g. Claude Desktop) can list and invoke. See [MCP (AI-native)](#mcp-ai-native) for the runtime story.
+
+**Usage**
+
+```
+pola generate mcp <subcommand> [args]
+```
+
+**Subcommands**
+
+| Subcommand | Action |
+|------------|--------|
+| `init` | Add an `mcp { … }` block to `Polafile.hcl` so the autoload wires the plugin |
+| `tool <Name> [--no-di]` | Create an MCP tool under `mcp/tools/`. DI flavor by default; `--no-di` emits a simpler init()-registered typed tool |
+| `resource <Name>` | Create an MCP resource under `mcp/resources/` |
+| `prompt <Name>` | Create an MCP prompt under `mcp/prompts/` |
+
+Generated DI tools take `*core.Registry` in their constructor so they can resolve services, repositories, or any other plugin from the framework's DI container. A separate `mcp` autoload scans `mcp/{tools,resources,prompts}` for `New<Name>{Tool,Resource,Prompt}` constructors and emits per-package plugins that wire each provider to the running `*mcp.Server`.
+
+**Examples**
+
+```bash
+pola generate mcp init
+pola generate mcp tool Greeting              # DI flavor — constructor takes *core.Registry
+pola generate mcp tool Echo --no-di          # simple typed tool, registered via init()
+pola generate mcp resource AppConfig
+pola generate mcp prompt Summarize
 ```
 
 #### `pola generate migration`
@@ -798,6 +833,14 @@ pola {
     max_height = 4096
     format     = "jpeg"
   }
+
+  mcp {
+    enabled   = true
+    transport = "http"   # http (streamable) | sse | stdio
+    mount     = "/mcp"
+    name      = "my-app"
+    version   = "0.1.0"
+  }
 }
 ```
 
@@ -832,6 +875,7 @@ All attributes are optional.
 | `database { url, dev_url, models, adapter, orm }` | Database connection + ORM | yes |
 | `database > migrations { directory, format }` | Migration files | no |
 | `image_processing { enabled, adapter, path, max_width, max_height, format }` | On-the-fly image transforms (resize, crop, rotate, blur, format) | yes |
+| `mcp { enabled, transport, mount, name, version, instructions }` | Model Context Protocol server (see [MCP (AI-native)](#mcp-ai-native)) | yes |
 
 ### Resolution order
 
@@ -887,6 +931,10 @@ my-app/
 ├── db/
 │   ├── models/               GORM/Ent models
 │   └── migrations/           Versioned SQL migrations (Atlas format)
+├── mcp/                      MCP server (optional — created by `pola generate mcp …`)
+│   ├── tools/                Tool providers — discovered by the `mcp` autoload
+│   ├── resources/            Resource providers
+│   └── prompts/              Prompt providers
 ├── public/                   Static assets (favicon, embedded bundles)
 └── web/                      Frontend (Next.js-style app/ directory)
     ├── app/                  Pages, layouts, error boundaries
@@ -1079,6 +1127,150 @@ export default async function Avatar({ src }: { src: string }) {
 ### Security
 
 The HTTP client validates resolved IPs at dial time, rejecting requests to private, loopback, link-local, and unspecified addresses, and re-validates redirect targets — closing the usual SSRF and DNS-rebinding attack vectors. The request body is capped at 10 MB.
+
+---
+
+## MCP (AI-native)
+
+Pola ships a first-class **Model Context Protocol** server built on the official [`github.com/modelcontextprotocol/go-sdk`](https://github.com/modelcontextprotocol/go-sdk). The same Go services that power your pages and routes can be exposed to LLM agents as MCP tools, resources, and prompts — without a separate process, separate process model, or separate auth story.
+
+### Enable it
+
+Add an `mcp { … }` block to `Polafile.hcl` (or run `pola generate mcp init` to add it for you):
+
+```hcl
+pola {
+  mcp {
+    enabled   = true
+    transport = "http"   # http (streamable, recommended) | sse (legacy) | stdio (CLI)
+    mount     = "/mcp"
+    name      = "my-app"
+    version   = "0.1.0"
+
+    env "production" {
+      transport = "http"
+    }
+  }
+}
+```
+
+On the next `pola dev` or `pola build`, the autoload wires the `mcp.Plugin()` into the generated plugin manifest — placed ahead of `logging`/`recovery`/`csrf` so MCP requests bypass middleware that would otherwise interfere (e.g. CSRF rejecting POSTs, the request logger flooding on SSE streams). No code changes needed.
+
+### Scaffold a tool
+
+```bash
+pola generate mcp tool Greeting           # DI flavor: constructor takes *core.Registry
+pola generate mcp tool Echo --no-di       # simpler init()-registered typed tool
+```
+
+The DI flavor is what makes MCP feel native to Pola — your tool can resolve any service the framework knows about:
+
+```go
+// mcp/tools/greeting_tool.go
+package tools
+
+import (
+    "context"
+
+    sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+
+    "github.com/polagonow/pola/core"
+
+    "my-app/services"
+)
+
+type GreetingTool struct {
+    svc *services.GreetingService
+}
+
+func NewGreetingTool(r *core.Registry) *GreetingTool {
+    return &GreetingTool{
+        svc: core.MustInvoke[*services.GreetingService](r),
+    }
+}
+
+func (t *GreetingTool) Tool() *sdk.Tool {
+    return &sdk.Tool{
+        Name:        "greeting",
+        Description: "List greetings, or create one when 'create' is passed.",
+        InputSchema: map[string]any{
+            "type": "object",
+            "properties": map[string]any{
+                "create": map[string]any{"type": "string"},
+            },
+        },
+    }
+}
+
+func (t *GreetingTool) Handle(ctx context.Context, req *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
+    // call t.svc.Create / t.svc.List / …
+}
+```
+
+A dedicated `mcp` autoload (priority 500) scans `mcp/tools`, `mcp/resources`, `mcp/prompts` for `New<Name>{Tool,Resource,Prompt}` constructors and emits a per-package overlay file containing a `<Name>{…}Plugin()` that:
+
+1. Provides the constructed value into the DI container.
+2. In its `Start` hook, resolves `*mcp.Server` and the value from DI, then calls `server.Add{Tool,Resource,Prompt}`.
+
+Because the framework's `BuildRegistry` runs every plugin's `Register` first then every `Start` in slice order, the autoload places `mcp.Plugin()` ahead of the generated provider plugins — guaranteeing the `*mcp.Server` exists by the time provider `Start` hooks fire.
+
+### init()-style registration (no DI)
+
+For tools that need no framework services, `--no-di` emits a smaller file that registers via `init()` against a package-level registry:
+
+```go
+func init() {
+    polamcp.RegisterTypedTool[EchoIn, EchoOut](
+        &sdk.Tool{Name: "echo", Description: "Echo back the input"},
+        func(_ context.Context, _ *sdk.CallToolRequest, in EchoIn) (*sdk.CallToolResult, EchoOut, error) {
+            return nil, EchoOut{Echo: in.Message}, nil
+        },
+    )
+}
+```
+
+The SDK derives the JSON Schema from the typed `In`/`Out` structs.
+
+### Talk to the server
+
+`pola dev` exposes the MCP endpoint at `http://localhost:3000/mcp` (or wherever `mount =` says). Any compliant client — Claude Desktop, the [MCP Inspector](https://github.com/modelcontextprotocol/inspector), or plain `curl` — can connect:
+
+```bash
+# initialize → captures the session id
+curl -s -i -X POST http://localhost:3000/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{
+        "protocolVersion":"2025-06-18",
+        "capabilities":{},
+        "clientInfo":{"name":"curl","version":"1"}}}'
+# → Mcp-Session-Id: <SID>
+
+# list tools
+curl -s -X POST http://localhost:3000/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -H "Mcp-Session-Id: $SID" \
+  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
+
+# call greeting (create)
+curl -s -X POST http://localhost:3000/mcp \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json, text/event-stream' \
+  -H "Mcp-Session-Id: $SID" \
+  -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{
+        "name":"greeting","arguments":{"create":"hi from MCP"}}}'
+```
+
+A working end-to-end example lives at [`examples/mcp-hello`](examples/mcp-hello).
+
+### Transports
+
+| Transport | When to use |
+|-----------|-------------|
+| `http` | Default. Streamable HTTP per the modern MCP spec. Plays nicely alongside the web server on the same port. |
+| `sse` | Legacy Server-Sent Events transport, for older clients. |
+| `stdio` | The plugin starts an stdio goroutine instead of registering an HTTP middleware. Useful for CLI integrations where the Pola binary is launched as a subprocess by an MCP host. |
 
 ---
 

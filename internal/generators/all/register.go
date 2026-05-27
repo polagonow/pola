@@ -6,6 +6,7 @@ import (
 	_ "github.com/polagonow/pola/internal/generators/action"
 	_ "github.com/polagonow/pola/internal/generators/jsbridge"
 	_ "github.com/polagonow/pola/internal/generators/mailer"
+	_ "github.com/polagonow/pola/internal/generators/mcp"
 	_ "github.com/polagonow/pola/internal/generators/migration"
 	_ "github.com/polagonow/pola/internal/generators/model"
 	_ "github.com/polagonow/pola/internal/generators/page"

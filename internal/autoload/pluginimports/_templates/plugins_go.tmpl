@@ -71,6 +71,18 @@ import (
 {{- if .ActionsImport}}
 	"{{.ActionsImport}}"
 {{- end}}
+{{- if .HasMCP}}
+	polamcp "{{.PolaPackage}}/mcp"
+{{- if .MCPDisco.HasTools}}
+	mcptools "{{.MCPDisco.ToolsImport}}"
+{{- end}}
+{{- if .MCPDisco.HasResources}}
+	mcpresources "{{.MCPDisco.ResourceImport}}"
+{{- end}}
+{{- if .MCPDisco.HasPrompts}}
+	mcpprompts "{{.MCPDisco.PromptImport}}"
+{{- end}}
+{{- end}}
 {{- range .RouteImports}}
 	_ "{{.}}"
 {{- end}}
@@ -86,6 +98,21 @@ var PolaPlugins = []core.Plugin{
 {{- end}}
 	{{.Router}}.Plugin(),
 	slog.Plugin(),
+{{- if .HasMCP}}
+	polamcp.Plugin(
+		polamcp.WithTransport(polamcp.Transport("{{.MCPTransport}}")),
+		polamcp.WithMount("{{.MCPMount}}"),
+{{- if .MCPName}}
+		polamcp.WithName("{{.MCPName}}"),
+{{- end}}
+{{- if .MCPVersion}}
+		polamcp.WithVersion("{{.MCPVersion}}"),
+{{- end}}
+{{- if .MCPInstructions}}
+		polamcp.WithInstructions({{printf "%q" .MCPInstructions}}),
+{{- end}}
+	),
+{{- end}}
 	logging.Plugin(),
 	recovery.Plugin(),
 {{- if .SecurityHeaders}}
@@ -149,6 +176,21 @@ var PolaPlugins = []core.Plugin{
 {{- if .ServicePlugins}}
 {{- range .ServicePlugins.Services}}
 	{{$.ServicePlugins.PkgName}}.{{.Name}}ServicePlugin(),
+{{- end}}
+{{- end}}
+{{- if .MCPDisco.HasTools}}
+{{- range .MCPDisco.Tools}}
+	mcptools.{{.Name}}ToolPlugin(),
+{{- end}}
+{{- end}}
+{{- if .MCPDisco.HasResources}}
+{{- range .MCPDisco.Resources}}
+	mcpresources.{{.Name}}ResourcePlugin(),
+{{- end}}
+{{- end}}
+{{- if .MCPDisco.HasPrompts}}
+{{- range .MCPDisco.Prompts}}
+	mcpprompts.{{.Name}}PromptPlugin(),
 {{- end}}
 {{- end}}
 {{- if .HasMailer}}

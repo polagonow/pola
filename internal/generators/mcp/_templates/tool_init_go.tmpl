@@ -1,0 +1,35 @@
+package tools
+
+import (
+	"context"
+
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+
+	polamcp "github.com/polagonow/pola/mcp"
+)
+
+// [[.Name]]In is the typed input for the tool. Field tags become JSON Schema.
+type [[.Name]]In struct {
+	// Example field; rename or remove as needed.
+	Message string `json:"message" jsonschema:"the message to echo"`
+}
+
+// [[.Name]]Out is the typed output for the tool.
+type [[.Name]]Out struct {
+	Echo string `json:"echo"`
+}
+
+func init() {
+	polamcp.RegisterTypedTool[
+		[[.Name]]In,
+		[[.Name]]Out,
+	](
+		&sdk.Tool{
+			Name:        "[[.ToolName]]",
+			Description: "TODO: describe what [[.Name]] does",
+		},
+		func(_ context.Context, _ *sdk.CallToolRequest, in [[.Name]]In) (*sdk.CallToolResult, [[.Name]]Out, error) {
+			return nil, [[.Name]]Out{Echo: in.Message}, nil
+		},
+	)
+}
