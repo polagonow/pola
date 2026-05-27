@@ -74,6 +74,7 @@ func runGenerate(_ *cobra.Command, _ []string) error {
 	autoload.PopulateDatabaseOpts(&genOpts, &pf, "development")
 	autoload.PopulateStorageOpts(&genOpts, &pf, "development")
 	autoload.ApplyMailerOpts(&genOpts, &pf, "development")
+	autoload.PopulateMCPOpts(&genOpts, &pf, "development")
 	result, err := autoload.Run(projectDir, genOpts, verbose)
 	if err != nil {
 		return err

@@ -1,0 +1,37 @@
+package prompts
+
+import (
+	"context"
+
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/polagonow/pola/core"
+)
+
+// [[.Name]]Prompt is an MCP prompt. Add dependency fields here and resolve
+// them in New[[.Name]]Prompt using core.MustInvoke[T](r).
+type [[.Name]]Prompt struct{}
+
+// New[[.Name]]Prompt is discovered by the mcp autoload.
+func New[[.Name]]Prompt(r *core.Registry) *[[.Name]]Prompt {
+	_ = r
+	return &[[.Name]]Prompt{}
+}
+
+func (p *[[.Name]]Prompt) Prompt() *sdk.Prompt {
+	return &sdk.Prompt{
+		Name:        "[[.PromptName]]",
+		Description: "TODO: describe this prompt",
+	}
+}
+
+func (p *[[.Name]]Prompt) Handle(ctx context.Context, req *sdk.GetPromptRequest) (*sdk.GetPromptResult, error) {
+	return &sdk.GetPromptResult{
+		Messages: []*sdk.PromptMessage{
+			{
+				Role:    "user",
+				Content: &sdk.TextContent{Text: "TODO: implement [[.Name]] prompt"},
+			},
+		},
+	}, nil
+}

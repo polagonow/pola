@@ -1,0 +1,47 @@
+package tools
+
+import (
+	"context"
+
+	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
+
+	"github.com/polagonow/pola/core"
+)
+
+// [[.Name]]Tool is an MCP tool. Add dependency fields here and resolve them
+// in New[[.Name]]Tool using core.MustInvoke[T](r).
+type [[.Name]]Tool struct {
+	// e.g.:
+	// db *gorm.DB
+}
+
+// New[[.Name]]Tool is discovered by the mcp autoload, which generates a
+// plugin that calls this constructor and registers the returned tool with
+// the running *mcp.Server.
+func New[[.Name]]Tool(r *core.Registry) *[[.Name]]Tool {
+	_ = r // resolve dependencies, e.g. db := core.MustInvoke[*gorm.DB](r)
+	return &[[.Name]]Tool{}
+}
+
+// Tool describes the tool advertised to MCP clients. The MCP spec requires
+// every tool to publish a JSON Schema for its input; declare fields under
+// "properties" as you add arguments.
+func (t *[[.Name]]Tool) Tool() *sdk.Tool {
+	return &sdk.Tool{
+		Name:        "[[.ToolName]]",
+		Description: "TODO: describe what [[.Name]] does",
+		InputSchema: map[string]any{
+			"type":       "object",
+			"properties": map[string]any{},
+		},
+	}
+}
+
+// Handle implements the tool. req.Params contains the call arguments.
+func (t *[[.Name]]Tool) Handle(ctx context.Context, req *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
+	return &sdk.CallToolResult{
+		Content: []sdk.Content{
+			&sdk.TextContent{Text: "TODO: implement [[.Name]]"},
+		},
+	}, nil
+}

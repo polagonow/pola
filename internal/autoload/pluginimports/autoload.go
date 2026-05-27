@@ -36,7 +36,7 @@ func (a *autoloadImpl) Contribute(ctx *autoload.Context) error {
 		routeImports[i] = rp.ImportPath
 	}
 
-	pluginsSrc, err := GenerateSource(ctx.Opts, ctx.Discovery.ActionsImport, routeImports, ctx.Discovery.RepoDisco, ctx.Discovery.SvcDisco)
+	pluginsSrc, err := GenerateSource(ctx.Opts, ctx.Discovery.ActionsImport, routeImports, ctx.Discovery.RepoDisco, ctx.Discovery.SvcDisco, ctx.Discovery.MCPDisco)
 	if err != nil {
 		return fmt.Errorf("generate plugins: %w", err)
 	}
@@ -58,7 +58,7 @@ func (a *autoloadImpl) Contribute(ctx *autoload.Context) error {
 // GenerateSource returns the source for pola_plugins.go. This is exported
 // so that the "pola new" command can call it directly (without running the
 // full autoload pipeline) to produce a temporary file for go mod tidy.
-func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports []string, repoDisco *autoload.RepoDiscovery, svcDisco *autoload.SvcDiscovery) ([]byte, error) {
+func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports []string, repoDisco *autoload.RepoDiscovery, svcDisco *autoload.SvcDiscovery, mcpDisco *autoload.MCPDiscovery) ([]byte, error) {
 	hasCSS := opts.CSS != "" && opts.CSS != "none"
 	hasCache := opts.Cache != "" && opts.Cache != "none"
 	hasDatabase := opts.Database != ""
@@ -108,6 +108,14 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		SMTPUsername    string
 		SMTPPassword    string
 		SMTPTLS         bool
+
+		HasMCP          bool
+		MCPTransport    string
+		MCPMount        string
+		MCPName         string
+		MCPVersion      string
+		MCPInstructions string
+		MCPDisco        *autoload.MCPDiscovery
 	}{
 		PolaPackage:     opts.PolaPackage,
 		Engine:          opts.Engine,
@@ -147,6 +155,14 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		SMTPUsername:    opts.SMTPUsername,
 		SMTPPassword:    opts.SMTPPassword,
 		SMTPTLS:         opts.SMTPTLS,
+
+		HasMCP:          opts.HasMCP,
+		MCPTransport:    cmp.Or(opts.MCPTransport, "http"),
+		MCPMount:        cmp.Or(opts.MCPMount, "/mcp"),
+		MCPName:         opts.MCPName,
+		MCPVersion:      opts.MCPVersion,
+		MCPInstructions: opts.MCPInstructions,
+		MCPDisco:        mcpDisco,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("execute plugins template: %w", err)

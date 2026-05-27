@@ -104,6 +104,7 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 	autoload.PopulateDatabaseOpts(&baseOpts, &pf, "production")
 	autoload.PopulateStorageOpts(&baseOpts, &pf, "production")
 	autoload.ApplyMailerOpts(&baseOpts, &pf, "production")
+	autoload.PopulateMCPOpts(&baseOpts, &pf, "production")
 
 	// ── Stage 1: Bundle ──────────────────────────────────────────────────
 	// Full runtime with bundler, osfs, css — needed to produce assets.
