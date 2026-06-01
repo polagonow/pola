@@ -192,8 +192,10 @@ Scaffold a new Pola application with a working project structure, including a Go
 **Usage**
 
 ```
-pola new <app-name> [flags]
+pola new [app-name] [flags]
 ```
+
+The app name is optional on the command line — `pola new` prompts for one. If the value (typed or passed) contains `/` it's treated as a Go module path: the last segment becomes the local directory name and the full path becomes the `module` line in `go.mod`. For example, `github.com/acme/admin` creates the directory `admin/` with `module github.com/acme/admin`.
 
 **Flags**
 
@@ -206,6 +208,7 @@ pola new <app-name> [flags]
 | `--vm` | `goja` | JS engine (`goja`) |
 | `--ui` | `none` | UI library — one of `shadcn`, `mui`, `slds`, `ads`, `carbon`, `patternfly`, `fluentui`, `antd`, `none` |
 | `--pm` | auto | JS package manager (`npm`, `pnpm`, `yarn`); auto-detected if not set |
+| `--module` | — | Go module path (e.g. `github.com/owner/repo`); auto-derived when the app name is a module path, otherwise defaults to the app name |
 | `--csrf` | `true` | Enable CSRF protection |
 | `--security-headers` | `true` | Enable security headers |
 | `--pola-path` | — | Local path to pola framework source (adds a `replace` directive — for development against an unpublished pola) |
@@ -219,7 +222,10 @@ pola new <app-name> [flags]
 **Examples**
 
 ```bash
+pola new                                            # prompts for name
 pola new my-app
+pola new github.com/acme/admin                      # directory=admin, module=github.com/acme/admin
+pola new my-app --module github.com/acme/my-app     # explicit module override
 pola new my-app --renderer=react --bundler=esbuild
 pola new my-app --css=tailwind --ui=shadcn
 pola new admin --ui=antd --pm=pnpm
