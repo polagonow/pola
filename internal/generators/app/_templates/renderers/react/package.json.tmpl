@@ -11,26 +11,26 @@
   },
 [[- end ]]
   "dependencies": {
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
-    "react-server-dom-esm": "npm:@kentcdodds/tmp-react-server-dom-esm@^19.0.1",
-    "react-server-dom-webpack": "19.3.0-canary-5e9eedb5-20260312"
+    "react": "[[ index .NpmVersions "react" ]]",
+    "react-dom": "[[ index .NpmVersions "react-dom" ]]",
+    "react-server-dom-esm": "[[ index .NpmVersions "react-server-dom-esm" ]]",
+    "react-server-dom-webpack": "[[ index .NpmVersions "react-server-dom-webpack" ]]"
     [[- range $name, $ver := .ExtraDependencies ]],
     "[[ $name ]]": "[[ $ver ]]"
     [[- end ]]
   },
   "devDependencies": {
-    "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3"
+    "@types/react": "[[ index .NpmVersions "@types/react" ]]",
+    "@types/react-dom": "[[ index .NpmVersions "@types/react-dom" ]]"
     [[- range $name, $ver := .ExtraDevDependencies ]],
     "[[ $name ]]": "[[ $ver ]]"
     [[- end ]]
     [[- if eq .CSS "tailwind" ]],
-    "tailwindcss": "^4.2.2",
-    "@tailwindcss/cli": "^4.2.2"
+    "tailwindcss": "[[ index .NpmVersions "tailwindcss" ]]",
+    "@tailwindcss/cli": "[[ index .NpmVersions "@tailwindcss/cli" ]]"
     [[- end ]]
     [[- if eq .CSS "sass" ]],
-    "sass": "^1.89.0"
+    "sass": "[[ index .NpmVersions "sass" ]]"
     [[- end ]]
   }
 }
