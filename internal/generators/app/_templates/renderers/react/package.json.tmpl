@@ -1,16 +1,36 @@
 {
   "name": "[[ .AppName ]]",
   "private": true,
+[[- if .Scripts ]]
+  "scripts": {
+    [[- $first := true ]]
+    [[- range $name, $cmd := .Scripts ]]
+    [[- if $first ]][[ $first = false ]][[ else ]],[[ end ]]
+    "[[ $name ]]": "[[ $cmd ]]"
+    [[- end ]]
+  },
+[[- end ]]
   "dependencies": {
     "react": "19.2.4",
     "react-dom": "19.2.4",
     "react-server-dom-esm": "npm:@kentcdodds/tmp-react-server-dom-esm@^19.0.1",
     "react-server-dom-webpack": "19.3.0-canary-5e9eedb5-20260312"
+    [[- range $name, $ver := .ExtraDependencies ]],
+    "[[ $name ]]": "[[ $ver ]]"
+    [[- end ]]
   },
   "devDependencies": {
     "@types/react": "^19.2.14",
-    "@types/react-dom": "^19.2.3"[[ if eq .CSS "tailwind" ]],
+    "@types/react-dom": "^19.2.3"
+    [[- range $name, $ver := .ExtraDevDependencies ]],
+    "[[ $name ]]": "[[ $ver ]]"
+    [[- end ]]
+    [[- if eq .CSS "tailwind" ]],
     "tailwindcss": "^4.2.2",
-    "@tailwindcss/cli": "^4.2.2"[[ end ]]
+    "@tailwindcss/cli": "^4.2.2"
+    [[- end ]]
+    [[- if eq .CSS "sass" ]],
+    "sass": "^1.89.0"
+    [[- end ]]
   }
 }

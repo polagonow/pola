@@ -27,44 +27,135 @@ type Data struct {
 	VM            string
 	PolaVersion   string
 	PolaLocalPath string // if set, generates a replace directive in go.mod
+
+	// Populated from uiSpecs[uiKey(UI)] at the start of Execute. The canonical
+	// package.json.tmpl ranges over these to merge per-UI extras into the
+	// shared React base.
+	ExtraDependencies    map[string]string
+	ExtraDevDependencies map[string]string
+	Scripts              map[string]string
 }
 
-// UIRequiresTailwind checks whether the given renderer+UI template set
-// includes tailwindcss as a dependency. Returns true if the template's
-// package.json.tmpl contains "tailwindcss", or if the template doesn't exist.
-func UIRequiresTailwind(renderer, ui string) bool {
-	rendererDir := renderer
-	if ui != "" && ui != "none" {
-		rendererDir = renderer + "-" + ui
-	}
-	pkgPath := filepath.Join("_templates", "renderers", rendererDir, "package.json.tmpl")
-	content, err := fs.ReadFile(templates, pkgPath)
-	if err != nil {
-		return true // fallback: assume tailwind needed if we can't read
-	}
-	return strings.Contains(string(content), "tailwindcss")
+// UISpec describes a UI library overlay: its CSS framework requirement
+// (drives the auto-detect in cli/new.go) and the extra npm dependencies,
+// devDependencies, and scripts to merge into the canonical react
+// package.json.tmpl. CSS-driven deps (tailwindcss, sass) are NOT listed
+// here — they live as [[ if eq .CSS ]] blocks in the canonical template.
+type UISpec struct {
+	CSS             string
+	Dependencies    map[string]string
+	DevDependencies map[string]string
+	Scripts         map[string]string
 }
 
-// UIRequiresSass checks whether the given renderer+UI template set includes
-// sass as a dependency. Returns true if the template's package.json.tmpl
-// contains "sass", indicating SCSS compilation is needed.
-func UIRequiresSass(renderer, ui string) bool {
-	rendererDir := renderer
-	if ui != "" && ui != "none" {
-		rendererDir = renderer + "-" + ui
-	}
-	pkgPath := filepath.Join("_templates", "renderers", rendererDir, "package.json.tmpl")
-	content, err := fs.ReadFile(templates, pkgPath)
-	if err != nil {
-		return false
-	}
-	return strings.Contains(string(content), `"sass"`)
+// uiSpecs is keyed by --ui flag value. "none" is the bare-React case.
+// To add a new UI variant: add an entry here and create a react-{key}/
+// overlay directory under _templates/renderers/.
+var uiSpecs = map[string]UISpec{
+	"none": {},
+	"ads":  {},
+	"antd": {
+		Dependencies: map[string]string{
+			"antd":              "^5.25.3",
+			"@ant-design/icons": "^5.6.1",
+		},
+	},
+	"carbon": {
+		CSS: "sass",
+		Dependencies: map[string]string{
+			"@carbon/react": "^1.76.0",
+		},
+	},
+	"fluentui": {
+		Dependencies: map[string]string{
+			"@fluentui/react-components": "^9.56.0",
+			"@fluentui/react-icons":      "^2.0.258",
+		},
+	},
+	"mui": {
+		Dependencies: map[string]string{
+			"@mui/material":       "^7.1.0",
+			"@emotion/react":      "^11.14.0",
+			"@emotion/styled":     "^11.14.0",
+			"@mui/icons-material": "^7.1.0",
+		},
+	},
+	"patternfly": {
+		Dependencies: map[string]string{
+			"@patternfly/react-core":  "^6.2.0",
+			"@patternfly/react-table": "^6.2.0",
+			"@patternfly/react-icons": "^6.2.0",
+			"@patternfly/patternfly":  "^6.2.0",
+		},
+	},
+	"shadcn": {
+		CSS: "tailwind",
+		Dependencies: map[string]string{
+			"class-variance-authority": "^0.7.1",
+			"clsx":                     "^2.1.1",
+			"tailwind-merge":           "^3.0.2",
+			"lucide-react":             "^0.488.0",
+			"tw-animate-css":           "^1.3.4",
+			"shadcn":                   "^4.2.0",
+			"@radix-ui/react-checkbox": "^1.3.2",
+			"@radix-ui/react-label":    "^2.1.6",
+			"@radix-ui/react-slot":     "^1.2.3",
+		},
+	},
+	"slds": {
+		Dependencies: map[string]string{
+			"@salesforce-ux/design-system": "^2.25.5",
+		},
+		Scripts: map[string]string{
+			"postinstall": "cp -r node_modules/@salesforce-ux/design-system/assets public/assets 2>/dev/null || true",
+		},
+	},
 }
 
-// Execute renders all embedded templates into targetDir.
-// It first copies shared templates (everything outside renderers/),
-// then overlays renderer-specific templates from renderers/<renderer>/.
+// uiKey normalises empty/none to the "none" key for uiSpecs lookup.
+func uiKey(ui string) string {
+	if ui == "" || ui == "none" {
+		return "none"
+	}
+	return ui
+}
+
+// overlayKey returns the suffix of the renderer overlay directory.
+// "none" maps to "base" so the bare-React overlay dir is named react-base/.
+func overlayKey(ui string) string {
+	if ui == "" || ui == "none" {
+		return "base"
+	}
+	return ui
+}
+
+// UIRequiresTailwind reports whether the given UI ships its components
+// styled with Tailwind. Used by cli/new.go to auto-set --css=tailwind.
+func UIRequiresTailwind(_, ui string) bool {
+	return uiSpecs[uiKey(ui)].CSS == "tailwind"
+}
+
+// UIRequiresSass reports whether the given UI needs Sass for its
+// stylesheets. Used by cli/new.go to auto-set --css=sass.
+func UIRequiresSass(_, ui string) bool {
+	return uiSpecs[uiKey(ui)].CSS == "sass"
+}
+
+// Execute renders all embedded templates into targetDir in three passes:
+//  1. Shared templates (everything outside renderers/) → targetDir.
+//  2. Canonical renderer templates from renderers/<renderer>/ → targetDir/web.
+//     This is where the shared tsconfig.json, package.json, and fallback
+//     components (error/loading/not-found) live.
+//  3. UI overlay from renderers/<renderer>-<overlayKey(UI)>/ → targetDir/web.
+//     Overwrites colliding files from pass 2, so UIs can customize layout,
+//     page, globals, and optionally any fallback component.
 func Execute(targetDir string, data Data) error {
+	// Populate per-UI extras for the canonical package.json.tmpl.
+	spec := uiSpecs[uiKey(data.UI)]
+	data.ExtraDependencies = spec.Dependencies
+	data.ExtraDevDependencies = spec.DevDependencies
+	data.Scripts = spec.Scripts
+
 	// Pass 1: shared templates (skip the renderers/ subtree).
 	if err := renderTree(templates, "_templates", targetDir, data, func(rel string) (string, bool) {
 		if rel == "renderers" || strings.HasPrefix(rel, "renderers/") || strings.HasPrefix(rel, "renderers\\") {
@@ -75,21 +166,29 @@ func Execute(targetDir string, data Data) error {
 		return fmt.Errorf("shared templates: %w", err)
 	}
 
-	// Pass 2: renderer-specific templates.
-	rendererDir := data.Renderer
-	if data.UI != "" && data.UI != "none" {
-		rendererDir = data.Renderer + "-" + data.UI
-	}
-	rendererRoot := filepath.Join("_templates", "renderers", rendererDir)
-	if _, err := fs.Stat(templates, rendererRoot); err != nil {
-		return fmt.Errorf("no templates for renderer %q", data.Renderer)
-	}
-	// Renderer-specific templates (frontend files) go into the web/ subdirectory.
 	webDir := filepath.Join(targetDir, "web")
-	if err := renderTree(templates, rendererRoot, webDir, data, func(rel string) (string, bool) {
+
+	// Pass 2: canonical renderer (e.g. react/) — shared meta + fallback components.
+	canonical := filepath.Join("_templates", "renderers", data.Renderer)
+	if _, err := fs.Stat(templates, canonical); err != nil {
+		return fmt.Errorf("no canonical templates for renderer %q", data.Renderer)
+	}
+	if err := renderTree(templates, canonical, webDir, data, func(rel string) (string, bool) {
 		return rel, true
 	}); err != nil {
-		return fmt.Errorf("renderer %s templates: %w", data.Renderer, err)
+		return fmt.Errorf("canonical %s templates: %w", data.Renderer, err)
+	}
+
+	// Pass 3: UI overlay (react-base/, react-shadcn/, react-mui/, ...).
+	overlayDir := data.Renderer + "-" + overlayKey(data.UI)
+	overlayRoot := filepath.Join("_templates", "renderers", overlayDir)
+	if _, err := fs.Stat(templates, overlayRoot); err != nil {
+		return fmt.Errorf("no overlay templates for %q", overlayDir)
+	}
+	if err := renderTree(templates, overlayRoot, webDir, data, func(rel string) (string, bool) {
+		return rel, true
+	}); err != nil {
+		return fmt.Errorf("overlay %s templates: %w", overlayDir, err)
 	}
 
 	return nil
