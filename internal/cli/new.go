@@ -8,6 +8,7 @@ import (
 	"runtime/debug"
 	"strings"
 
+	"github.com/AlecAivazis/survey/v2"
 	"github.com/polagonow/pola/internal/autoload"
 	"github.com/polagonow/pola/internal/autoload/pluginimports"
 	"github.com/polagonow/pola/internal/generators"
@@ -55,18 +56,26 @@ var newFlags struct {
 	ui              string
 	polaPath        string
 	pm              string
+	module          string
 	csrf            bool
 	securityHeaders bool
 }
 
 var newCmd = &cobra.Command{
-	Use:   "new <app-name>",
+	Use:   "new [app-name]",
 	Short: "Create a new Pola application",
 	Long: `Scaffold a new Pola application with a working project structure,
-including a Go server entry point, React app directory, and configuration files.`,
-	Args: cobra.ExactArgs(1),
+including a Go server entry point, React app directory, and configuration files.
+
+The app name can be a short identifier (e.g. "my-app") or a full Go module path
+(e.g. "github.com/owner/my-app"). When a module path is given, the last segment
+is used as the directory name and the full path becomes the Go module.`,
+	Args: cobra.MaximumNArgs(1),
 	RunE: runNew,
-	Example: `  pola new my-app
+	Example: `  pola new                                          # prompts for name
+  pola new my-app
+  pola new github.com/acme/admin                    # name=admin, module=github.com/acme/admin
+  pola new my-app --module github.com/acme/my-app
   pola new my-app --renderer=react --bundler=esbuild
   pola new my-app --css=tailwind`,
 }
@@ -80,12 +89,39 @@ func init() {
 	newCmd.Flags().StringVar(&newFlags.ui, "ui", "none", "UI component library (shadcn, mui, slds, ads, carbon, patternfly, fluentui, antd, none)")
 	newCmd.Flags().StringVar(&newFlags.polaPath, "pola-path", "", "local path to pola framework source (adds replace directive)")
 	newCmd.Flags().StringVar(&newFlags.pm, "pm", "", "package manager to use (npm, pnpm, yarn); auto-detected if not set")
+	newCmd.Flags().StringVar(&newFlags.module, "module", "", "Go module path (e.g. github.com/owner/repo); auto-derived if the app name is a module path, otherwise defaults to the app name")
 	newCmd.Flags().BoolVar(&newFlags.csrf, "csrf", true, "enable CSRF protection")
 	newCmd.Flags().BoolVar(&newFlags.securityHeaders, "security-headers", true, "enable security headers")
 }
 
 func runNew(cmd *cobra.Command, args []string) error {
-	appName := args[0]
+	var defaultInput string
+	if len(args) == 1 {
+		defaultInput = args[0]
+	}
+
+	var rawInput string
+	prompt := &survey.Input{
+		Message: "App name (or Go module path, e.g. github.com/owner/repo):",
+		Default: defaultInput,
+	}
+	if err := survey.AskOne(prompt, &rawInput, survey.WithValidator(survey.Required)); err != nil {
+		return fmt.Errorf("prompt: %w", err)
+	}
+
+	appName, parsedModule, err := parseAppNameAndModule(rawInput)
+	if err != nil {
+		return err
+	}
+
+	modulePath := newFlags.module
+	if modulePath == "" {
+		modulePath = parsedModule
+	}
+	if modulePath == "" {
+		modulePath = appName
+	}
+
 	targetDir, err := filepath.Abs(appName)
 	if err != nil {
 		return fmt.Errorf("resolve path: %w", err)
@@ -148,7 +184,7 @@ func runNew(cmd *cobra.Command, args []string) error {
 
 	data := app.Data{
 		AppName:       appName,
-		ModulePath:    appName,
+		ModulePath:    modulePath,
 		PolaPackage:   polafile.DefaultPackage,
 		Renderer:      newFlags.renderer,
 		Bundler:       newFlags.bundler,
@@ -178,7 +214,7 @@ func runNew(cmd *cobra.Command, args []string) error {
 
 	// Write Polafile.hcl to lock the user's choices with resolved versions.
 	pf := &polafile.Polafile{
-		Package:         appName,
+		Package:         modulePath,
 		Version:         version,
 		Renderer:        resolveVersion(newFlags.renderer),
 		Engine:          resolveVersion(newFlags.vm),
@@ -221,8 +257,8 @@ func runNew(cmd *cobra.Command, args []string) error {
 		CSRF:            newFlags.csrf,
 		SecurityHeaders: newFlags.securityHeaders,
 		Dev:             true,
-	}, appName+"/actions", []string{
-		appName + "/routes/health",
+	}, modulePath+"/actions", []string{
+		modulePath + "/routes/health",
 	}, nil, nil, nil)
 	if err != nil {
 		return fmt.Errorf("generate plugins: %w", err)
@@ -275,6 +311,35 @@ func runNew(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	return nil
+}
+
+// parseAppNameAndModule splits a raw user input into a short app name and a Go
+// module path. If the input contains "/" it's treated as a module path: the
+// last non-empty path segment becomes the app name and the full cleaned input
+// becomes the module path. Otherwise the input is used as-is and modulePath is
+// left empty for the caller to fill in. Strips leading "http://"/"https://"
+// and a trailing ".git".
+func parseAppNameAndModule(raw string) (appName, modulePath string, err error) {
+	cleaned := strings.TrimSpace(raw)
+	cleaned = strings.TrimPrefix(cleaned, "https://")
+	cleaned = strings.TrimPrefix(cleaned, "http://")
+	cleaned = strings.TrimSuffix(cleaned, ".git")
+	cleaned = strings.TrimRight(cleaned, "/")
+
+	if cleaned == "" {
+		return "", "", fmt.Errorf("app name is required")
+	}
+
+	if strings.Contains(cleaned, "/") {
+		idx := strings.LastIndex(cleaned, "/")
+		name := cleaned[idx+1:]
+		if name == "" {
+			return "", "", fmt.Errorf("invalid module path %q: empty last segment", raw)
+		}
+		return name, cleaned, nil
+	}
+
+	return cleaned, "", nil
 }
 
 // detectPackageManager returns the best available JS package manager.
