@@ -163,12 +163,12 @@ err := polafile.Save(".", &polafile.Polafile{
     SecurityHeaders: &polafile.SecurityHeaders{Enabled: true},
     Cache:          &polafile.Cache{Enabled: true, Adapter: "memory"},
     Database:       &polafile.Database{
-        Models: "models",
-        ORM:    "ent",
-        Migrations: &polafile.Migrations{
-            Directory: "migrations",
-            Format:    "sql",
-        },
+      Models: "models",
+      ORM:    "ent",
+      Migrations: &polafile.Migrations{
+        Directory: "migrations",
+        Format:    "sql",
+      },
     },
 })
 
