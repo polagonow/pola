@@ -14,13 +14,13 @@ import (
 
 // Route handles [[ .RoutePath ]] requests with file upload support.
 type Route struct {
-	svc   *services.[[ .ServiceName ]]Service
+	svc   services.[[ .ServiceName ]]ServiceInterface
 	store storage.Storage
 	blobs repositories.StorageBlobRepository
 }
 
 // NewRoute creates a Route with its dependencies.
-func NewRoute(svc *services.[[ .ServiceName ]]Service, store storage.Storage, blobs repositories.StorageBlobRepository) *Route {
+func NewRoute(svc services.[[ .ServiceName ]]ServiceInterface, store storage.Storage, blobs repositories.StorageBlobRepository) *Route {
 	return &Route{svc: svc, store: store, blobs: blobs}
 }
 [[ range .Methods ]]

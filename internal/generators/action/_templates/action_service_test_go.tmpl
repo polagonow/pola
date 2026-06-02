@@ -1,0 +1,107 @@
+package actions
+
+import (
+	"context"
+	"errors"
+	"testing"
+
+	"[[ .ModulePath ]]/repositories"
+)
+
+// mock[[ .ServiceName ]]Service satisfies services.[[ .ServiceName ]]ServiceInterface.
+type mock[[ .ServiceName ]]Service struct {
+	createFn func(ctx context.Context, e *repositories.[[ .ServiceName ]]) error
+	getFn    func(ctx context.Context, id [[ .IDGoType ]]) (*repositories.[[ .ServiceName ]], error)
+	listFn   func(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.[[ .ServiceName ]]], error)
+	updateFn func(ctx context.Context, e *repositories.[[ .ServiceName ]]) error
+	deleteFn func(ctx context.Context, id [[ .IDGoType ]]) error
+}
+
+func (m *mock[[ .ServiceName ]]Service) Create(ctx context.Context, e *repositories.[[ .ServiceName ]]) error {
+	if m.createFn == nil {
+		panic("createFn not set")
+	}
+	return m.createFn(ctx, e)
+}
+func (m *mock[[ .ServiceName ]]Service) Get(ctx context.Context, id [[ .IDGoType ]]) (*repositories.[[ .ServiceName ]], error) {
+	if m.getFn == nil {
+		panic("getFn not set")
+	}
+	return m.getFn(ctx, id)
+}
+func (m *mock[[ .ServiceName ]]Service) List(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.[[ .ServiceName ]]], error) {
+	if m.listFn == nil {
+		panic("listFn not set")
+	}
+	return m.listFn(ctx, params)
+}
+func (m *mock[[ .ServiceName ]]Service) Update(ctx context.Context, e *repositories.[[ .ServiceName ]]) error {
+	if m.updateFn == nil {
+		panic("updateFn not set")
+	}
+	return m.updateFn(ctx, e)
+}
+func (m *mock[[ .ServiceName ]]Service) Delete(ctx context.Context, id [[ .IDGoType ]]) error {
+	if m.deleteFn == nil {
+		panic("deleteFn not set")
+	}
+	return m.deleteFn(ctx, id)
+}
+
+func Test[[ .Name ]]_List(t *testing.T) {
+	want := &repositories.ListResult[*repositories.[[ .ServiceName ]]]{Page: 2, PerPage: 25}
+	svc := &mock[[ .ServiceName ]]Service{
+		listFn: func(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.[[ .ServiceName ]]], error) {
+			if params.Page != 2 || params.PerPage != 25 {
+				t.Fatalf("params: got page=%d perPage=%d", params.Page, params.PerPage)
+			}
+			return want, nil
+		},
+	}
+	a := New[[ .Name ]](svc)
+	got, err := a.List(2, 25)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if got != want {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func Test[[ .Name ]]_Get(t *testing.T) {
+	want := &repositories.[[ .ServiceName ]]{}
+	svc := &mock[[ .ServiceName ]]Service{
+		getFn: func(ctx context.Context, id [[ .IDGoType ]]) (*repositories.[[ .ServiceName ]], error) {
+			return want, nil
+		},
+	}
+	a := New[[ .Name ]](svc)
+[[ if eq .IDGoType "string" -]]
+	got, err := a.Get("")
+[[ else -]]
+	got, err := a.Get(0)
+[[ end -]]
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got != want {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+}
+
+func Test[[ .Name ]]_Get_PropagatesError(t *testing.T) {
+	wantErr := errors.New("not found")
+	svc := &mock[[ .ServiceName ]]Service{
+		getFn: func(ctx context.Context, id [[ .IDGoType ]]) (*repositories.[[ .ServiceName ]], error) {
+			return nil, wantErr
+		},
+	}
+	a := New[[ .Name ]](svc)
+[[ if eq .IDGoType "string" -]]
+	if _, err := a.Get(""); !errors.Is(err, wantErr) {
+[[ else -]]
+	if _, err := a.Get(0); !errors.Is(err, wantErr) {
+[[ end -]]
+		t.Fatalf("got %v, want %v", err, wantErr)
+	}
+}

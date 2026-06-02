@@ -28,7 +28,21 @@ var (
 	paginationTmpl = template.Must(
 		template.New("pagination_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/pagination_go.tmpl"),
 	)
+	paginationTestTmpl = template.Must(
+		template.New("pagination_test_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/pagination_test_go.tmpl"),
+	)
 )
+
+// ormTestTemplate returns the test template paired with the named ORM's
+// implementation template. Returns nil if the ORM has no test template.
+func ormTestTemplate(orm string) (*template.Template, error) {
+	name := orm + "_repository_test.tmpl"
+	tmpl, err := template.New(name).Delims("[[", "]]").ParseFS(templates, "_templates/"+name)
+	if err != nil {
+		return nil, nil // no test template — return nil silently
+	}
+	return tmpl, nil
+}
 
 func ormTemplate(orm string) (*template.Template, error) {
 	name := orm + "_repository.tmpl"
@@ -148,6 +162,21 @@ func (g *RepositoryGenerator) run(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Created %s\n", paginationPath)
 	}
 
+	// Generate shared pagination_test.go once.
+	if generators.ShouldGenerateTests(cmd, pf.GenerateTests()) {
+		paginationTestPath := filepath.Join(interfaceDir, "pagination_test.go")
+		if _, err := os.Stat(paginationTestPath); os.IsNotExist(err) {
+			var pbuf strings.Builder
+			if err := paginationTestTmpl.Execute(&pbuf, nil); err != nil {
+				return fmt.Errorf("execute pagination test template: %w", err)
+			}
+			if err := os.WriteFile(paginationTestPath, []byte(pbuf.String()), 0o644); err != nil {
+				return fmt.Errorf("write %s: %w", paginationTestPath, err)
+			}
+			fmt.Printf("Created %s\n", paginationTestPath)
+		}
+	}
+
 	// Generate interface file.
 	interfacePath := filepath.Join(interfaceDir, data.SnakeName+"_repository.go")
 	if err := generators.CheckCollision(cmd, interfacePath); err != nil {
@@ -171,6 +200,20 @@ func (g *RepositoryGenerator) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 	fmt.Printf("Created %s\n", ormPath)
+
+	if generators.ShouldGenerateTests(cmd, pf.GenerateTests()) {
+		testTmpl, _ := ormTestTemplate(orm)
+		if testTmpl != nil {
+			ormTestPath := filepath.Join(ormDir, data.SnakeName+"_repository_test.go")
+			if err := generators.CheckCollision(cmd, ormTestPath); err != nil {
+				return err
+			}
+			if err := writeTemplate(testTmpl, ormTestPath, data); err != nil {
+				return err
+			}
+			fmt.Printf("Created %s\n", ormTestPath)
+		}
+	}
 
 	return generators.RunAfterHooks(g, projectDir)
 }

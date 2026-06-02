@@ -9,6 +9,7 @@ import (
 	"github.com/polagonow/pola/internal/generators"
 	"github.com/polagonow/pola/internal/generators/model/schema"
 	"github.com/polagonow/pola/internal/project"
+	"github.com/polagonow/pola/polafile"
 	"github.com/spf13/cobra"
 )
 
@@ -77,5 +78,26 @@ func runTool(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("write %s: %w", filePath, err)
 	}
 	fmt.Printf("Created %s\n", filePath)
+
+	// Tests only make sense for the DI-flavored tool — the init() flavor
+	// registers globally and has no exported constructor to call from a test.
+	if !noDI {
+		pf, _ := polafile.Load(projectDir)
+		if generators.ShouldGenerateTests(cmd, pf.GenerateTests()) {
+			testPath := filepath.Join(toolsDir, schema.SnakeCase(name)+"_tool_test.go")
+			if err := generators.CheckCollision(cmd, testPath); err != nil {
+				return err
+			}
+			var testBuf strings.Builder
+			if err := toolTestTmpl.Execute(&testBuf, data); err != nil {
+				return fmt.Errorf("execute tool test template: %w", err)
+			}
+			if err := os.WriteFile(testPath, []byte(testBuf.String()), 0o644); err != nil {
+				return fmt.Errorf("write %s: %w", testPath, err)
+			}
+			fmt.Printf("Created %s\n", testPath)
+		}
+	}
+
 	return generators.RunAfterHooks(&Generator{}, projectDir)
 }

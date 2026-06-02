@@ -34,6 +34,7 @@ func init() {
 	generateCmd.Flags().StringVar(&generateFlags.tsOut, "ts-out", "", "path to generated .d.ts file")
 	generateCmd.PersistentFlags().Bool("force", false, "overwrite files that already exist")
 	generateCmd.PersistentFlags().Bool("skip-collision-check", false, "skip collision check entirely")
+	generateCmd.PersistentFlags().Bool("skip-tests", false, "skip generating test files")
 
 	// Dynamically register all scaffold subcommands from the generator registry.
 	for _, g := range generators.All() {

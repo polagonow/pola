@@ -12,6 +12,7 @@ import (
 	"github.com/polagonow/pola/internal/generators"
 	"github.com/polagonow/pola/internal/generators/model/schema"
 	"github.com/polagonow/pola/internal/project"
+	"github.com/polagonow/pola/polafile"
 	"github.com/spf13/cobra"
 )
 
@@ -27,6 +28,15 @@ var (
 	)
 	routeServiceUploadTmpl = template.Must(
 		template.New("route_service_upload_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/route_service_upload_go.tmpl"),
+	)
+	routeTestTmpl = template.Must(
+		template.New("route_test_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/route_test_go.tmpl"),
+	)
+	routeServiceTestTmpl = template.Must(
+		template.New("route_service_test_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/route_service_test_go.tmpl"),
+	)
+	routeServiceUploadTestTmpl = template.Must(
+		template.New("route_service_upload_test_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/route_service_upload_test_go.tmpl"),
 	)
 )
 
@@ -204,6 +214,63 @@ func (g *RouteGenerator) run(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Created %s\n", filePath)
+
+	pf, _ := polafile.Load(projectDir)
+	if generators.ShouldGenerateTests(cmd, pf.GenerateTests()) {
+		testPath := filepath.Join(targetDir, "route_test.go")
+		if err := generators.CheckCollision(cmd, testPath); err != nil {
+			return err
+		}
+		var testBuf strings.Builder
+		switch {
+		case serviceName == "":
+			if err := routeTestTmpl.Execute(&testBuf, struct {
+				Package   string
+				RoutePath string
+				Methods   []string
+			}{Package: pkgName, RoutePath: routePath, Methods: methods}); err != nil {
+				return fmt.Errorf("execute route test template: %w", err)
+			}
+		default:
+			hasFileUpload, _ := cmd.Flags().GetBool("has-file-upload")
+			modulePath, err := project.ModulePath(projectDir)
+			if err != nil {
+				return fmt.Errorf("read module path: %w", err)
+			}
+			idType, _ := cmd.Flags().GetString("id-type")
+			if idType == "" {
+				idType = "uint"
+			}
+			if hasFileUpload {
+				if err := routeServiceUploadTestTmpl.Execute(&testBuf, struct {
+					Package     string
+					RoutePath   string
+					Methods     []string
+					ServiceName string
+					IDGoType    string
+					ModulePath  string
+				}{Package: pkgName, RoutePath: routePath, Methods: methods, ServiceName: serviceName, IDGoType: idType, ModulePath: modulePath}); err != nil {
+					return fmt.Errorf("execute route service upload test template: %w", err)
+				}
+			} else {
+				if err := routeServiceTestTmpl.Execute(&testBuf, struct {
+					Package     string
+					RoutePath   string
+					Methods     []string
+					ServiceName string
+					IDGoType    string
+					ModulePath  string
+				}{Package: pkgName, RoutePath: routePath, Methods: methods, ServiceName: serviceName, IDGoType: idType, ModulePath: modulePath}); err != nil {
+					return fmt.Errorf("execute route service test template: %w", err)
+				}
+			}
+		}
+		if err := os.WriteFile(testPath, []byte(testBuf.String()), 0o644); err != nil {
+			return fmt.Errorf("write %s: %w", testPath, err)
+		}
+		fmt.Printf("Created %s\n", testPath)
+	}
+
 	return generators.RunAfterHooks(g, projectDir)
 }
 

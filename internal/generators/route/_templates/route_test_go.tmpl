@@ -1,0 +1,20 @@
+package [[ .Package ]]
+
+import (
+	"net/http/httptest"
+	"testing"
+)
+
+// These tests are intentionally smoke-level: the no-service route is a stub
+// with TODOs. They verify the handlers don't panic when invoked and can be
+// extended once the bodies are implemented.
+
+[[ range .Methods ]]
+func TestRoute_[[ . ]]_DoesNotPanic(t *testing.T) {
+	r := &Route{}
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("[[ . ]]", "[[ $.RoutePath ]]", nil)
+	r.[[ . ]](w, req)
+	_ = w.Result()
+}
+[[ end ]]

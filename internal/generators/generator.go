@@ -93,9 +93,10 @@ func Run(name string, parentCmd *cobra.Command, args []string) error {
 		return err
 	}
 	cmd := g.Command()
-	// Add the persistent flags that CheckCollision expects.
+	// Add the persistent flags that CheckCollision and SkipTests expect.
 	cmd.Flags().Bool("force", false, "")
 	cmd.Flags().Bool("skip-collision-check", false, "")
+	cmd.Flags().Bool("skip-tests", false, "")
 	// Propagate values from parent.
 	if parentCmd != nil {
 		if v, _ := parentCmd.Flags().GetBool("force"); v {
@@ -103,6 +104,9 @@ func Run(name string, parentCmd *cobra.Command, args []string) error {
 		}
 		if v, _ := parentCmd.Flags().GetBool("skip-collision-check"); v {
 			cmd.Flags().Set("skip-collision-check", "true")
+		}
+		if v, _ := parentCmd.Flags().GetBool("skip-tests"); v {
+			cmd.Flags().Set("skip-tests", "true")
 		}
 		if v, _ := parentCmd.Flags().GetString("service"); v != "" {
 			if cmd.Flags().Lookup("service") != nil {
@@ -112,6 +116,23 @@ func Run(name string, parentCmd *cobra.Command, args []string) error {
 	}
 	cmd.SetArgs(args)
 	return cmd.Execute()
+}
+
+// ShouldGenerateTests reports whether test files should be emitted for the
+// current invocation. It returns false when --skip-tests is set on cmd; when
+// the flag is absent it consults the Polafile (testing { generate_tests })
+// via the supplied default, which callers pass as polafile.GenerateTests()
+// (true when unset). The default is also true when polafileDefault is unsupplied.
+func ShouldGenerateTests(cmd *cobra.Command, polafileDefault ...bool) bool {
+	if cmd != nil {
+		if skip, _ := cmd.Flags().GetBool("skip-tests"); skip {
+			return false
+		}
+	}
+	if len(polafileDefault) > 0 {
+		return polafileDefault[0]
+	}
+	return true
 }
 
 // CheckCollision checks if a file already exists and applies --force /

@@ -24,11 +24,11 @@ import (
 
 // [[ .Name ]] is your action struct with service dependency.
 type [[ .Name ]] struct {
-	svc *services.[[ .ServiceName ]]Service
+	svc services.[[ .ServiceName ]]ServiceInterface
 }
 
 // New[[ .Name ]] creates a [[ .Name ]] with its service dependency.
-func New[[ .Name ]](svc *services.[[ .ServiceName ]]Service) *[[ .Name ]] {
+func New[[ .Name ]](svc services.[[ .ServiceName ]]ServiceInterface) *[[ .Name ]] {
 	return &[[ .Name ]]{svc: svc}
 }
 

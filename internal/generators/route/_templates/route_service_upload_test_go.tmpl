@@ -1,0 +1,67 @@
+package [[ .Package ]]
+
+import (
+	"context"
+	"net/http/httptest"
+	"testing"
+
+	"[[ .ModulePath ]]/repositories"
+)
+
+// mock[[ .ServiceName ]]Service satisfies services.[[ .ServiceName ]]ServiceInterface.
+type mock[[ .ServiceName ]]Service struct {
+	createFn func(ctx context.Context, e *repositories.[[ .ServiceName ]]) error
+	getFn    func(ctx context.Context, id [[ .IDGoType ]]) (*repositories.[[ .ServiceName ]], error)
+	listFn   func(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.[[ .ServiceName ]]], error)
+	updateFn func(ctx context.Context, e *repositories.[[ .ServiceName ]]) error
+	deleteFn func(ctx context.Context, id [[ .IDGoType ]]) error
+}
+
+func (m *mock[[ .ServiceName ]]Service) Create(ctx context.Context, e *repositories.[[ .ServiceName ]]) error {
+	if m.createFn == nil {
+		panic("createFn not set")
+	}
+	return m.createFn(ctx, e)
+}
+func (m *mock[[ .ServiceName ]]Service) Get(ctx context.Context, id [[ .IDGoType ]]) (*repositories.[[ .ServiceName ]], error) {
+	if m.getFn == nil {
+		panic("getFn not set")
+	}
+	return m.getFn(ctx, id)
+}
+func (m *mock[[ .ServiceName ]]Service) List(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.[[ .ServiceName ]]], error) {
+	if m.listFn == nil {
+		panic("listFn not set")
+	}
+	return m.listFn(ctx, params)
+}
+func (m *mock[[ .ServiceName ]]Service) Update(ctx context.Context, e *repositories.[[ .ServiceName ]]) error {
+	if m.updateFn == nil {
+		panic("updateFn not set")
+	}
+	return m.updateFn(ctx, e)
+}
+func (m *mock[[ .ServiceName ]]Service) Delete(ctx context.Context, id [[ .IDGoType ]]) error {
+	if m.deleteFn == nil {
+		panic("deleteFn not set")
+	}
+	return m.deleteFn(ctx, id)
+}
+
+// TestRoute_GET_List exercises the list handler with a stubbed service.
+// File-upload routes share the same GET semantics as plain service routes.
+func TestRoute_GET_List(t *testing.T) {
+	svc := &mock[[ .ServiceName ]]Service{
+		listFn: func(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.[[ .ServiceName ]]], error) {
+			return &repositories.ListResult[*repositories.[[ .ServiceName ]]]{Page: params.Page, PerPage: params.PerPage}, nil
+		},
+	}
+	// store and blobs are nil — GET doesn't exercise them.
+	r := NewRoute(svc, nil, nil)
+	w := httptest.NewRecorder()
+	req := httptest.NewRequest("GET", "[[ .RoutePath ]]", nil)
+	r.GET(w, req)
+	if w.Code != 200 {
+		t.Fatalf("status: got %d want 200; body=%q", w.Code, w.Body.String())
+	}
+}

@@ -57,6 +57,8 @@ var newFlags struct {
 	polaPath        string
 	pm              string
 	module          string
+	testFramework   string
+	skipTests       bool
 	csrf            bool
 	securityHeaders bool
 }
@@ -92,6 +94,8 @@ func init() {
 	newCmd.Flags().StringVar(&newFlags.module, "module", "", "Go module path (e.g. github.com/owner/repo); auto-derived if the app name is a module path, otherwise defaults to the app name")
 	newCmd.Flags().BoolVar(&newFlags.csrf, "csrf", true, "enable CSRF protection")
 	newCmd.Flags().BoolVar(&newFlags.securityHeaders, "security-headers", true, "enable security headers")
+	newCmd.Flags().StringVar(&newFlags.testFramework, "test-framework", "vitest", "TS test framework (vitest, jest, none)")
+	newCmd.Flags().BoolVar(&newFlags.skipTests, "skip-tests", false, "skip generating test files and test infrastructure")
 }
 
 func runNew(cmd *cobra.Command, args []string) error {
@@ -182,6 +186,15 @@ func runNew(cmd *cobra.Command, args []string) error {
 	// If running from a dev build, detect the local pola source for a replace directive.
 	polaLocalPath := findPolaSource()
 
+	// Validate --test-framework.
+	switch newFlags.testFramework {
+	case "vitest", "jest", "none":
+	default:
+		return fmt.Errorf("invalid --test-framework %q: must be vitest, jest, or none", newFlags.testFramework)
+	}
+
+	generateTests := !newFlags.skipTests && newFlags.testFramework != "none"
+
 	data := app.Data{
 		AppName:       appName,
 		ModulePath:    modulePath,
@@ -194,6 +207,8 @@ func runNew(cmd *cobra.Command, args []string) error {
 		VM:            newFlags.vm,
 		PolaVersion:   version,
 		PolaLocalPath: polaLocalPath,
+		GenerateTests: generateTests,
+		TestFramework: newFlags.testFramework,
 	}
 
 	// Create the public directory (needed for asset embedding during builds).
@@ -231,6 +246,10 @@ func runNew(cmd *cobra.Command, args []string) error {
 		CSRF:            &polafile.CSRF{Enabled: newFlags.csrf},
 		SecurityHeaders: &polafile.SecurityHeaders{Enabled: newFlags.securityHeaders},
 		Cache:           &polafile.Cache{Enabled: true, Adapter: "memory"},
+		Testing: &polafile.Testing{
+			GenerateTests: &generateTests,
+			Framework:     newFlags.testFramework,
+		},
 	}
 	if err := polafile.Save(targetDir, pf); err != nil {
 		return fmt.Errorf("write Polafile.hcl: %w", err)

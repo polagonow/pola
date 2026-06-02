@@ -24,6 +24,10 @@ var serviceTmpl = template.Must(
 	template.New("service_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/service_go.tmpl"),
 )
 
+var serviceTestTmpl = template.Must(
+	template.New("service_test_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/service_test_go.tmpl"),
+)
+
 // ServiceGenerator scaffolds service structs with business logic methods.
 type ServiceGenerator struct{}
 
@@ -104,6 +108,22 @@ func (g *ServiceGenerator) run(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Created %s\n", filePath)
+
+	if generators.ShouldGenerateTests(cmd, pf.GenerateTests()) {
+		testPath := filepath.Join(serviceDir, data.SnakeName+"_service_test.go")
+		if err := generators.CheckCollision(cmd, testPath); err != nil {
+			return err
+		}
+		var testBuf strings.Builder
+		if err := serviceTestTmpl.Execute(&testBuf, data); err != nil {
+			return fmt.Errorf("execute service test template: %w", err)
+		}
+		if err := os.WriteFile(testPath, []byte(testBuf.String()), 0o644); err != nil {
+			return fmt.Errorf("write %s: %w", testPath, err)
+		}
+		fmt.Printf("Created %s\n", testPath)
+	}
+
 	return generators.RunAfterHooks(g, projectDir)
 }
 
