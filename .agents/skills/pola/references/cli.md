@@ -70,7 +70,7 @@ pushes a browser reload over WebSocket.
 | `--app-path` | `./web` (`POLA_WEBAPP_PATH`) | Path to the web app dir |
 | `--csrf` | `true` (`POLA_CSRF`) | |
 | `--security-headers` | `true` (`POLA_SECURITY_HEADERS`) | |
-| `--image-processing` | — (`POLA_IMAGE_PROCESSING`) | `imaging` → enables `/_image` + the JSI image binding |
+| `--image-processing` | — (`POLA_IMAGE_PROCESSING`) | `imaging` → enables `/_image` + the `ImageProcessing.processURL` bridge binding |
 
 Defaults resolve: CLI flag → env var → `Polafile.hcl` → hardcoded default.
 

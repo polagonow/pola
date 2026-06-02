@@ -107,8 +107,9 @@ import { Link } from "@pola/react/link";
 Rules:
 
 - **Import the struct by name from `@pola/actions`** — e.g. `import { Blog } from "@pola/actions"`.
-  ⚠️ **Never `import JSI from "@pola/jsi"`** — that package does not exist (the stubbed packages
-  are `@pola/actions` and `@pola/react`). Older snippets may show it; always use `@pola/actions`.
+  The only bridge packages are `@pola/actions` (your action structs) and `@pola/react`
+  (e.g. `Link`) — both stubbed into `node_modules` by the CLI. There is no default/global bridge
+  object; always import the specific struct by name.
 - **Methods are camelCased**: the leading run of capitals is lowercased — `GetPosts → getPosts`,
   `Get → get`, `URL → url`, `HTTPServer → httpServer`. Calls are **async** (return Promises).
 - **Method signatures** must return `(T, error)` or `error`; params are positional and typed.
@@ -261,7 +262,8 @@ Full flag matrices → `references/cli.md`. Field grammar in depth → `referenc
 
 ## Pitfalls (read before generating code)
 
-1. **Bridge import is `@pola/actions`, never `@pola/jsi`.** `@pola/jsi` is not a real package.
+1. **Bridge import is `@pola/actions`** — named struct exports (e.g.
+   `import { Blog } from "@pola/actions"`), not a default or global object.
 2. **Methods are camelCased and async.** `GetPosts → await Blog.getPosts()`. Actions return
    `(T, error)` or `error`. After editing actions, run `pola generate`.
 3. **`pola db …` is sqlite-only.** It errors on postgres/mysql: *"adapter … not yet supported …
