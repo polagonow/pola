@@ -59,6 +59,7 @@ var newFlags struct {
 	module          string
 	testFramework   string
 	skipTests       bool
+	dependencies    string
 	csrf            bool
 	securityHeaders bool
 }
@@ -92,6 +93,7 @@ func init() {
 	newCmd.Flags().StringVar(&newFlags.polaPath, "pola-path", "", "local path to pola framework source (adds replace directive)")
 	newCmd.Flags().StringVar(&newFlags.pm, "pm", "", "package manager to use (npm, pnpm, yarn); auto-detected if not set")
 	newCmd.Flags().StringVar(&newFlags.module, "module", "", "Go module path (e.g. github.com/owner/repo); auto-derived if the app name is a module path, otherwise defaults to the app name")
+	newCmd.Flags().StringVar(&newFlags.dependencies, "dependencies", "", "comma-separated npm package version overrides (e.g. \"react@19.2.4,tailwindcss@^4.3.0\")")
 	newCmd.Flags().BoolVar(&newFlags.csrf, "csrf", true, "enable CSRF protection")
 	newCmd.Flags().BoolVar(&newFlags.securityHeaders, "security-headers", true, "enable security headers")
 	newCmd.Flags().StringVar(&newFlags.testFramework, "test-framework", "vitest", "TS test framework (vitest, jest, none)")
@@ -181,6 +183,13 @@ func runNew(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	// Parse --dependencies before any filesystem work so user typos error out
+	// before we create the target directory.
+	npmOverrides, err := parseDependencies(newFlags.dependencies)
+	if err != nil {
+		return err
+	}
+
 	fmt.Printf("Creating %s...\n", appName)
 
 	// If running from a dev build, detect the local pola source for a replace directive.
@@ -209,6 +218,7 @@ func runNew(cmd *cobra.Command, args []string) error {
 		PolaLocalPath: polaLocalPath,
 		GenerateTests: generateTests,
 		TestFramework: newFlags.testFramework,
+		NpmOverrides:  npmOverrides,
 	}
 
 	// Create the public directory (needed for asset embedding during builds).
@@ -330,6 +340,55 @@ func runNew(cmd *cobra.Command, args []string) error {
 	fmt.Println()
 
 	return nil
+}
+
+// parseDependencies parses a comma-separated list of "name@version" entries
+// (e.g. "react@19.2.4,@types/react@^19.0.0") into a map. Returns an empty
+// map for empty input. Errors on malformed entries or unknown package names.
+func parseDependencies(raw string) (map[string]string, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return nil, nil
+	}
+
+	out := make(map[string]string)
+	for _, entry := range strings.Split(raw, ",") {
+		entry = strings.TrimSpace(entry)
+		if entry == "" {
+			continue
+		}
+		name, ver, ok := splitNameVersion(entry)
+		if !ok {
+			return nil, fmt.Errorf("invalid --dependencies entry %q: expected name@version", entry)
+		}
+		if !app.IsKnownNpmPackage(name) {
+			return nil, fmt.Errorf("unknown dependency %q; valid names: %s",
+				name, strings.Join(app.KnownNpmPackages(), ", "))
+		}
+		out[name] = ver
+	}
+	return out, nil
+}
+
+// splitNameVersion splits "name@version" into its parts, correctly handling
+// scoped packages like "@types/react@^19.0.0" (where the leading "@" is part
+// of the name). Returns ok=false if no version separator is found.
+func splitNameVersion(s string) (name, version string, ok bool) {
+	start := 0
+	if strings.HasPrefix(s, "@") {
+		start = 1
+	}
+	i := strings.IndexByte(s[start:], '@')
+	if i < 0 {
+		return "", "", false
+	}
+	sep := start + i
+	name = s[:sep]
+	version = s[sep+1:]
+	if name == "" || version == "" {
+		return "", "", false
+	}
+	return name, version, true
 }
 
 // parseAppNameAndModule splits a raw user input into a short app name and a Go

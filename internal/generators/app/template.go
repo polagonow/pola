@@ -7,6 +7,7 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"text/template"
 )
@@ -41,6 +42,69 @@ type Data struct {
 	ExtraDependencies    map[string]string
 	ExtraDevDependencies map[string]string
 	Scripts              map[string]string
+
+	// NpmOverrides is supplied by the caller (CLI --dependencies flag).
+	// NpmVersions is the resolved lookup (defaults merged with overrides) that
+	// templates consume via `index .NpmVersions "name"`.
+	NpmOverrides map[string]string
+	NpmVersions  map[string]string
+}
+
+// defaultNpmVersions are the built-in versions for packages that
+// `--dependencies` can override. Keys are real npm package names.
+var defaultNpmVersions = map[string]string{
+	"react":                    "19.2.4",
+	"react-dom":                "19.2.4",
+	"react-server-dom-esm":     "npm:@kentcdodds/tmp-react-server-dom-esm@^19.0.1",
+	"react-server-dom-webpack": "19.3.0-canary-5e9eedb5-20260312",
+	"@types/react":             "^19.2.14",
+	"@types/react-dom":         "^19.2.3",
+	"tailwindcss":              "^4.2.2",
+	"@tailwindcss/cli":         "^4.2.2",
+	"sass":                     "^1.89.0",
+}
+
+// KnownNpmPackages returns the sorted union of package names that
+// `--dependencies` accepts: the canonical defaults plus every package
+// declared by any UI overlay (uiSpecs). Used by the CLI for validation.
+func KnownNpmPackages() []string {
+	seen := make(map[string]struct{}, len(defaultNpmVersions))
+	for name := range defaultNpmVersions {
+		seen[name] = struct{}{}
+	}
+	for _, spec := range uiSpecs {
+		for name := range spec.Dependencies {
+			seen[name] = struct{}{}
+		}
+		for name := range spec.DevDependencies {
+			seen[name] = struct{}{}
+		}
+	}
+	names := make([]string, 0, len(seen))
+	for name := range seen {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	return names
+}
+
+// IsKnownNpmPackage reports whether name appears in the canonical defaults
+// or in any UI overlay. Overrides for packages not present in the selected
+// UI (or whose CSS branch is inactive) are silently ignored downstream —
+// consistent with how `sass` overrides behave under `--css=tailwind`.
+func IsKnownNpmPackage(name string) bool {
+	if _, ok := defaultNpmVersions[name]; ok {
+		return true
+	}
+	for _, spec := range uiSpecs {
+		if _, ok := spec.Dependencies[name]; ok {
+			return true
+		}
+		if _, ok := spec.DevDependencies[name]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 // UISpec describes a UI library overlay: its CSS framework requirement
@@ -157,11 +221,30 @@ func UIRequiresSass(_, ui string) bool {
 //     Overwrites colliding files from pass 2, so UIs can customize layout,
 //     page, globals, and optionally any fallback component.
 func Execute(targetDir string, data Data) error {
-	// Populate per-UI extras for the canonical package.json.tmpl.
+	// Populate per-UI extras for the canonical package.json.tmpl. Copy the
+	// maps so per-call NpmOverrides don't mutate the shared uiSpecs globals.
 	spec := uiSpecs[uiKey(data.UI)]
-	data.ExtraDependencies = spec.Dependencies
-	data.ExtraDevDependencies = spec.DevDependencies
+	data.ExtraDependencies = copyStringMap(spec.Dependencies)
+	data.ExtraDevDependencies = copyStringMap(spec.DevDependencies)
 	data.Scripts = spec.Scripts
+
+	// Resolve npm versions: canonical defaults overlaid with caller-supplied
+	// overrides. Overrides that match a UI overlay package update the extras
+	// maps instead. Unknown-to-this-config overrides are silently ignored.
+	data.NpmVersions = make(map[string]string, len(defaultNpmVersions))
+	for name, ver := range defaultNpmVersions {
+		data.NpmVersions[name] = ver
+	}
+	for name, ver := range data.NpmOverrides {
+		switch {
+		case mapHas(data.NpmVersions, name):
+			data.NpmVersions[name] = ver
+		case mapHas(data.ExtraDependencies, name):
+			data.ExtraDependencies[name] = ver
+		case mapHas(data.ExtraDevDependencies, name):
+			data.ExtraDevDependencies[name] = ver
+		}
+	}
 
 	// Pass 1: shared templates (skip the renderers/ subtree).
 	if err := renderTree(templates, "_templates", targetDir, data, func(rel string) (string, bool) {
@@ -212,6 +295,24 @@ func Execute(targetDir string, data Data) error {
 	}
 
 	return nil
+}
+
+// copyStringMap returns a shallow copy of m, or nil if m is empty.
+func copyStringMap(m map[string]string) map[string]string {
+	if len(m) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(m))
+	for k, v := range m {
+		out[k] = v
+	}
+	return out
+}
+
+// mapHas reports whether m contains key.
+func mapHas(m map[string]string, key string) bool {
+	_, ok := m[key]
+	return ok
 }
 
 // pathFilter returns the output relative path and whether to include the file.
