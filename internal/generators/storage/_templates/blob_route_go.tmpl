@@ -1,0 +1,61 @@
+package storage_blobs
+
+import (
+	"io"
+	"net/http"
+	"strconv"
+
+	"github.com/polagonow/pola/routes"
+	"github.com/polagonow/pola/storage"
+	"[[ .Module ]]/repositories"
+)
+
+// Route serves StorageBlob files by ID.
+type Route struct {
+	store storage.Storage
+	blobs repositories.StorageBlobRepository
+}
+
+// NewRoute creates a Route with its dependencies.
+func NewRoute(store storage.Storage, blobs repositories.StorageBlobRepository) *Route {
+	return &Route{store: store, blobs: blobs}
+}
+
+// Path overrides the auto-derived URL pattern so GET maps to /storage_blobs/:id
+// (a member-style URL) instead of the collection /storage_blobs.
+func (r *Route) Path() string { return "/storage_blobs/:id" }
+
+// GET /storage_blobs/:id streams the blob's bytes back to the client.
+func (r *Route) GET(w http.ResponseWriter, req *http.Request) {
+	idStr := routes.Param(req, "id")
+	if idStr == "" {
+		routes.WriteError(w, http.StatusBadRequest, "missing id")
+		return
+	}
+	id, err := strconv.ParseUint(idStr, 10, 64)
+	if err != nil {
+		routes.WriteError(w, http.StatusBadRequest, "invalid id")
+		return
+	}
+
+	blob, err := r.blobs.Get(req.Context(), uint(id))
+	if err != nil {
+		routes.WriteError(w, http.StatusNotFound, "blob not found")
+		return
+	}
+
+	rc, err := r.store.Open(req.Context(), blob.Key)
+	if err != nil {
+		routes.WriteError(w, http.StatusNotFound, err.Error())
+		return
+	}
+	defer rc.Close()
+
+	if blob.ContentType != "" {
+		w.Header().Set("Content-Type", blob.ContentType)
+	}
+	if blob.Filename != "" {
+		w.Header().Set("Content-Disposition", "inline; filename=\""+blob.Filename+"\"")
+	}
+	io.Copy(w, rc)
+}

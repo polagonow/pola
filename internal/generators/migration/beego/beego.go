@@ -75,11 +75,8 @@ func (g *BeegoDiffGenerator) Diff(ctx context.Context, cfg diff.Config) error {
 	}
 
 	// Write go.mod with replace directive pointing to the user's project.
-	goMod := fmt.Sprintf("module pola-beego-diff\n\ngo %s\n\nrequire %s v0.0.0\n\nreplace %s => %s\n",
-		cfg.GoVersion, cfg.ModulePath, cfg.ModulePath, cfg.ProjectDir)
-
-	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0o644); err != nil {
-		return fmt.Errorf("write go.mod: %w", err)
+	if err := diff.WriteGoMod(tmpDir, "pola-beego-diff", cfg); err != nil {
+		return err
 	}
 
 	// Run go mod tidy to resolve dependencies.

@@ -4,10 +4,12 @@
 package storage
 
 import (
+	"embed"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 
 	survey "github.com/AlecAivazis/survey/v2"
 	"github.com/polagonow/pola/internal/generators"
@@ -16,68 +18,12 @@ import (
 	"github.com/spf13/cobra"
 )
 
-const blobRouteSource = `package storage_blobs
+//go:embed all:_templates
+var templates embed.FS
 
-import (
-	"io"
-	"net/http"
-	"strconv"
-
-	"github.com/polagonow/pola/routes"
-	"github.com/polagonow/pola/storage"
-	"{{MODULE}}/repositories"
+var blobRouteTmpl = template.Must(
+	template.New("blob_route_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/blob_route_go.tmpl"),
 )
-
-// Route serves StorageBlob files by ID.
-type Route struct {
-	store storage.Storage
-	blobs repositories.StorageBlobRepository
-}
-
-// NewRoute creates a Route with its dependencies.
-func NewRoute(store storage.Storage, blobs repositories.StorageBlobRepository) *Route {
-	return &Route{store: store, blobs: blobs}
-}
-
-// Path overrides the auto-derived URL pattern so GET maps to /storage_blobs/:id
-// (a member-style URL) instead of the collection /storage_blobs.
-func (r *Route) Path() string { return "/storage_blobs/:id" }
-
-// GET /storage_blobs/:id streams the blob's bytes back to the client.
-func (r *Route) GET(w http.ResponseWriter, req *http.Request) {
-	idStr := routes.Param(req, "id")
-	if idStr == "" {
-		routes.WriteError(w, http.StatusBadRequest, "missing id")
-		return
-	}
-	id, err := strconv.ParseUint(idStr, 10, 64)
-	if err != nil {
-		routes.WriteError(w, http.StatusBadRequest, "invalid id")
-		return
-	}
-
-	blob, err := r.blobs.Get(req.Context(), uint(id))
-	if err != nil {
-		routes.WriteError(w, http.StatusNotFound, "blob not found")
-		return
-	}
-
-	rc, err := r.store.Open(req.Context(), blob.Key)
-	if err != nil {
-		routes.WriteError(w, http.StatusNotFound, err.Error())
-		return
-	}
-	defer rc.Close()
-
-	if blob.ContentType != "" {
-		w.Header().Set("Content-Type", blob.ContentType)
-	}
-	if blob.Filename != "" {
-		w.Header().Set("Content-Disposition", "inline; filename=\""+blob.Filename+"\"")
-	}
-	io.Copy(w, rc)
-}
-`
 
 // StorageGenerator scaffolds file storage infrastructure.
 type StorageGenerator struct{}
@@ -230,8 +176,8 @@ func (g *StorageGenerator) run(cmd *cobra.Command, _ []string) error {
 }
 
 // writeBlobRoute writes routes/storage_blobs/route.go that serves blob files
-// by ID. It's a static file (no template variation needed) — only the module
-// path is substituted.
+// by ID. The only variable is the project's module path, used to import the
+// generated repositories package.
 func writeBlobRoute(projectDir string, pf *polafile.Polafile) error {
 	routesDir := pf.Routes
 	if routesDir == "" {
@@ -253,8 +199,11 @@ func writeBlobRoute(projectDir string, pf *polafile.Polafile) error {
 		return nil
 	}
 
-	src := strings.ReplaceAll(blobRouteSource, "{{MODULE}}", module)
-	if err := os.WriteFile(routeFile, []byte(src), 0o644); err != nil {
+	var buf strings.Builder
+	if err := blobRouteTmpl.Execute(&buf, struct{ Module string }{Module: module}); err != nil {
+		return fmt.Errorf("execute blob route template: %w", err)
+	}
+	if err := os.WriteFile(routeFile, []byte(buf.String()), 0o644); err != nil {
 		return fmt.Errorf("write %s: %w", routeFile, err)
 	}
 	fmt.Printf("Created %s\n", routeFile)

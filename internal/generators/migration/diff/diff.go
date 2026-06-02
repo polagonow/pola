@@ -6,8 +6,44 @@ package diff
 
 import (
 	"context"
+	"embed"
 	"fmt"
+	"os"
+	"path/filepath"
+	"strings"
+	"text/template"
 )
+
+//go:embed all:_templates
+var templates embed.FS
+
+var goModTmpl = template.Must(
+	template.New("go_mod.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/go_mod.tmpl"),
+)
+
+// WriteGoMod writes a go.mod into tmpDir for a temporary diff helper module
+// named moduleName, with a replace directive pointing at the user's project so
+// dependencies (atlas, the ORM) resolve transitively from their module.
+func WriteGoMod(tmpDir, moduleName string, cfg Config) error {
+	var buf strings.Builder
+	if err := goModTmpl.Execute(&buf, struct {
+		Module     string
+		GoVersion  string
+		ModulePath string
+		ProjectDir string
+	}{
+		Module:     moduleName,
+		GoVersion:  cfg.GoVersion,
+		ModulePath: cfg.ModulePath,
+		ProjectDir: cfg.ProjectDir,
+	}); err != nil {
+		return fmt.Errorf("execute go.mod template: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(buf.String()), 0o644); err != nil {
+		return fmt.Errorf("write go.mod: %w", err)
+	}
+	return nil
+}
 
 // Config holds all configuration needed to generate a migration diff.
 type Config struct {
