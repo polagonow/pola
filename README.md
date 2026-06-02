@@ -18,6 +18,7 @@ A Go framework for **React Server Components (RSC)** — implements the Flight s
   - [`pola generate`](#pola-generate) — code generators
     - [`generate action`](#pola-generate-action)
     - [`generate js:bridge`](#pola-generate-jsbridge)
+    - [`generate mailer`](#pola-generate-mailer)
     - [`generate mcp`](#pola-generate-mcp)
     - [`generate migration`](#pola-generate-migration)
     - [`generate model`](#pola-generate-model)
@@ -52,7 +53,7 @@ A Go framework for **React Server Components (RSC)** — implements the Flight s
 
 ## What this is
 
-Pola lets you write React Server Components in TSX that run inside a Go process. Go functions are exposed to the JS runtime via a typed bridge (`JSI`), so your components can call your database, cache, or any Go service directly — no API layer required.
+Pola lets you write React Server Components in TSX that run inside a Go process. Go functions are exposed to the JS runtime via a typed bridge (`@pola/actions`), so your components can call your database, cache, or any Go service directly — no API layer required.
 
 The server streams output using the **RSC Flight Protocol** — React's native wire format. Suspense boundaries resolve concurrently and stream their content as they complete.
 
@@ -60,10 +61,10 @@ Pola is **AI-native**: the same Go services that power your pages can be exposed
 
 ```tsx
 // app/posts/page.tsx — runs in Go's JS VM, not in Node.js
-import JSI from "@pola/jsi"
+import { Posts } from "@pola/actions"
 
 export default async function PostsPage() {
-  const posts = await JSI.getPosts()  // ← calls a Go function directly
+  const posts = await Posts.getPosts()  // ← calls a Go function directly
   return (
     <ul>
       {posts.map(p => <li key={p.slug}>{p.title}</li>)}
@@ -209,8 +210,11 @@ The app name is optional on the command line — `pola new` prompts for one. If 
 | `--ui` | `none` | UI library — one of `shadcn`, `mui`, `slds`, `ads`, `carbon`, `patternfly`, `fluentui`, `antd`, `none` |
 | `--pm` | auto | JS package manager (`npm`, `pnpm`, `yarn`); auto-detected if not set |
 | `--module` | — | Go module path (e.g. `github.com/owner/repo`); auto-derived when the app name is a module path, otherwise defaults to the app name |
+| `--dependencies` | — | Comma-separated npm version overrides (e.g. `"react@19.2.4,tailwindcss@^4.3.0"`) |
 | `--csrf` | `true` | Enable CSRF protection |
 | `--security-headers` | `true` | Enable security headers |
+| `--test-framework` | `vitest` | TS test framework (`vitest`, `jest`, `none`) |
+| `--skip-tests` | `false` | Skip generating test files and test infrastructure |
 | `--pola-path` | — | Local path to pola framework source (adds a `replace` directive — for development against an unpublished pola) |
 
 **UI compatibility rules**
@@ -268,7 +272,7 @@ pola dev [flags]
 | `--app-path` | `./web` (`POLA_WEBAPP_PATH`) | Path to the web app directory |
 | `--csrf` | `true` (`POLA_CSRF`) | Enable CSRF protection |
 | `--security-headers` | `true` (`POLA_SECURITY_HEADERS`) | Enable security headers |
-| `--image-processing` | — (`POLA_IMAGE_PROCESSING`) | Image processing adapter (`imaging`); enables `/_image` endpoint and `JSI.ImageProcessing.processURL` |
+| `--image-processing` | — (`POLA_IMAGE_PROCESSING`) | Image processing adapter (`imaging`); enables `/_image` endpoint and the `ImageProcessing.processURL` bridge binding |
 
 Defaults fall back through: CLI flag → env var → `Polafile.hcl` → hardcoded default.
 
@@ -379,6 +383,26 @@ Parse Go action structs and write TypeScript declarations so client-side code ge
 
 ```bash
 pola generate js:bridge
+```
+
+#### `pola generate mailer`
+
+Scaffold a mailer struct and its email templates. Each action argument becomes a method on the mailer plus matching HTML and text templates. At least one action name is required. The renderer and app directory come from `Polafile.hcl`; configure delivery (transport, from, SMTP, …) via the `mailer` block.
+
+- Go mailer struct → `mailers/<name>_mailer.go`
+- Email templates (per action) → `<app>/mailers/<name>_mailer/` (e.g. `web/mailers/<name>_mailer/`)
+
+**Usage**
+
+```
+pola generate mailer <Name> [actions...]
+```
+
+**Examples**
+
+```bash
+pola generate mailer User welcome reset_password
+pola generate mailer Order confirmation shipped
 ```
 
 #### `pola generate mcp`
@@ -624,7 +648,7 @@ pola generate model User name:string avatar:references{StorageBlob}
 
 #### `pola generate zod`
 
-Generate a TypeScript Zod schema for a resource. Written to `app/schemas/`.
+Generate a TypeScript Zod schema for a resource. Written to the app dir's `schemas/` (e.g. `web/schemas/`).
 
 **Usage**
 
@@ -984,12 +1008,12 @@ Any `.tsx` file without `"use client"` is a Server Component. It runs in the VM 
 
 ```tsx
 // app/posts/[slug]/page.tsx
-import JSI from "@pola/jsi"
+import { Posts } from "@pola/actions"
 
 interface Props { params: { slug: string } }
 
 export default async function PostPage({ params }: Props) {
-  const post = await JSI.getPost(params.slug)
+  const post = await Posts.getPost(params.slug)
   return (
     <article>
       <h1>{post.title}</h1>
@@ -1022,7 +1046,7 @@ export default function LikeButton({ postId }: { postId: string }) {
 
 ## Go ↔ JS bridge (JSI)
 
-Pola generates a typed bridge from Go structs in `actions/`. Methods on those structs become `JSI.*` calls available inside Server Components.
+Pola generates a typed bridge from Go structs in `actions/`. Each exported struct becomes a **named import** from `@pola/actions`, and its methods become **camelCased, async** calls available inside Server Components (`GetPosts` → `getPosts`).
 
 ```go
 // actions/posts.go
@@ -1042,10 +1066,10 @@ func (p *Posts) GetPost(slug string) (*Post, error) {
 Then in TSX:
 
 ```tsx
-import JSI from "@pola/jsi"
+import { Posts } from "@pola/actions"
 
-const posts = await JSI.getPosts()
-const post  = await JSI.getPost("hello-world")
+const posts = await Posts.getPosts()
+const post  = await Posts.getPost("hello-world")
 ```
 
 The bridge is regenerated automatically on `pola dev`, `pola build`, and `pola new`. Run `pola generate js:bridge` to refresh manually.
@@ -1085,7 +1109,7 @@ POLA_VM=qjs pola build
 
 ## Image processing
 
-Pola ships with an optional image processing plugin (imgproxy-style) that exposes an HTTP endpoint and a JSI binding for on-the-fly resize, crop, rotate, blur, sharpen, and format conversion. Enable it via `Polafile.hcl` or `--image-processing imaging`.
+Pola ships with an optional image processing plugin (imgproxy-style) that exposes an HTTP endpoint and a bridge binding for on-the-fly resize, crop, rotate, blur, sharpen, and format conversion. Enable it via `Polafile.hcl` or `--image-processing imaging`.
 
 The default `imaging` adapter is pure Go (no CGO), backed by [`disintegration/imaging`](https://github.com/disintegration/imaging).
 
@@ -1114,13 +1138,15 @@ curl -X POST --data-binary @photo.jpg \
 
 ### From Server Components
 
-The plugin registers `ImageProcessing.processURL` on the JSI bridge, returning a base64 data URI suitable for inline `<img src>`.
+The plugin registers an `ImageProcessing.processURL` binding on the bridge, returning a base64 data URI suitable for inline `<img src>`. It isn't an `actions/` struct, so reach it via `createAction`:
 
 ```tsx
-import JSI from "@pola/jsi"
+import { createAction } from "@pola/actions"
+
+const ImageProcessing = createAction("ImageProcessing")
 
 export default async function Avatar({ src }: { src: string }) {
-  const dataURI = await JSI.ImageProcessing.processURL(src, {
+  const dataURI = await ImageProcessing.processURL(src, {
     width: 128,
     height: 128,
     fit: "cover",
