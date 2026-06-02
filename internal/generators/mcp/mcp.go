@@ -32,6 +32,15 @@ var (
 	promptTmpl = template.Must(
 		template.New("prompt_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/prompt_go.tmpl"),
 	)
+	toolTestTmpl = template.Must(
+		template.New("tool_test_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/tool_test_go.tmpl"),
+	)
+	resourceTestTmpl = template.Must(
+		template.New("resource_test_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/resource_test_go.tmpl"),
+	)
+	promptTestTmpl = template.Must(
+		template.New("prompt_test_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/prompt_test_go.tmpl"),
+	)
 )
 
 // Generator scaffolds MCP tools, resources, and prompts. It registers itself

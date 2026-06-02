@@ -1,15 +1,23 @@
 {
   "name": "[[ .AppName ]]",
   "private": true,
-[[- if .Scripts ]]
   "scripts": {
-    [[- $first := true ]]
-    [[- range $name, $cmd := .Scripts ]]
+[[- $first := true ]]
+[[- if and .GenerateTests (eq .TestFramework "vitest") ]]
+    [[- if $first ]][[ $first = false ]][[ else ]],[[ end ]]
+    "test": "vitest run",
+    "test:watch": "vitest"
+[[- end ]]
+[[- if and .GenerateTests (eq .TestFramework "jest") ]]
+    [[- if $first ]][[ $first = false ]][[ else ]],[[ end ]]
+    "test": "jest",
+    "test:watch": "jest --watch"
+[[- end ]]
+[[- range $name, $cmd := .Scripts ]]
     [[- if $first ]][[ $first = false ]][[ else ]],[[ end ]]
     "[[ $name ]]": "[[ $cmd ]]"
-    [[- end ]]
-  },
 [[- end ]]
+  },
   "dependencies": {
     "react": "[[ index .NpmVersions "react" ]]",
     "react-dom": "[[ index .NpmVersions "react-dom" ]]",
@@ -22,6 +30,23 @@
   "devDependencies": {
     "@types/react": "[[ index .NpmVersions "@types/react" ]]",
     "@types/react-dom": "[[ index .NpmVersions "@types/react-dom" ]]"
+[[- if and .GenerateTests (eq .TestFramework "vitest") ]],
+    "vitest": "^2.1.0",
+    "@vitejs/plugin-react": "^4.3.0",
+    "@testing-library/react": "^16.0.0",
+    "@testing-library/jest-dom": "^6.5.0",
+    "@testing-library/user-event": "^14.5.0",
+    "jsdom": "^25.0.0"
+[[- end ]]
+[[- if and .GenerateTests (eq .TestFramework "jest") ]],
+    "jest": "^29.7.0",
+    "@types/jest": "^29.5.12",
+    "ts-jest": "^29.2.0",
+    "@testing-library/react": "^16.0.0",
+    "@testing-library/jest-dom": "^6.5.0",
+    "@testing-library/user-event": "^14.5.0",
+    "jest-environment-jsdom": "^29.7.0"
+[[- end ]]
     [[- range $name, $ver := .ExtraDevDependencies ]],
     "[[ $name ]]": "[[ $ver ]]"
     [[- end ]]

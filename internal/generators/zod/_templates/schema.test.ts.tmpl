@@ -1,0 +1,33 @@
+import { describe, it, expect } from "[[ .TestImport ]]";
+import { [[ .SnakeName ]]Schema[[ if .HasFiles ]], [[ .SnakeName ]]EditSchema[[ end ]] } from "./[[ .SnakeName ]]";
+
+describe("[[ .SnakeName ]]Schema", () => {
+  it("parses a valid object", () => {
+    const input = {
+[[- range .Fields ]]
+      [[ .JSONName ]]: [[ .Example ]],
+[[- end ]]
+    };
+    const result = [[ .SnakeName ]]Schema.safeParse(input);
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects an empty object when there are required fields", () => {
+[[- if .HasRequired ]]
+    const result = [[ .SnakeName ]]Schema.safeParse({});
+    expect(result.success).toBe(false);
+[[- else ]]
+    // All fields are optional — empty object should parse.
+    const result = [[ .SnakeName ]]Schema.safeParse({});
+    expect(result.success).toBe(true);
+[[- end ]]
+  });
+[[- if .HasTypeCheck ]]
+
+  it("rejects wrong-typed input", () => {
+    const input = { [[ .TypeCheckField ]]: [[ .TypeCheckBadValue ]] };
+    const result = [[ .SnakeName ]]Schema.safeParse(input);
+    expect(result.success).toBe(false);
+  });
+[[- end ]]
+});

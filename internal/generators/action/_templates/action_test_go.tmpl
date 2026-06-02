@@ -1,0 +1,29 @@
+package actions
+
+import "testing"
+
+// The default [[.Name]] is a stub. These tests verify the action methods are
+// callable and return the documented (nil, nil) sentinel — replace them with
+// real assertions as you implement the methods.
+
+func Test[[.Name]]_GetAll(t *testing.T) {
+	a := &[[.Name]]{}
+	items, err := a.GetAll()
+	if err != nil {
+		t.Fatalf("GetAll: %v", err)
+	}
+	if items != nil {
+		t.Fatalf("GetAll: expected nil items from stub, got %v", items)
+	}
+}
+
+func Test[[.Name]]_Get(t *testing.T) {
+	a := &[[.Name]]{}
+	item, err := a.Get("any-id")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if item != nil {
+		t.Fatalf("Get: expected nil item from stub, got %v", item)
+	}
+}

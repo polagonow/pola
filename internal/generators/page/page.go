@@ -229,7 +229,61 @@ func (g *PageGenerator) run(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Created %s\n", absPath)
 	}
 
+	if generators.ShouldGenerateTests(cmd, pf.GenerateTests()) {
+		data.TestImport = "vitest"
+		if pf.TestFramework() == "jest" {
+			data.TestImport = "@jest/globals"
+		}
+		for _, spec := range testSpecs {
+			tmpl, err := loadTemplate(effectiveRenderer, spec.templateName)
+			if err != nil {
+				// Tests are optional per-UI overlay; only ship them with the canonical react/ for now.
+				continue
+			}
+			relPath := spec.outputPath(appDir, data.PluralSnake)
+			absPath := filepath.Join(projectDir, relPath)
+			if err := os.MkdirAll(filepath.Dir(absPath), 0o755); err != nil {
+				return fmt.Errorf("create dir for %s: %w", relPath, err)
+			}
+			if err := generators.CheckCollision(cmd, absPath); err != nil {
+				return err
+			}
+			var buf strings.Builder
+			if err := tmpl.Execute(&buf, data); err != nil {
+				return fmt.Errorf("execute test template %s: %w", spec.templateName, err)
+			}
+			if err := os.WriteFile(absPath, []byte(buf.String()), 0o644); err != nil {
+				return fmt.Errorf("write %s: %w", absPath, err)
+			}
+			fmt.Printf("Created %s\n", absPath)
+		}
+	}
+
 	return generators.RunAfterHooks(g, projectDir)
+}
+
+// testSpecs lists the *.test.tsx files generated alongside the page components
+// when --skip-tests is not set. They live in the canonical react/ renderer
+// only — UI overlays inherit them unchanged.
+var testSpecs = []pageSpec{
+	{
+		templateName: "delete_button.test.tsx.tmpl",
+		outputPath: func(appDir, ps string) string {
+			return filepath.Join(appDir, "components", ps, "delete-button.test.tsx")
+		},
+	},
+	{
+		templateName: "create_form.test.tsx.tmpl",
+		outputPath: func(appDir, ps string) string {
+			return filepath.Join(appDir, "components", ps, "create-form.test.tsx")
+		},
+	},
+	{
+		templateName: "edit_form.test.tsx.tmpl",
+		outputPath: func(appDir, ps string) string {
+			return filepath.Join(appDir, "components", ps, "edit-form.test.tsx")
+		},
+	},
 }
 
 func loadTemplate(renderer, name string) (*template.Template, error) {
@@ -252,6 +306,9 @@ type pageData struct {
 	Fields       []pageField     // non-reference, non-bytes fields
 	FileFields   []pageFileField // blob reference fields (file uploads)
 	HasFiles     bool            // true if FileFields is non-empty
+
+	// TestImport is "vitest" or "@jest/globals" — used by *.test.tsx templates.
+	TestImport string
 }
 
 // pageFileField describes a file upload field for page templates.

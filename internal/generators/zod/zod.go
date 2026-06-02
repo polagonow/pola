@@ -26,6 +26,10 @@ var schemaTmpl = template.Must(
 	template.New("schema.ts.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/schema.ts.tmpl"),
 )
 
+var schemaTestTmpl = template.Must(
+	template.New("schema.test.ts.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/schema.test.ts.tmpl"),
+)
+
 // ZodGenerator scaffolds Zod validation schemas for a resource.
 type ZodGenerator struct{}
 
@@ -118,6 +122,26 @@ func (g *ZodGenerator) run(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Created %s\n", filePath)
+
+	if generators.ShouldGenerateTests(cmd, pf.GenerateTests()) {
+		data.TestImport = "vitest"
+		if pf.TestFramework() == "jest" {
+			data.TestImport = "@jest/globals"
+		}
+		testPath := filepath.Join(schemasDir, data.SnakeName+".test.ts")
+		if err := generators.CheckCollision(cmd, testPath); err != nil {
+			return err
+		}
+		var testBuf strings.Builder
+		if err := schemaTestTmpl.Execute(&testBuf, data); err != nil {
+			return fmt.Errorf("execute schema test template: %w", err)
+		}
+		if err := os.WriteFile(testPath, []byte(testBuf.String()), 0o644); err != nil {
+			return fmt.Errorf("write %s: %w", testPath, err)
+		}
+		fmt.Printf("Created %s\n", testPath)
+	}
+
 	return generators.RunAfterHooks(g, projectDir)
 }
 
@@ -127,12 +151,20 @@ type zodData struct {
 	SnakeName string     // snake_case: "product"
 	Fields    []zodField // non-reference, non-bytes fields
 	HasFiles  bool       // true if any field is a file upload
+
+	// Test-template specific fields.
+	TestImport        string // "vitest" or "@jest/globals"
+	HasRequired       bool
+	HasTypeCheck      bool
+	TypeCheckField    string
+	TypeCheckBadValue string
 }
 
 // zodField describes a single field for Zod schema templates.
 type zodField struct {
 	JSONName string // snake_case: "name"
 	ZodType  string // e.g. "z.string()", "z.number().int()"
+	Example  string // representative valid literal for tests, e.g. "\"hi\"", "1"
 	Optional bool
 	IsFile   bool // true for blob reference fields (file upload)
 }
@@ -153,6 +185,7 @@ func buildZodData(def *schema.ModelDefinition) zodData {
 				data.Fields = append(data.Fields, zodField{
 					JSONName: schema.SnakeCase(f.Name),
 					ZodType:  "z.preprocess((v) => (v instanceof FileList ? v[0] : v), z.instanceof(File))",
+					Example:  "new File([], \"a.txt\")",
 					Optional: f.Optional,
 					IsFile:   true,
 				})
@@ -162,12 +195,69 @@ func buildZodData(def *schema.ModelDefinition) zodData {
 		zf := zodField{
 			JSONName: schema.SnakeCase(f.Name),
 			ZodType:  zodType(f),
+			Example:  zodExample(f),
 			Optional: f.Optional,
 		}
 		data.Fields = append(data.Fields, zf)
 	}
 
+	// Populate the test-helper fields. Find a required, non-file field whose
+	// type is easy to invert for the type-mismatch test.
+	for _, f := range data.Fields {
+		if !f.Optional {
+			data.HasRequired = true
+			break
+		}
+	}
+	for _, f := range data.Fields {
+		if f.IsFile {
+			continue
+		}
+		// Strings get a number, numbers get a string — minimal but reliable.
+		if strings.Contains(f.ZodType, "string") {
+			data.HasTypeCheck = true
+			data.TypeCheckField = f.JSONName
+			data.TypeCheckBadValue = "123"
+			break
+		}
+		if strings.Contains(f.ZodType, "number") {
+			data.HasTypeCheck = true
+			data.TypeCheckField = f.JSONName
+			data.TypeCheckBadValue = "\"not-a-number\""
+			break
+		}
+		if strings.Contains(f.ZodType, "boolean") {
+			data.HasTypeCheck = true
+			data.TypeCheckField = f.JSONName
+			data.TypeCheckBadValue = "\"yes\""
+			break
+		}
+	}
+
 	return data
+}
+
+// zodExample returns a representative valid literal for a field, used by the
+// generated test template to construct a passing input.
+func zodExample(f schema.Field) string {
+	switch f.Type {
+	case schema.FieldString, schema.FieldText:
+		return "\"example\""
+	case schema.FieldInt, schema.FieldInt64:
+		return "1"
+	case schema.FieldFloat:
+		return "1.5"
+	case schema.FieldBool:
+		return "true"
+	case schema.FieldTime:
+		return "\"2024-01-01T00:00:00\""
+	case schema.FieldUUID:
+		return "\"123e4567-e89b-12d3-a456-426614174000\""
+	case schema.FieldJSON:
+		return "{}"
+	default:
+		return "undefined"
+	}
 }
 
 func zodType(f schema.Field) string {

@@ -29,6 +29,13 @@ type Data struct {
 	PolaVersion   string
 	PolaLocalPath string // if set, generates a replace directive in go.mod
 
+	// GenerateTests controls whether test scaffolding (vitest/jest config,
+	// testhelpers, dev deps) is emitted into the new project. Defaults to true.
+	GenerateTests bool
+	// TestFramework is "vitest", "jest", or "none". Read by package.json and
+	// test config templates to pick the right deps and scripts.
+	TestFramework string
+
 	// Populated from uiSpecs[uiKey(UI)] at the start of Execute. The canonical
 	// package.json.tmpl ranges over these to merge per-UI extras into the
 	// shared React base.
@@ -257,6 +264,19 @@ func Execute(targetDir string, data Data) error {
 		return fmt.Errorf("no canonical templates for renderer %q", data.Renderer)
 	}
 	if err := renderTree(templates, canonical, webDir, data, func(rel string) (string, bool) {
+		// Test-framework gating: ship vitest configs only when vitest is the
+		// chosen framework (same for jest). Skip both when tests are disabled.
+		base := filepath.Base(rel)
+		switch base {
+		case "vitest.config.ts.tmpl", "vitest.setup.ts.tmpl":
+			if !data.GenerateTests || data.TestFramework != "vitest" {
+				return "", false
+			}
+		case "jest.config.ts.tmpl", "jest.setup.ts.tmpl":
+			if !data.GenerateTests || data.TestFramework != "jest" {
+				return "", false
+			}
+		}
 		return rel, true
 	}); err != nil {
 		return fmt.Errorf("canonical %s templates: %w", data.Renderer, err)

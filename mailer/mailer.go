@@ -143,3 +143,20 @@ func Layout(name string) MessageOption {
 func Header(key, value string) MessageOption {
 	return func(m *Message) { m.headers[key] = value }
 }
+
+// TemplateName returns the configured template path (e.g. "user_mailer/welcome").
+// Useful for tests asserting on message construction.
+func (m *Message) TemplateName() string { return m.templateName }
+
+// SubjectLine returns the configured subject string.
+func (m *Message) SubjectLine() string { return m.subject }
+
+// Recipients returns a copy of the To addresses configured on the message.
+func (m *Message) Recipients() []string {
+	if m.to == nil {
+		return nil
+	}
+	out := make([]string, len(m.to))
+	copy(out, m.to)
+	return out
+}

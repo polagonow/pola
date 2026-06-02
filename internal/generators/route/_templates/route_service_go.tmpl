@@ -10,11 +10,11 @@ import (
 
 // Route handles [[ .RoutePath ]] requests.
 type Route struct {
-	svc *services.[[ .ServiceName ]]Service
+	svc services.[[ .ServiceName ]]ServiceInterface
 }
 
 // NewRoute creates a Route with its service dependency.
-func NewRoute(svc *services.[[ .ServiceName ]]Service) *Route {
+func NewRoute(svc services.[[ .ServiceName ]]ServiceInterface) *Route {
 	return &Route{svc: svc}
 }
 [[ range .Methods ]]

@@ -27,6 +27,12 @@ var (
 	actionServiceTmpl = template.Must(
 		template.New("action_service_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/action_service_go.tmpl"),
 	)
+	actionTestTmpl = template.Must(
+		template.New("action_test_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/action_test_go.tmpl"),
+	)
+	actionServiceTestTmpl = template.Must(
+		template.New("action_service_test_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/action_service_test_go.tmpl"),
+	)
 )
 
 // ActionGenerator scaffolds new action structs in the actions/ directory.
@@ -148,5 +154,42 @@ func (g *ActionGenerator) run(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Created %s\n", filePath)
+
+	pf, _ := polafile.Load(projectDir)
+	if generators.ShouldGenerateTests(cmd, pf.GenerateTests()) {
+		testFilename := schema.SnakeCase(name) + "_action_test.go"
+		testPath := filepath.Join(actionsDir, testFilename)
+		if err := generators.CheckCollision(cmd, testPath); err != nil {
+			return err
+		}
+		var testBuf strings.Builder
+		if serviceName != "" {
+			modulePath, err := project.ModulePath(projectDir)
+			if err != nil {
+				return fmt.Errorf("read module path: %w", err)
+			}
+			idType, _ := cmd.Flags().GetString("id-type")
+			if idType == "" {
+				idType = "uint"
+			}
+			if err := actionServiceTestTmpl.Execute(&testBuf, struct {
+				Name        string
+				ServiceName string
+				IDGoType    string
+				ModulePath  string
+			}{Name: name + "Action", ServiceName: serviceName, IDGoType: idType, ModulePath: modulePath}); err != nil {
+				return fmt.Errorf("execute action service test template: %w", err)
+			}
+		} else {
+			if err := actionTestTmpl.Execute(&testBuf, struct{ Name string }{Name: name + "Action"}); err != nil {
+				return fmt.Errorf("execute action test template: %w", err)
+			}
+		}
+		if err := os.WriteFile(testPath, []byte(testBuf.String()), 0o644); err != nil {
+			return fmt.Errorf("write %s: %w", testPath, err)
+		}
+		fmt.Printf("Created %s\n", testPath)
+	}
+
 	return generators.RunAfterHooks(g, projectDir)
 }

@@ -79,6 +79,36 @@ type Polafile struct {
 	Mailer          *Mailer          `hcl:"mailer,block"`
 	ImageProcessing *ImageProcessing `hcl:"image_processing,block"`
 	MCP             *MCP             `hcl:"mcp,block"`
+	Testing         *Testing         `hcl:"testing,block"`
+}
+
+// ---------- Testing ----------
+
+// Testing holds test-generation configuration. When unset, generators default
+// to producing tests (Rails-style) and use the Vitest framework for TS tests.
+type Testing struct {
+	// GenerateTests controls whether `pola generate <thing>` also emits test
+	// files. Use *bool so we can distinguish "unset" from "explicitly false".
+	GenerateTests *bool `hcl:"generate_tests,optional"`
+	// Framework is the JavaScript/TypeScript test framework: "vitest" or "jest".
+	Framework string `hcl:"framework,optional"`
+}
+
+// GenerateTests reports whether test files should be emitted by generators.
+// Defaults to true when unset.
+func (pf *Polafile) GenerateTests() bool {
+	if pf == nil || pf.Testing == nil || pf.Testing.GenerateTests == nil {
+		return true
+	}
+	return *pf.Testing.GenerateTests
+}
+
+// TestFramework returns the configured TS test framework, defaulting to "vitest".
+func (pf *Polafile) TestFramework() string {
+	if pf == nil || pf.Testing == nil || pf.Testing.Framework == "" {
+		return "vitest"
+	}
+	return pf.Testing.Framework
 }
 
 // ---------- CSRF ----------
@@ -1017,6 +1047,17 @@ func Save(dir string, pf *Polafile) error {
 			setAttr(envBody, "version", e.Version)
 			setAttr(envBody, "instructions", e.Instructions)
 		}
+	}
+
+	// Testing block.
+	if pf.Testing != nil {
+		blockBody.AppendNewline()
+		tBlock := blockBody.AppendNewBlock("testing", nil)
+		tBody := tBlock.Body()
+		if pf.Testing.GenerateTests != nil {
+			tBody.SetAttributeValue("generate_tests", cty.BoolVal(*pf.Testing.GenerateTests))
+		}
+		setAttr(tBody, "framework", pf.Testing.Framework)
 	}
 
 	path := filepath.Join(dir, Filename)

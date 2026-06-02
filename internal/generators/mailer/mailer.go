@@ -25,6 +25,9 @@ var (
 	mailerGoTmpl = template.Must(
 		template.New("mailer_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/mailer_go.tmpl"),
 	)
+	mailerTestTmpl = template.Must(
+		template.New("mailer_test_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/mailer_test_go.tmpl"),
+	)
 	// React email templates.
 	templateTsxTmpl = template.Must(
 		template.New("mailer_template_tsx.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/mailer_template_tsx.tmpl"),
@@ -149,6 +152,21 @@ func (g *MailerGenerator) run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("write %s: %w", goFilePath, err)
 	}
 	fmt.Printf("Created %s\n", goFilePath)
+
+	if generators.ShouldGenerateTests(cmd, pf.GenerateTests()) {
+		testPath := filepath.Join(mailersDir, snakeName+"_mailer_test.go")
+		if err := generators.CheckCollision(cmd, testPath); err != nil {
+			return err
+		}
+		buf.Reset()
+		if err := mailerTestTmpl.Execute(&buf, data); err != nil {
+			return fmt.Errorf("execute mailer test template: %w", err)
+		}
+		if err := os.WriteFile(testPath, []byte(buf.String()), 0o644); err != nil {
+			return fmt.Errorf("write %s: %w", testPath, err)
+		}
+		fmt.Printf("Created %s\n", testPath)
+	}
 
 	// 2. Generate email templates for each action.
 	tmplDir := filepath.Join(projectDir, appDir, "mailers", snakeName+"_mailer")

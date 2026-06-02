@@ -6,6 +6,17 @@ import (
 	"[[.ModulePath]]/repositories"
 )
 
+// [[.Name]]ServiceInterface is the contract a [[.Name]] service must satisfy.
+// Routes and other call sites depend on this interface so tests can substitute
+// mocks. The concrete [[.Name]]Service type below satisfies it.
+type [[.Name]]ServiceInterface interface {
+	Create(ctx context.Context, entity *repositories.[[.Name]]) error
+	Get(ctx context.Context, id [[.IDGoType]]) (*repositories.[[.Name]], error)
+	List(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.[[.Name]]], error)
+	Update(ctx context.Context, entity *repositories.[[.Name]]) error
+	Delete(ctx context.Context, id [[.IDGoType]]) error
+}
+
 // [[.Name]]Service handles business logic for [[.SnakeName]] operations.
 type [[.Name]]Service struct {
 	repo repositories.[[.Name]]Repository
