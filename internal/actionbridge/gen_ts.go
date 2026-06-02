@@ -129,34 +129,34 @@ func runTypescriptify(result *ParseResult) (string, error) {
 		return "", fmt.Errorf("write temp program: %w", err)
 	}
 
-	// Write a go.mod that requires the user's module + typescriptify.
-	goMod := fmt.Sprintf(`module pola-tsgen
-
-go 1.25.0
-
-require (
-	%s v0.0.0
-	github.com/tkrajina/typescriptify-golang-structs v0.2.0
-)
-`, result.PackagePath)
-	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), []byte(goMod), 0o644); err != nil {
-		return "", fmt.Errorf("write go.mod: %w", err)
-	}
-
-	// Find the actions directory to set up a replace directive.
+	// Find the actions module root to set up a replace directive pointing at
+	// the user's module on disk.
 	actionsModRoot, actionsModPath, err := findModuleRoot(result.PackagePath)
 	if err != nil {
 		return "", fmt.Errorf("find module root: %w", err)
 	}
 
-	// Add replace directive for the user's module.
-	goModReplace := fmt.Sprintf("\nreplace %s => %s\n", actionsModPath, actionsModRoot)
-	f, err := os.OpenFile(filepath.Join(tmpDir, "go.mod"), os.O_APPEND|os.O_WRONLY, 0o644)
+	// Write a go.mod that requires the user's module + typescriptify, with the
+	// replace directive resolving the user's module to its source on disk.
+	goModT, err := template.New("gomod").Parse(goModTmpl)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("parse go.mod template: %w", err)
 	}
-	f.WriteString(goModReplace)
-	f.Close()
+	var goModBuf bytes.Buffer
+	if err := goModT.Execute(&goModBuf, struct {
+		PackagePath    string
+		ActionsModPath string
+		ActionsModRoot string
+	}{
+		PackagePath:    result.PackagePath,
+		ActionsModPath: actionsModPath,
+		ActionsModRoot: actionsModRoot,
+	}); err != nil {
+		return "", fmt.Errorf("execute go.mod template: %w", err)
+	}
+	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), goModBuf.Bytes(), 0o644); err != nil {
+		return "", fmt.Errorf("write go.mod: %w", err)
+	}
 
 	// Run go mod tidy to resolve dependencies.
 	tidyCmd := exec.Command("go", "mod", "tidy")

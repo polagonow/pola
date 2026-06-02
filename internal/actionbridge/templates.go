@@ -17,4 +17,5 @@ var (
 	goTmpl    = mustReadTemplate("go_bridge.tmpl")
 	tsTmpl    = mustReadTemplate("ts_generated.tmpl")
 	tsGenTmpl = mustReadTemplate("ts_gen.tmpl")
+	goModTmpl = mustReadTemplate("go_mod.tmpl")
 )
