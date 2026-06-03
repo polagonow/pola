@@ -160,6 +160,18 @@ func (r *Runtime) run(fn func(rt *gojalib.Runtime) error) error {
 	return runErr
 }
 
+// RunRender executes fn on the event loop with direct access to the underlying
+// goja runtime, draining pending timers and microtasks before returning.
+//
+// It is the additive entry point for Go-driven renderers (e.g. the nativersc
+// renderer) that walk the React element tree natively rather than delegating to
+// react-server-dom-webpack's renderToReadableStream. The existing react renderer
+// uses CallRenderFunction/DrainStream and never calls this; its behaviour is
+// unchanged.
+func (r *Runtime) RunRender(fn func(rt *gojalib.Runtime) error) error {
+	return r.run(fn)
+}
+
 // Eval implements core.JSRuntime.
 func (r *Runtime) Eval(script string) (any, error) {
 	var result any
