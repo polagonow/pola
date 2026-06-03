@@ -193,7 +193,7 @@ func buildGoRunCmd(projectDir string, overlayRes *autoload.Result) *exec.Cmd {
 	cmd.Dir = projectDir
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	setProcessGroup(cmd)
 	cmd.Env = append(os.Environ(),
 		"POLA_ENV=development",
 		"PORT="+serveFlags.port,
@@ -203,15 +203,6 @@ func buildGoRunCmd(projectDir string, overlayRes *autoload.Result) *exec.Cmd {
 		"GOFLAGS=-mod=mod",
 	)
 	return cmd
-}
-
-// killProcessGroup sends SIGTERM to the entire process group (the go run
-// process and any child it spawned). Uses negative PID to target the group.
-func killProcessGroup(cmd *exec.Cmd) {
-	if cmd.Process == nil {
-		return
-	}
-	_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
 }
 
 // cleanupOverlay removes the temporary overlay directory.

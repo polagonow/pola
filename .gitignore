@@ -9,6 +9,7 @@ coverage.out
 go.work
 go.work.sum
 bin/pola
+build/
 examples/carbon-tf/
 examples/carbon-ads/
 examples/storage-test/

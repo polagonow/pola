@@ -72,9 +72,159 @@ func BundleDemo() error {
 func Build() error {
 	fmt.Println("→ building pola CLI")
 	os.MkdirAll("bin", 0o755) //nolint:errcheck
+	return sh.RunV("go", "build", "-trimpath", "-ldflags", ldflags(), "-o", "bin/pola", "./cmd/pola/")
+}
+
+// BuildRace compiles the pola CLI binary into bin/ with the race detector enabled.
+func BuildRace() error {
+	fmt.Println("→ building pola CLI (race)")
+	os.MkdirAll("bin", 0o755) //nolint:errcheck
+	// The race detector requires cgo regardless of the POLA build configuration.
+	return sh.RunWithV(
+		map[string]string{"CGO_ENABLED": "1"},
+		"go", "build", "-race", "-trimpath", "-ldflags", ldflags(), "-o", "bin/pola", "./cmd/pola/",
+	)
+}
+
+// Install compiles and installs the pola CLI into GOBIN.
+func Install() error {
+	fmt.Println("→ installing pola CLI")
+	return sh.RunV("go", "install", "-trimpath", "-ldflags", ldflags(), "./cmd/pola/")
+}
+
+// Uninstall removes the installed pola CLI from GOBIN.
+func Uninstall() error {
+	return sh.RunV("go", "clean", "-i", "./cmd/pola/")
+}
+
+// crossTarget is one GOOS/GOARCH (plus optional GOARM) the CLI builds for.
+type crossTarget struct {
+	goos, goarch, goarm string
+}
+
+// crossTargets is the platform matrix Pola cross-compiles to. Cross builds
+// pin CGO off and the pure-Go goja VM (see crossTags), so the binary is fully
+// static and portable; the CGO VM backends (v8go, quickjsgo) cannot be
+// cross-compiled without a per-target C toolchain.
+var crossTargets = []crossTarget{
+	{goos: "linux", goarch: "amd64"},
+	{goos: "linux", goarch: "arm64"},
+	{goos: "linux", goarch: "386"},
+	{goos: "linux", goarch: "arm", goarm: "7"},
+	{goos: "darwin", goarch: "amd64"},
+	{goos: "darwin", goarch: "arm64"},
+	{goos: "windows", goarch: "amd64"},
+	{goos: "windows", goarch: "arm64"},
+	{goos: "freebsd", goarch: "amd64"},
+	{goos: "freebsd", goarch: "arm64"},
+}
+
+// label is the build/ subdirectory name, e.g. "linux-amd64" or "linux-arm-7".
+func (t crossTarget) label() string {
+	if t.goarm != "" {
+		return fmt.Sprintf("%s-%s-%s", t.goos, t.goarch, t.goarm)
+	}
+	return fmt.Sprintf("%s-%s", t.goos, t.goarch)
+}
+
+// binName is the output binary name (.exe on Windows).
+func (t crossTarget) binName() string {
+	if t.goos == "windows" {
+		return "pola.exe"
+	}
+	return "pola"
+}
+
+// crossTags pins the pure-Go goja VM (required for CGO-free cross builds)
+// while keeping the configured bundler/renderer/router/css — all pure Go.
+func crossTags() string {
+	tags := []string{"goja", polaBundler, polaRenderer, polaRouter}
+	if polaCSS != "none" {
+		tags = append(tags, polaCSS)
+	}
+	return strings.Join(tags, " ")
+}
+
+// buildTarget cross-compiles one platform into build/<label>/pola[.exe].
+func buildTarget(t crossTarget) error {
+	out := filepath.Join("build", t.label(), t.binName())
+	fmt.Printf("→ building %s\n", t.label())
+	env := map[string]string{
+		"CGO_ENABLED": "0",
+		"GOOS":        t.goos,
+		"GOARCH":      t.goarch,
+	}
+	if t.goarm != "" {
+		env["GOARM"] = t.goarm
+	}
+	return sh.RunWithV(env, "go", "build", "-trimpath", "-tags", crossTags(), "-ldflags", ldflags(), "-o", out, "./cmd/pola/")
+}
+
+// buildMany builds every target whose GOOS is in goos (empty = all targets).
+func buildMany(goos ...string) error {
+	want := make(map[string]bool, len(goos))
+	for _, o := range goos {
+		want[o] = true
+	}
+	for _, t := range crossTargets {
+		if len(want) > 0 && !want[t.goos] {
+			continue
+		}
+		if err := buildTarget(t); err != nil {
+			return fmt.Errorf("build %s: %w", t.label(), err)
+		}
+	}
+	return nil
+}
+
+// Dist groups the cross-platform build and release targets.
+type Dist mg.Namespace
+
+// All cross-compiles the pola CLI for every supported platform into build/.
+func (Dist) All() error { return buildMany() }
+
+// Linux cross-compiles the pola CLI for all supported Linux architectures.
+func (Dist) Linux() error { return buildMany("linux") }
+
+// Darwin cross-compiles the pola CLI for macOS (amd64 + arm64).
+func (Dist) Darwin() error { return buildMany("darwin") }
+
+// Windows cross-compiles the pola CLI for Windows (amd64 + arm64).
+func (Dist) Windows() error { return buildMany("windows") }
+
+// Freebsd cross-compiles the pola CLI for FreeBSD (amd64 + arm64).
+func (Dist) Freebsd() error { return buildMany("freebsd") }
+
+// Release builds every platform and packages each binary into build/dist/ —
+// a .tar.gz for Unix targets and a .zip for Windows (requires the `zip` tool).
+func (Dist) Release() error {
+	if err := buildMany(); err != nil {
+		return err
+	}
+	dist := filepath.Join("build", "dist")
+	if err := os.MkdirAll(dist, 0o755); err != nil {
+		return err
+	}
 	version := gitVersion()
-	ldflags := fmt.Sprintf("-s -w -X github.com/polagonow/pola/internal/cli.version=%s", version)
-	return sh.RunV("go", "build", "-trimpath", "-ldflags", ldflags, "-o", "bin/pola", "./cmd/pola/")
+	for _, t := range crossTargets {
+		dir := filepath.Join("build", t.label())
+		base := fmt.Sprintf("pola-%s-%s", version, t.label())
+		if t.goos == "windows" {
+			archive := filepath.Join(dist, base+".zip")
+			fmt.Printf("→ packaging %s\n", filepath.Base(archive))
+			// -j stores just the binary name (no directory prefix).
+			if err := sh.Run("zip", "-j", archive, filepath.Join(dir, t.binName())); err != nil {
+				return err
+			}
+		} else {
+			archive := filepath.Join(dist, base+".tar.gz")
+			fmt.Printf("→ packaging %s\n", filepath.Base(archive))
+			if err := sh.Run("tar", "-czf", archive, "-C", dir, t.binName()); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
 }
 
 // Test runs unit tests only (fast) with race detection.
@@ -103,6 +253,17 @@ func Lint() error {
 	return sh.RunV("golangci-lint", "run", "./...")
 }
 
+// Fmt formats Go code in place using golangci-lint's gofmt + goimports formatters.
+func Fmt() error {
+	return sh.RunV("golangci-lint", "fmt", "./...")
+}
+
+// Check runs the full pre-flight gate: lint, vet, then the race-enabled test suite.
+func Check() error {
+	mg.Deps(Lint, Vet)
+	return Test()
+}
+
 // InstallHooks installs lefthook git hooks.
 func InstallHooks() error {
 	return sh.RunV("lefthook", "install")
@@ -110,12 +271,23 @@ func InstallHooks() error {
 
 // Clean removes compiled outputs.
 func Clean() error {
-	return sh.RunV("rm", "-rf", "bin/", "public/assets/")
+	return sh.RunV("rm", "-rf", "bin/", "build/", "public/assets/", "coverage.out")
+}
+
+// CleanTest clears the Go test cache.
+func CleanTest() error {
+	return sh.RunV("go", "clean", "-testcache")
 }
 
 // Cover runs tests with coverage profiling.
 func Cover() error {
 	return sh.RunV("go", "test", "-tags", runtimeTags(), "-coverprofile=coverage.out", "-covermode=atomic", "./...")
+}
+
+// CoverHTML runs coverage profiling and opens the HTML report.
+func CoverHTML() error {
+	mg.Deps(Cover)
+	return sh.RunV("go", "tool", "cover", "-html=coverage.out")
 }
 
 // Vet runs go vet with the active build tags.
@@ -134,6 +306,11 @@ func Tidy() error {
 		return err
 	}
 	return sh.RunV("git", "diff", "--exit-code", "go.mod", "go.sum")
+}
+
+// ldflags returns the linker flags that strip debug info and inject the CLI version.
+func ldflags() string {
+	return fmt.Sprintf("-s -w -X github.com/polagonow/pola/internal/cli.version=%s", gitVersion())
 }
 
 func gitVersion() string {
