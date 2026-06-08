@@ -115,13 +115,13 @@ mailer {
 ```
 
 ### `image_processing`
-Attributes: `enabled`, `adapter` (`imaging`), `path` (HTTP prefix, default `/_image`),
+Attributes: `enabled`, `adapter` (`imaging`), `path` (HTTP prefix, default `/_pola/image`),
 `max_width`, `max_height`, `format`.
 ```hcl
 image_processing {
   enabled    = true
   adapter    = "imaging"
-  path       = "/_image"
+  path       = "/_pola/image"
   max_width  = 4096
   max_height = 4096
   format     = "jpeg"
@@ -166,7 +166,7 @@ testing {
 | `POLA_CSRF` | Enable CSRF (`false` disables) | `true` |
 | `POLA_SECURITY_HEADERS` | Enable security headers | `true` |
 | `POLA_IMAGE_PROCESSING` | Image adapter (`imaging`, `none`) | — |
-| `POLA_IMAGE_PROCESSING_PATH` | Image endpoint prefix | `/_image` |
+| `POLA_IMAGE_PROCESSING_PATH` | Image endpoint prefix | `/_pola/image` |
 | `POLA_IMAGE_PROCESSING_MAX_WIDTH` / `_MAX_HEIGHT` | Output clamps | `4096` |
 | `POLA_IMAGE_PROCESSING_FORMAT` | Default output format | `jpeg` |
 | `POLA_WEBAPP_PATH` | Web app dir | `./web` |

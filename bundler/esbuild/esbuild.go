@@ -16,6 +16,7 @@ import (
 	"github.com/evanw/esbuild/pkg/api"
 
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/core/reserved"
 	"github.com/polagonow/pola/serveraction"
 	"github.com/polagonow/pola/watcher"
 )
@@ -230,7 +231,7 @@ func buildManifest(
 	metafile string,
 ) (map[string]manifestEntry, map[string]string, error) {
 	if assetsURLPath == "" {
-		assetsURLPath = "/public/assets"
+		assetsURLPath = reserved.Assets
 	}
 	absAppDir, err := filepath.Abs(appDir)
 	if err != nil {
@@ -444,7 +445,7 @@ type serverActionInfo struct {
 
 func buildClientBundle(req core.BundleInput, absDir string, cssFiles []string, actionByPath map[string]serverActionInfo) (map[string][]byte, string, string, []string, error) {
 	if req.AssetsURLPath == "" {
-		req.AssetsURLPath = "/public/assets"
+		req.AssetsURLPath = reserved.Assets
 	}
 	absOutDir, err := filepath.Abs(req.OutDir)
 	if err != nil {
@@ -567,7 +568,7 @@ func buildInputChunkURLs(metafile, absDir, absOutDir, assetsURLPath string) map[
 		return nil
 	}
 	if assetsURLPath == "" {
-		assetsURLPath = "/public/assets"
+		assetsURLPath = reserved.Assets
 	}
 	result := make(map[string]string)
 	for outPath, info := range meta.Outputs {

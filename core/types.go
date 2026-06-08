@@ -115,7 +115,7 @@ type ShellParams struct {
 	ImportURLs map[string]string
 
 	// ClientScript is the URL of the compiled client entry module
-	// (e.g. "/public/assets/_client-HASH.js").
+	// (e.g. "/_pola/assets/_client-HASH.js").
 	ClientScript string
 
 	// Scripts holds bare JS expressions to embed as inline <script> blocks
@@ -123,7 +123,7 @@ type ShellParams struct {
 	Scripts []string
 
 	// Stylesheets holds URLs of external CSS files to load via <link> tags
-	// (e.g. "/public/assets/styles.css" produced by a CSS processor).
+	// (e.g. "/_pola/assets/styles.css" produced by a CSS processor).
 	Stylesheets []string
 
 	// Metadata contains SEO/social metadata rendered as <head> tags.
@@ -240,7 +240,7 @@ type BundleOutput struct {
 	ImportURLs map[string]string
 
 	// CSSURLs are the public URLs of emitted CSS bundles (e.g.
-	// "/public/assets/globals-HASH.css"). Empty when no CSS was emitted.
+	// "/_pola/assets/globals-HASH.css"). Empty when no CSS was emitted.
 	CSSURLs []string
 
 	// ServerActions maps a 'use server' module ID (path under app dir, no

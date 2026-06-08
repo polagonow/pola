@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/core/reserved"
 	"github.com/polagonow/pola/routes"
 	"github.com/polagonow/pola/serveraction"
 )
@@ -36,8 +37,8 @@ type Orchestrator struct {
 	logger     core.Logger
 	metrics    core.Metrics
 	tracer     core.Tracer
-	pprof      core.Pprof  // may be nil
-	cache      core.Cache  // may be nil; SSR cache for invalidation after mutations
+	pprof      core.Pprof // may be nil
+	cache      core.Cache // may be nil; SSR cache for invalidation after mutations
 	middleware []core.Middleware
 	injectors  []core.RuntimeInjector
 	routes     []core.Route
@@ -106,7 +107,15 @@ func NewOrchestrator(
 func (o *Orchestrator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now()
 
-	// Serve static assets under /public/.
+	// Serve framework-built JS/CSS chunks under the reserved /_pola/assets/
+	// namespace. These live in <publicDir>/assets, so stripping the /_pola
+	// prefix maps the request onto that subdirectory.
+	if strings.HasPrefix(r.URL.Path, reserved.Assets+"/") {
+		o.assets.Handler(reserved.Prefix).ServeHTTP(w, r)
+		return
+	}
+
+	// Serve the user's static files under /public/.
 	if strings.HasPrefix(r.URL.Path, "/public/") {
 		o.assets.Handler("/public/").ServeHTTP(w, r)
 		return

@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/core/reserved"
 	"github.com/polagonow/pola/mailer"
 	reactrenderer "github.com/polagonow/pola/mailer/renderer/react"
 )
@@ -205,7 +206,7 @@ func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, er
 	if err != nil {
 		return nil, fmt.Errorf("pola: resolve public dir: %w", err)
 	}
-	assetsURLPath := "/public/assets"
+	assetsURLPath := reserved.Assets
 
 	ctx := context.Background()
 

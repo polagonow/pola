@@ -125,7 +125,7 @@ type Span interface {
 // Metrics records observability metrics.
 type Metrics interface {
 	Name() string
-	Path() string // HTTP path where the metrics endpoint is served (e.g. "/metrics")
+	Path() string // HTTP path where the metrics endpoint is served (e.g. "/_pola/metrics")
 	RecordRequest(route, method string, statusCode int, duration time.Duration)
 	RecordRender(route string, duration time.Duration)
 	Handler() http.Handler
@@ -140,7 +140,7 @@ type Tracer interface {
 // Pprof serves profiling endpoints.
 type Pprof interface {
 	Name() string
-	Path() string // HTTP path prefix where pprof endpoints are served (e.g. "/debug/pprof")
+	Path() string // HTTP path prefix where pprof endpoints are served (e.g. "/_pola/pprof")
 	Handler() http.Handler
 }
 

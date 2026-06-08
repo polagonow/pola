@@ -55,7 +55,6 @@ type Data struct {
 var defaultNpmVersions = map[string]string{
 	"react":                    "19.2.4",
 	"react-dom":                "19.2.4",
-	"react-server-dom-esm":     "npm:@kentcdodds/tmp-react-server-dom-esm@^19.0.1",
 	"react-server-dom-webpack": "19.3.0-canary-5e9eedb5-20260312",
 	"@types/react":             "^19.2.14",
 	"@types/react-dom":         "^19.2.3",

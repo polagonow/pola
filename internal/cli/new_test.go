@@ -54,9 +54,9 @@ func TestParseDependencies(t *testing.T) {
 		},
 		{
 			name:  "npm alias version preserved",
-			input: "react-server-dom-esm@npm:@kentcdodds/tmp-react-server-dom-esm@^19.0.1",
+			input: "react-server-dom-webpack@npm:@kentcdodds/tmp-react-server-dom-webpack@^19.0.1",
 			want: map[string]string{
-				"react-server-dom-esm": "npm:@kentcdodds/tmp-react-server-dom-esm@^19.0.1",
+				"react-server-dom-webpack": "npm:@kentcdodds/tmp-react-server-dom-webpack@^19.0.1",
 			},
 		},
 		{
