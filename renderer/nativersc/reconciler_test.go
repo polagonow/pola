@@ -3,6 +3,7 @@ package nativersc
 import (
 	"bytes"
 	"context"
+	"strings"
 	"testing"
 
 	gojaengine "github.com/polagonow/pola/engine/goja"
@@ -54,6 +55,34 @@ func renderWith(t *testing.T, bundle, exportName string, importURLs map[string]s
 		t.Fatalf("render: %v", err)
 	}
 	return buf.String()
+}
+
+// TestReconcilerServerReference verifies that a 'use server' function passed as a
+// prop to a client component is serialized as a "$F<hex>" reference plus a
+// metadata row {id, bound}, matching the react-server-dom-esm client decoder.
+func TestReconcilerServerReference(t *testing.T) {
+	bundle := testReactShim + `
+var addTodo = function () {};
+addTodo.$$typeof = Symbol.for("react.server.reference");
+addTodo.$$id = "actions/todos:addTodo";
+function PageWithAction(props) {
+  return React.createElement("form", null, React.createElement(Counter, { action: addTodo }));
+}
+__pages__.WithAction = PageWithAction;
+` + walkSupportJS
+	importURLs := map[string]string{"components/Counter": "/public/assets/Counter-x.js"}
+
+	got := renderWith(t, bundle, "WithAction", importURLs)
+	for _, want := range []string{
+		`I["/public/assets/Counter-x.js","Counter"]`,
+		`"id":"actions/todos:addTodo"`,
+		`"bound":null`,
+		`"action":"$F`,
+	} {
+		if !strings.Contains(got, want) {
+			t.Errorf("Flight output missing %q\n---\n%s", want, got)
+		}
+	}
 }
 
 // TestReconcilerHostAndClient verifies the end-to-end Go-driven walk: a host

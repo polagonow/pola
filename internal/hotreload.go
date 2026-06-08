@@ -192,6 +192,9 @@ func NewHotReloader(cfg *core.Config, registry *core.Registry, initial *core.App
 		bundleInput.ServerPlugins = bp.ServerPlugins(absWebAppPath)
 		bundleInput.ProbePlugins = bp.ProbePlugins(absWebAppPath)
 		bundleInput.ClientModuleStub = bp.ClientModuleStub()
+		if sp, ok := bp.(serverActionStubProvider); ok {
+			bundleInput.ServerActionStub = sp.ServerActionStub()
+		}
 	}
 
 	watchCh, watchErr := bundler.Watch(h.contextFromDone(), bundleInput)
@@ -272,7 +275,9 @@ func NewHotReloader(cfg *core.Config, registry *core.Registry, initial *core.App
 				if ar, err := core.Invoke[core.APIRouter](registry); err == nil {
 					apiRouter = ar
 				}
-				orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, renderCache, mws, WrapInjectorsWithMemo(injs), nil, assets, true)
+				memoInjectors := WrapInjectorsWithMemo(injs)
+				orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, renderCache, mws, memoInjectors, nil, assets, true)
+				orch.SetServerActionHandlers(newServerActionHandler(renderer, newOutput, memoInjectors, renderCache, true, logger))
 
 				newApp := newApp(cfg, registry, orch)
 				newApp.SetArtifacts(newOutput)

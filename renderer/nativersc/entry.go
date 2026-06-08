@@ -8,6 +8,7 @@ import (
 
 	"github.com/polagonow/pola/core"
 	reactrenderer "github.com/polagonow/pola/renderer/react"
+	"github.com/polagonow/pola/serveraction"
 )
 
 // EntryGenConfig is the input to EntryGenerator.Generate.
@@ -21,7 +22,17 @@ type EntryGenConfig struct {
 	// indicating it returns a full HTML document. When set, the entry generator
 	// emits __extractShell__ and excludes the root layout from RSC wrapping.
 	RootLayoutReturnsHTML bool
+
+	// ServerActions are the 'use server' modules discovered under AppDir. The
+	// generated entry imports each module and registers its exported functions
+	// in the global server-action registry so the Go handler can invoke them.
+	ServerActions []ServerActionModule
 }
+
+// ServerActionModule describes one discovered 'use server' module. It is an
+// alias of serveraction.Module so the entry config and the shared registry
+// builder use a single type.
+type ServerActionModule = serveraction.Module
 
 // EntryGenerator produces the in-memory server-entry TypeScript source for the
 // nativersc renderer. It mirrors the react renderer's Next.js-style page/layout
@@ -133,6 +144,9 @@ outer:
 		}
 	}
 
+	// Server-action module imports (registered after the page wiring).
+	entry.WriteString(serveraction.ImportLines(cfg.ServerActions, absAppDir))
+
 	pageHasCompanions := func(p core.PageEntry) bool {
 		return len(p.Segments) > 0 || p.LoadingComponentPath != "" || p.NotFoundComponentPath != ""
 	}
@@ -197,6 +211,11 @@ outer:
 		entry.WriteString(shellExtractorJS)
 	}
 
+	// Server-action registry + invocation helpers (reference the __sa_N__ imports).
+	if len(cfg.ServerActions) > 0 {
+		entry.WriteString(serveraction.RegistryJS(cfg.ServerActions))
+	}
+
 	return entry.String(), nil
 }
 
@@ -227,6 +246,7 @@ globalThis.__rsc__ = (function () {
   var FRAGMENT = Symbol.for("react.fragment");
   var SUSPENSE = Symbol.for("react.suspense");
   var CLIENT_REF = Symbol.for("react.client.reference");
+  var SERVER_REF = Symbol.for("react.server.reference");
 
   function isElement(v) {
     return v != null && (v.$$typeof === ELEMENT_A || v.$$typeof === ELEMENT_B);
@@ -241,7 +261,10 @@ globalThis.__rsc__ = (function () {
       if (t === "number") return "number";
       if (t === "boolean") return "boolean";
       if (t === "bigint") return "bigint";
-      if (t === "function") return "function";
+      if (t === "function") {
+        if (v.$$typeof === SERVER_REF) return "serverref";
+        return "function";
+      }
       if (t === "symbol") return "symbol";
       if (Array.isArray(v)) return "array";
       if (isElement(v)) {
@@ -261,6 +284,9 @@ globalThis.__rsc__ = (function () {
     clientId: function (node) {
       var refObj = node.$$typeof === CLIENT_REF ? node : node.type;
       return String(refObj.$$id);
+    },
+    serverRefId: function (node) {
+      return String(node.$$id);
     },
     callComponent: function (node) {
       return node.type(node.props);
@@ -325,3 +351,4 @@ function __elementToHTML__(el: any): string {
   } catch(e) { return null; }
 };
 `
+

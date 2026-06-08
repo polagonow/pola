@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/serveraction"
 	"github.com/polagonow/pola/shell"
 )
 
@@ -461,7 +462,15 @@ func (r *Renderer) GenerateEntry(discovery core.DiscoveryResult) (string, error)
 		GlobalErrorPath:       discovery.GlobalError,
 		GlobalNotFoundPath:    discovery.GlobalNotFound,
 		RootLayoutReturnsHTML: discovery.RootLayoutReturnsHTML,
+		ServerActions:         serveraction.Scan(discovery.AppDir),
 	})
+}
+
+// InvokeAction implements core.ServerActionInvoker. The React renderer runs in
+// the same goja VM pool as nativersc, so it delegates to the shared invoker:
+// acquire a VM, apply injectors + request context, run __invokeServerAction__.
+func (r *Renderer) InvokeAction(ctx context.Context, in core.InvokeInput) (core.InvokeOutput, error) {
+	return serveraction.Invoke(ctx, r.pool, in)
 }
 
 // ExtractDocumentProps calls __extractShell__ on a VM to get the root

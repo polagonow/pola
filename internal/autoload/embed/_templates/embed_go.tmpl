@@ -39,6 +39,7 @@ func embedPlugin() core.Plugin {
 					GlobalNotFound string              `json:"globalNotFound"`
 					CSSURLs        []string            `json:"cssURLs"`
 					DocumentProps  *core.DocumentProps `json:"documentProps,omitempty"`
+					ServerActions  map[string][]string `json:"serverActions,omitempty"`
 				}
 				if err := json.Unmarshal(metaBytes, &meta); err != nil {
 					return nil, fmt.Errorf("embed: parse prebuild-meta.json: %w", err)
@@ -55,6 +56,7 @@ func embedPlugin() core.Plugin {
 						ServerBundle:   serverBundle,
 						ClientEntryURL: meta.ClientEntryURL,
 						ImportURLs:     meta.ImportURLs,
+						ServerActions:  meta.ServerActions,
 					},
 					GlobalNotFound: meta.GlobalNotFound,
 					CSSURLs:        meta.CSSURLs,

@@ -208,6 +208,81 @@ func (r *Runtime) Call(fn string, args ...any) (any, error) {
 	return result, err
 }
 
+// callAwaitTimeout bounds how long CallAwait drives the event loop waiting for a
+// returned Promise (and any dependency-injection promises it awaits) to settle.
+const callAwaitTimeout = 30 * time.Second
+
+// CallAwait calls the global function fn with args and, if it returns a Promise,
+// drives the event loop until the Promise settles, returning its resolved value
+// (or an error if it rejects). Synchronous (non-Promise) returns are exported
+// and returned directly.
+//
+// Unlike Call, this is safe for async functions that await Go services injected
+// via SetDependencyInjection: those resolve from background goroutines that call
+// loop.RunOnLoop, so the loop must be driven repeatedly until the promise
+// chain completes. The polling pattern mirrors drainSession.
+func (r *Runtime) CallAwait(fn string, args ...any) (any, error) {
+	var promise *gojalib.Promise
+	var syncResult any
+	err := r.run(func(rt *gojalib.Runtime) error {
+		callable, ok := gojalib.AssertFunction(rt.Get(fn))
+		if !ok {
+			return fmt.Errorf("goja: %q is not a function", fn)
+		}
+		gojaArgs := make([]gojalib.Value, len(args))
+		for i, a := range args {
+			gojaArgs[i] = rt.ToValue(a)
+		}
+		v, err := callable(gojalib.Undefined(), gojaArgs...)
+		if err != nil {
+			return err
+		}
+		if p, ok := v.Export().(*gojalib.Promise); ok {
+			promise = p
+		} else {
+			syncResult = v.Export()
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if promise == nil {
+		return syncResult, nil
+	}
+
+	deadline := time.Now().Add(callAwaitTimeout)
+	for {
+		var (
+			state    gojalib.PromiseState
+			settled  any
+			rejected any
+		)
+		if err := r.run(func(_ *gojalib.Runtime) error {
+			state = promise.State()
+			switch state {
+			case gojalib.PromiseStateFulfilled:
+				settled = promise.Result().Export()
+			case gojalib.PromiseStateRejected:
+				rejected = promise.Result().Export()
+			}
+			return nil
+		}); err != nil {
+			return nil, err
+		}
+		switch state {
+		case gojalib.PromiseStateFulfilled:
+			return settled, nil
+		case gojalib.PromiseStateRejected:
+			return nil, fmt.Errorf("goja: action rejected: %v", rejected)
+		}
+		if time.Now().After(deadline) {
+			return nil, fmt.Errorf("goja: action timed out after %s", callAwaitTimeout)
+		}
+		time.Sleep(2 * time.Millisecond)
+	}
+}
+
 // Set implements core.JSRuntime.
 func (r *Runtime) Set(name string, value any) error {
 	return r.run(func(rt *gojalib.Runtime) error {

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/evanw/esbuild/pkg/api"
+	"github.com/polagonow/pola/serveraction"
 )
 
 // pluginProvider implements core.BundlePluginProvider for nativersc + esbuild.
@@ -60,6 +61,15 @@ func (p *pluginProvider) ClientModuleStub() func(absPath, moduleID string) strin
 	}
 }
 
+// ServerActionStub returns the generator that rewrites a 'use server' module in
+// the client bundle into createServerReference exports. The full registry key
+// (moduleId:exportName) is the stable action id used on the wire.
+func (p *pluginProvider) ServerActionStub() func(absPath, moduleID string, exports []string) string {
+	return func(_, moduleID string, exports []string) string {
+		return serveraction.StubJS(moduleID, exports)
+	}
+}
+
 // ── esbuild plugins (copied from renderer/react/esbuild) ─────────────────────
 
 func newPolaWorkspacePlugin(absAppDir string) api.Plugin {
@@ -89,8 +99,18 @@ func newPolaWorkspacePlugin(absAppDir string) api.Plugin {
 						return api.OnResolveResult{}, nil
 					}
 				}
-				if path == "@pola/actions" {
-					return api.OnResolveResult{Path: filepath.Join(pkgRoot, "actions", "src", "index.ts")}, nil
+				if strings.HasPrefix(path, "@pola/actions") {
+					sub := strings.TrimPrefix(path, "@pola/actions")
+					switch sub {
+					case "", "/":
+						return api.OnResolveResult{Path: filepath.Join(pkgRoot, "actions", "src", "index.ts")}, nil
+					case "/server-reference":
+						return api.OnResolveResult{Path: filepath.Join(pkgRoot, "actions", "src", "server-reference.ts")}, nil
+					case "/redirect":
+						return api.OnResolveResult{Path: filepath.Join(pkgRoot, "actions", "src", "redirect.ts")}, nil
+					default:
+						return api.OnResolveResult{}, nil
+					}
 				}
 				return api.OnResolveResult{}, nil
 			})

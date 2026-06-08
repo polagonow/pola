@@ -7,6 +7,29 @@ import { notifyPathnameChange } from "./Link";
 
 const FLIGHT_CONTENT_TYPE = "text/x-component";
 
+// callServer invokes a server action referenced from the Flight stream (a
+// 'use server' function passed as a prop). The reference id is the registry key
+// "moduleId:exportName"; split it and POST to /_pola/action.
+async function callServer(id: string, args: unknown[]): Promise<unknown> {
+  const sep = id.lastIndexOf(":");
+  const moduleId = sep >= 0 ? id.slice(0, sep) : id;
+  const exportName = sep >= 0 ? id.slice(sep + 1) : id;
+  const resp = await fetch("/_pola/action", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: moduleId, export_name: exportName, args }),
+  });
+  const data = await resp.json();
+  if (data.redirect) {
+    window.location.assign(data.redirect);
+    return { redirect: data.redirect };
+  }
+  if (!data.success) throw new Error(data.error || `Server action "${exportName}" failed`);
+  return data.result;
+}
+
+const flightOptions = { callServer };
+
 function fetchFlight(url: string, signal?: AbortSignal): Promise<React.ReactNode> {
   const resp = fetch(url, {
     method: "GET",
@@ -14,7 +37,7 @@ function fetchFlight(url: string, signal?: AbortSignal): Promise<React.ReactNode
     signal,
     cache: "no-store",
   });
-  return createFromFetch(resp);
+  return createFromFetch(resp, flightOptions);
 }
 
 function initialFlight(): Promise<React.ReactNode> {
@@ -27,7 +50,7 @@ function initialFlight(): Promise<React.ReactNode> {
         headers: { "Content-Type": FLIGHT_CONTENT_TYPE },
       }),
     );
-    return createFromFetch(resp);
+    return createFromFetch(resp, flightOptions);
   }
   return fetchFlight(location.pathname + location.search);
 }
