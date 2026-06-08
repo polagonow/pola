@@ -11,6 +11,7 @@ import (
 
 	"github.com/polagonow/pola/core"
 	reactrenderer "github.com/polagonow/pola/renderer/react"
+	"github.com/polagonow/pola/serveraction"
 	"github.com/polagonow/pola/shell"
 
 	gojalib "github.com/dop251/goja"
@@ -311,6 +312,15 @@ func (r *Renderer) prepareVM(ctx context.Context, req core.RenderRequest) (core.
 	return vm, string(propsJSON), nil
 }
 
+// InvokeAction implements core.ServerActionInvoker. It acquires a VM, applies
+// the per-request injectors and request context, then invokes the registered
+// server action via the bundle's __invokeServerAction__ helper, awaiting its
+// Promise. The helper returns a JSON envelope string which is decoded into the
+// result. The VM is always released back to the pool.
+func (r *Renderer) InvokeAction(ctx context.Context, in core.InvokeInput) (core.InvokeOutput, error) {
+	return serveraction.Invoke(ctx, r.pool, in)
+}
+
 // ── pipeline hooks ──────────────────────────────────────────────────────────
 
 // GenerateEntry implements the internal entryGenerator interface.
@@ -322,6 +332,7 @@ func (r *Renderer) GenerateEntry(discovery core.DiscoveryResult) (string, error)
 		GlobalErrorPath:       discovery.GlobalError,
 		GlobalNotFoundPath:    discovery.GlobalNotFound,
 		RootLayoutReturnsHTML: discovery.RootLayoutReturnsHTML,
+		ServerActions:         serveraction.Scan(discovery.AppDir),
 	})
 }
 

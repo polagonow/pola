@@ -6,7 +6,10 @@
 // import it without creating cycles.
 package core
 
-import "time"
+import (
+	"encoding/json"
+	"time"
+)
 
 // csrfContextKeyType is an unexported type for the CSRF token context key,
 // ensuring no collisions with keys from other packages.
@@ -204,6 +207,13 @@ type BundleInput struct {
 	// an empty stub.
 	ClientModuleStub func(absPath, moduleID string) string
 
+	// ServerActionStub generates the client-side stub source for a 'use server'
+	// module. It receives the absolute file path, the computed module ID, and the
+	// module's exported function names, and returns JS that re-exports each name
+	// as a client server reference (so server logic never ships to the browser).
+	// When nil, 'use server' modules are bundled as-is into the client graph.
+	ServerActionStub func(absPath, moduleID string, exports []string) string
+
 	// BeforeRebuild is called before each watch-mode rebuild, allowing the
 	// caller to update dynamic fields (e.g. ServerEntryContent, ClientComponents)
 	// based on newly discovered routes. Only used by Watch, ignored by Build.
@@ -232,6 +242,12 @@ type BundleOutput struct {
 	// CSSURLs are the public URLs of emitted CSS bundles (e.g.
 	// "/public/assets/globals-HASH.css"). Empty when no CSS was emitted.
 	CSSURLs []string
+
+	// ServerActions maps a 'use server' module ID (path under app dir, no
+	// extension) to its exported function names discovered during the build.
+	// Flows to the renderer/orchestrator so the action handler can validate
+	// incoming ids before invoking them.
+	ServerActions map[string][]string
 }
 
 // FSFileInfo describes a single entry returned by FS.ReadDir.
@@ -262,6 +278,33 @@ type RenderRequest struct {
 	// Injectors are applied to the VM before rendering, exposing Go services
 	// to the JS runtime as __DEPENDENCY_INJECTION__ async functions.
 	Injectors []RuntimeInjector
+}
+
+// InvokeInput is the input to a server-action invocation. It is built by the
+// server-action HTTP handler and passed to a ServerActionInvoker (the renderer),
+// which executes the action in a pooled JS runtime.
+type InvokeInput struct {
+	// ID is the action module ID (path under the app dir without extension).
+	ID string
+	// ExportName is the exported function name to invoke.
+	ExportName string
+	// Args are the decoded, validated, and sanitized call arguments.
+	Args []any
+	// RequestContext is per-request data (headers, cookies, url) injected as
+	// __REQUEST__ in the runtime, mirroring a normal render.
+	RequestContext map[string]any
+	// Injectors expose Go services to the runtime as __DEPENDENCY_INJECTION__
+	// functions, applied before the action runs.
+	Injectors []RuntimeInjector
+}
+
+// InvokeOutput is the result of a server-action invocation. Exactly one of Result/Error is meaningful, and Redirect
+// is set when the action requested a redirect.
+type InvokeOutput struct {
+	Success  bool
+	Result   json.RawMessage
+	Error    string
+	Redirect string
 }
 
 // RenderDeps bundles framework-level dependencies that a renderer needs to

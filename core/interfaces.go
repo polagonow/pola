@@ -234,6 +234,17 @@ type BundlePluginProvider interface {
 	ClientModuleStub() func(absPath, moduleID string) string
 }
 
+// ServerActionInvoker is implemented by renderers that can execute RSC server
+// actions ('use server' functions) in their JS runtime pool. The orchestrator
+// type-asserts the renderer to this interface to serve /_pola/action and
+// /_pola/form-action. It is optional: renderers that do not support server
+// actions simply do not implement it.
+type ServerActionInvoker interface {
+	// InvokeAction acquires a runtime, applies injectors and request context,
+	// invokes the named server action, and returns its result envelope.
+	InvokeAction(ctx context.Context, in InvokeInput) (InvokeOutput, error)
+}
+
 // HTMLShell renders the initial HTML document.
 type HTMLShell interface {
 	Render(p ShellParams) string

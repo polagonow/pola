@@ -43,6 +43,7 @@ type reconciler struct {
 	rsc        *gojalib.Object   // the __rsc__ helper (resolved on first run)
 	importURLs map[string]string // moduleID -> browser chunk URL
 	clientRefs map[string]int    // "moduleID#export" -> import row id
+	serverRefs map[string]int    // "moduleID:export" -> server-reference row id
 	pending    []pendingNode
 	logger     core.Logger
 }
@@ -60,6 +61,7 @@ func newReconciler(lr loopRenderer, fw *flightWriter, importURLs map[string]stri
 		fw:         fw,
 		importURLs: importURLs,
 		clientRefs: map[string]int{},
+		serverRefs: map[string]int{},
 		logger:     logger,
 	}
 }
@@ -238,6 +240,8 @@ func (r *reconciler) walkValue(v gojalib.Value) (any, error) {
 		return r.walkClient(v)
 	case "clientref":
 		return r.walkClientRef(v)
+	case "serverref":
+		return r.walkServerRef(v)
 	case "fragment":
 		return r.walkFragment(v)
 	case "suspense":
@@ -331,6 +335,36 @@ func (r *reconciler) walkClientRef(v gojalib.Value) (any, error) {
 		return nil, err
 	}
 	return ref{lazy: false, id: refID}, nil
+}
+
+// walkServerRef serializes a server action passed by value (e.g. a 'use server'
+// function handed to a client component as a prop). It emits a metadata row and
+// returns a "$F<hex>" reference; the client turns it into a callable that POSTs
+// to /_pola/action via the configured callServer.
+func (r *reconciler) walkServerRef(v gojalib.Value) (any, error) {
+	actionID, err := r.callString("serverRefId", v)
+	if err != nil {
+		return nil, err
+	}
+	refID, err := r.serverRefID(actionID)
+	if err != nil {
+		return nil, err
+	}
+	return serverRef{id: refID}, nil
+}
+
+// serverRefID returns the metadata-row id for a server action, emitting the row
+// on first use and de-duplicating thereafter.
+func (r *reconciler) serverRefID(actionID string) (int, error) {
+	if id, ok := r.serverRefs[actionID]; ok {
+		return id, nil
+	}
+	id := r.fw.nextID()
+	if err := r.fw.writeServerReference(id, actionID); err != nil {
+		return 0, err
+	}
+	r.serverRefs[actionID] = id
+	return id, nil
 }
 
 // walkFragment serializes a Fragment as ["$", "$Sreact.fragment", key, props].

@@ -71,6 +71,15 @@ func (p promiseRef) MarshalJSON() ([]byte, error) {
 	return []byte(`"$@` + strconv.FormatInt(int64(p.id), 16) + `"`), nil
 }
 
+// serverRef is an in-model server-reference ("$F<hex>") pointing at a metadata
+// row {id, bound}. The react-server-dom-esm client decodes it into a callable
+// that invokes response._callServer(metadata.id, args).
+type serverRef struct{ id int }
+
+func (s serverRef) MarshalJSON() ([]byte, error) {
+	return []byte(`"$F` + strconv.FormatInt(int64(s.id), 16) + `"`), nil
+}
+
 // flightWriter encodes and streams RSC Flight rows to an underlying writer.
 //
 // It is safe for concurrent use: from Phase 2 on, Suspense boundaries stream
@@ -131,6 +140,18 @@ func (fw *flightWriter) writeImport(id int, url, export string) error {
 		return fmt.Errorf("nativersc: marshal import row %d: %w", id, err)
 	}
 	return fw.writeRow(id, "I", b)
+}
+
+// writeServerReference writes the metadata row for a server reference (action),
+// referenced from a model as "$F<hex>". The react-server-dom-esm client reads
+// metadata.id and calls response._callServer(id, args); bound is null because
+// nativersc does not pre-bind arguments.
+func (fw *flightWriter) writeServerReference(id int, actionID string) error {
+	b, err := json.Marshal(map[string]any{"id": actionID, "bound": nil})
+	if err != nil {
+		return fmt.Errorf("nativersc: marshal server reference row %d: %w", id, err)
+	}
+	return fw.writeRow(id, "", b)
 }
 
 // writeError writes an error row: <hex>:E{"digest":…,"message":…,"stack":[…]}.

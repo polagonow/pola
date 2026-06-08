@@ -11,6 +11,14 @@ import (
 
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/routes"
+	"github.com/polagonow/pola/serveraction"
+)
+
+// Server-action endpoint paths. These bypass the page/API router and the
+// page-oriented middleware chain; the handlers perform their own CSRF check.
+const (
+	serverActionPath = "/_pola/action"
+	formActionPath   = "/_pola/form-action"
 )
 
 // contextKey is an unexported type for context keys in this package.
@@ -36,6 +44,22 @@ type Orchestrator struct {
 	assets     core.AssetServer
 	dev        bool
 	handler    http.Handler // middleware chain wrapping handle, built once
+
+	// Server-action handlers (nil when the renderer/bundle has no actions).
+	actionHandler     http.HandlerFunc
+	formActionHandler http.HandlerFunc
+}
+
+// SetServerActionHandlers installs the /_pola/action and /_pola/form-action
+// handlers. A nil argument leaves the endpoints unserved (404 via normal
+// routing). Called by the pipeline after the orchestrator is constructed.
+func (o *Orchestrator) SetServerActionHandlers(h *serveraction.Handler) {
+	if h == nil {
+		o.actionHandler, o.formActionHandler = nil, nil
+		return
+	}
+	o.actionHandler = h.Action
+	o.formActionHandler = h.Form
 }
 
 // NewOrchestrator creates a new Orchestrator from resolved services and build artifacts.
@@ -97,6 +121,17 @@ func (o *Orchestrator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Pprof endpoints (nil when not registered).
 	if o.pprof != nil && strings.HasPrefix(r.URL.Path, o.pprof.Path()) {
 		o.pprof.Handler().ServeHTTP(w, r)
+		return
+	}
+
+	// Server-action endpoints. These bypass the page/API router and the
+	// page-oriented middleware chain; the handler performs its own CSRF check.
+	if o.actionHandler != nil && r.URL.Path == serverActionPath {
+		o.actionHandler(w, r)
+		return
+	}
+	if o.formActionHandler != nil && r.URL.Path == formActionPath {
+		o.formActionHandler(w, r)
 		return
 	}
 
@@ -226,6 +261,42 @@ func resourcePrefix(path string) string {
 		return "/" + parts[1]
 	}
 	return path
+}
+
+// newServerActionHandler builds the server-action handler when the renderer
+// supports server actions and the bundle declares at least one. Returns nil
+// otherwise. The returned handler is installed on the orchestrator via
+// SetServerActionHandlers.
+func newServerActionHandler(
+	renderer core.Renderer,
+	bundleOutput *core.BundleOutput,
+	injectors []core.RuntimeInjector,
+	cache core.Cache,
+	dev bool,
+	logger core.Logger,
+) *serveraction.Handler {
+	inv, ok := renderer.(core.ServerActionInvoker)
+	if !ok || bundleOutput == nil || len(bundleOutput.ServerActions) == 0 {
+		return nil
+	}
+	valid := make(map[string]struct{}, len(bundleOutput.ServerActions))
+	for id := range bundleOutput.ServerActions {
+		valid[id] = struct{}{}
+	}
+	h := &serveraction.Handler{
+		Invoker:      inv,
+		ValidIDs:     valid,
+		BuildContext: buildRequestContext,
+		Injectors:    injectors,
+		Dev:          dev,
+		Logger:       logger,
+	}
+	if cache != nil {
+		h.Invalidate = func(ctx context.Context, path string) {
+			_ = cache.Invalidate(ctx, "ssr:"+resourcePrefix(path))
+		}
+	}
+	return h
 }
 
 func buildRequestContext(r *http.Request) map[string]any {

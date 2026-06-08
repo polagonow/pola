@@ -48,6 +48,52 @@ func TestGenerateEntry(t *testing.T) {
 	}
 }
 
+// TestGenerateEntryServerActions verifies the generated entry imports the
+// discovered 'use server' modules and installs the registry + invocation
+// helpers, keyed by moduleId:exportName.
+func TestGenerateEntryServerActions(t *testing.T) {
+	gen := &EntryGenerator{}
+	src, err := gen.Generate(EntryGenConfig{
+		AppDir: "/tmp/app",
+		Pages:  []core.PageEntry{{PageComponentPath: "/tmp/app/app/page.tsx"}},
+		ServerActions: []ServerActionModule{
+			{ModuleID: "actions/todo", AbsPath: "/tmp/app/actions/todo.ts"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	mustContain := []string{
+		`import * as __sa_0__ from "./actions/todo.ts";`,
+		"globalThis.__POLA_SERVER_ACTIONS__",
+		`__pola_register_actions__("actions/todo", __sa_0__);`,
+		"globalThis.__getServerFunction__ = function",
+		"globalThis.__invokeServerAction__ = function",
+		`Symbol.for("react.server.reference")`,
+	}
+	for _, s := range mustContain {
+		if !strings.Contains(src, s) {
+			t.Errorf("generated entry missing %q\n---\n%s", s, src)
+		}
+	}
+}
+
+// TestGenerateEntryNoServerActions verifies the registry is omitted when no
+// 'use server' modules are present.
+func TestGenerateEntryNoServerActions(t *testing.T) {
+	gen := &EntryGenerator{}
+	src, err := gen.Generate(EntryGenConfig{
+		AppDir: "/tmp/app",
+		Pages:  []core.PageEntry{{PageComponentPath: "/tmp/app/app/page.tsx"}},
+	})
+	if err != nil {
+		t.Fatalf("generate: %v", err)
+	}
+	if strings.Contains(src, "__POLA_SERVER_ACTIONS__") {
+		t.Errorf("registry should be omitted when there are no server actions\n%s", src)
+	}
+}
+
 // TestGenerateEntryShellExtractor verifies the shell extractor is emitted only
 // when the root layout returns <html>.
 func TestGenerateEntryShellExtractor(t *testing.T) {

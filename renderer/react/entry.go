@@ -9,6 +9,7 @@ import (
 
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/core/globals"
+	"github.com/polagonow/pola/serveraction"
 )
 
 // BundleDefines returns esbuild define keys the React renderer requires
@@ -30,6 +31,12 @@ type EntryGenConfig struct {
 	// generator emits __extractShell__ and excludes the root layout from
 	// RSC wrapping (it becomes the document shell instead).
 	RootLayoutReturnsHTML bool
+
+	// ServerActions are the 'use server' modules discovered under AppDir. The
+	// generated entry imports each, registers its exports in the global
+	// server-action registry, and registers them with react-server-dom-webpack
+	// so actions passed as props serialize as server references.
+	ServerActions []serveraction.Module
 }
 
 var renderBlockTmpl = template.Must(template.New("renderBlock").Parse(
@@ -73,6 +80,11 @@ func (g *EntryGenerator) Generate(cfg EntryGenConfig) (string, error) { //nolint
 
 	entry.WriteString(`import React from "react";` + "\n")
 	entry.WriteString(`import { renderToReadableStream } from "react-server-dom-webpack/server.browser";` + "\n")
+	if len(cfg.ServerActions) > 0 {
+		// registerServerReference lets RSDW's serializer treat 'use server'
+		// functions as server references when passed as props to client components.
+		entry.WriteString(`import { registerServerReference as __pola_registerServerReference__ } from "react-server-dom-webpack/server.browser";` + "\n")
+	}
 
 	for _, p := range cfg.Pages {
 		absFile, _ := filepath.Abs(p.PageComponentPath)
@@ -162,6 +174,9 @@ outer:
 		}
 	}
 
+	// Server-action module imports (registered after the page wiring).
+	entry.WriteString(serveraction.ImportLines(cfg.ServerActions, absAppDir))
+
 	pageHasCompanions := func(p core.PageEntry) bool {
 		return len(p.Segments) > 0 || p.LoadingComponentPath != "" || p.NotFoundComponentPath != ""
 	}
@@ -229,6 +244,11 @@ outer:
 		ClientManifestDefine,
 	})
 	entry.WriteString(renderBlockBuf.String())
+
+	// Server-action registry + invocation helpers (reference the __sa_N__ imports).
+	if len(cfg.ServerActions) > 0 {
+		entry.WriteString(serveraction.RegistryJS(cfg.ServerActions))
+	}
 
 	// When the root layout returns <html>, generate __extractShell__ to
 	// serialize the root layout's React element tree to an HTML string.

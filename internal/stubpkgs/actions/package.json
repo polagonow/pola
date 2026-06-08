@@ -2,8 +2,10 @@
   "name": "@pola/actions",
   "version": "0.0.1",
   "private": true,
-  "description": "Bridge between Go services and React server components (auto-managed by the Pola runtime)",
+  "description": "Bridge between Go services and React server components, plus 'use server' action runtime (auto-managed by the Pola runtime)",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./server-reference": "./src/server-reference.ts",
+    "./redirect": "./src/redirect.ts"
   }
 }

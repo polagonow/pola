@@ -16,6 +16,7 @@ import (
 	"github.com/evanw/esbuild/pkg/api"
 
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/serveraction"
 	"github.com/polagonow/pola/watcher"
 )
 
@@ -55,10 +56,27 @@ func (b *Bundler) Build(_ context.Context, req core.BundleInput) (*core.BundleOu
 			}
 		}
 	}
+	// Server actions: extract exports of each 'use server' module so the client
+	// pass can replace them with createServerReference stubs, and so the handler
+	// knows the valid action ids. actionByPath maps an absolute action file to
+	// its module id and exports.
+	actionByPath := map[string]serverActionInfo{}
+	serverActions := map[string][]string{}
+	if len(probe.serverActionFiles) > 0 {
+		exportsByPath := parseActionExports(probe.serverActionFiles, absAppDir)
+		for _, p := range probe.serverActionFiles {
+			abs, _ := filepath.Abs(p)
+			id := computeModuleID(absAppDir, abs)
+			exports := exportsByPath[abs]
+			actionByPath[abs] = serverActionInfo{moduleID: id, exports: exports}
+			serverActions[id] = exports
+		}
+	}
+
 	// Pass 1 — Client bundle (browser ESM).
 	// CSS files discovered during the probe are passed as additional entries
 	// so the CSS plugin can process them and esbuild emits hashed output.
-	clientFiles, clientEntryOutput, metafile, cssURLs, err := buildClientBundle(req, absAppDir, probe.cssFiles)
+	clientFiles, clientEntryOutput, metafile, cssURLs, err := buildClientBundle(req, absAppDir, probe.cssFiles, actionByPath)
 	if err != nil {
 		return nil, err
 	}
@@ -119,6 +137,7 @@ func (b *Bundler) Build(_ context.Context, req core.BundleInput) (*core.BundleOu
 		ManifestJSON:   manifestJSON,
 		ImportURLs:     importURLs,
 		CSSURLs:        cssURLs,
+		ServerActions:  serverActions,
 	}, nil
 }
 
@@ -295,33 +314,10 @@ func parseMetafileExports(metafile string, absAppDir string) map[string][]string
 }
 
 // computeModuleID returns a stable module ID for a client component file.
-// Files inside node_modules get a package-path id. App files get a path id
-// relative to the nearest ancestor of absAppDir that contains absPath without
-// a leading "../".
+// It delegates to serveraction.ModuleID so client-component manifests and the
+// server-action registry compute identical IDs.
 func computeModuleID(absAppDir, absPath string) string {
-	if idx := strings.LastIndex(absPath, "/node_modules/"); idx != -1 {
-		id := absPath[idx+len("/node_modules/"):]
-		return filepath.ToSlash(strings.TrimSuffix(id, filepath.Ext(id)))
-	}
-	dir := absAppDir
-	for {
-		rel, err := filepath.Rel(dir, absPath)
-		if err != nil {
-			break
-		}
-		relSlash := strings.ReplaceAll(
-			strings.TrimSuffix(rel, filepath.Ext(rel)),
-			string(filepath.Separator), "/")
-		if !strings.HasPrefix(relSlash, "../") {
-			return relSlash
-		}
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			break
-		}
-		dir = parent
-	}
-	return filepath.Base(absPath)
+	return serveraction.ModuleID(absAppDir, absPath)
 }
 
 // ── passes ───────────────────────────────────────────────────────────────────
@@ -439,7 +435,14 @@ func buildPagesBundle(
 	return serverOutFile, nil
 }
 
-func buildClientBundle(req core.BundleInput, absDir string, cssFiles []string) (map[string][]byte, string, string, []string, error) {
+// serverActionInfo holds the module id and exported function names of a
+// 'use server' file, used to generate its client-side server-reference stub.
+type serverActionInfo struct {
+	moduleID string
+	exports  []string
+}
+
+func buildClientBundle(req core.BundleInput, absDir string, cssFiles []string, actionByPath map[string]serverActionInfo) (map[string][]byte, string, string, []string, error) {
 	if req.AssetsURLPath == "" {
 		req.AssetsURLPath = "/public/assets"
 	}
@@ -485,6 +488,9 @@ func buildClientBundle(req core.BundleInput, absDir string, cssFiles []string) (
 	}
 
 	clientPlugins := []api.Plugin{newAtAliasPlugin(absDir), newTildeResolverPlugin(absDir)}
+	if req.ServerActionStub != nil && len(actionByPath) > 0 {
+		clientPlugins = append(clientPlugins, newServerActionStubPlugin(req.ServerActionStub, actionByPath, absDir))
+	}
 	clientPlugins = append(clientPlugins, castPlugins(req.ClientPlugins)...)
 	if req.CSSProcessor != nil {
 		clientPlugins = append(clientPlugins, newCSSPlugin(req.CSSProcessor))
@@ -581,8 +587,9 @@ func buildInputChunkURLs(metafile, absDir, absOutDir, assetsURLPath string) map[
 
 // probeResult holds the outputs of the server entry probe pass.
 type probeResult struct {
-	clientFiles []string // absolute paths of "use client" files
-	cssFiles    []string // absolute paths of imported .css files
+	clientFiles       []string // absolute paths of "use client" files
+	cssFiles          []string // absolute paths of imported .css files
+	serverActionFiles []string // absolute paths of "use server" files
 }
 
 func probeServerEntry(req core.BundleInput, absDir string) probeResult {
@@ -607,6 +614,13 @@ func probeServerEntry(req core.BundleInput, absDir string) probeResult {
 				contents, err := os.ReadFile(args.Path)
 				if err != nil {
 					return api.OnLoadResult{}, nil
+				}
+				// 'use server' modules: record and stub so the probe graph
+				// resolves (their exports are extracted in a dedicated pass).
+				if serveraction.HasUseServerDirective(contents) {
+					result.serverActionFiles = append(result.serverActionFiles, args.Path)
+					empty := ""
+					return api.OnLoadResult{Contents: &empty, Loader: api.LoaderJS}, nil
 				}
 				trimmed := strings.TrimSpace(string(contents))
 				if !strings.HasPrefix(trimmed, `"use client"`) && !strings.HasPrefix(trimmed, `'use client'`) {
@@ -671,6 +685,59 @@ func probeServerEntry(req core.BundleInput, absDir string) probeResult {
 		Plugins:       plugins,
 	})
 	return result
+}
+
+// parseActionExports extracts the exported function names of each 'use server'
+// file by running esbuild over them with Metafile enabled. Bundle is disabled so
+// only each file's own exports are reported (type-only exports are erased).
+func parseActionExports(absPaths []string, absAppDir string) map[string][]string {
+	if len(absPaths) == 0 {
+		return nil
+	}
+	r := api.Build(api.BuildOptions{
+		EntryPoints:   absPaths,
+		Bundle:        false,
+		Write:         false,
+		Metafile:      true,
+		Format:        api.FormatESModule,
+		Platform:      api.PlatformBrowser,
+		JSX:           api.JSXAutomatic,
+		Target:        api.ES2020,
+		AbsWorkingDir: absAppDir,
+		Outdir:        filepath.Join(absAppDir, ".pola-action-exports"),
+		LogLevel:      api.LogLevelSilent,
+	})
+	if len(r.Errors) > 0 {
+		return nil
+	}
+	return parseMetafileExports(r.Metafile, absAppDir)
+}
+
+// newServerActionStubPlugin replaces each 'use server' module in the client
+// bundle with createServerReference stubs, so server logic never ships to the
+// browser. Files not in actionByPath are left untouched.
+func newServerActionStubPlugin(
+	stub func(absPath, moduleID string, exports []string) string,
+	actionByPath map[string]serverActionInfo,
+	absAppDir string,
+) api.Plugin {
+	return api.Plugin{
+		Name: "resolve-server-actions",
+		Setup: func(build api.PluginBuild) {
+			build.OnLoad(api.OnLoadOptions{Filter: `\.(tsx|ts|jsx|js)$`}, func(args api.OnLoadArgs) (api.OnLoadResult, error) {
+				info, ok := actionByPath[args.Path]
+				if !ok {
+					return api.OnLoadResult{}, nil
+				}
+				src := stub(args.Path, info.moduleID, info.exports)
+				return api.OnLoadResult{
+					Contents:   &src,
+					Loader:     api.LoaderJS,
+					ResolveDir: absAppDir,
+				}, nil
+			})
+		},
+	}
 }
 
 // ── plugin helpers ────────────────────────────────────────────────────────────

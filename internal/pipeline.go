@@ -23,6 +23,7 @@ type prebuildMeta struct {
 	GlobalNotFound string              `json:"globalNotFound"`
 	CSSURLs        []string            `json:"cssURLs,omitempty"`
 	DocumentProps  *core.DocumentProps `json:"documentProps,omitempty"`
+	ServerActions  map[string][]string `json:"serverActions,omitempty"`
 }
 
 // entryGenerator is the optional interface a Renderer may implement to produce
@@ -49,6 +50,12 @@ type bundleDefiner interface {
 // the DiscoveryResult produced during ScanRoutes.
 type discoveryProvider interface {
 	DiscoveryResult() core.DiscoveryResult
+}
+
+// serverActionStubProvider is the optional interface a BundlePluginProvider may
+// implement to supply the client-side stub generator for 'use server' modules.
+type serverActionStubProvider interface {
+	ServerActionStub() func(absPath, moduleID string, exports []string) string
 }
 
 // noopAssetServer is used when no asset plugin is registered.
@@ -259,6 +266,11 @@ func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, er
 		bundleInput.ServerPlugins = bp.ServerPlugins(absWebAppPath)
 		bundleInput.ProbePlugins = bp.ProbePlugins(absWebAppPath)
 		bundleInput.ClientModuleStub = bp.ClientModuleStub()
+		// Optional: providers that support 'use server' modules supply a stub
+		// generator for the client bundle.
+		if sp, ok := bp.(serverActionStubProvider); ok {
+			bundleInput.ServerActionStub = sp.ServerActionStub()
+		}
 	}
 
 	bundleOutput, err := bundler.Build(ctx, bundleInput)
@@ -329,6 +341,7 @@ func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, er
 	memoInjectors := WrapInjectorsWithMemo(runtimeInjectors)
 
 	orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, renderCache, middleware, memoInjectors, routes, assets, cfg.Dev)
+	orch.SetServerActionHandlers(newServerActionHandler(renderer, bundleOutput, memoInjectors, renderCache, cfg.Dev, logger))
 
 	// ── Copy static public files ────────────────────────────────────────
 	srcPublic := filepath.Join(absWebAppPath, "public")
@@ -345,6 +358,7 @@ func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, er
 			GlobalNotFound: discovery.GlobalNotFound,
 			CSSURLs:        bundleOutput.CSSURLs,
 			DocumentProps:  docProps,
+			ServerActions:  bundleOutput.ServerActions,
 		}
 		if b, err := json.Marshal(meta); err == nil {
 			_ = os.WriteFile(filepath.Join(publicDir, "prebuild-meta.json"), b, 0o644)
@@ -494,6 +508,7 @@ func buildFromPrebuilt(
 		apiRouter = ar
 	}
 	orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, renderCache, middleware, memoInjectors, artifacts.Routes, assets, false)
+	orch.SetServerActionHandlers(newServerActionHandler(renderer, artifacts.BundleOutput, memoInjectors, renderCache, false, logger))
 	app := newApp(cfg, registry, orch)
 	app.SetArtifacts(artifacts.BundleOutput)
 	return app, nil

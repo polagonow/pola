@@ -49,6 +49,23 @@ const (
 	DrainMicrotasksFn = "__drainMicrotasks__"
 )
 
+// Server actions ('use server'). Installed by the renderer's server-entry
+// generator and invoked by the Go server-action handler.
+const (
+	// ServerActions is the registry object mapping "moduleId:exportName" to the
+	// registered server-action function. Populated by the generated server entry.
+	ServerActions = "__POLA_SERVER_ACTIONS__"
+
+	// GetServerFunctionFn resolves a server action by (id, exportName) using
+	// rari-style lookup (exact key → ambiguity-checked suffix match).
+	GetServerFunctionFn = "__getServerFunction__"
+
+	// InvokeServerActionFn is the Go-callable invocation helper. Signature:
+	// (id, exportName, argsJSON string) -> Promise<string> where the resolved
+	// string is the JSON envelope { success, result, error, redirect }.
+	InvokeServerActionFn = "__invokeServerAction__"
+)
+
 // PolaLogFn is the standard Go-backed console bridge installed by every engine
 // that uses the ConsoleBridge polyfill. Its signature is (level, msg string).
 const PolaLogFn = "__pola_log__"
