@@ -94,7 +94,7 @@ func (r *Router) ScanRoutes(ctx context.Context, fsys core.FS, appDir string, ex
 			PageComponentPath: path,
 			Segments:          segs,
 		}
-		entry.LoadingComponentPath, entry.NotFoundComponentPath = discoverCompanions(fsys, filepath.Dir(path), exts)
+		entry.LoadingComponentPath, entry.NotFoundComponentPath = discoverCompanions(fsys, pagesDir, filepath.Dir(path), exts)
 		pages = append(pages, entry)
 		return nil
 	})
@@ -465,21 +465,43 @@ func collectSegments(fsys core.FS, pagesDir, pageDir string, exts []string) ([]c
 	return segments, nil
 }
 
-func discoverCompanions(fsys core.FS, pageDir string, exts []string) (loading, notFound string) {
+func discoverCompanions(fsys core.FS, pagesDir, pageDir string, exts []string) (loading, notFound string) {
+	absPagesDir, _ := filepath.Abs(pagesDir)
+	absPageDir, _ := filepath.Abs(pageDir)
+	rel, err := filepath.Rel(absPagesDir, absPageDir)
+	if err != nil {
+		return
+	}
+	dirs := []string{absPageDir}
+	if rel != "." {
+		for d := filepath.Dir(absPageDir); ; d = filepath.Dir(d) {
+			dirs = append(dirs, d)
+			if d == absPagesDir {
+				break
+			}
+		}
+	}
 	for _, base := range []string{"loading", "not-found"} {
-		candidate := findWithExts(fsys, pageDir, base, exts)
-		if candidate == "" {
-			continue
-		}
-		ok, _ := hasDefaultExport(fsys, candidate)
-		if !ok {
-			continue
-		}
-		switch base {
-		case "loading":
-			loading = candidate
-		case "not-found":
-			notFound = candidate
+		for _, d := range dirs {
+			candidate := findWithExts(fsys, d, base, exts)
+			if candidate == "" {
+				continue
+			}
+			ok, _ := hasDefaultExport(fsys, candidate)
+			if !ok {
+				continue
+			}
+			switch base {
+			case "loading":
+				if loading == "" {
+					loading = candidate
+				}
+			case "not-found":
+				if notFound == "" {
+					notFound = candidate
+				}
+			}
+			break
 		}
 	}
 	return
