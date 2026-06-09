@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/polagonow/pola/core/reserved"
 	"github.com/polagonow/pola/test/fixture"
 )
 
@@ -14,14 +15,14 @@ import (
 func RunClientBundleTests(t *testing.T) {
 	t.Helper()
 
-	t.Run("EntryPointHasPublicURL", func(t *testing.T) {
+	t.Run("EntryPointHasReservedAssetsURL", func(t *testing.T) {
 		fixture.ForEachReactApp(t, func(t *testing.T, f fixture.AppFixture) {
 			app := f.GetApp(t)
 			if app.Artifacts().Output.ClientEntryURL == "" {
 				t.Fatal("client entry URL is empty — bundle was not built")
 			}
-			if !strings.HasPrefix(app.Artifacts().Output.ClientEntryURL, "/public/") {
-				t.Errorf("client entry URL should be under /public/, got %q", app.Artifacts().Output.ClientEntryURL)
+			if !strings.HasPrefix(app.Artifacts().Output.ClientEntryURL, reserved.Assets+"/") {
+				t.Errorf("client entry URL should be under %s/, got %q", reserved.Assets, app.Artifacts().Output.ClientEntryURL)
 			}
 		})
 	})
@@ -29,8 +30,8 @@ func RunClientBundleTests(t *testing.T) {
 	t.Run("BundleFileIsPresentOnDisk", func(t *testing.T) {
 		fixture.ForEachReactApp(t, func(t *testing.T, f fixture.AppFixture) {
 			app := f.GetApp(t)
-			rel := strings.TrimPrefix(app.Artifacts().Output.ClientEntryURL, "/public/")
-			path := fixture.AppDir + "/public/" + rel
+			rel := strings.TrimPrefix(app.Artifacts().Output.ClientEntryURL, reserved.Assets+"/")
+			path := fixture.AppDir + "/public/assets/" + rel
 			info, err := os.Stat(path)
 			if err != nil {
 				t.Fatalf("client bundle file not found at %q: %v", path, err)
@@ -44,8 +45,8 @@ func RunClientBundleTests(t *testing.T) {
 	t.Run("BundleDoesNotContainBundlerInternals", func(t *testing.T) {
 		fixture.ForEachReactApp(t, func(t *testing.T, f fixture.AppFixture) {
 			app := f.GetApp(t)
-			rel := strings.TrimPrefix(app.Artifacts().Output.ClientEntryURL, "/public/")
-			data, err := os.ReadFile(fixture.AppDir + "/public/" + rel)
+			rel := strings.TrimPrefix(app.Artifacts().Output.ClientEntryURL, reserved.Assets+"/")
+			data, err := os.ReadFile(fixture.AppDir + "/public/assets/" + rel)
 			if err != nil {
 				t.Fatalf("read client bundle: %v", err)
 			}

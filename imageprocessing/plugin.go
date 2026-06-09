@@ -5,7 +5,7 @@ import "github.com/polagonow/pola/core"
 // Plugin returns the image processing plugin. It reads configuration from
 // environment variables (set by the CLI from Polafile defaults):
 //
-//	POLA_IMAGE_PROCESSING_PATH       — URL prefix (default "/_image")
+//	POLA_IMAGE_PROCESSING_PATH       — URL prefix (default "/_pola/image")
 //	POLA_IMAGE_PROCESSING_MAX_WIDTH  — max output width (default 4096)
 //	POLA_IMAGE_PROCESSING_MAX_HEIGHT — max output height (default 4096)
 //	POLA_IMAGE_PROCESSING_FORMAT     — default output format (default "jpeg")

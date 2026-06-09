@@ -174,8 +174,8 @@ pola dev
   `routes/documents/` parses multipart form data and persists the blob.
 - For cloud storage, regenerate with `--driver rclone --root myremote:bucket/path
   --config-path /etc/rclone/rclone.conf` (or set the `storage` block's `env "production"` override).
-- If you enable `image_processing`, serve transformed versions of image blobs via the `/_image`
-  endpoint (e.g. `"/_image?url=…&width=128&height=128&fit=cover"`) or the `ImageProcessing.processURL` bridge binding inside a
+- If you enable `image_processing`, serve transformed versions of image blobs via the `/_pola/image`
+  endpoint (e.g. `"/_pola/image?url=…&width=128&height=128&fit=cover"`) or the `ImageProcessing.processURL` bridge binding inside a
   Server Component.
 
 ---

@@ -615,10 +615,10 @@ func (pf *Polafile) ImageProcessingAdapter(env string) string {
 }
 
 // ImageProcessingPath returns the configured image processing path prefix,
-// falling back to base config, then "/_image".
+// falling back to base config, then "/_pola/image".
 func (pf *Polafile) ImageProcessingPath(env string) string {
 	if pf.ImageProcessing == nil {
-		return "/_image"
+		return "/_pola/image"
 	}
 	base := pf.ImageProcessing.Path
 	for _, e := range pf.ImageProcessing.Envs {
@@ -629,7 +629,7 @@ func (pf *Polafile) ImageProcessingPath(env string) string {
 	if base != "" {
 		return base
 	}
-	return "/_image"
+	return "/_pola/image"
 }
 
 // ImageProcessingMaxWidth returns the configured max width,

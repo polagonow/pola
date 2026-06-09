@@ -14,11 +14,14 @@ type Env struct {
 	Env         string `env:"POLA_ENV"           envDefault:"production"`
 	EmbedAssets bool   `env:"POLA_EMBED"        envDefault:"true"`
 
+	// Metrics/pprof default to the reserved /_pola/ namespace (see core/reserved).
+	// Struct tags cannot reference constants, so the literals are kept in sync
+	// with reserved.Metrics / reserved.Pprof.
 	MetricsEnabled bool   `env:"POLA_METRICS"       envDefault:"false"`
-	MetricsPath    string `env:"POLA_METRICS_PATH"  envDefault:"/metrics"`
+	MetricsPath    string `env:"POLA_METRICS_PATH"  envDefault:"/_pola/metrics"`
 
 	PprofEnabled bool   `env:"POLA_PPROF"      envDefault:"false"`
-	PprofPath    string `env:"POLA_PPROF_PATH" envDefault:"/debug/pprof"`
+	PprofPath    string `env:"POLA_PPROF_PATH" envDefault:"/_pola/pprof"`
 
 	TracingEnabled bool `env:"POLA_TRACING" envDefault:"false"`
 

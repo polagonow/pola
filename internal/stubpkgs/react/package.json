@@ -6,14 +6,14 @@
   "exports": {
     "./client": "./components/Client.tsx",
     "./error-boundary": "./components/ErrorBoundary.tsx",
-    "./link": "./components/Link.tsx"
+    "./link": "./components/Link.tsx",
+    "./image": "./components/Image.tsx",
+    "./router": "./components/Router.tsx",
+    "./og": "./components/Og.tsx"
   },
   "peerDependencies": {
     "react": "*",
     "react-dom": "*"
-  },
-  "dependencies": {
-    "react-server-dom-esm": "npm:@kentcdodds/tmp-react-server-dom-esm@^19.0.1"
   },
   "devDependencies": {
     "@types/react": "^19.2.14",

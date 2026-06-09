@@ -11,13 +11,14 @@ import (
 	"github.com/gorilla/websocket"
 
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/core/reserved"
 )
 
 // ClientScript is the browser-side WebSocket listener that triggers a page
 // reload when the dev server rebuilds.
 const ClientScript = `(function(){` +
 	`function connect(){` +
-	`var ws=new WebSocket("ws://"+location.host+"/__dev__/hot");` +
+	`var ws=new WebSocket("ws://"+location.host+"` + reserved.Hot + `");` +
 	`ws.onmessage=function(e){if(e.data==="reload")location.reload()};` +
 	`ws.onclose=function(){setTimeout(connect,2000)};` +
 	`}connect();` +
@@ -136,7 +137,7 @@ func NewHotReloader(cfg *core.Config, registry *core.Registry, initial *core.App
 	bundleInput := core.BundleInput{
 		AppDir:             absWebAppPath,
 		OutDir:             filepath.Join(absPublicDir, "assets"),
-		AssetsURLPath:      "/public/assets",
+		AssetsURLPath:      reserved.Assets,
 		ClientComponents:   clientComponents,
 		ServerEntryContent: serverEntryContent,
 		Dev:                true,
@@ -303,12 +304,12 @@ func (h *HotReloader) contextFromDone() context.Context {
 	return ctx
 }
 
-// Handler returns an http.Handler that serves WebSocket at /__dev__/hot
+// Handler returns an http.Handler that serves WebSocket at reserved.Hot
 // and delegates all other requests to the current live App.
 func (h *HotReloader) Handler() http.Handler {
 	ws := &wsServer{bus: h.bus}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/__dev__/hot" {
+		if r.URL.Path == reserved.Hot {
 			ws.ServeHTTP(w, r)
 			return
 		}

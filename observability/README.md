@@ -9,14 +9,14 @@ Metrics, tracing, and profiling for the Pola framework.
 | Package | Interface | Notes |
 |---------|-----------|-------|
 | `metrics/noop` | `core.Metrics` | Default — no-op |
-| `metrics/prometheus` | `core.Metrics` | Prometheus `/metrics` endpoint |
+| `metrics/prometheus` | `core.Metrics` | Prometheus `/_pola/metrics` endpoint |
 
 Tracks: request latency, route hits, render duration, bundle build time.
 
 ```go
 import "github.com/polagonow/pola/observability/metrics/prometheus"
 
-reg.Metrics = prometheus.New()   // mounts /metrics automatically
+reg.Metrics = prometheus.New()   // mounts /_pola/metrics automatically
 ```
 
 Enable via env: `POLA_METRICS=true`
@@ -40,12 +40,12 @@ Enable via env: `POLA_TRACING=true`
 
 ### Pprof (`observability/pprof/`)
 
-Serves Go profiling data at `/debug/pprof/`. Disabled by default.
+Serves Go profiling data at `/_pola/pprof/`. Disabled by default.
 
 ```go
 import "github.com/polagonow/pola/observability/pprof"
 
-reg.Pprof = pprof.New()   // mounts /debug/pprof/
+reg.Pprof = pprof.New()   // mounts /_pola/pprof/
 ```
 
 Enable via env: `POLA_PPROF=true`

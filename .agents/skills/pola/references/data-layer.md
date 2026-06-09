@@ -227,5 +227,5 @@ the Polafile before generating.
 2. Attach to a model with a blob reference: `pola generate scaffold Document title:string
    file:references{StorageBlob}`. A `references{StorageBlob}` field marks the resource as having a
    file upload, so the generated route handles multipart form data for that field.
-3. With `image_processing` enabled, the `/_image` endpoint and the `ImageProcessing.processURL` bridge binding can resize/crop
+3. With `image_processing` enabled, the `/_pola/image` endpoint and the `ImageProcessing.processURL` bridge binding can resize/crop
    uploaded images on the fly.

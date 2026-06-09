@@ -272,7 +272,7 @@ pola dev [flags]
 | `--app-path` | `./web` (`POLA_WEBAPP_PATH`) | Path to the web app directory |
 | `--csrf` | `true` (`POLA_CSRF`) | Enable CSRF protection |
 | `--security-headers` | `true` (`POLA_SECURITY_HEADERS`) | Enable security headers |
-| `--image-processing` | — (`POLA_IMAGE_PROCESSING`) | Image processing adapter (`imaging`); enables `/_image` endpoint and the `ImageProcessing.processURL` bridge binding |
+| `--image-processing` | — (`POLA_IMAGE_PROCESSING`) | Image processing adapter (`imaging`); enables `/_pola/image` endpoint and the `ImageProcessing.processURL` bridge binding |
 
 Defaults fall back through: CLI flag → env var → `Polafile.hcl` → hardcoded default.
 
@@ -858,7 +858,7 @@ pola {
   image_processing {
     enabled    = true
     adapter    = "imaging"
-    path       = "/_image"
+    path       = "/_pola/image"
     max_width  = 4096
     max_height = 4096
     format     = "jpeg"
@@ -932,7 +932,7 @@ For any setting (e.g. `bundler`, `vm`, `port`), the CLI resolves in this order �
 | `POLA_CSRF` | Enable CSRF (`false` disables) | `true` |
 | `POLA_SECURITY_HEADERS` | Enable security headers | `true` |
 | `POLA_IMAGE_PROCESSING` | Image processing adapter (`imaging`, `none`) | — |
-| `POLA_IMAGE_PROCESSING_PATH` | HTTP path prefix for the image endpoint | `/_image` |
+| `POLA_IMAGE_PROCESSING_PATH` | HTTP path prefix for the image endpoint | `/_pola/image` |
 | `POLA_IMAGE_PROCESSING_MAX_WIDTH` | Max output width clamp | `4096` |
 | `POLA_IMAGE_PROCESSING_MAX_HEIGHT` | Max output height clamp | `4096` |
 | `POLA_IMAGE_PROCESSING_FORMAT` | Default output format | `jpeg` |
@@ -1081,7 +1081,7 @@ The bridge is regenerated automatically on `pola dev`, `pola build`, and `pola n
 In `pola dev`, two watchers run simultaneously:
 
 - **Go watcher** — polls `.go`, `.tmpl`, `go.mod`, `go.sum`, `Polafile.hcl`. On change, kills and respawns the Go process.
-- **JS watcher** — `fsnotify` on the `AppDir`. On `.tsx`/`.ts` change, re-runs discovery + bundling and pushes a reload event over `/__dev__/hot` (WebSocket).
+- **JS watcher** — `fsnotify` on the `AppDir`. On `.tsx`/`.ts` change, re-runs discovery + bundling and pushes a reload event over `/_pola/hot` (WebSocket).
 
 The WebSocket client script is injected automatically into the HTML shell.
 
@@ -1115,15 +1115,15 @@ The default `imaging` adapter is pure Go (no CGO), backed by [`disintegration/im
 
 ### HTTP endpoint
 
-Mounted at the configured prefix (default `/_image`). Supports `GET` with a `?url=` source or `POST` with a raw image body. All `ProcessOptions` fields are accepted as query params.
+Mounted at the configured prefix (default `/_pola/image`). Supports `GET` with a `?url=` source or `POST` with a raw image body. All `ProcessOptions` fields are accepted as query params.
 
 ```bash
 # Fetch a remote image and resize to fit 800×600
-curl "http://localhost:3000/_image?url=https://example.com/cat.jpg&width=800&height=600&fit=cover"
+curl "http://localhost:3000/_pola/image?url=https://example.com/cat.jpg&width=800&height=600&fit=cover"
 
 # POST a local image, blur, convert to PNG
 curl -X POST --data-binary @photo.jpg \
-  "http://localhost:3000/_image?blur=2&format=png"
+  "http://localhost:3000/_pola/image?blur=2&format=png"
 ```
 
 | Query param | Type | Description |

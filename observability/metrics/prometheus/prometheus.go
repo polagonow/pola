@@ -3,14 +3,17 @@
 package prometheus
 
 import (
+	"cmp"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/core/reserved"
 )
 
 // Metrics is a Prometheus-backed metrics collector.
@@ -19,13 +22,16 @@ type Metrics struct {
 	requestTotal    *prometheus.CounterVec
 	renderDuration  *prometheus.HistogramVec
 	reg             *prometheus.Registry
+	path            string
 }
 
-// New creates a Prometheus metrics collector.
+// New creates a Prometheus metrics collector. The endpoint path defaults to
+// reserved.Metrics and may be overridden via POLA_METRICS_PATH.
 func New() *Metrics {
 	reg := prometheus.NewRegistry()
 	m := &Metrics{
-		reg: reg,
+		reg:  reg,
+		path: cmp.Or(os.Getenv("POLA_METRICS_PATH"), reserved.Metrics),
 		requestDuration: prometheus.NewHistogramVec(prometheus.HistogramOpts{
 			Name:    "pola_request_duration_seconds",
 			Help:    "HTTP request latency",
@@ -52,7 +58,7 @@ var _ core.Metrics = (*Metrics)(nil)
 func (m *Metrics) Name() string { return "prometheus" }
 
 // Path returns the metrics endpoint path.
-func (m *Metrics) Path() string { return "/metrics" }
+func (m *Metrics) Path() string { return m.path }
 
 // RecordRequest records a single HTTP request's route, method, status and duration.
 func (m *Metrics) RecordRequest(route, method string, statusCode int, d time.Duration) {

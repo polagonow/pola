@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/core/reserved"
 )
 
 // Metrics is a no-op metrics implementation.
@@ -22,7 +23,7 @@ var _ core.Metrics = (*Metrics)(nil)
 func (m *Metrics) Name() string { return "noop" }
 
 // Path returns the metrics endpoint path.
-func (m *Metrics) Path() string { return "/metrics" }
+func (m *Metrics) Path() string { return reserved.Metrics }
 
 // RecordRequest is a no-op.
 func (m *Metrics) RecordRequest(route, method string, statusCode int, d time.Duration) {}

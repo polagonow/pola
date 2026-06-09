@@ -21,6 +21,7 @@ import (
 
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/core/globals"
+	"github.com/polagonow/pola/core/reserved"
 )
 
 // ImageProcessor is the interface that adapters (e.g. disintegration/imaging)
@@ -52,7 +53,7 @@ type ServiceConfig struct {
 // DefaultConfig returns configuration from environment variables with defaults.
 func DefaultConfig() ServiceConfig {
 	return ServiceConfig{
-		PathPrefix: envOr("POLA_IMAGE_PROCESSING_PATH", "/_image"),
+		PathPrefix: envOr("POLA_IMAGE_PROCESSING_PATH", reserved.Image),
 		MaxWidth:   envOrInt("POLA_IMAGE_PROCESSING_MAX_WIDTH", 4096),
 		MaxHeight:  envOrInt("POLA_IMAGE_PROCESSING_MAX_HEIGHT", 4096),
 		Format:     envOr("POLA_IMAGE_PROCESSING_FORMAT", "jpeg"),

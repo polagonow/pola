@@ -1,5 +1,5 @@
-import { createRoot, hydrateRoot } from "react-dom/client";
-import { createFromFetch } from "react-server-dom-esm/client";
+import { createRoot } from "react-dom/client";
+import { createFromFetch } from "./flight";
 import React, { use, startTransition } from "react";
 import { notifyPathnameChange } from "./Link";
 
@@ -75,6 +75,9 @@ function navigateWithFlight(url: string) {
 function navigate(href: string) {
   history.pushState(null, "", href);
   notifyPathnameChange();
+  // Notify @pola/react/router consumers (useRouter/usePathname) of the change.
+  // Back/forward fire a native "popstate" the router also listens to.
+  self.dispatchEvent(new CustomEvent("pola:navigate"));
   navigateWithFlight(href);
 }
 

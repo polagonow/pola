@@ -104,6 +104,14 @@ Navigation uses the bridge's Link:
 import { Link } from "@pola/react/link";
 ```
 
+`@pola/react` also ships these client helpers (stubbed into `node_modules` by the CLI):
+
+```tsx
+import { Image } from "@pola/react/image";     // optimized <Image>, routes through /_pola/image
+import { useRouter, usePathname } from "@pola/react/router"; // Next.js-style client hooks
+import { ImageResponse } from "@pola/react/og"; // dynamic OG image serializer
+```
+
 Rules:
 
 - **Import the struct by name from `@pola/actions`** — e.g. `import { Blog } from "@pola/actions"`.
