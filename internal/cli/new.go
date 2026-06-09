@@ -87,7 +87,7 @@ func init() {
 	newCmd.Flags().StringVar(&newFlags.renderer, "renderer", "react", "view renderer (react)")
 	newCmd.Flags().StringVar(&newFlags.bundler, "bundler", "esbuild", "JS bundler (esbuild)")
 	newCmd.Flags().StringVar(&newFlags.router, "router", "nextjs", "router style (nextjs)")
-	newCmd.Flags().StringVar(&newFlags.css, "css", "tailwind", "CSS processor (tailwind, none)")
+	newCmd.Flags().StringVar(&newFlags.css, "css", "none", "CSS processor (tailwind, sass, none)")
 	newCmd.Flags().StringVar(&newFlags.vm, "vm", "goja", "JS engine (goja)")
 	newCmd.Flags().StringVar(&newFlags.ui, "ui", "none", "UI component library (shadcn, mui, slds, ads, carbon, patternfly, fluentui, antd, none)")
 	newCmd.Flags().StringVar(&newFlags.polaPath, "pola-path", "", "local path to pola framework source (adds replace directive)")
@@ -118,6 +118,17 @@ func runNew(cmd *cobra.Command, args []string) error {
 	appName, parsedModule, err := parseAppNameAndModule(rawInput)
 	if err != nil {
 		return err
+	}
+
+	if !cmd.Flags().Lookup("ui").Changed {
+		uiPrompt := &survey.Select{
+			Message: "UI component library:",
+			Options: []string{"none", "shadcn", "mui", "antd", "carbon", "patternfly", "fluentui", "slds", "ads"},
+			Default: "none",
+		}
+		if err := survey.AskOne(uiPrompt, &newFlags.ui); err != nil {
+			return fmt.Errorf("prompt ui: %w", err)
+		}
 	}
 
 	modulePath := newFlags.module
@@ -178,8 +189,23 @@ func runNew(cmd *cobra.Command, args []string) error {
 	if newFlags.ui != "" && newFlags.ui != "none" && !cmd.Flags().Lookup("css").Changed {
 		if app.UIRequiresSass(newFlags.renderer, newFlags.ui) {
 			newFlags.css = "sass"
-		} else if !app.UIRequiresTailwind(newFlags.renderer, newFlags.ui) {
-			newFlags.css = "none"
+		} else if app.UIRequiresTailwind(newFlags.renderer, newFlags.ui) {
+			newFlags.css = "tailwind"
+		}
+	}
+
+	// If the UI didn't dictate a CSS choice and the user didn't pass --css,
+	// ask. Default is "none" so bare React stays Tailwind-free.
+	if !cmd.Flags().Lookup("css").Changed &&
+		!app.UIRequiresTailwind(newFlags.renderer, newFlags.ui) &&
+		!app.UIRequiresSass(newFlags.renderer, newFlags.ui) {
+		cssPrompt := &survey.Select{
+			Message: "CSS framework:",
+			Options: []string{"none", "tailwind"},
+			Default: "none",
+		}
+		if err := survey.AskOne(cssPrompt, &newFlags.css); err != nil {
+			return fmt.Errorf("prompt css: %w", err)
 		}
 	}
 
