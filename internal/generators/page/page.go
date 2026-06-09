@@ -137,6 +137,38 @@ var pageSpecs = []pageSpec{
 	},
 }
 
+func (g *PageGenerator) Artifacts(cmd *cobra.Command, args []string, projectDir string) ([]string, error) {
+	if len(args) < 1 {
+		return nil, fmt.Errorf("page name is required")
+	}
+	def, err := model.ParseArgs(args)
+	if err != nil {
+		return nil, err
+	}
+	pf, err := polafile.Load(projectDir)
+	if err != nil {
+		return nil, fmt.Errorf("load Polafile: %w", err)
+	}
+	if pf == nil {
+		pf = &polafile.Polafile{}
+	}
+	appDir := pf.AppDir()
+	data := buildPageData(def)
+
+	var paths []string
+	for _, spec := range pageSpecs {
+		relPath := spec.outputPath(appDir, data.PluralSnake)
+		paths = append(paths, filepath.Join(projectDir, relPath))
+	}
+	if generators.ShouldGenerateTests(cmd, pf.GenerateTests()) {
+		for _, spec := range testSpecs {
+			relPath := spec.outputPath(appDir, data.PluralSnake)
+			paths = append(paths, filepath.Join(projectDir, relPath))
+		}
+	}
+	return paths, nil
+}
+
 func (g *PageGenerator) run(cmd *cobra.Command, args []string) error {
 	projectDir, err := project.FindRoot()
 	if err != nil {

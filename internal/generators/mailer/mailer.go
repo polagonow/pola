@@ -80,6 +80,54 @@ template under app/mailers/<name>_mailer/.`,
 	}
 }
 
+func (g *MailerGenerator) Artifacts(cmd *cobra.Command, args []string, projectDir string) ([]string, error) {
+	if len(args) < 1 {
+		return nil, fmt.Errorf("mailer name is required")
+	}
+	name := schema.PascalCase(args[0])
+	name = strings.TrimSuffix(name, "Mailer")
+	actions := args[1:]
+	if len(actions) == 0 {
+		return nil, fmt.Errorf("at least one action name is required")
+	}
+
+	appDir := "app"
+	rendererType := "react"
+	pf, err := polafile.Load(projectDir)
+	if err != nil {
+		return nil, fmt.Errorf("load Polafile: %w", err)
+	}
+	if pf != nil {
+		if pf.App != "" {
+			appDir = pf.App
+		}
+		rendererType = pf.MailerRenderer("development")
+	}
+
+	snakeName := schema.SnakeCase(name)
+	var paths []string
+
+	paths = append(paths, filepath.Join(projectDir, "mailers", snakeName+"_mailer.go"))
+	if generators.ShouldGenerateTests(cmd, pf.GenerateTests()) {
+		paths = append(paths, filepath.Join(projectDir, "mailers", snakeName+"_mailer_test.go"))
+	}
+
+	tmplDir := filepath.Join(projectDir, appDir, "mailers", snakeName+"_mailer")
+	for _, a := range actions {
+		actionSnake := schema.SnakeCase(schema.PascalCase(a))
+		if rendererType == "tmpl" {
+			paths = append(paths,
+				filepath.Join(tmplDir, actionSnake+".html.tmpl"),
+				filepath.Join(tmplDir, actionSnake+".text.tmpl"),
+			)
+		} else {
+			paths = append(paths, filepath.Join(tmplDir, actionSnake+".tsx"))
+		}
+	}
+
+	return paths, nil
+}
+
 func (g *MailerGenerator) run(cmd *cobra.Command, args []string) error {
 	name := schema.PascalCase(args[0])
 	// Strip "Mailer" suffix if provided — we add it in the template.

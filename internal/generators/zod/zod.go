@@ -81,6 +81,35 @@ Field definitions follow the same syntax as the model generator.`,
 	}
 }
 
+func zodPaths(name, projectDir, appDir string, generateTests bool) []string {
+	snake := schema.SnakeCase(name)
+	schemasDir := filepath.Join(projectDir, appDir, "schemas")
+	paths := []string{filepath.Join(schemasDir, snake+".ts")}
+	if generateTests {
+		paths = append(paths, filepath.Join(schemasDir, snake+".test.ts"))
+	}
+	return paths
+}
+
+func (g *ZodGenerator) Artifacts(cmd *cobra.Command, args []string, projectDir string) ([]string, error) {
+	if len(args) < 1 {
+		return nil, fmt.Errorf("name is required")
+	}
+	def, err := model.ParseArgs(args)
+	if err != nil {
+		return nil, err
+	}
+	pf, err := polafile.Load(projectDir)
+	if err != nil {
+		return nil, fmt.Errorf("load Polafile: %w", err)
+	}
+	if pf == nil {
+		pf = &polafile.Polafile{}
+	}
+	genTests := generators.ShouldGenerateTests(cmd, pf.GenerateTests())
+	return zodPaths(def.Name, projectDir, pf.AppDir(), genTests), nil
+}
+
 func (g *ZodGenerator) run(cmd *cobra.Command, args []string) error {
 	projectDir, err := project.FindRoot()
 	if err != nil {

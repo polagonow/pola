@@ -60,6 +60,36 @@ Field definitions follow the same syntax as the model generator.`,
 	}
 }
 
+func servicePaths(name, projectDir, svcDir string, generateTests bool) []string {
+	snake := schema.SnakeCase(name)
+	serviceDir := filepath.Join(projectDir, svcDir)
+	paths := []string{filepath.Join(serviceDir, snake+"_service.go")}
+	if generateTests {
+		paths = append(paths, filepath.Join(serviceDir, snake+"_service_test.go"))
+	}
+	return paths
+}
+
+func (g *ServiceGenerator) Artifacts(cmd *cobra.Command, args []string, projectDir string) ([]string, error) {
+	if len(args) < 1 {
+		return nil, fmt.Errorf("service name is required")
+	}
+	def, err := model.ParseArgs(args)
+	if err != nil {
+		return nil, err
+	}
+	svcDir := "services"
+	pf, err := polafile.Load(projectDir)
+	if err != nil {
+		return nil, fmt.Errorf("load Polafile: %w", err)
+	}
+	if pf != nil {
+		svcDir = pf.ServicesDir()
+	}
+	genTests := generators.ShouldGenerateTests(cmd, pf.GenerateTests())
+	return servicePaths(def.Name, projectDir, svcDir, genTests), nil
+}
+
 func (g *ServiceGenerator) run(cmd *cobra.Command, args []string) error {
 	projectDir, err := project.FindRoot()
 	if err != nil {

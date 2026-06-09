@@ -92,6 +92,28 @@ Use --service=Name to wire the route to a generated service via DI.`,
 	return cmd
 }
 
+func routePaths(name, projectDir string, generateTests bool) []string {
+	segments := strings.Split(name, "/")
+	for i, s := range segments {
+		segments[i] = schema.Pluralize(strings.ToLower(s))
+	}
+	targetDir := filepath.Join(append([]string{projectDir, "routes"}, segments...)...)
+	paths := []string{filepath.Join(targetDir, "route.go")}
+	if generateTests {
+		paths = append(paths, filepath.Join(targetDir, "route_test.go"))
+	}
+	return paths
+}
+
+func (g *RouteGenerator) Artifacts(cmd *cobra.Command, args []string, projectDir string) ([]string, error) {
+	if len(args) < 1 {
+		return nil, fmt.Errorf("route name is required")
+	}
+	pf, _ := polafile.Load(projectDir)
+	genTests := generators.ShouldGenerateTests(cmd, pf.GenerateTests())
+	return routePaths(args[0], projectDir, genTests), nil
+}
+
 func (g *RouteGenerator) run(cmd *cobra.Command, args []string) error {
 	name := args[0]
 

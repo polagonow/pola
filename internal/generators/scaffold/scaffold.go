@@ -52,6 +52,80 @@ Use --skip-model, --skip-action, or --skip-route to omit specific parts.`,
 	return cmd
 }
 
+func (g *ScaffoldGenerator) Artifacts(cmd *cobra.Command, args []string, projectDir string) ([]string, error) {
+	if len(args) < 1 {
+		return nil, fmt.Errorf("scaffold name is required")
+	}
+	name := args[0]
+
+	skipModel, _ := cmd.Flags().GetBool("skip-model")
+	skipRepository, _ := cmd.Flags().GetBool("skip-repository")
+	skipService, _ := cmd.Flags().GetBool("skip-service")
+	skipAction, _ := cmd.Flags().GetBool("skip-action")
+	skipRoute, _ := cmd.Flags().GetBool("skip-route")
+	skipZod, _ := cmd.Flags().GetBool("skip-zod")
+	skipViews, _ := cmd.Flags().GetBool("skip-views")
+
+	var all []string
+
+	collect := func(genName string, genArgs []string) error {
+		g, err := generators.Get(genName)
+		if err != nil {
+			return err
+		}
+		d, ok := g.(generators.Destroyer)
+		if !ok {
+			return nil
+		}
+		paths, err := d.Artifacts(cmd, genArgs, projectDir)
+		if err != nil {
+			return err
+		}
+		all = append(all, paths...)
+		return nil
+	}
+
+	if !skipModel {
+		if err := collect("model", args); err != nil {
+			return nil, fmt.Errorf("model artifacts: %w", err)
+		}
+	}
+	if !skipRepository {
+		if err := collect("repository", args); err != nil {
+			return nil, fmt.Errorf("repository artifacts: %w", err)
+		}
+	}
+	if !skipService {
+		if err := collect("service", args); err != nil {
+			return nil, fmt.Errorf("service artifacts: %w", err)
+		}
+	}
+	if !skipAction {
+		actionArgs := []string{name}
+		if err := collect("action", actionArgs); err != nil {
+			return nil, fmt.Errorf("action artifacts: %w", err)
+		}
+	}
+	if !skipRoute {
+		routeArgs := []string{strings.ToLower(name), "GET,POST,PUT,PATCH,DELETE"}
+		if err := collect("route", routeArgs); err != nil {
+			return nil, fmt.Errorf("route artifacts: %w", err)
+		}
+	}
+	if !skipZod {
+		if err := collect("zod", args); err != nil {
+			return nil, fmt.Errorf("zod artifacts: %w", err)
+		}
+	}
+	if !skipViews {
+		if err := collect("page", args); err != nil {
+			return nil, fmt.Errorf("page artifacts: %w", err)
+		}
+	}
+
+	return all, nil
+}
+
 func (g *ScaffoldGenerator) run(cmd *cobra.Command, args []string) error {
 	name := args[0]
 

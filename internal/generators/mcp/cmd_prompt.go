@@ -25,6 +25,22 @@ constructor takes *core.Registry so the prompt can resolve services via DI.`,
 	}
 }
 
+func promptArtifacts(cmd *cobra.Command, args []string, projectDir string) ([]string, error) {
+	if len(args) < 1 {
+		return nil, fmt.Errorf("prompt name is required")
+	}
+	name := schema.PascalCase(args[0])
+	dir := filepath.Join(projectDir, "mcp", "prompts")
+	snake := schema.SnakeCase(name)
+	paths := []string{filepath.Join(dir, snake+"_prompt.go")}
+
+	pf, _ := polafile.Load(projectDir)
+	if generators.ShouldGenerateTests(cmd, pf.GenerateTests()) {
+		paths = append(paths, filepath.Join(dir, snake+"_prompt_test.go"))
+	}
+	return paths, nil
+}
+
 func runPrompt(cmd *cobra.Command, args []string) error {
 	name := schema.PascalCase(args[0])
 

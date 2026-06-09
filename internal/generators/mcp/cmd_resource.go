@@ -25,6 +25,22 @@ constructor takes *core.Registry so the resource can resolve services via DI.`,
 	}
 }
 
+func resourceArtifacts(cmd *cobra.Command, args []string, projectDir string) ([]string, error) {
+	if len(args) < 1 {
+		return nil, fmt.Errorf("resource name is required")
+	}
+	name := schema.PascalCase(args[0])
+	dir := filepath.Join(projectDir, "mcp", "resources")
+	snake := schema.SnakeCase(name)
+	paths := []string{filepath.Join(dir, snake+"_resource.go")}
+
+	pf, _ := polafile.Load(projectDir)
+	if generators.ShouldGenerateTests(cmd, pf.GenerateTests()) {
+		paths = append(paths, filepath.Join(dir, snake+"_resource_test.go"))
+	}
+	return paths, nil
+}
+
 func runResource(cmd *cobra.Command, args []string) error {
 	name := schema.PascalCase(args[0])
 
