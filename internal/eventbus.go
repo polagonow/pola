@@ -1,6 +1,10 @@
 package internal
 
-import "sync"
+import (
+	"encoding/json"
+	"fmt"
+	"sync"
+)
 
 // EventBus is an in-process pub/sub bus. Registered as a DI singleton
 // so it can be shared across components (e.g. HotReloader, WebSocket server).
@@ -65,4 +69,67 @@ func (m *EventBus) closer(id int, ch chan []byte, topics []string) func() {
 		}
 		once.Do(func() { close(ch) })
 	}
+}
+
+// ── Typed pub/sub helpers ────────────────────────────────────────────────────
+
+// typedTopic returns a deterministic topic name for a given Go type.
+func typedTopic[T any]() string {
+	var zero T
+	return fmt.Sprintf("typed:%T", zero)
+}
+
+// PublishTyped sends a typed event to all subscribers of that event type.
+// The event is JSON-encoded for transmission over the byte-channel bus.
+func PublishTyped[T any](bus *EventBus, event T) {
+	data, err := json.Marshal(event)
+	if err != nil {
+		return
+	}
+	bus.Publish(typedTopic[T](), data)
+}
+
+// TypedSubscription is a type-safe subscription handle.
+type TypedSubscription[T any] struct {
+	raw *Subscription
+	ch  chan T
+	done chan struct{}
+}
+
+// Wait returns the channel to receive typed events on.
+func (s *TypedSubscription[T]) Wait() <-chan T { return s.ch }
+
+// Close unsubscribes and stops the decoder goroutine.
+func (s *TypedSubscription[T]) Close() {
+	s.raw.Close()
+	close(s.done)
+}
+
+// SubscribeTyped creates a type-safe subscription for events of type T.
+func SubscribeTyped[T any](bus *EventBus) *TypedSubscription[T] {
+	raw := bus.Subscribe(typedTopic[T]())
+	ch := make(chan T, 1)
+	done := make(chan struct{})
+	go func() {
+		defer close(ch)
+		for {
+			select {
+			case <-done:
+				return
+			case data, ok := <-raw.Wait():
+				if !ok {
+					return
+				}
+				var event T
+				if err := json.Unmarshal(data, &event); err != nil {
+					continue
+				}
+				select {
+				case ch <- event:
+				default:
+				}
+			}
+		}
+	}()
+	return &TypedSubscription[T]{raw: raw, ch: ch, done: done}
 }

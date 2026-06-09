@@ -144,13 +144,25 @@ func NewHotReloader(cfg *core.Config, registry *core.Registry, initial *core.App
 		CSSProcessor:       css,
 	}
 	// Re-scan routes and regenerate server entry before each watch-mode rebuild
-	// so that newly created page files are included in the bundle.
+	// so that newly created page files are included in the bundle. When the
+	// router supports incremental change detection, skip re-scanning if the
+	// changed files are not route-relevant (e.g. only a component body changed).
 	bundleInput.BeforeRebuild = func(input *core.BundleInput) {
 		if router == nil || fsys == nil || renderer == nil {
 			return
 		}
+
+		// Skip full re-scan if the change detector says no route files changed.
+		if cd, ok := router.(core.ChangeDetector); ok && len(input.ChangedPaths) > 0 {
+			if !cd.HasRouteRelevantChange(input.ChangedPaths) {
+				logger.Debug("hotreload: skipping route re-scan (no route-relevant changes)")
+				return
+			}
+		}
+
 		exts := renderer.FileExtensions()
-		if _, scanErr := router.ScanRoutes(context.Background(), fsys, absWebAppPath, exts); scanErr != nil {
+		newRoutes, scanErr := router.ScanRoutes(context.Background(), fsys, absWebAppPath, exts)
+		if scanErr != nil {
 			return
 		}
 		if dp, ok := router.(interface {
@@ -170,6 +182,7 @@ func NewHotReloader(cfg *core.Config, registry *core.Registry, initial *core.App
 				}
 			}
 		}
+		PublishTyped(bus, EventRoutesChanged{Routes: newRoutes})
 	}
 	if renderer != nil {
 		bundleInput.WatchExtensions = mergeWatchExtensions(renderer.FileExtensions())
@@ -285,6 +298,7 @@ func NewHotReloader(cfg *core.Config, registry *core.Registry, initial *core.App
 				h.current.Store(&liveApp{app: newApp, handler: newApp})
 
 				logger.Info("hotreload: rebuild complete")
+				PublishTyped(bus, EventBundleRebuilt{Output: newOutput})
 				bus.Publish("update", []byte("reload"))
 			}
 		}

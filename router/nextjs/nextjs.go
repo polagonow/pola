@@ -22,8 +22,14 @@ type Router struct {
 	routes        []core.Route              // raw list for callers that need it
 	staticRoutes  map[string]*compiledRoute // exact-match O(1) lookup
 	dynamicRoutes []*compiledRoute          // sorted by segment specificity
+	resolver      *routeResolver            // radix-tree resolver for dynamic routes
 	sorted        bool
 	discovery     core.DiscoveryResult
+
+	// Incremental rebuild support: tracks the app dir and file extensions
+	// from the last ScanRoutes call so HasRouteRelevantChange can filter.
+	lastAppDir string
+	lastExts   map[string]bool
 }
 
 // New returns a new Router with no routes registered yet.
@@ -142,16 +148,20 @@ func (r *Router) ScanRoutes(ctx context.Context, fsys core.FS, appDir string, ex
 		GlobalError:           gc.ErrorPath,
 		RootLayoutReturnsHTML: rootLayoutReturnsHTML,
 	}
+	r.lastAppDir = appDir
+	r.lastExts = extSet
 	r.mu.Unlock()
 
 	return routes, nil
 }
 
 // compileAndPartition compiles routes into static (map) and dynamic (sorted slice)
-// buckets. Must be called with r.mu held.
+// buckets, and builds a radix tree for O(log n) dynamic matching.
+// Must be called with r.mu held.
 func (r *Router) compileAndPartition(routes []core.Route) {
 	r.staticRoutes = make(map[string]*compiledRoute, len(routes))
 	r.dynamicRoutes = nil
+
 	for _, rt := range routes {
 		cr := compilePattern(rt)
 		if cr.compiled.IsStatic {
@@ -160,6 +170,7 @@ func (r *Router) compileAndPartition(routes []core.Route) {
 			r.dynamicRoutes = append(r.dynamicRoutes, cr)
 		}
 	}
+	r.resolver = buildRouteResolver(r.dynamicRoutes)
 	r.sorted = false
 }
 
@@ -169,12 +180,8 @@ func (r *Router) Resolve(_ context.Context, path string) (*core.Route, map[strin
 	path = normalizePath(path)
 
 	r.mu.Lock()
-	if !r.sorted {
-		sortCompiledRoutes(r.dynamicRoutes)
-		r.sorted = true
-	}
 	static := r.staticRoutes
-	dynamic := r.dynamicRoutes
+	res := r.resolver
 	r.mu.Unlock()
 
 	// O(1) lookup for static routes.
@@ -182,9 +189,9 @@ func (r *Router) Resolve(_ context.Context, path string) (*core.Route, map[strin
 		return &cr.Route, map[string]any{}
 	}
 
-	// Linear scan of sorted dynamic routes.
-	for _, cr := range dynamic {
-		if params, ok := matchCompiled(cr, path); ok {
+	// Radix tree match for dynamic routes.
+	if res != nil {
+		if cr, params, ok := res.Match(path); ok {
 			return &cr.Route, params
 		}
 	}
@@ -207,6 +214,42 @@ func (r *Router) DiscoveryResult() core.DiscoveryResult {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	return r.discovery
+}
+
+// HasRouteRelevantChange reports whether any of the changed paths could affect
+// the route table (page files, layout files, error boundaries). When it returns
+// false, the hot-reload loop can safely skip a full ScanRoutes call.
+// Implements core.ChangeDetector.
+func (r *Router) HasRouteRelevantChange(changedPaths []string) bool {
+	r.mu.Lock()
+	appDir := r.lastAppDir
+	extSet := r.lastExts
+	r.mu.Unlock()
+
+	if appDir == "" || len(extSet) == 0 {
+		return true // no prior scan — always re-scan
+	}
+
+	routeRelevantBases := map[string]bool{
+		"page": true, "layout": true, "error": true,
+		"loading": true, "not-found": true,
+		"global-not-found": true, "global-error": true,
+	}
+
+	for _, p := range changedPaths {
+		if !strings.HasPrefix(p, appDir) {
+			continue
+		}
+		ext := filepath.Ext(p)
+		if !extSet[ext] {
+			continue
+		}
+		base := strings.TrimSuffix(filepath.Base(p), ext)
+		if routeRelevantBases[base] {
+			return true
+		}
+	}
+	return false
 }
 
 // ── FS helpers ───────────────────────────────────────────────────────────────

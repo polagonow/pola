@@ -61,6 +61,13 @@ type Router interface {
 	Resolve(ctx context.Context, path string) (*Route, map[string]any)
 }
 
+// ChangeDetector is an optional interface routers may implement to support
+// incremental rebuilds. If the changed paths don't affect any known routes,
+// the hot-reload loop can skip a full route re-scan.
+type ChangeDetector interface {
+	HasRouteRelevantChange(changedPaths []string) bool
+}
+
 // Bundler builds JS bundles.
 type Bundler interface {
 	Name() string

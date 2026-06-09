@@ -51,6 +51,8 @@ type Router struct {
 	mu            sync.RWMutex
 	staticRoutes  map[string][]*apiRoute // keyed by pattern (static paths)
 	dynamicRoutes []*apiRoute            // sorted by specificity
+	routeTable    *patternmatch.RouteTable
+	routeMap      map[*patternmatch.CompiledRoute][]*apiRoute // pattern → all method handlers
 	sorted        bool
 }
 
@@ -166,9 +168,22 @@ func (r *Router) Build(registry *core.Registry) error {
 		}
 	}
 
-	// Sort dynamic routes by specificity.
+	// Sort dynamic routes by specificity and build radix tree.
 	sortAPIRoutes(r.dynamicRoutes)
 	r.sorted = true
+
+	// Build radix tree from unique dynamic patterns and map back to handlers.
+	r.routeMap = make(map[*patternmatch.CompiledRoute][]*apiRoute)
+	seen := make(map[string]*patternmatch.CompiledRoute)
+	var compiled []*patternmatch.CompiledRoute
+	for _, ar := range r.dynamicRoutes {
+		if _, ok := seen[ar.pattern]; !ok {
+			seen[ar.pattern] = ar.compiled
+			compiled = append(compiled, ar.compiled)
+		}
+		r.routeMap[seen[ar.pattern]] = append(r.routeMap[seen[ar.pattern]], ar)
+	}
+	r.routeTable = patternmatch.NewRouteTable(compiled)
 
 	return nil
 }
@@ -192,17 +207,32 @@ func (r *Router) Match(req *http.Request) (http.HandlerFunc, map[string]any, boo
 		// Pattern matched but method didn't — check dynamic routes too before 405.
 	}
 
-	// Linear scan of sorted dynamic routes.
+	// Radix tree lookup for dynamic routes (used after Build()).
 	var methodMatched bool
-	for _, ar := range r.dynamicRoutes {
-		params, ok := patternmatch.Match(ar.compiled, path)
-		if !ok {
-			continue
+	if r.routeTable != nil {
+		if compiled, params, ok := r.routeTable.Match(path); ok {
+			if handlers, found := r.routeMap[compiled]; found {
+				for _, ar := range handlers {
+					if ar.method == method {
+						return ar.handler, params, true
+					}
+					methodMatched = true
+				}
+			}
 		}
-		if ar.method == method {
-			return ar.handler, params, true
+	} else {
+		// Fallback: linear scan of sorted dynamic routes (when Build() was
+		// not called, e.g. routes added directly).
+		for _, ar := range r.dynamicRoutes {
+			params, ok := patternmatch.Match(ar.compiled, path)
+			if !ok {
+				continue
+			}
+			if ar.method == method {
+				return ar.handler, params, true
+			}
+			methodMatched = true
 		}
-		methodMatched = true
 	}
 
 	// If we matched a static pattern but not the method, check all static entries.
@@ -234,9 +264,19 @@ func (r *Router) allowedMethods(path string) []string {
 		}
 	}
 
-	for _, ar := range r.dynamicRoutes {
-		if _, ok := patternmatch.Match(ar.compiled, path); ok {
-			seen[ar.method] = true
+	if r.routeTable != nil {
+		if compiled, _, ok := r.routeTable.Match(path); ok {
+			if handlers, found := r.routeMap[compiled]; found {
+				for _, ar := range handlers {
+					seen[ar.method] = true
+				}
+			}
+		}
+	} else {
+		for _, ar := range r.dynamicRoutes {
+			if _, ok := patternmatch.Match(ar.compiled, path); ok {
+				seen[ar.method] = true
+			}
 		}
 	}
 
