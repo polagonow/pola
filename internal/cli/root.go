@@ -49,6 +49,7 @@ func init() {
 	rootCmd.AddCommand(serveCmd)
 	rootCmd.AddCommand(buildCmd)
 	rootCmd.AddCommand(generateCmd)
+	rootCmd.AddCommand(destroyCmd)
 	rootCmd.AddCommand(dbCmd)
 }
 

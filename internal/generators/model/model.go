@@ -68,6 +68,35 @@ Field syntax: field:type{options}:modifier1:modifier2
 	return cmd
 }
 
+func (g *ModelGenerator) Artifacts(cmd *cobra.Command, args []string, projectDir string) ([]string, error) {
+	if len(args) < 1 {
+		return nil, fmt.Errorf("model name is required")
+	}
+	def, err := ParseArgs(args)
+	if err != nil {
+		return nil, err
+	}
+	pf, err := polafile.Load(projectDir)
+	if err != nil {
+		return nil, fmt.Errorf("load Polafile: %w", err)
+	}
+	if pf == nil {
+		pf = &polafile.Polafile{}
+	}
+	orm := pf.DatabaseORM()
+	if orm == "" {
+		return nil, fmt.Errorf("ORM not configured in Polafile; cannot determine model paths")
+	}
+	outDir := filepath.Join(projectDir, pf.DatabaseModelsDir())
+	subDir := orm
+	if orm == "ent" {
+		subDir = "schema"
+	}
+	outFile := filepath.Join(outDir, subDir, schema.SnakeCase(def.Name)+".go")
+	fmt.Println("Note: Associated migration files were not removed. Use 'pola db rollback' and manually delete the migration file if needed.")
+	return []string{outFile}, nil
+}
+
 func (g *ModelGenerator) run(cmd *cobra.Command, args []string) error {
 	projectDir, err := project.FindRoot()
 	if err != nil {

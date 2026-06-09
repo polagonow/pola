@@ -66,6 +66,63 @@ After running this, you can associate files with models:
 	return cmd
 }
 
+func (g *StorageGenerator) Artifacts(cmd *cobra.Command, args []string, projectDir string) ([]string, error) {
+	pf, err := polafile.Load(projectDir)
+	if err != nil {
+		return nil, fmt.Errorf("load Polafile: %w", err)
+	}
+	if pf == nil {
+		return nil, fmt.Errorf("no Polafile.hcl found")
+	}
+	orm := pf.DatabaseORM()
+	if orm == "" {
+		return nil, fmt.Errorf("ORM not configured in Polafile")
+	}
+
+	var all []string
+
+	blobArgs := []string{"StorageBlob", "key:string:uniq", "filename:string", "content_type:string", "byte_size:int64", "checksum:string"}
+	attachmentArgs := []string{"StorageAttachment", "name:string:index", "owner:references{polymorphic}", "storage_blob_id:int:index"}
+
+	collect := func(genName string, genArgs []string) error {
+		g, err := generators.Get(genName)
+		if err != nil {
+			return err
+		}
+		d, ok := g.(generators.Destroyer)
+		if !ok {
+			return nil
+		}
+		paths, err := d.Artifacts(cmd, genArgs, projectDir)
+		if err != nil {
+			return err
+		}
+		all = append(all, paths...)
+		return nil
+	}
+
+	if err := collect("model", blobArgs); err != nil {
+		return nil, err
+	}
+	if err := collect("repository", blobArgs); err != nil {
+		return nil, err
+	}
+	if err := collect("model", attachmentArgs); err != nil {
+		return nil, err
+	}
+
+	routesDir := pf.Routes
+	if routesDir == "" {
+		routesDir = "routes"
+	}
+	blobRouteFile := filepath.Join(projectDir, routesDir, "storage_blobs", "route.go")
+	all = append(all, blobRouteFile)
+
+	fmt.Println("Note: The storage { } block in Polafile.hcl was NOT removed. Remove it manually if storage is no longer needed.")
+
+	return all, nil
+}
+
 func (g *StorageGenerator) run(cmd *cobra.Command, _ []string) error {
 	projectDir, err := project.FindRoot()
 	if err != nil {

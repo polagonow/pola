@@ -7,9 +7,11 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
 
+	survey "github.com/AlecAivazis/survey/v2"
 	"github.com/spf13/cobra"
 )
 
@@ -153,6 +155,105 @@ func CheckCollision(cmd *cobra.Command, path string) error {
 		fmt.Printf("Overwriting %s\n", path)
 	}
 	return nil
+}
+
+// Destroyer is an optional interface that generators may implement to support
+// `pola destroy`. Generators that implement this interface can compute the
+// list of files they would create for given arguments, enabling deletion.
+type Destroyer interface {
+	// Artifacts returns the absolute file paths that this generator would
+	// create for the given arguments and command flags. It does NOT create
+	// files — it only computes paths.
+	Artifacts(cmd *cobra.Command, args []string, projectDir string) ([]string, error)
+}
+
+// Destroy removes files that a generator would have created for the given args.
+func Destroy(name string, cmd *cobra.Command, args []string, projectDir string, dryRun, force bool) error {
+	g, err := Get(name)
+	if err != nil {
+		return err
+	}
+
+	d, ok := g.(Destroyer)
+	if !ok {
+		return fmt.Errorf("generator %q does not support destroy", name)
+	}
+
+	artifacts, err := d.Artifacts(cmd, args, projectDir)
+	if err != nil {
+		return err
+	}
+
+	var existing []string
+	for _, path := range artifacts {
+		if _, err := os.Stat(path); err == nil {
+			existing = append(existing, path)
+		}
+	}
+
+	if len(existing) == 0 {
+		fmt.Println("No generated files found to remove.")
+		return nil
+	}
+
+	for _, f := range existing {
+		fmt.Printf("  remove  %s\n", f)
+	}
+
+	if dryRun {
+		return nil
+	}
+
+	if !force {
+		var confirm bool
+		prompt := &survey.Confirm{
+			Message: fmt.Sprintf("Remove %d file(s)?", len(existing)),
+			Default: false,
+		}
+		if err := survey.AskOne(prompt, &confirm); err != nil {
+			return fmt.Errorf("prompt: %w", err)
+		}
+		if !confirm {
+			fmt.Println("Aborted.")
+			return nil
+		}
+	}
+
+	for _, f := range existing {
+		if err := os.Remove(f); err != nil {
+			return fmt.Errorf("remove %s: %w", f, err)
+		}
+		fmt.Printf("Removed %s\n", f)
+	}
+
+	cleanEmptyDirs(existing, projectDir)
+
+	return nil
+}
+
+// cleanEmptyDirs removes empty parent directories left behind after file
+// deletion, walking up until projectDir is reached.
+func cleanEmptyDirs(deletedFiles []string, projectDir string) {
+	absProject, _ := filepath.Abs(projectDir)
+	seen := map[string]bool{}
+
+	for _, f := range deletedFiles {
+		dir := filepath.Dir(f)
+		for {
+			absDir, _ := filepath.Abs(dir)
+			if absDir == absProject || seen[absDir] {
+				break
+			}
+			seen[absDir] = true
+			entries, err := os.ReadDir(dir)
+			if err != nil || len(entries) > 0 {
+				break
+			}
+			os.Remove(dir)
+			fmt.Printf("Removed empty directory %s\n", dir)
+			dir = filepath.Dir(dir)
+		}
+	}
 }
 
 // RunAfterHooks executes the after-hooks for a generator, streaming output

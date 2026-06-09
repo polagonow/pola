@@ -10,6 +10,7 @@ package mcp
 
 import (
 	"embed"
+	"fmt"
 	"text/template"
 
 	"github.com/polagonow/pola/internal/generators"
@@ -60,6 +61,26 @@ func (g *Generator) Description() string {
 func (g *Generator) AfterHooks() []generators.Hook {
 	return []generators.Hook{
 		generators.CmdHook("gofmt", "-w", "."),
+	}
+}
+
+func (g *Generator) Artifacts(cmd *cobra.Command, args []string, projectDir string) ([]string, error) {
+	if len(args) < 1 {
+		return nil, fmt.Errorf("mcp subcommand is required (tool, resource, or prompt)")
+	}
+	sub := args[0]
+	subArgs := args[1:]
+	switch sub {
+	case "tool":
+		return toolArtifacts(cmd, subArgs, projectDir)
+	case "resource":
+		return resourceArtifacts(cmd, subArgs, projectDir)
+	case "prompt":
+		return promptArtifacts(cmd, subArgs, projectDir)
+	case "init":
+		return nil, fmt.Errorf("mcp init modifies Polafile and cannot be reversed automatically")
+	default:
+		return nil, fmt.Errorf("unknown mcp subcommand %q; supported: tool, resource, prompt", sub)
 	}
 }
 

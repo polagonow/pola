@@ -89,6 +89,29 @@ Use --service=Name to wire the action to a generated service.`,
 	return cmd
 }
 
+func actionPaths(name, projectDir string, generateTests bool) []string {
+	actionsDir := filepath.Join(projectDir, "actions")
+	snake := schema.SnakeCase(name)
+	paths := []string{filepath.Join(actionsDir, snake+"_action.go")}
+	if generateTests {
+		paths = append(paths, filepath.Join(actionsDir, snake+"_action_test.go"))
+	}
+	return paths
+}
+
+func (g *ActionGenerator) Artifacts(cmd *cobra.Command, args []string, projectDir string) ([]string, error) {
+	if len(args) < 1 {
+		return nil, fmt.Errorf("action name is required")
+	}
+	name := args[0]
+	if name[0] >= 'a' && name[0] <= 'z' {
+		name = string(name[0]-32) + name[1:]
+	}
+	pf, _ := polafile.Load(projectDir)
+	genTests := generators.ShouldGenerateTests(cmd, pf.GenerateTests())
+	return actionPaths(name, projectDir, genTests), nil
+}
+
 func (g *ActionGenerator) run(cmd *cobra.Command, args []string) error {
 	name := args[0]
 	if name[0] >= 'a' && name[0] <= 'z' {

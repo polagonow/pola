@@ -86,6 +86,44 @@ Field definitions follow the same syntax as the model generator.`,
 	}
 }
 
+func repositoryPaths(name, projectDir, repoDir, orm string, generateTests bool) []string {
+	snake := schema.SnakeCase(name)
+	interfaceDir := filepath.Join(projectDir, repoDir)
+	ormDir := filepath.Join(projectDir, repoDir, orm)
+	paths := []string{
+		filepath.Join(interfaceDir, snake+"_repository.go"),
+		filepath.Join(ormDir, snake+"_repository.go"),
+	}
+	if generateTests {
+		paths = append(paths, filepath.Join(ormDir, snake+"_repository_test.go"))
+	}
+	return paths
+}
+
+func (g *RepositoryGenerator) Artifacts(cmd *cobra.Command, args []string, projectDir string) ([]string, error) {
+	if len(args) < 1 {
+		return nil, fmt.Errorf("repository name is required")
+	}
+	def, err := model.ParseArgs(args)
+	if err != nil {
+		return nil, err
+	}
+	pf, err := polafile.Load(projectDir)
+	if err != nil {
+		return nil, fmt.Errorf("load Polafile: %w", err)
+	}
+	if pf == nil {
+		pf = &polafile.Polafile{}
+	}
+	repoDir := pf.RepositoriesDir()
+	orm := pf.DatabaseORM()
+	if orm == "" {
+		return nil, fmt.Errorf("ORM not configured in Polafile; cannot determine repository paths")
+	}
+	genTests := generators.ShouldGenerateTests(cmd, pf.GenerateTests())
+	return repositoryPaths(def.Name, projectDir, repoDir, orm, genTests), nil
+}
+
 func (g *RepositoryGenerator) run(cmd *cobra.Command, args []string) error {
 	projectDir, err := project.FindRoot()
 	if err != nil {

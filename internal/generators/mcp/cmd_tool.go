@@ -30,6 +30,25 @@ Use --no-di for an init()-registered tool that needs no dependencies.`,
 	return cmd
 }
 
+func toolArtifacts(cmd *cobra.Command, args []string, projectDir string) ([]string, error) {
+	if len(args) < 1 {
+		return nil, fmt.Errorf("tool name is required")
+	}
+	name := schema.PascalCase(args[0])
+	toolsDir := filepath.Join(projectDir, "mcp", "tools")
+	snake := schema.SnakeCase(name)
+	paths := []string{filepath.Join(toolsDir, snake+"_tool.go")}
+
+	noDI, _ := cmd.Flags().GetBool("no-di")
+	if !noDI {
+		pf, _ := polafile.Load(projectDir)
+		if generators.ShouldGenerateTests(cmd, pf.GenerateTests()) {
+			paths = append(paths, filepath.Join(toolsDir, snake+"_tool_test.go"))
+		}
+	}
+	return paths, nil
+}
+
 func runTool(cmd *cobra.Command, args []string) error {
 	name := schema.PascalCase(args[0])
 
