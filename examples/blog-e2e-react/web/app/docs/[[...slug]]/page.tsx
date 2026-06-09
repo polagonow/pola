@@ -39,7 +39,7 @@ export default async function DocsPage({
   searchParams?: Record<string, string>;
 }) {
   if (searchParams?.error !== undefined)
-    await Blog.triggerError(searchParams.error || undefined);
+    await Blog.triggerError(searchParams.error);
   const slug = params?.slug;
 
   // /docs — index
