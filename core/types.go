@@ -218,6 +218,12 @@ type BundleInput struct {
 	// caller to update dynamic fields (e.g. ServerEntryContent, ClientComponents)
 	// based on newly discovered routes. Only used by Watch, ignored by Build.
 	BeforeRebuild func(input *BundleInput)
+
+	// ChangedPaths is populated by the bundler's Watch implementation with the
+	// absolute paths of files that triggered the current rebuild. BeforeRebuild
+	// callbacks can inspect this to decide whether a full re-scan is needed.
+	// Only set during watch-mode rebuilds; empty during initial Build.
+	ChangedPaths []string
 }
 
 // BundleOutput is the result of a successful build.

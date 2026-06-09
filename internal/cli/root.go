@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/polagonow/pola/internal/errs"
 	"github.com/spf13/cobra"
 )
 
@@ -21,7 +22,8 @@ var rootCmd = &cobra.Command{
 	CompletionOptions: cobra.CompletionOptions{
 		HiddenDefaultCmd: true,
 	},
-	SilenceUsage: true,
+	SilenceUsage:  true,
+	SilenceErrors: true,
 	Version:      version,
 	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 		if cwd == "" {
@@ -50,7 +52,12 @@ func init() {
 	rootCmd.AddCommand(dbCmd)
 }
 
-// Execute runs the root command.
+// Execute runs the root command. Errors are formatted with structured
+// indentation (root cause first) and printed to stderr.
 func Execute() error {
-	return rootCmd.Execute()
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Fprintln(os.Stderr, errs.Format(err))
+		return err
+	}
+	return nil
 }

@@ -118,3 +118,41 @@ func sortRoutes(routes []core.Route) {
 		return routeScore(routes[i].Pattern) > routeScore(routes[j].Pattern)
 	})
 }
+
+// ── Radix tree route resolver ───────────────────────────────────────────────
+
+// routeResolver wraps a patternmatch.RouteTable and maps CompiledRoute pointers
+// back to the nextjs compiledRoute entries for efficient radix-tree lookups.
+type routeResolver struct {
+	table   *patternmatch.RouteTable
+	byRoute map[*patternmatch.CompiledRoute]*compiledRoute
+}
+
+// buildRouteResolver constructs a routeResolver from a set of compiled routes.
+// The returned resolver uses a radix tree for O(log n) path matching.
+func buildRouteResolver(routes []*compiledRoute) *routeResolver {
+	compiled := make([]*patternmatch.CompiledRoute, len(routes))
+	lookup := make(map[*patternmatch.CompiledRoute]*compiledRoute, len(routes))
+	for i, cr := range routes {
+		compiled[i] = cr.compiled
+		lookup[cr.compiled] = cr
+	}
+	return &routeResolver{
+		table:   patternmatch.NewRouteTable(compiled),
+		byRoute: lookup,
+	}
+}
+
+// Match resolves a URL path to a compiledRoute and extracted parameters
+// using the radix tree.
+func (rr *routeResolver) Match(path string) (*compiledRoute, map[string]any, bool) {
+	cr, params, ok := rr.table.Match(path)
+	if !ok {
+		return nil, nil, false
+	}
+	compiled, exists := rr.byRoute[cr]
+	if !exists {
+		return nil, nil, false
+	}
+	return compiled, params, true
+}
