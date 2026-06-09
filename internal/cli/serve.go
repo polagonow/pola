@@ -84,6 +84,24 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		fmt.Printf("Project root: %s\n", projectDir)
 	}
 
+	// Auto-install frontend dependencies if node_modules is missing.
+	webDir := filepath.Join(projectDir, serveFlags.appPath)
+	if _, err := os.Stat(filepath.Join(webDir, "node_modules")); os.IsNotExist(err) {
+		if _, err := os.Stat(filepath.Join(webDir, "package.json")); err == nil {
+			pm := pf.PackageManager
+			if pm == "" {
+				pm = detectPackageManager()
+			}
+			if i := strings.IndexByte(pm, '@'); i > 0 {
+				pm = pm[:i]
+			}
+			fmt.Printf("Installing frontend dependencies (%s install)...\n", pm)
+			if err := runInDir(webDir, pm, "install"); err != nil {
+				return fmt.Errorf("%s install: %w", pm, err)
+			}
+		}
+	}
+
 	// Stub @pola/actions and @pola/react into node_modules.
 	if err := stubpkgs.StubToNodeModules(filepath.Join(projectDir, serveFlags.appPath)); err != nil {
 		return fmt.Errorf("stub packages: %w", err)

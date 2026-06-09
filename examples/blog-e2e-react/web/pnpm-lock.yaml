@@ -23,9 +23,6 @@ importers:
       react-hook-form:
         specifier: ^7.72.1
         version: 7.78.0(react@19.2.4)
-      react-server-dom-esm:
-        specifier: npm:@kentcdodds/tmp-react-server-dom-esm@^19.0.1
-        version: '@kentcdodds/tmp-react-server-dom-esm@19.0.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)'
       react-server-dom-webpack:
         specifier: 19.3.0-canary-5e9eedb5-20260312
         version: 19.3.0-canary-5e9eedb5-20260312(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(webpack@5.107.2)
@@ -71,13 +68,6 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
-
-  '@kentcdodds/tmp-react-server-dom-esm@19.0.1':
-    resolution: {integrity: sha512-yg59PoC5BuF71Kx8kTH0qMt30dKG/uz2Gkn5U6OTKw+S3yVnY50Djf4z772cbLSZxAP/tdIh6r5rUWRxlVdRoQ==}
-    engines: {node: '>=0.10.0'}
-    peerDependencies:
-      react: ^19.0.0
-      react-dom: ^19.0.0
 
   '@parcel/watcher-android-arm64@2.5.6':
     resolution: {integrity: sha512-YQxSS34tPF/6ZG7r/Ih9xy+kP/WwediEUsqmtf0cuCV5TPPKw/PQHRhueUo6JdeFJaqV3pyjm0GdYjZotbRt/A==}
@@ -734,12 +724,6 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
-
-  '@kentcdodds/tmp-react-server-dom-esm@19.0.1(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
-    dependencies:
-      acorn-loose: 8.5.2
-      react: 19.2.4
-      react-dom: 19.2.4(react@19.2.4)
 
   '@parcel/watcher-android-arm64@2.5.6':
     optional: true
