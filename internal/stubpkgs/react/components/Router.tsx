@@ -1,7 +1,6 @@
 "use client";
 
-// Next.js-style client router hooks. Vendored and adapted from rari (rari/router):
-// rari reaches its runtime's navigate via "rari:register-navigate" events, whereas
+// Next.js-style client router hooks.
 // Pola exposes window.__pola_navigate__ (set by @pola/react/client) directly. The
 // provider stays in sync by listening for the "pola:navigate" event the client
 // runtime dispatches on every SPA navigation (Link clicks, programmatic, back/forward).
@@ -95,8 +94,8 @@ export function RouterProvider({ children, initialPathname }: RouterProviderProp
             headers: { Accept: "text/x-component" },
             priority: "low",
           } as RequestInit);
-        } catch {
-          /* prefetch is best-effort */
+        } catch (error) {
+          console.warn('[pola] Prefetch failed:', error)
         }
       },
     }),
