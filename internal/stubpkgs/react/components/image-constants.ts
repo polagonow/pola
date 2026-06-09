@@ -1,8 +1,4 @@
-// Vendored and adapted from rari (packages/rari/src/image/constants.ts).
-//
-// Pola's image backend (the "imaging" adapter) produces a single output format,
-// so rari's avif/webp format negotiation is intentionally omitted here.
-
+// Pola's image backend (the "imaging" adapter) produces a single output format
 // Candidate widths used to build responsive srcSet entries when an explicit
 // width is not supplied.
 export const DEFAULT_DEVICE_SIZES = [640, 750, 828, 1080, 1200, 1920, 2048, 3840];
