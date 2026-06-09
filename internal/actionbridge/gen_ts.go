@@ -3,17 +3,12 @@ package actionbridge
 import (
 	"bytes"
 	"fmt"
-	"os"
-	"os/exec"
-	"path/filepath"
+	"go/types"
+	"slices"
+	"sort"
 	"strings"
 	"text/template"
 )
-
-type tsGenData struct {
-	PackagePath string
-	StructNames []string
-}
 
 type tsAction struct {
 	StructName string
@@ -29,18 +24,11 @@ type tsMethod struct {
 
 // GenerateTS produces the generated.ts TypeScript source with runtime code + types.
 func GenerateTS(result *ParseResult) ([]byte, error) {
-	// Generate struct interfaces via typescriptify if there are named types.
 	var structInterfaces string
 	if len(result.NamedTypes) > 0 {
-		ts, err := runTypescriptify(result)
-		if err != nil {
-			// Fallback: use our own emitter.
-			var buf bytes.Buffer
-			emitNamedTypesFallback(&buf, result)
-			structInterfaces = buf.String()
-		} else {
-			structInterfaces = ts
-		}
+		var buf bytes.Buffer
+		emitNamedTypes(&buf, result.NamedTypes)
+		structInterfaces = buf.String()
 	}
 
 	// Build action data for template.
@@ -88,178 +76,85 @@ func GenerateTS(result *ParseResult) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// runTypescriptify generates a temporary Go program that uses typescriptify
-// to convert action structs to TypeScript interfaces, compiles and runs it.
-func runTypescriptify(result *ParseResult) (string, error) {
-	// Collect struct names that need TS interfaces.
-	var structNames []string
-	for name := range result.NamedTypes {
-		structNames = append(structNames, name)
-	}
-	if len(structNames) == 0 {
-		return "", nil
-	}
-
-	// Create temp directory for the generator program.
-	tmpDir, err := os.MkdirTemp("", "pola-tsgen-*")
-	if err != nil {
-		return "", fmt.Errorf("create temp dir: %w", err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	// Render the generator program.
-	tmpl, err := template.New("tsgen").Parse(tsGenTmpl)
-	if err != nil {
-		return "", fmt.Errorf("parse template: %w", err)
-	}
-
-	data := tsGenData{
-		PackagePath: result.PackagePath,
-		StructNames: structNames,
-	}
-
-	var progBuf bytes.Buffer
-	if err := tmpl.Execute(&progBuf, data); err != nil {
-		return "", fmt.Errorf("execute template: %w", err)
-	}
-
-	// Write the program.
-	mainPath := filepath.Join(tmpDir, "main.go")
-	if err := os.WriteFile(mainPath, progBuf.Bytes(), 0o644); err != nil {
-		return "", fmt.Errorf("write temp program: %w", err)
-	}
-
-	// Find the actions module root to set up a replace directive pointing at
-	// the user's module on disk.
-	actionsModRoot, actionsModPath, err := findModuleRoot(result.PackagePath)
-	if err != nil {
-		return "", fmt.Errorf("find module root: %w", err)
-	}
-
-	// Write a go.mod that requires the user's module + typescriptify, with the
-	// replace directive resolving the user's module to its source on disk.
-	goModT, err := template.New("gomod").Parse(goModTmpl)
-	if err != nil {
-		return "", fmt.Errorf("parse go.mod template: %w", err)
-	}
-	var goModBuf bytes.Buffer
-	if err := goModT.Execute(&goModBuf, struct {
-		PackagePath    string
-		ActionsModPath string
-		ActionsModRoot string
-	}{
-		PackagePath:    result.PackagePath,
-		ActionsModPath: actionsModPath,
-		ActionsModRoot: actionsModRoot,
-	}); err != nil {
-		return "", fmt.Errorf("execute go.mod template: %w", err)
-	}
-	if err := os.WriteFile(filepath.Join(tmpDir, "go.mod"), goModBuf.Bytes(), 0o644); err != nil {
-		return "", fmt.Errorf("write go.mod: %w", err)
-	}
-
-	// Run go mod tidy to resolve dependencies.
-	tidyCmd := exec.Command("go", "mod", "tidy")
-	tidyCmd.Dir = tmpDir
-	if out, err := tidyCmd.CombinedOutput(); err != nil {
-		return "", fmt.Errorf("go mod tidy: %s\n%w", out, err)
-	}
-
-	// Run the generator.
-	runCmd := exec.Command("go", "run", "main.go")
-	runCmd.Dir = tmpDir
-	var stdout, stderr bytes.Buffer
-	runCmd.Stdout = &stdout
-	runCmd.Stderr = &stderr
-	if err := runCmd.Run(); err != nil {
-		return "", fmt.Errorf("run tsgen: %s\n%w", stderr.String(), err)
-	}
-
-	output := stdout.String()
-	if strings.HasPrefix(output, "ERROR:") {
-		return "", fmt.Errorf("typescriptify: %s", output)
-	}
-
-	return output, nil
-}
-
-// findModuleRoot walks up from the current directory to find the go.mod
-// that contains the given package path, returning the directory and module path.
-func findModuleRoot(pkgPath string) (string, string, error) {
-	cmd := exec.Command("go", "list", "-m", "-json")
-	var out bytes.Buffer
-	cmd.Stdout = &out
-	if err := cmd.Run(); err != nil {
-		dir, _ := os.Getwd()
-		return dir, pkgPath, nil
-	}
-
-	output := out.String()
-	modDir := extractJSONField(output, "Dir")
-	modPath := extractJSONField(output, "Path")
-	if modDir != "" && modPath != "" {
-		return modDir, modPath, nil
-	}
-
-	dir, _ := os.Getwd()
-	return dir, pkgPath, nil
-}
-
-func extractJSONField(json, field string) string {
-	key := fmt.Sprintf(`"%s":`, field)
-	idx := strings.Index(json, key)
-	if idx < 0 {
-		return ""
-	}
-	rest := json[idx+len(key):]
-	rest = strings.TrimSpace(rest)
-	if len(rest) == 0 || rest[0] != '"' {
-		return ""
-	}
-	rest = rest[1:]
-	end := strings.Index(rest, `"`)
-	if end < 0 {
-		return ""
-	}
-	return rest[:end]
-}
-
-// emitNamedTypesFallback is the fallback TS struct emitter used when
-// typescriptify can't run (e.g. missing dependencies in the user's project).
-func emitNamedTypesFallback(buf *bytes.Buffer, result *ParseResult) {
+func emitNamedTypes(buf *bytes.Buffer, namedTypes map[string]*types.Struct) {
 	emitted := map[string]bool{}
-	for {
-		progress := false
-		for name, st := range result.NamedTypes {
-			if emitted[name] {
+	queue := make([]string, 0, len(namedTypes))
+	for name := range namedTypes {
+		queue = append(queue, name)
+	}
+	sort.Strings(queue)
+
+	for len(queue) > 0 {
+		name := queue[0]
+		queue = queue[1:]
+		if emitted[name] {
+			continue
+		}
+		emitted[name] = true
+
+		st := namedTypes[name]
+
+		var embedded []string
+		type fieldEntry struct {
+			jsonName string
+			tsType   string
+			optional bool
+		}
+		var fields []fieldEntry
+
+		for i := 0; i < st.NumFields(); i++ {
+			f := st.Field(i)
+			if !f.Exported() {
 				continue
 			}
-			emitted[name] = true
-			progress = true
+			tag := st.Tag(i)
 
-			buf.WriteString(fmt.Sprintf("export interface %s {\n", name))
-			for i := 0; i < st.NumFields(); i++ {
-				f := st.Field(i)
-				if !f.Exported() {
-					continue
+			if f.Anonymous() {
+				if named, ok := f.Type().(*types.Named); ok {
+					embName := named.Obj().Name()
+					if underlying, ok := named.Underlying().(*types.Struct); ok {
+						if _, exists := namedTypes[embName]; !exists {
+							namedTypes[embName] = underlying
+						}
+						if !emitted[embName] {
+							queue = append(queue, embName)
+						}
+					}
+					embedded = append(embedded, embName)
 				}
-				tag := st.Tag(i)
-				jsonName := jsonFieldName(f.Name(), tag)
-				if jsonName == "-" {
-					continue
-				}
-				tsType := TSType(f.Type(), result.NamedTypes)
-				optional := ""
-				if strings.Contains(tag, "omitempty") {
-					optional = "?"
-				}
-				buf.WriteString(fmt.Sprintf("  %s%s: %s;\n", jsonName, optional, tsType))
+				continue
 			}
-			buf.WriteString("}\n\n")
+
+			jsonName := jsonFieldName(f.Name(), tag)
+			if jsonName == "-" {
+				continue
+			}
+
+			tsType := TSType(f.Type(), namedTypes)
+
+			for n := range namedTypes {
+				if !emitted[n] && !slices.Contains(queue, n) {
+					queue = append(queue, n)
+				}
+			}
+
+			isOptional := strings.Contains(tag, "omitempty")
+			fields = append(fields, fieldEntry{jsonName, tsType, isOptional})
 		}
-		if !progress {
-			break
+
+		if len(embedded) > 0 {
+			buf.WriteString(fmt.Sprintf("export interface %s extends %s {\n", name, strings.Join(embedded, ", ")))
+		} else {
+			buf.WriteString(fmt.Sprintf("export interface %s {\n", name))
 		}
+		for _, f := range fields {
+			opt := ""
+			if f.optional {
+				opt = "?"
+			}
+			buf.WriteString(fmt.Sprintf("  %s%s: %s;\n", f.jsonName, opt, f.tsType))
+		}
+		buf.WriteString("}\n\n")
 	}
 }
 
