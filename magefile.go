@@ -97,9 +97,9 @@ func Uninstall() error {
 	return sh.RunV("go", "clean", "-i", "./cmd/pola/")
 }
 
-// crossTarget is one GOOS/GOARCH (plus optional GOARM) the CLI builds for.
+// crossTarget is one GOOS/GOARCH the CLI builds for.
 type crossTarget struct {
-	goos, goarch, goarm string
+	goos, goarch string
 }
 
 // crossTargets is the platform matrix Pola cross-compiles to. Cross builds
@@ -107,24 +107,20 @@ type crossTarget struct {
 // static and portable; the CGO VM backends (v8go, quickjsgo) cannot be
 // cross-compiled without a per-target C toolchain.
 var crossTargets = []crossTarget{
-	{goos: "linux", goarch: "amd64"},
-	{goos: "linux", goarch: "arm64"},
-	{goos: "linux", goarch: "386"},
-	{goos: "linux", goarch: "arm", goarm: "7"},
-	{goos: "darwin", goarch: "amd64"},
 	{goos: "darwin", goarch: "arm64"},
-	{goos: "windows", goarch: "amd64"},
+	{goos: "darwin", goarch: "amd64"},
+	{goos: "linux", goarch: "arm64"},
+	{goos: "linux", goarch: "amd64"},
 	{goos: "windows", goarch: "arm64"},
-	{goos: "freebsd", goarch: "amd64"},
-	{goos: "freebsd", goarch: "arm64"},
+	{goos: "windows", goarch: "amd64"},
 }
 
-// label is the build/ subdirectory name, e.g. "linux-amd64" or "linux-arm-7".
+// label is the build/ subdirectory name in npm platform-arch form,
+// e.g. "darwin-arm64" or "win32-x64".
 func (t crossTarget) label() string {
-	if t.goarm != "" {
-		return fmt.Sprintf("%s-%s-%s", t.goos, t.goarch, t.goarm)
-	}
-	return fmt.Sprintf("%s-%s", t.goos, t.goarch)
+	osName := map[string]string{"darwin": "darwin", "linux": "linux", "windows": "win32"}[t.goos]
+	archName := map[string]string{"arm64": "arm64", "amd64": "x64"}[t.goarch]
+	return fmt.Sprintf("%s-%s", osName, archName)
 }
 
 // binName is the output binary name (.exe on Windows).
@@ -153,9 +149,6 @@ func buildTarget(t crossTarget) error {
 		"CGO_ENABLED": "0",
 		"GOOS":        t.goos,
 		"GOARCH":      t.goarch,
-	}
-	if t.goarm != "" {
-		env["GOARM"] = t.goarm
 	}
 	return sh.RunWithV(env, "go", "build", "-trimpath", "-tags", crossTags(), "-ldflags", ldflags(), "-o", out, "./cmd/pola/")
 }
@@ -191,9 +184,6 @@ func (Dist) Darwin() error { return buildMany("darwin") }
 
 // Windows cross-compiles the pola CLI for Windows (amd64 + arm64).
 func (Dist) Windows() error { return buildMany("windows") }
-
-// Freebsd cross-compiles the pola CLI for FreeBSD (amd64 + arm64).
-func (Dist) Freebsd() error { return buildMany("freebsd") }
 
 // Release builds every platform and packages each binary into build/dist/ —
 // a .tar.gz for Unix targets and a .zip for Windows (requires the `zip` tool).
