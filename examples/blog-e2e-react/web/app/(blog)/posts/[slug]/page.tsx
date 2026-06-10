@@ -1,6 +1,25 @@
 import { Blog } from "@pola/actions";
+import type { Metadata } from "@pola/core";
 
 import LikeButton from "@/components/LikeButton";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: { slug: string };
+}): Promise<Metadata> {
+  const post = await Blog.getPost(params.slug);
+
+  return {
+    title: post.title,
+    description: post.excerpt,
+    openGraph: {
+      title: post.title,
+      description: post.excerpt,
+      type: "article",
+    },
+  };
+}
 
 export default async function PostPage({
   params,
@@ -10,7 +29,7 @@ export default async function PostPage({
   searchParams?: Record<string, string>;
 }) {
   if (searchParams?.error !== undefined)
-    await Blog.triggerError(searchParams.error || undefined);
+    await Blog.triggerError(searchParams.error);
   const post = await Blog.getPost(params.slug);
 
   return (

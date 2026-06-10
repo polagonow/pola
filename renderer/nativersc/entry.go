@@ -63,11 +63,21 @@ func (g *EntryGenerator) Generate(cfg EntryGenConfig) (string, error) { //nolint
 			rel = absFile
 		}
 		alias := reactrenderer.PageAlias(p)
-		fmt.Fprintf(&entry, "import %s from %q;\n", alias, "./"+filepath.ToSlash(rel))
+		named := reactrenderer.MetadataImportSuffix(alias, p.HasMetadata, p.HasGenMetadata)
+		if named != "" {
+			fmt.Fprintf(&entry, "import %s, %s from %q;\n", alias, named, "./"+filepath.ToSlash(rel))
+		} else {
+			fmt.Fprintf(&entry, "import %s from %q;\n", alias, "./"+filepath.ToSlash(rel))
+		}
 	}
 
+	type layoutInfo struct {
+		absPath        string
+		hasMetadata    bool
+		hasGenMetadata bool
+	}
 	seenLayout := make(map[string]bool)
-	var layoutPaths []string
+	var layouts []layoutInfo
 	for _, p := range cfg.Pages {
 		for _, seg := range p.Segments {
 			if seg.LayoutPath == "" {
@@ -76,14 +86,19 @@ func (g *EntryGenerator) Generate(cfg EntryGenConfig) (string, error) { //nolint
 			abs, _ := filepath.Abs(seg.LayoutPath)
 			if !seenLayout[abs] {
 				seenLayout[abs] = true
-				layoutPaths = append(layoutPaths, abs)
+				layouts = append(layouts, layoutInfo{abs, seg.HasMetadata, seg.HasGenMetadata})
 			}
 		}
 	}
-	for _, abs := range layoutPaths {
-		rel, _ := filepath.Rel(absAppDir, abs)
-		alias := reactrenderer.LayoutAlias(absPagesDir, abs) + "Layout"
-		fmt.Fprintf(&entry, "import %s from %q;\n", alias, "./"+filepath.ToSlash(rel))
+	for _, li := range layouts {
+		rel, _ := filepath.Rel(absAppDir, li.absPath)
+		alias := reactrenderer.LayoutAlias(absPagesDir, li.absPath) + "Layout"
+		named := reactrenderer.MetadataImportSuffix(alias, li.hasMetadata, li.hasGenMetadata)
+		if named != "" {
+			fmt.Fprintf(&entry, "import %s, %s from %q;\n", alias, named, "./"+filepath.ToSlash(rel))
+		} else {
+			fmt.Fprintf(&entry, "import %s from %q;\n", alias, "./"+filepath.ToSlash(rel))
+		}
 	}
 
 	hasErrorPage := cfg.GlobalErrorPath != ""
@@ -206,6 +221,9 @@ outer:
 	entry.WriteString("};\n")
 
 	entry.WriteString(walkSupportJS)
+
+	// Metadata collection: emit __metadataChain__ + __collectMetadata__.
+	entry.WriteString(reactrenderer.GenerateMetadataJS(cfg.Pages, absPagesDir))
 
 	if cfg.RootLayoutReturnsHTML {
 		entry.WriteString(shellExtractorJS)

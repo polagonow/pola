@@ -6,7 +6,7 @@ export default async function ProfilePage({
   searchParams?: Record<string, string>;
 }) {
   if (searchParams?.error !== undefined)
-    await Blog.triggerError(searchParams.error || undefined);
+    await Blog.triggerError(searchParams.error);
   const profile = await Blog.getProfile(searchParams?.id);
   const initials = profile.name
     .split(" ")

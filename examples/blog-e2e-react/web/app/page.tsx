@@ -1,4 +1,16 @@
 import { Blog } from "@pola/actions";
+import type { Metadata } from "@pola/core";
+
+export const metadata: Metadata = {
+  title: { absolute: "DevBlog — Go, React & Dev Tools" },
+  description:
+    "Writing about Go, React, and building dev tools. Server Components, esbuild, and the Goja VM.",
+  keywords: ["go", "react", "server components", "esbuild", "goja"],
+  openGraph: {
+    title: "DevBlog — Go, React & Dev Tools",
+    description: "Writing about Go, React, and building dev tools.",
+  },
+};
 
 const statusClasses: Record<string, string> = {
   active: "bg-green-100 text-green-800",
@@ -75,7 +87,7 @@ export default async function HomePage({
   searchParams?: Record<string, string>;
 }) {
   if (searchParams?.error !== undefined)
-    await Blog.triggerError(searchParams.error || undefined);
+    await Blog.triggerError(searchParams.error);
   return (
     <div>
       <div className="py-12 pb-8">

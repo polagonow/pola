@@ -1,4 +1,10 @@
 import { Blog } from "@pola/actions";
+import type { Metadata } from "@pola/core";
+
+export const metadata: Metadata = {
+  title: "Projects",
+  description: "Open source projects and tools.",
+};
 
 const statusClasses: Record<string, string> = {
   active: "bg-green-100 text-green-800",
@@ -12,7 +18,7 @@ export default async function ProjectsPage({
   searchParams?: Record<string, string>;
 }) {
   if (searchParams?.error !== undefined)
-    await Blog.triggerError(searchParams.error || undefined);
+    await Blog.triggerError(searchParams.error);
   const projects = await Blog.getProjects();
 
   return (

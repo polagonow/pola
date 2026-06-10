@@ -8,7 +8,7 @@ export default async function RevisionPage({
   searchParams?: Record<string, string>;
 }) {
   if (searchParams?.error !== undefined)
-    await Blog.triggerError(searchParams.error || undefined);
+    await Blog.triggerError(searchParams.error);
   const [post, revision] = await Promise.all([
     Blog.getPost(params.slug),
     Blog.getRevision(params.slug, params.rev),

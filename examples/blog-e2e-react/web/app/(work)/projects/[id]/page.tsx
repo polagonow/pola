@@ -14,7 +14,7 @@ export default async function ProjectPage({
   searchParams?: Record<string, string>;
 }) {
   if (searchParams?.error !== undefined)
-    await Blog.triggerError(searchParams.error || undefined);
+    await Blog.triggerError(searchParams.error);
   const p = await Blog.getProject(params.id);
 
   return (
