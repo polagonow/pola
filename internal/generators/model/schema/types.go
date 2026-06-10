@@ -17,6 +17,23 @@ const (
 	FieldBytes      FieldType = "bytes"
 	FieldJSON       FieldType = "json"
 	FieldReferences FieldType = "references"
+
+	FieldEmail        FieldType = "email"
+	FieldURL          FieldType = "url"
+	FieldIP           FieldType = "ip"
+	FieldIPv4         FieldType = "ipv4"
+	FieldIPv6         FieldType = "ipv6"
+	FieldMAC          FieldType = "mac"
+	FieldAlpha        FieldType = "alpha"
+	FieldNumeric      FieldType = "numeric"
+	FieldAlphanumeric FieldType = "alphanumeric"
+	FieldHexColor     FieldType = "hexcolor"
+	FieldCreditCard   FieldType = "creditcard"
+	FieldBase64       FieldType = "base64"
+	FieldLatitude     FieldType = "latitude"
+	FieldLongitude    FieldType = "longitude"
+	FieldPort         FieldType = "port"
+	FieldSemver       FieldType = "semver"
 )
 
 // ValidFieldTypes is the set of recognised CLI type names.
@@ -32,6 +49,44 @@ var ValidFieldTypes = map[FieldType]bool{
 	FieldBytes:      true,
 	FieldJSON:       true,
 	FieldReferences: true,
+
+	FieldEmail:        true,
+	FieldURL:          true,
+	FieldIP:           true,
+	FieldIPv4:         true,
+	FieldIPv6:         true,
+	FieldMAC:          true,
+	FieldAlpha:        true,
+	FieldNumeric:      true,
+	FieldAlphanumeric: true,
+	FieldHexColor:     true,
+	FieldCreditCard:   true,
+	FieldBase64:       true,
+	FieldLatitude:     true,
+	FieldLongitude:    true,
+	FieldPort:         true,
+	FieldSemver:       true,
+}
+
+// ValidatorFieldTypes are field types that are stored as strings but carry
+// a govalidator struct-tag validator for format checking.
+var ValidatorFieldTypes = map[FieldType]bool{
+	FieldEmail:        true,
+	FieldURL:          true,
+	FieldIP:           true,
+	FieldIPv4:         true,
+	FieldIPv6:         true,
+	FieldMAC:          true,
+	FieldAlpha:        true,
+	FieldNumeric:      true,
+	FieldAlphanumeric: true,
+	FieldHexColor:     true,
+	FieldCreditCard:   true,
+	FieldBase64:       true,
+	FieldLatitude:     true,
+	FieldLongitude:    true,
+	FieldPort:         true,
+	FieldSemver:       true,
 }
 
 // Field represents a single model field parsed from CLI arguments.

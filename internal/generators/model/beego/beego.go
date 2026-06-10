@@ -137,6 +137,9 @@ func buildBeegoData(def *schema.ModelDefinition) beegoData {
 
 // beegoGoType returns the Go type for a beego model field.
 func beegoGoType(f schema.Field) string {
+	if schema.ValidatorFieldTypes[f.Type] {
+		return "string"
+	}
 	switch f.Type {
 	case schema.FieldString:
 		return "string"
@@ -153,11 +156,11 @@ func beegoGoType(f schema.Field) string {
 	case schema.FieldTime:
 		return "time.Time"
 	case schema.FieldUUID:
-		return "string" // beego has no native UUID; use string with size(36)
+		return "string"
 	case schema.FieldBytes:
 		return "[]byte"
 	case schema.FieldJSON:
-		return "string" // beego has no native JSON column; stored as text
+		return "string"
 	default:
 		return "string"
 	}
@@ -167,8 +170,14 @@ func beegoGoType(f schema.Field) string {
 func buildBeegoFieldOrmTag(f schema.Field) string {
 	var parts []string
 
-	switch f.Type {
-	case schema.FieldString, schema.FieldUUID:
+	switch {
+	case schema.ValidatorFieldTypes[f.Type]:
+		if f.Limit > 0 {
+			parts = append(parts, fmt.Sprintf("size(%d)", f.Limit))
+		} else {
+			parts = append(parts, "size(255)")
+		}
+	case f.Type == schema.FieldString || f.Type == schema.FieldUUID:
 		if f.Limit > 0 {
 			parts = append(parts, fmt.Sprintf("size(%d)", f.Limit))
 		} else if f.Type == schema.FieldUUID {
@@ -176,11 +185,11 @@ func buildBeegoFieldOrmTag(f schema.Field) string {
 		} else {
 			parts = append(parts, "size(255)")
 		}
-	case schema.FieldText, schema.FieldJSON:
+	case f.Type == schema.FieldText || f.Type == schema.FieldJSON:
 		parts = append(parts, "type(text)")
-	case schema.FieldFloat:
+	case f.Type == schema.FieldFloat:
 		parts = append(parts, "digits(12);decimals(4)")
-	case schema.FieldTime:
+	case f.Type == schema.FieldTime:
 		parts = append(parts, "type(datetime)")
 	}
 

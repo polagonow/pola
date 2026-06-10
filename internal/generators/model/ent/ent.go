@@ -152,6 +152,9 @@ func buildEntData(def *schema.ModelDefinition) entData {
 }
 
 func entTypeName(ft schema.FieldType) string {
+	if schema.ValidatorFieldTypes[ft] {
+		return "String"
+	}
 	switch ft {
 	case schema.FieldString:
 		return "String"
