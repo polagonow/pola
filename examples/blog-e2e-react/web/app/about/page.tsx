@@ -1,4 +1,10 @@
 import { Blog } from "@pola/actions";
+import type { Metadata } from "@pola/core";
+
+export const metadata: Metadata = {
+  title: "About",
+  description: "About DevBlog — a framework showcase built with Pola.",
+};
 
 export default async function AboutPage({
   searchParams,
@@ -6,7 +12,7 @@ export default async function AboutPage({
   searchParams?: Record<string, string>;
 }) {
   if (searchParams?.error !== undefined)
-    await Blog.triggerError(searchParams.error || undefined);
+    await Blog.triggerError(searchParams.error);
   return (
     <div>
       <h1 className="text-3xl font-extrabold mb-3">

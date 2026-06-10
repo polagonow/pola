@@ -101,6 +101,8 @@ func (r *Router) ScanRoutes(ctx context.Context, fsys core.FS, appDir string, ex
 			Segments:          segs,
 		}
 		entry.LoadingComponentPath, entry.NotFoundComponentPath = discoverCompanions(fsys, pagesDir, filepath.Dir(path), exts)
+		entry.HasMetadata, _ = hasMetadataExport(fsys, path)
+		entry.HasGenMetadata, _ = hasGenerateMetadataExport(fsys, path)
 		pages = append(pages, entry)
 		return nil
 	})
@@ -313,6 +315,37 @@ func hasUseClient(fsys core.FS, path string) (bool, error) {
 	return false, nil
 }
 
+// hasMetadataExport checks whether a file exports `export const metadata`.
+func hasMetadataExport(fsys core.FS, path string) (bool, error) {
+	data, err := fsys.ReadFile(path)
+	if err != nil {
+		return false, err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "export const metadata") {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// hasGenerateMetadataExport checks whether a file exports a generateMetadata function.
+func hasGenerateMetadataExport(fsys core.FS, path string) (bool, error) {
+	data, err := fsys.ReadFile(path)
+	if err != nil {
+		return false, err
+	}
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "export function generateMetadata") ||
+			strings.HasPrefix(line, "export async function generateMetadata") {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
 // extractRevalidate scans a page file for "export const revalidate = <seconds>".
 // Returns 0 (no caching) if the export is absent.
 func extractRevalidate(fsys core.FS, path string) (time.Duration, error) {
@@ -495,13 +528,15 @@ func collectSegments(fsys core.FS, pagesDir, pageDir string, exts []string) ([]c
 			if ok, _ := hasDefaultExport(fsys, candidate); ok {
 				seg.LayoutPath = candidate
 			}
+			seg.HasMetadata, _ = hasMetadataExport(fsys, candidate)
+			seg.HasGenMetadata, _ = hasGenerateMetadataExport(fsys, candidate)
 		}
 		if candidate := findWithExts(fsys, d, "error", exts); candidate != "" {
 			if ok, _ := hasDefaultExport(fsys, candidate); ok {
 				seg.ErrorPath = candidate
 			}
 		}
-		if seg.LayoutPath != "" || seg.ErrorPath != "" {
+		if seg.LayoutPath != "" || seg.ErrorPath != "" || seg.HasMetadata || seg.HasGenMetadata {
 			segments = append(segments, seg)
 		}
 	}

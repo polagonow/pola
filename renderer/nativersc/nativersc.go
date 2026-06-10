@@ -91,7 +91,7 @@ func (r *Renderer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		} else {
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.WriteHeader(status)
-			r.serveHTML(w, req, nil, &deps)
+			r.serveHTML(w, req, nil, defaultMetadata(), &deps)
 			return
 		}
 	}
@@ -133,9 +133,10 @@ func (r *Renderer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			logError(deps.Logger, "pola: render", "err", err)
 		}
 	}
+	metadata := r.collectMetadata(ctx, *route, props, injectors, requestContext)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
-	r.serveHTML(w, req, ssrData, &deps)
+	r.serveHTML(w, req, ssrData, metadata, &deps)
 }
 
 // serveFlight handles RSC Flight requests with caching and streaming.
@@ -188,9 +189,9 @@ func (r *Renderer) serveFlight(ctx context.Context, w http.ResponseWriter, req *
 }
 
 // serveHTML returns the HTML shell for initial page loads.
-func (r *Renderer) serveHTML(w http.ResponseWriter, req *http.Request, ssrData []byte, deps *core.RenderDeps) {
+func (r *Renderer) serveHTML(w http.ResponseWriter, req *http.Request, ssrData []byte, metadata *core.Metadata, deps *core.RenderDeps) {
 	params := core.ShellParams{
-		Metadata:      defaultMetadata(),
+		Metadata:      metadata,
 		DocumentProps: deps.DocumentProps,
 	}
 	if deps.BundleOutput != nil {
@@ -374,6 +375,55 @@ func logError(logger core.Logger, msg string, args ...any) {
 	if logger != nil {
 		logger.Error(msg, args...)
 	}
+}
+
+func (r *Renderer) collectMetadata(ctx context.Context, route core.Route, props map[string]any, injectors []core.RuntimeInjector, requestContext map[string]any) *core.Metadata {
+	if r.pool == nil {
+		return defaultMetadata()
+	}
+	vm, err := r.pool.Acquire()
+	if err != nil {
+		return defaultMetadata()
+	}
+	defer r.pool.Release(vm)
+
+	for _, inj := range injectors {
+		if err := inj.Inject(ctx, vm); err != nil {
+			return defaultMetadata()
+		}
+	}
+	if err := vm.SetRequestContext(requestContext); err != nil {
+		return defaultMetadata()
+	}
+
+	propsJSON, err := json.Marshal(props)
+	if err != nil {
+		return defaultMetadata()
+	}
+
+	type runner interface {
+		CallAwait(fn string, args ...any) (any, error)
+	}
+	ra, ok := vm.(runner)
+	if !ok {
+		return defaultMetadata()
+	}
+
+	result, err := ra.CallAwait(reactrenderer.CollectMetadataFn, route.Export, string(propsJSON))
+	if err != nil {
+		return defaultMetadata()
+	}
+
+	str, ok := result.(string)
+	if !ok || str == "" || str == "null" {
+		return defaultMetadata()
+	}
+
+	var meta core.Metadata
+	if err := json.Unmarshal([]byte(str), &meta); err != nil {
+		return defaultMetadata()
+	}
+	return &meta
 }
 
 func defaultMetadata() *core.Metadata {

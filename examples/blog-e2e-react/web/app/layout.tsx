@@ -3,8 +3,17 @@ import "./globals.css";
 
 import Nav from "@/components/Nav";
 import ThemeToggle from "@/components/ThemeToggle";
+import type { Metadata } from "@pola/core";
 
-// Root layout — wraps every page with the full shell: topnav + main content area.
+export const metadata: Metadata = {
+  title: { default: "DevBlog", template: "%s | DevBlog" },
+  description: "Writing about Go, React, and building dev tools.",
+  openGraph: {
+    type: "website",
+    siteName: "DevBlog",
+  },
+};
+
 export default function RootLayout({
   children,
 }: {

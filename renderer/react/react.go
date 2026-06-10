@@ -84,6 +84,10 @@ const (
 	// serializes its React element tree to HTML, and returns it as a string.
 	ExtractShellFn = "__extractShell__"
 
+	// CollectMetadataFn is the global async function that walks the metadata
+	// segment chain for a page and returns merged metadata as a JSON string.
+	CollectMetadataFn = "__collectMetadata__"
+
 	// ClientManifestDefine is the esbuild define key injected into the server
 	// bundle and consumed by React's renderToReadableStream.
 	ClientManifestDefine = "__CLIENT_MANIFEST__"
@@ -115,7 +119,7 @@ func (r *Renderer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			// No not-found page — serve a bare HTML shell.
 			w.Header().Set("Content-Type", "text/html; charset=utf-8")
 			w.WriteHeader(status)
-			r.serveHTML(w, req, nil, &deps)
+			r.serveHTML(w, req, nil, defaultMetadata(), &deps)
 			return
 		}
 	}
@@ -162,9 +166,10 @@ func (r *Renderer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 			logError(deps.Logger, "pola: render", "err", err)
 		}
 	}
+	metadata := r.collectMetadata(ctx, *route, props, injectors, requestContext)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.WriteHeader(status)
-	r.serveHTML(w, req, ssrData, &deps)
+	r.serveHTML(w, req, ssrData, metadata, &deps)
 }
 
 // serveFlight handles RSC Flight requests with caching and streaming.
@@ -223,9 +228,9 @@ func (r *Renderer) serveFlight(ctx context.Context, w http.ResponseWriter, req *
 }
 
 // serveHTML returns the HTML shell for initial page loads.
-func (r *Renderer) serveHTML(w http.ResponseWriter, req *http.Request, ssrData []byte, deps *core.RenderDeps) {
+func (r *Renderer) serveHTML(w http.ResponseWriter, req *http.Request, ssrData []byte, metadata *core.Metadata, deps *core.RenderDeps) {
 	params := core.ShellParams{
-		Metadata:      defaultMetadata(),
+		Metadata:      metadata,
 		DocumentProps: deps.DocumentProps,
 	}
 	if deps.BundleOutput != nil {
@@ -278,6 +283,58 @@ func logError(logger core.Logger, msg string, args ...any) {
 	if logger != nil {
 		logger.Error(msg, args...)
 	}
+}
+
+// collectMetadata acquires a VM, calls __collectMetadata__ with the route's
+// export name and props, and deserializes the returned JSON into core.Metadata.
+// Falls back to defaultMetadata on any error.
+func (r *Renderer) collectMetadata(ctx context.Context, route core.Route, props map[string]any, injectors []core.RuntimeInjector, requestContext map[string]any) *core.Metadata {
+	if r.pool == nil {
+		return defaultMetadata()
+	}
+	vm, err := r.pool.Acquire()
+	if err != nil {
+		return defaultMetadata()
+	}
+	defer r.pool.Release(vm)
+
+	for _, inj := range injectors {
+		if err := inj.Inject(ctx, vm); err != nil {
+			return defaultMetadata()
+		}
+	}
+	if err := vm.SetRequestContext(requestContext); err != nil {
+		return defaultMetadata()
+	}
+
+	propsJSON, err := json.Marshal(props)
+	if err != nil {
+		return defaultMetadata()
+	}
+
+	type runner interface {
+		CallAwait(fn string, args ...any) (any, error)
+	}
+	ra, ok := vm.(runner)
+	if !ok {
+		return defaultMetadata()
+	}
+
+	result, err := ra.CallAwait(CollectMetadataFn, route.Export, string(propsJSON))
+	if err != nil {
+		return defaultMetadata()
+	}
+
+	str, ok := result.(string)
+	if !ok || str == "" || str == "null" {
+		return defaultMetadata()
+	}
+
+	var meta core.Metadata
+	if err := json.Unmarshal([]byte(str), &meta); err != nil {
+		return defaultMetadata()
+	}
+	return &meta
 }
 
 // defaultMetadata returns the built-in metadata used when the application has

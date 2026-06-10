@@ -93,11 +93,21 @@ func (g *EntryGenerator) Generate(cfg EntryGenConfig) (string, error) { //nolint
 			rel = absFile
 		}
 		alias := PageAlias(p)
-		fmt.Fprintf(&entry, "import %s from %q;\n", alias, "./"+filepath.ToSlash(rel))
+		named := MetadataImportSuffix(alias, p.HasMetadata, p.HasGenMetadata)
+		if named != "" {
+			fmt.Fprintf(&entry, "import %s, %s from %q;\n", alias, named, "./"+filepath.ToSlash(rel))
+		} else {
+			fmt.Fprintf(&entry, "import %s from %q;\n", alias, "./"+filepath.ToSlash(rel))
+		}
 	}
 
+	type layoutInfo struct {
+		absPath        string
+		hasMetadata    bool
+		hasGenMetadata bool
+	}
 	seenLayout := make(map[string]bool)
-	var layoutPaths []string
+	var layouts []layoutInfo
 	for _, p := range cfg.Pages {
 		for _, seg := range p.Segments {
 			if seg.LayoutPath == "" {
@@ -106,14 +116,19 @@ func (g *EntryGenerator) Generate(cfg EntryGenConfig) (string, error) { //nolint
 			abs, _ := filepath.Abs(seg.LayoutPath)
 			if !seenLayout[abs] {
 				seenLayout[abs] = true
-				layoutPaths = append(layoutPaths, abs)
+				layouts = append(layouts, layoutInfo{abs, seg.HasMetadata, seg.HasGenMetadata})
 			}
 		}
 	}
-	for _, abs := range layoutPaths {
-		rel, _ := filepath.Rel(absAppDir, abs)
-		alias := LayoutAlias(absPagesDir, abs) + "Layout"
-		fmt.Fprintf(&entry, "import %s from %q;\n", alias, "./"+filepath.ToSlash(rel))
+	for _, li := range layouts {
+		rel, _ := filepath.Rel(absAppDir, li.absPath)
+		alias := LayoutAlias(absPagesDir, li.absPath) + "Layout"
+		named := MetadataImportSuffix(alias, li.hasMetadata, li.hasGenMetadata)
+		if named != "" {
+			fmt.Fprintf(&entry, "import %s, %s from %q;\n", alias, named, "./"+filepath.ToSlash(rel))
+		} else {
+			fmt.Fprintf(&entry, "import %s from %q;\n", alias, "./"+filepath.ToSlash(rel))
+		}
 	}
 
 	hasErrorPage := cfg.GlobalErrorPath != ""
@@ -245,6 +260,9 @@ outer:
 	})
 	entry.WriteString(renderBlockBuf.String())
 
+	// Metadata collection: emit __metadataChain__ + __collectMetadata__.
+	entry.WriteString(GenerateMetadataJS(cfg.Pages, absPagesDir))
+
 	// Server-action registry + invocation helpers (reference the __sa_N__ imports).
 	if len(cfg.ServerActions) > 0 {
 		entry.WriteString(serveraction.RegistryJS(cfg.ServerActions))
@@ -368,6 +386,115 @@ func isRootSegment(absPagesDir string, seg core.PageSegment) bool {
 	absDir, _ := filepath.Abs(seg.Dir)
 	return absDir == absPagesDir
 }
+
+// MetadataImportSuffix returns the named import clause for metadata exports,
+// e.g. `{ metadata as Foo_metadata }`, or "" if neither flag is set.
+func MetadataImportSuffix(alias string, hasMetadata, hasGenMetadata bool) string {
+	var parts []string
+	if hasMetadata {
+		parts = append(parts, fmt.Sprintf("metadata as %s_metadata", alias))
+	}
+	if hasGenMetadata {
+		parts = append(parts, fmt.Sprintf("generateMetadata as %s_generateMetadata", alias))
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return "{ " + strings.Join(parts, ", ") + " }"
+}
+
+// GenerateMetadataJS builds the __metadataChain__, __mergeMetadata__, and
+// __collectMetadata__ JS blocks for the server entry.
+func GenerateMetadataJS(pages []core.PageEntry, absPagesDir string) string {
+	var b strings.Builder
+
+	b.WriteString(metadataMergeJS)
+
+	b.WriteString("const __metadataChain__: Record<string, Array<{s?: any, g?: Function}>> = {\n")
+	for _, p := range pages {
+		alias := PageAlias(p)
+		var chain []string
+
+		for _, seg := range p.Segments {
+			if seg.LayoutPath == "" && !seg.HasMetadata && !seg.HasGenMetadata {
+				continue
+			}
+			if seg.LayoutPath == "" {
+				continue
+			}
+			abs, _ := filepath.Abs(seg.LayoutPath)
+			la := LayoutAlias(absPagesDir, abs) + "Layout"
+			if seg.HasGenMetadata {
+				chain = append(chain, fmt.Sprintf("{g:%s_generateMetadata}", la))
+			} else if seg.HasMetadata {
+				chain = append(chain, fmt.Sprintf("{s:%s_metadata}", la))
+			}
+		}
+
+		if p.HasGenMetadata {
+			chain = append(chain, fmt.Sprintf("{g:%s_generateMetadata}", alias))
+		} else if p.HasMetadata {
+			chain = append(chain, fmt.Sprintf("{s:%s_metadata}", alias))
+		}
+
+		if len(chain) > 0 {
+			fmt.Fprintf(&b, "  %s:[%s],\n", alias, strings.Join(chain, ","))
+		}
+	}
+	b.WriteString("};\n")
+
+	b.WriteString(metadataCollectorJS)
+
+	return b.String()
+}
+
+const metadataMergeJS = `
+function __mergeMetadata__(parent: any, child: any): any {
+  if (!child || typeof child !== 'object') return parent;
+  const result: any = { ...parent };
+  for (const [k, v] of Object.entries(child)) {
+    if (v === undefined || v === null) continue;
+    if (k === 'title') {
+      if (typeof v === 'string') {
+        if (typeof result.title === 'object' && result.title?.template) {
+          const tmpl = result.title.template;
+          result.title = tmpl.includes('%s') ? tmpl.replace('%s', v) : v;
+        } else {
+          result.title = v;
+        }
+      } else {
+        result.title = { ...(typeof result.title === 'object' ? result.title : {}), ...v };
+      }
+    } else if (k === 'openGraph' || k === 'twitter' || k === 'robots' || k === 'icons') {
+      result[k] = typeof result[k] === 'object' && result[k] ? { ...result[k], ...v } : v;
+    } else {
+      result[k] = v;
+    }
+  }
+  return result;
+}
+`
+
+const metadataCollectorJS = `
+(globalThis as any).__collectMetadata__ = async function(exportName: string, propsJSON: string): Promise<string> {
+  const chain = (__metadataChain__ as any)[exportName];
+  if (!chain || chain.length === 0) return JSON.stringify(null);
+  const props = JSON.parse(propsJSON || "{}");
+  let merged: any = {};
+  for (const entry of chain) {
+    try {
+      let meta: any = null;
+      if (entry.g) {
+        meta = await entry.g(props);
+      } else if (entry.s) {
+        meta = entry.s;
+      }
+      if (meta) merged = __mergeMetadata__(merged, meta);
+    } catch(e) {}
+  }
+  return JSON.stringify(merged);
+};
+`
 
 // shellExtractorJS is appended to the generated server entry when the root
 // layout returns <html>. It provides a minimal React element → HTML serializer

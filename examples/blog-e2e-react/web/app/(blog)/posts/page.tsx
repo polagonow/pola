@@ -1,4 +1,10 @@
 import { Blog } from "@pola/actions";
+import type { Metadata } from "@pola/core";
+
+export const metadata: Metadata = {
+  title: "Posts",
+  description: "Browse all blog posts about Go, React, and dev tools.",
+};
 
 export default async function PostsPage({
   searchParams,
@@ -6,7 +12,7 @@ export default async function PostsPage({
   searchParams?: Record<string, string>;
 }) {
   if (searchParams?.error !== undefined)
-    await Blog.triggerError(searchParams.error || undefined);
+    await Blog.triggerError(searchParams.error);
   const posts = await Blog.getPosts();
   const tag = searchParams?.tag;
   const filtered = tag ? posts.filter((p) => p.tags.includes(tag)) : posts;

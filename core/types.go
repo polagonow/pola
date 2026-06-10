@@ -29,9 +29,11 @@ var NonceContextKey = nonceContextKeyType{}
 // PageSegment represents one directory level in the route hierarchy.
 // Both LayoutPath and ErrorPath are optional (empty string = absent).
 type PageSegment struct {
-	Dir        string // absolute path of this segment's directory
-	LayoutPath string // layout.tsx path, or "" if none
-	ErrorPath  string // error.tsx path, or "" if none
+	Dir            string // absolute path of this segment's directory
+	LayoutPath     string // layout.tsx path, or "" if none
+	ErrorPath      string // error.tsx path, or "" if none
+	HasMetadata    bool   // layout exports `export const metadata`
+	HasGenMetadata bool   // layout exports `export [async] function generateMetadata`
 }
 
 // PageEntry describes one server-rendered page.
@@ -50,6 +52,12 @@ type PageEntry struct {
 
 	// NotFoundComponentPath is the path to the co-located not-found.tsx, or "" if absent.
 	NotFoundComponentPath string
+
+	// HasMetadata is true when the page exports `export const metadata`.
+	HasMetadata bool
+
+	// HasGenMetadata is true when the page exports `export [async] function generateMetadata`.
+	HasGenMetadata bool
 }
 
 // ComponentFile identifies a discovered source file with its computed module ID.

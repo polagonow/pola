@@ -1,0 +1,9 @@
+{
+  "name": "@pola/core",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Framework-level types for Pola applications (auto-managed by the Pola runtime)",
+  "exports": {
+    ".": "./index.ts"
+  }
+}
