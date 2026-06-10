@@ -164,16 +164,16 @@ func buildGormFieldTags(f schema.Field) string {
 	jsonName := schema.SnakeCase(f.Name)
 	var gormParts []string
 
-	switch f.Type {
-	case schema.FieldString, schema.FieldUUID:
+	switch {
+	case f.Type == schema.FieldString || f.Type == schema.FieldUUID || schema.ValidatorFieldTypes[f.Type]:
 		if f.Limit > 0 {
 			gormParts = append(gormParts, fmt.Sprintf("type:varchar(%d)", f.Limit))
 		} else {
 			gormParts = append(gormParts, "type:varchar(255)")
 		}
-	case schema.FieldText:
+	case f.Type == schema.FieldText:
 		gormParts = append(gormParts, "type:text")
-	case schema.FieldBytes:
+	case f.Type == schema.FieldBytes:
 		if f.Limit > 0 {
 			gormParts = append(gormParts, fmt.Sprintf("size:%d", f.Limit))
 		}

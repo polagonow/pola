@@ -345,6 +345,26 @@ func buildData(def *schema.ModelDefinition, modulePath string) repoData {
 	return data
 }
 
+var validatorTag = map[schema.FieldType]string{
+	schema.FieldUUID:         "uuidv4",
+	schema.FieldEmail:        "email",
+	schema.FieldURL:          "url",
+	schema.FieldIP:           "ip",
+	schema.FieldIPv4:         "ipv4",
+	schema.FieldIPv6:         "ipv6",
+	schema.FieldMAC:          "mac",
+	schema.FieldAlpha:        "alpha",
+	schema.FieldNumeric:      "numeric",
+	schema.FieldAlphanumeric: "alphanum",
+	schema.FieldHexColor:     "hexcolor",
+	schema.FieldCreditCard:   "creditcard",
+	schema.FieldBase64:       "base64",
+	schema.FieldLatitude:     "latitude",
+	schema.FieldLongitude:    "longitude",
+	schema.FieldPort:         "port",
+	schema.FieldSemver:       "semver",
+}
+
 func validTagForField(f schema.Field) string {
 	if f.Type == schema.FieldBool {
 		return "-"
@@ -353,8 +373,8 @@ func validTagForField(f schema.Field) string {
 	if f.Optional {
 		base = "optional"
 	}
-	if f.Type == schema.FieldUUID {
-		return base + ",uuidv4"
+	if tag, ok := validatorTag[f.Type]; ok {
+		return base + "," + tag
 	}
 	return base
 }

@@ -2,6 +2,9 @@ package schema
 
 // GoType returns the Go type string for the given FieldType.
 func GoType(ft FieldType) string {
+	if ValidatorFieldTypes[ft] {
+		return "string"
+	}
 	switch ft {
 	case FieldString, FieldText:
 		return "string"

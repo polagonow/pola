@@ -13,6 +13,23 @@ var sizedFieldTypes = map[schema.FieldType]bool{
 	schema.FieldString: true,
 	schema.FieldText:   true,
 	schema.FieldBytes:  true,
+
+	schema.FieldEmail:        true,
+	schema.FieldURL:          true,
+	schema.FieldIP:           true,
+	schema.FieldIPv4:         true,
+	schema.FieldIPv6:         true,
+	schema.FieldMAC:          true,
+	schema.FieldAlpha:        true,
+	schema.FieldNumeric:      true,
+	schema.FieldAlphanumeric: true,
+	schema.FieldHexColor:     true,
+	schema.FieldCreditCard:   true,
+	schema.FieldBase64:       true,
+	schema.FieldLatitude:     true,
+	schema.FieldLongitude:    true,
+	schema.FieldPort:         true,
+	schema.FieldSemver:       true,
 }
 
 // ParseArgs parses CLI arguments into a ModelDefinition.
@@ -83,7 +100,7 @@ func parseField(spec string) (schema.Field, error) {
 
 	ft := schema.FieldType(typeStr)
 	if !schema.ValidFieldTypes[ft] {
-		return schema.Field{}, fmt.Errorf("unknown type %q; valid types: string, int, int64, float, bool, time, uuid, text, bytes, json, references", typeStr)
+		return schema.Field{}, fmt.Errorf("unknown type %q; valid types: string, int, int64, float, bool, time, uuid, text, bytes, json, references, email, url, ip, ipv4, ipv6, mac, alpha, numeric, alphanumeric, hexcolor, creditcard, base64, latitude, longitude, port, semver", typeStr)
 	}
 
 	// Validate options: numeric {N} for sized types, "polymorphic" or model name for references.
