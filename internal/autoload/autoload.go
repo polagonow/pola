@@ -124,6 +124,8 @@ type PluginOpts struct {
 	MCPName         string
 	MCPVersion      string
 	MCPInstructions string
+
+	APIOnly bool
 }
 
 // RoutePackageInfo holds metadata about a discovered route package.

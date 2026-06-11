@@ -36,6 +36,9 @@ type Data struct {
 	// test config templates to pick the right deps and scripts.
 	TestFramework string
 
+	// APIOnly skips renderer/UI template passes (no web/ directory).
+	APIOnly bool
+
 	// Populated from uiSpecs[uiKey(UI)] at the start of Execute. The canonical
 	// package.json.tmpl ranges over these to merge per-UI extras into the
 	// shared React base.
@@ -250,9 +253,16 @@ func Execute(targetDir string, data Data) error {
 		if rel == "renderers" || strings.HasPrefix(rel, "renderers/") || strings.HasPrefix(rel, "renderers\\") {
 			return "", false // skip
 		}
+		if data.APIOnly && (rel == "actions" || strings.HasPrefix(rel, "actions/") || strings.HasPrefix(rel, "actions\\")) {
+			return "", false // skip JS bridge sample in API-only mode
+		}
 		return rel, true
 	}); err != nil {
 		return fmt.Errorf("shared templates: %w", err)
+	}
+
+	if data.APIOnly {
+		return nil
 	}
 
 	webDir := filepath.Join(targetDir, "web")

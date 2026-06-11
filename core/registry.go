@@ -14,6 +14,7 @@ type Config struct {
 	PublicDir  string
 	HTTPPath   string // URL path prefix; defaults to "/"
 	Dev        bool
+	APIOnly    bool
 }
 
 // Option configures a Pola application.
@@ -37,6 +38,11 @@ func WithHTTPPath(path string) Option {
 // WithDev enables development mode with hot reload.
 func WithDev(dev bool) Option {
 	return func(c *Config) { c.Dev = dev }
+}
+
+// WithAPIOnly configures the app as API-only (no frontend/renderer).
+func WithAPIOnly(v bool) Option {
+	return func(c *Config) { c.APIOnly = v }
 }
 
 // Registry is the explicit service registration API.

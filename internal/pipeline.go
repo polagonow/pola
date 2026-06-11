@@ -13,6 +13,7 @@ import (
 	"github.com/polagonow/pola/core/reserved"
 	"github.com/polagonow/pola/mailer"
 	reactrenderer "github.com/polagonow/pola/mailer/renderer/react"
+	"github.com/polagonow/pola/routes"
 )
 
 // prebuildMeta is the JSON schema for prebuild-meta.json written during mage Bundle
@@ -123,10 +124,15 @@ func Build(ctx context.Context, builder *core.AppBuilder) (*core.App, error) {
 
 // buildWithRegistry is the core pipeline implementation.
 func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, error) {
+	if cfg.APIOnly {
+		return buildAPIOnly(cfg, registry)
+	}
+
 	// ── 1. Resolve required services ────────────────────────────────────
 	renderer, err := core.Invoke[core.Renderer](registry)
 	if err != nil {
-		return nil, fmt.Errorf("pola: no Renderer registered — register a renderer plugin (e.g. react.Plugin())")
+		// No renderer registered — this is an API-only app.
+		return buildAPIOnly(cfg, registry)
 	}
 	router, err := core.Invoke[core.Router](registry)
 	if err != nil {
@@ -590,4 +596,66 @@ func buildEmailBundle(
 	} else {
 		logger.Info("pola: email templates loaded", "templates", len(templates), "layouts", len(layouts))
 	}
+}
+
+// buildAPIOnly constructs an App for API-only projects (no renderer/router/bundler/engine).
+func buildAPIOnly(cfg *core.Config, registry *core.Registry) (*core.App, error) {
+	logger, err := core.Invoke[core.Logger](registry)
+	if err != nil {
+		return nil, fmt.Errorf("pola: no Logger registered — use slog.Plugin()")
+	}
+
+	var apiRouter core.APIRouter
+	if ar, err := core.Invoke[core.APIRouter](registry); err == nil {
+		type builder interface {
+			Build(*core.Registry) error
+		}
+		if b, ok := ar.(builder); ok {
+			if buildErr := b.Build(registry); buildErr != nil {
+				return nil, fmt.Errorf("pola: build api routes: %w", buildErr)
+			}
+		}
+		apiRouter = ar
+	}
+
+	metrics, _ := core.Invoke[core.Metrics](registry)
+	tracer, _ := core.Invoke[core.Tracer](registry)
+	pprofSvc, _ := core.Invoke[core.Pprof](registry)
+	middleware := registry.Middleware()
+
+	logger.Info("pola: API-only mode (no renderer/bundler)")
+
+	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := r.Context()
+		if tracer != nil {
+			var span core.Span
+			ctx, span = tracer.StartSpan(ctx, "pola.api")
+			defer span.End()
+			r = r.WithContext(ctx)
+		}
+		if metrics != nil && r.URL.Path == metrics.Path() {
+			metrics.Handler().ServeHTTP(w, r)
+			return
+		}
+		if pprofSvc != nil && strings.HasPrefix(r.URL.Path, pprofSvc.Path()) {
+			pprofSvc.Handler().ServeHTTP(w, r)
+			return
+		}
+		if apiRouter != nil {
+			if h, params, ok := apiRouter.Match(r); ok {
+				if params != nil {
+					r = routes.WithParams(r, params)
+				}
+				h(w, r)
+				return
+			}
+		}
+		http.NotFound(w, r)
+	})
+
+	for i := len(middleware) - 1; i >= 0; i-- {
+		handler = middleware[i].Wrap(handler)
+	}
+
+	return newApp(cfg, registry, handler), nil
 }

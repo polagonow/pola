@@ -116,6 +116,8 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		MCPVersion      string
 		MCPInstructions string
 		MCPDisco        *autoload.MCPDiscovery
+
+		APIOnly bool
 	}{
 		PolaPackage:     opts.PolaPackage,
 		Engine:          opts.Engine,
@@ -163,6 +165,8 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		MCPVersion:      opts.MCPVersion,
 		MCPInstructions: opts.MCPInstructions,
 		MCPDisco:        mcpDisco,
+
+		APIOnly: opts.APIOnly,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("execute plugins template: %w", err)

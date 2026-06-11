@@ -39,19 +39,22 @@ func (a *autoloadImpl) Contribute(ctx *autoload.Context) error {
 
 	ctx.Discovery.HasActions = true
 
-	tsOut := ctx.Opts.TSOut
-	if tsOut == "" {
-		appDir := ctx.Opts.AppDir
-		if appDir == "" {
-			appDir = "web"
+	var tsOut string
+	if !ctx.Opts.APIOnly {
+		tsOut = ctx.Opts.TSOut
+		if tsOut == "" {
+			appDir := ctx.Opts.AppDir
+			if appDir == "" {
+				appDir = "web"
+			}
+			tsOut = filepath.Join(ctx.ProjectDir, appDir, "node_modules", "@pola", "actions", "src", "generated.ts")
 		}
-		tsOut = filepath.Join(ctx.ProjectDir, appDir, "node_modules", "@pola", "actions", "src", "generated.ts")
-	}
-	if !filepath.IsAbs(tsOut) {
-		tsOut = filepath.Join(ctx.ProjectDir, tsOut)
+		if !filepath.IsAbs(tsOut) {
+			tsOut = filepath.Join(ctx.ProjectDir, tsOut)
+		}
+		fmt.Println("Generating action bridges...")
 	}
 
-	fmt.Println("Generating action bridges...")
 	bridgeResult, err := actionbridge.Run(actionsDir, tsOut, ctx.TmpDir, ctx.Opts.PolaPackage)
 	if err != nil {
 		return fmt.Errorf("actionbridge: %w", err)

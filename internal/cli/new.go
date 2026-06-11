@@ -62,6 +62,7 @@ var newFlags struct {
 	dependencies    string
 	csrf            bool
 	securityHeaders bool
+	apiOnly         bool
 }
 
 var newCmd = &cobra.Command{
@@ -80,7 +81,8 @@ is used as the directory name and the full path becomes the Go module.`,
   pola new github.com/acme/admin                    # name=admin, module=github.com/acme/admin
   pola new my-app --module github.com/acme/my-app
   pola new my-app --renderer=react --bundler=esbuild
-  pola new my-app --css=tailwind`,
+  pola new my-app --css=tailwind
+  pola new my-api --api-only                        # API-only, no frontend`,
 }
 
 func init() {
@@ -98,6 +100,7 @@ func init() {
 	newCmd.Flags().BoolVar(&newFlags.securityHeaders, "security-headers", true, "enable security headers")
 	newCmd.Flags().StringVar(&newFlags.testFramework, "test-framework", "vitest", "TS test framework (vitest, jest, none)")
 	newCmd.Flags().BoolVar(&newFlags.skipTests, "skip-tests", false, "skip generating test files and test infrastructure")
+	newCmd.Flags().BoolVar(&newFlags.apiOnly, "api-only", false, "create an API-only application (no frontend/web directory)")
 }
 
 func runNew(cmd *cobra.Command, args []string) error {
@@ -118,6 +121,14 @@ func runNew(cmd *cobra.Command, args []string) error {
 	appName, parsedModule, err := parseAppNameAndModule(rawInput)
 	if err != nil {
 		return err
+	}
+
+	if newFlags.apiOnly {
+		for _, flagName := range []string{"renderer", "bundler", "router", "css", "ui", "pm", "dependencies", "test-framework"} {
+			if cmd.Flags().Lookup(flagName).Changed {
+				return fmt.Errorf("--%s is not compatible with --api-only", flagName)
+			}
+		}
 	}
 
 	if !cmd.Flags().Lookup("ui").Changed {
@@ -149,63 +160,65 @@ func runNew(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("directory %q already exists", appName)
 	}
 
-	// Validate --ui flag.
-	if newFlags.ui == "shadcn" {
-		if newFlags.css != "tailwind" {
-			return fmt.Errorf("--ui=shadcn requires --css=tailwind")
+	if !newFlags.apiOnly {
+		// Validate --ui flag (skip in API-only mode).
+		if newFlags.ui == "shadcn" {
+			if newFlags.css != "tailwind" {
+				return fmt.Errorf("--ui=shadcn requires --css=tailwind")
+			}
+			if newFlags.renderer != "react" {
+				return fmt.Errorf("--ui=shadcn requires --renderer=react")
+			}
 		}
-		if newFlags.renderer != "react" {
-			return fmt.Errorf("--ui=shadcn requires --renderer=react")
+		if newFlags.ui == "slds" {
+			if newFlags.renderer != "react" {
+				return fmt.Errorf("--ui=slds requires --renderer=react")
+			}
 		}
-	}
-	if newFlags.ui == "slds" {
-		if newFlags.renderer != "react" {
-			return fmt.Errorf("--ui=slds requires --renderer=react")
+		if newFlags.ui == "ads" {
+			if newFlags.renderer != "react" {
+				return fmt.Errorf("--ui=ads requires --renderer=react")
+			}
 		}
-	}
-	if newFlags.ui == "ads" {
-		if newFlags.renderer != "react" {
-			return fmt.Errorf("--ui=ads requires --renderer=react")
+		if newFlags.ui == "carbon" {
+			if newFlags.renderer != "react" {
+				return fmt.Errorf("--ui=carbon requires --renderer=react")
+			}
 		}
-	}
-	if newFlags.ui == "carbon" {
-		if newFlags.renderer != "react" {
-			return fmt.Errorf("--ui=carbon requires --renderer=react")
+		if newFlags.ui == "fluentui" {
+			if newFlags.renderer != "react" {
+				return fmt.Errorf("--ui=fluentui requires --renderer=react")
+			}
 		}
-	}
-	if newFlags.ui == "fluentui" {
-		if newFlags.renderer != "react" {
-			return fmt.Errorf("--ui=fluentui requires --renderer=react")
+		if newFlags.ui == "antd" {
+			if newFlags.renderer != "react" {
+				return fmt.Errorf("--ui=antd requires --renderer=react")
+			}
 		}
-	}
-	if newFlags.ui == "antd" {
-		if newFlags.renderer != "react" {
-			return fmt.Errorf("--ui=antd requires --renderer=react")
-		}
-	}
 
-	// Auto-detect CSS requirement from the UI template's dependencies
-	// (unless user explicitly set --css).
-	if newFlags.ui != "" && newFlags.ui != "none" && !cmd.Flags().Lookup("css").Changed {
-		if app.UIRequiresSass(newFlags.renderer, newFlags.ui) {
-			newFlags.css = "sass"
-		} else if app.UIRequiresTailwind(newFlags.renderer, newFlags.ui) {
-			newFlags.css = "tailwind"
+		// Auto-detect CSS requirement from the UI template's dependencies
+		// (unless user explicitly set --css).
+		if newFlags.ui != "" && newFlags.ui != "none" && !cmd.Flags().Lookup("css").Changed {
+			if app.UIRequiresSass(newFlags.renderer, newFlags.ui) {
+				newFlags.css = "sass"
+			} else if app.UIRequiresTailwind(newFlags.renderer, newFlags.ui) {
+				newFlags.css = "tailwind"
+			}
 		}
-	}
 
-	// If the UI didn't dictate a CSS choice and the user didn't pass --css,
-	// ask. Default is "none" so bare React stays Tailwind-free.
-	if !cmd.Flags().Lookup("css").Changed &&
-		!app.UIRequiresTailwind(newFlags.renderer, newFlags.ui) &&
-		!app.UIRequiresSass(newFlags.renderer, newFlags.ui) {
-		cssPrompt := &survey.Select{
-			Message: "CSS framework:",
-			Options: []string{"none", "tailwind"},
-			Default: "none",
-		}
-		if err := survey.AskOne(cssPrompt, &newFlags.css); err != nil {
-			return fmt.Errorf("prompt css: %w", err)
+		// If the UI didn't dictate a CSS choice and the user didn't pass --css,
+		// ask. Default is "none" so bare React stays Tailwind-free.
+		if !cmd.Flags().Lookup("css").Changed &&
+			!app.UIRequiresTailwind(newFlags.renderer, newFlags.ui) &&
+			!app.UIRequiresSass(newFlags.renderer, newFlags.ui) {
+			cssPrompt := &survey.Select{
+				Message: "CSS framework:",
+				Options: []string{"none", "tailwind"},
+				Default: "none",
+			}
+			if err := survey.AskOne(cssPrompt, &newFlags.css); err != nil {
+				return fmt.Errorf("prompt css: %w", err)
+			}
 		}
 	}
 
@@ -245,11 +258,14 @@ func runNew(cmd *cobra.Command, args []string) error {
 		GenerateTests: generateTests,
 		TestFramework: newFlags.testFramework,
 		NpmOverrides:  npmOverrides,
+		APIOnly:       newFlags.apiOnly,
 	}
 
 	// Create the public directory (needed for asset embedding during builds).
-	if err := os.MkdirAll(filepath.Join(targetDir, "public"), 0o755); err != nil {
-		return fmt.Errorf("create public dir: %w", err)
+	if !newFlags.apiOnly {
+		if err := os.MkdirAll(filepath.Join(targetDir, "public"), 0o755); err != nil {
+			return fmt.Errorf("create public dir: %w", err)
+		}
 	}
 
 	// Execute scaffold templates.
@@ -267,52 +283,64 @@ func runNew(cmd *cobra.Command, args []string) error {
 	pf := &polafile.Polafile{
 		Package:         modulePath,
 		Version:         version,
-		Renderer:        resolveVersion(newFlags.renderer),
-		Engine:          resolveVersion(newFlags.vm),
-		Bundler:         resolveVersion(newFlags.bundler),
-		Router:          newFlags.router,
-		CSS:             newFlags.css,
-		UI:              newFlags.ui,
-		PackageManager:  pm,
-		App:             "web",
-		Actions:         "actions",
+		APIOnly:         newFlags.apiOnly,
 		Routes:          "routes",
 		Repositories:    "repositories",
 		Services:        "services",
 		CSRF:            &polafile.CSRF{Enabled: newFlags.csrf},
 		SecurityHeaders: &polafile.SecurityHeaders{Enabled: newFlags.securityHeaders},
 		Cache:           &polafile.Cache{Enabled: true, Adapter: "memory"},
-		Testing: &polafile.Testing{
+	}
+	if !newFlags.apiOnly {
+		pf.Actions = "actions"
+		pf.Renderer = resolveVersion(newFlags.renderer)
+		pf.Engine = resolveVersion(newFlags.vm)
+		pf.Bundler = resolveVersion(newFlags.bundler)
+		pf.Router = newFlags.router
+		pf.CSS = newFlags.css
+		pf.UI = newFlags.ui
+		pf.PackageManager = pm
+		pf.App = "web"
+		pf.Testing = &polafile.Testing{
 			GenerateTests: &generateTests,
 			Framework:     newFlags.testFramework,
-		},
+		}
 	}
 	if err := polafile.Save(targetDir, pf); err != nil {
 		return fmt.Errorf("write Polafile.hcl: %w", err)
 	}
 
-	// Write a placeholder favicon.
-	faviconPath := filepath.Join(targetDir, "public", "favicon.ico")
-	if _, err := os.Stat(faviconPath); os.IsNotExist(err) {
-		_ = os.WriteFile(faviconPath, []byte{}, 0o644)
+	if !newFlags.apiOnly {
+		// Write a placeholder favicon.
+		faviconPath := filepath.Join(targetDir, "public", "favicon.ico")
+		if _, err := os.Stat(faviconPath); os.IsNotExist(err) {
+			_ = os.WriteFile(faviconPath, []byte{}, 0o644)
+		}
 	}
 
 	// Write a temporary pola_plugins.go so go mod tidy resolves plugin deps.
 	// This file is removed after tidy — at runtime it's injected via overlay.
-	pluginsPath := filepath.Join(targetDir, "pola_plugins.go")
-	pluginsSrc, err := pluginimports.GenerateSource(autoload.PluginOpts{
+	pluginOpts := autoload.PluginOpts{
 		PolaPackage:     polafile.DefaultPackage,
-		Engine:          newFlags.vm,
-		Bundler:         newFlags.bundler,
-		Renderer:        newFlags.renderer,
-		Router:          newFlags.router,
-		CSS:             newFlags.css,
 		Cache:           "memory",
-		Database:        "", // Database plugin is added when user configures ORM via Polafile.
 		CSRF:            newFlags.csrf,
 		SecurityHeaders: newFlags.securityHeaders,
 		Dev:             true,
-	}, modulePath+"/actions", []string{
+		APIOnly:         newFlags.apiOnly,
+	}
+	if !newFlags.apiOnly {
+		pluginOpts.Engine = newFlags.vm
+		pluginOpts.Bundler = newFlags.bundler
+		pluginOpts.Renderer = newFlags.renderer
+		pluginOpts.Router = newFlags.router
+		pluginOpts.CSS = newFlags.css
+	}
+	var actionsImport string
+	if !newFlags.apiOnly {
+		actionsImport = modulePath + "/actions"
+	}
+	pluginsPath := filepath.Join(targetDir, "pola_plugins.go")
+	pluginsSrc, err := pluginimports.GenerateSource(pluginOpts, actionsImport, []string{
 		modulePath + "/routes/health",
 	}, nil, nil, nil)
 	if err != nil {
@@ -332,36 +360,42 @@ func runNew(cmd *cobra.Command, args []string) error {
 	// Remove the temporary plugins file — overlay handles it at serve/build time.
 	os.Remove(pluginsPath)
 
-	// Run package manager install in the web/ directory (frontend root).
-	webDir := filepath.Join(targetDir, "web")
-	fmt.Printf("Running %s install...\n", pm)
-	if err := runInDir(webDir, pm, "install"); err != nil {
-		fmt.Printf("Warning: %s install failed: %v\n", pm, err)
-		fmt.Printf("You may need to run '%s install' manually.\n", pm)
-	}
-
-	// Stub @pola/actions and @pola/react into node_modules.
-	if err := stubpkgs.StubToNodeModules(webDir); err != nil {
-		fmt.Printf("Warning: failed to stub @pola packages: %v\n", err)
-	}
-
-	// Run js:bridge generator from the new project directory so it can
-	// find the Polafile and go.mod.
-	origDir, _ := os.Getwd()
-	if err := os.Chdir(targetDir); err == nil {
-		if err := generators.Run("js:bridge", nil, []string{}); err != nil {
-			if verbose {
-				fmt.Printf("js:bridge: %v\n", err)
-			}
+	if !newFlags.apiOnly {
+		// Run package manager install in the web/ directory (frontend root).
+		webDir := filepath.Join(targetDir, "web")
+		fmt.Printf("Running %s install...\n", pm)
+		if err := runInDir(webDir, pm, "install"); err != nil {
+			fmt.Printf("Warning: %s install failed: %v\n", pm, err)
+			fmt.Printf("You may need to run '%s install' manually.\n", pm)
 		}
-		os.Chdir(origDir)
+
+		// Stub @pola/actions and @pola/react into node_modules.
+		if err := stubpkgs.StubToNodeModules(webDir); err != nil {
+			fmt.Printf("Warning: failed to stub @pola packages: %v\n", err)
+		}
+
+		// Run js:bridge generator from the new project directory so it can
+		// find the Polafile and go.mod.
+		origDir, _ := os.Getwd()
+		if err := os.Chdir(targetDir); err == nil {
+			if err := generators.Run("js:bridge", nil, []string{}); err != nil {
+				if verbose {
+					fmt.Printf("js:bridge: %v\n", err)
+				}
+			}
+			os.Chdir(origDir)
+		}
 	}
 
 	// Print success message.
 	fmt.Println()
 	fmt.Printf("  %s is ready!\n\n", appName)
 	fmt.Printf("  cd %s\n", appName)
-	fmt.Println("  pola serve        # start dev server")
+	if newFlags.apiOnly {
+		fmt.Println("  pola serve        # start API server")
+	} else {
+		fmt.Println("  pola serve        # start dev server")
+	}
 	fmt.Println("  pola build        # build for production")
 	fmt.Println()
 

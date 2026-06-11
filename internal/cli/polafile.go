@@ -22,14 +22,16 @@ func applyPolafileDefaults(cmd *cobra.Command, projectDir string) {
 	if err != nil || pf == nil {
 		return
 	}
-	applyIfUnchanged(cmd, "renderer", "POLA_RENDERER", nameOnly(pf.Renderer))
-	applyIfUnchanged(cmd, "bundler", "POLA_BUNDLER", nameOnly(pf.Bundler))
-	applyIfUnchanged(cmd, "router", "POLA_ROUTER", nameOnly(pf.Router))
-	applyIfUnchanged(cmd, "css", "POLA_CSS", nameOnly(pf.CSS))
-	applyIfUnchanged(cmd, "vm", "POLA_VM", nameOnly(pf.Engine))
+	if !pf.IsAPIOnly() {
+		applyIfUnchanged(cmd, "renderer", "POLA_RENDERER", nameOnly(pf.Renderer))
+		applyIfUnchanged(cmd, "bundler", "POLA_BUNDLER", nameOnly(pf.Bundler))
+		applyIfUnchanged(cmd, "router", "POLA_ROUTER", nameOnly(pf.Router))
+		applyIfUnchanged(cmd, "css", "POLA_CSS", nameOnly(pf.CSS))
+		applyIfUnchanged(cmd, "vm", "POLA_VM", nameOnly(pf.Engine))
+		applyIfUnchanged(cmd, "pm", "POLA_PM", nameOnly(pf.PackageManager))
+		applyIfUnchanged(cmd, "app-path", "POLA_WEBAPP_PATH", "./"+pf.AppDir())
+	}
 	applyIfUnchanged(cmd, "cache", "POLA_CACHE", pf.CacheAdapter("default"))
-	applyIfUnchanged(cmd, "pm", "POLA_PM", nameOnly(pf.PackageManager))
-	applyIfUnchanged(cmd, "app-path", "POLA_WEBAPP_PATH", "./"+pf.AppDir())
 	applyIfUnchanged(cmd, "csrf", "POLA_CSRF", strconv.FormatBool(pf.CSRFEnabled("default")))
 	applyIfUnchanged(cmd, "security-headers", "POLA_SECURITY_HEADERS", strconv.FormatBool(pf.SecurityHeadersEnabled("default")))
 	applyIfUnchanged(cmd, "image-processing", "POLA_IMAGE_PROCESSING", pf.ImageProcessingAdapter("default"))

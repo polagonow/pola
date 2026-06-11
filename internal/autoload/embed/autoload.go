@@ -29,7 +29,7 @@ func (a *autoloadImpl) Name() string { return "embed" }
 func (a *autoloadImpl) Priority() int { return 950 }
 
 func (a *autoloadImpl) Contribute(ctx *autoload.Context) error {
-	if !ctx.Opts.Embed {
+	if !ctx.Opts.Embed || ctx.Opts.APIOnly {
 		return nil
 	}
 
