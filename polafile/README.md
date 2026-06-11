@@ -159,9 +159,9 @@ err := polafile.Save(".", &polafile.Polafile{
     App:            "app",
     Actions:        "actions",
     Routes:         "routes",
-    CSRF:           &polafile.CSRF{Enabled: true},
-    SecurityHeaders: &polafile.SecurityHeaders{Enabled: true},
-    Cache:          &polafile.Cache{Enabled: true, Adapter: "memory"},
+    CSRF:           &polafile.CSRF{},
+    SecurityHeaders: &polafile.SecurityHeaders{},
+    Cache:          &polafile.Cache{Adapter: "memory"},
     Database:       &polafile.Database{
       Models: "models",
       ORM:    "ent",

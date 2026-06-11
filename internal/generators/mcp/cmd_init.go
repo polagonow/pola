@@ -36,7 +36,6 @@ func runInit(_ *cobra.Command, _ []string) error {
 	}
 	if pf.MCP == nil {
 		pf.MCP = &polafile.MCP{
-			Enabled:   true,
 			Transport: "http",
 			Mount:     "/mcp",
 		}
