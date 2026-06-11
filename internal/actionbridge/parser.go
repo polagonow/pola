@@ -25,13 +25,14 @@ type ConstructorDef struct {
 
 // MethodDef describes an exported method on an action struct.
 type MethodDef struct {
-	GoName     string     // e.g. "GetPosts"
-	JSName     string     // e.g. "getPosts"
-	Params     []ParamDef // excludes receiver
-	ReturnType string     // Go type string of first return value
-	ReturnTS   string     // TypeScript type of first return value
-	HasReturn  bool       // true if returns (T, error), false if returns just error
-	Doc        string     // godoc comment
+	GoName      string     // e.g. "GetPosts"
+	JSName      string     // e.g. "getPosts"
+	Params      []ParamDef // excludes receiver
+	ReturnType  string     // Go type string of first return value
+	ReturnTS    string     // TypeScript type of first return value
+	HasReturn   bool       // true if returns (T, error), false if returns just error
+	HasContext   bool       // true if original method accepts context.Context as first param
+	Doc         string     // godoc comment
 }
 
 // ParamDef describes a method parameter.
@@ -242,8 +243,9 @@ func parseMethod(name string, sig *types.Signature, namedTypes map[string]*types
 	params := sig.Params()
 	for i := 0; i < params.Len(); i++ {
 		p := params.At(i)
-		// Skip context.Context
+		// Skip context.Context but record that the method wants it
 		if isContextType(p.Type()) {
+			md.HasContext = true
 			continue
 		}
 		paramName := p.Name()

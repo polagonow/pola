@@ -67,6 +67,10 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 	hasSecurityHeaders := opts.SecurityHeaders
 	hasStorage := opts.StorageDriver != ""
 	hasMailer := opts.MailerRenderer != "" || opts.MailerTransport != ""
+	hasRateLimit := opts.RateLimit
+	hasSession := opts.Session
+	hasFlash := opts.Flash
+	hasI18n := opts.I18n
 
 	var buf strings.Builder
 	err := pluginsTmpl.Execute(&buf, struct {
@@ -116,6 +120,21 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		MCPVersion      string
 		MCPInstructions string
 		MCPDisco        *autoload.MCPDiscovery
+
+		RateLimit      bool
+		RateLimitRPS   float64
+		RateLimitBurst int
+		Session         bool
+		SessionStore    string
+		SessionHost     string
+		SessionPort     string
+		SessionPassword string
+		SessionDB       string
+		SessionDSN      string
+		Flash           bool
+		I18n           bool
+		I18nLocale     string
+		I18nDirectory  string
 	}{
 		PolaPackage:     opts.PolaPackage,
 		Engine:          opts.Engine,
@@ -163,6 +182,21 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		MCPVersion:      opts.MCPVersion,
 		MCPInstructions: opts.MCPInstructions,
 		MCPDisco:        mcpDisco,
+
+		RateLimit:      hasRateLimit,
+		RateLimitRPS:   opts.RateLimitRPS,
+		RateLimitBurst: opts.RateLimitBurst,
+		Session:         hasSession,
+		SessionStore:    cmp.Or(opts.SessionStore, "cookie"),
+		SessionHost:     opts.SessionHost,
+		SessionPort:     opts.SessionPort,
+		SessionPassword: opts.SessionPassword,
+		SessionDB:       opts.SessionDB,
+		SessionDSN:      opts.SessionDSN,
+		Flash:           hasFlash,
+		I18n:           hasI18n,
+		I18nLocale:     cmp.Or(opts.I18nLocale, "en"),
+		I18nDirectory:  cmp.Or(opts.I18nDirectory, "locales"),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("execute plugins template: %w", err)

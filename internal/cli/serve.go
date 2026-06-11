@@ -139,10 +139,16 @@ func runServe(cmd *cobra.Command, _ []string) error {
 			ActionsDir:      generateFlags.actionsDir,
 			TSOut:           generateFlags.tsOut,
 		}
-		autoload.PopulateDatabaseOpts(&opts, &pf, "development")
-		autoload.PopulateStorageOpts(&opts, &pf, "development")
-		autoload.ApplyMailerOpts(&opts, &pf, "development")
-		autoload.PopulateMCPOpts(&opts, &pf, "development")
+
+		defaultEnv := "development"
+		autoload.PopulateDatabaseOpts(&opts, &pf, defaultEnv)
+		autoload.PopulateStorageOpts(&opts, &pf, defaultEnv)
+		autoload.ApplyMailerOpts(&opts, &pf, defaultEnv)
+		autoload.PopulateMCPOpts(&opts, &pf, defaultEnv)
+		autoload.PopulateSessionOpts(&opts, &pf, defaultEnv)
+		autoload.PopulateRateLimitOpts(&opts, &pf, defaultEnv)
+		autoload.PopulateFlashOpts(&opts, &pf, defaultEnv)
+		autoload.PopulateI18nOpts(&opts, &pf, defaultEnv)
 		overlayRes, err := autoload.Run(projectDir, opts, verbose)
 		if err != nil {
 			return err

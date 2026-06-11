@@ -124,6 +124,21 @@ type PluginOpts struct {
 	MCPName         string
 	MCPVersion      string
 	MCPInstructions string
+
+	Session         bool
+	SessionStore    string
+	SessionHost     string
+	SessionPort     string
+	SessionPassword string
+	SessionDB       string
+	SessionDSN      string
+	RateLimit       bool
+	RateLimitRPS    float64
+	RateLimitBurst  int
+	Flash           bool
+	I18n            bool
+	I18nLocale      string
+	I18nDirectory   string
 }
 
 // RoutePackageInfo holds metadata about a discovered route package.
@@ -243,6 +258,57 @@ func ApplyMailerOpts(opts *PluginOpts, pf *polafile.Polafile, env string) {
 	opts.SMTPPassword = cmp.Or(merged.Password, os.Getenv("SMTP_PASSWORD"))
 	tlsVal := cmp.Or(merged.TLS, os.Getenv("SMTP_TLS"))
 	opts.SMTPTLS = tlsVal == "true" || tlsVal == "starttls"
+}
+
+// PopulateSessionOpts fills session-related fields in PluginOpts from the Polafile.
+func PopulateSessionOpts(opts *PluginOpts, pf *polafile.Polafile, env string) {
+	if pf == nil || pf.Session == nil {
+		return
+	}
+	if !pf.SessionEnabled(env) {
+		return
+	}
+	opts.Session = true
+	opts.SessionStore = pf.SessionStore(env)
+	opts.SessionHost = pf.SessionHost(env)
+	opts.SessionPort = pf.SessionPort(env)
+	opts.SessionPassword = pf.SessionPassword(env)
+	opts.SessionDB = pf.SessionDB(env)
+	opts.SessionDSN = pf.SessionDSN(env)
+}
+
+// PopulateRateLimitOpts fills rate-limit-related fields in PluginOpts from the Polafile.
+func PopulateRateLimitOpts(opts *PluginOpts, pf *polafile.Polafile, env string) {
+	if pf == nil || pf.RateLimit == nil {
+		return
+	}
+	if !pf.RateLimitEnabled(env) {
+		return
+	}
+	opts.RateLimit = true
+	opts.RateLimitRPS = pf.RateLimitRPS(env)
+	opts.RateLimitBurst = pf.RateLimitBurst(env)
+}
+
+// PopulateFlashOpts fills flash-related fields in PluginOpts from the Polafile.
+func PopulateFlashOpts(opts *PluginOpts, pf *polafile.Polafile, env string) {
+	if pf == nil || pf.Flash == nil {
+		return
+	}
+	opts.Flash = pf.FlashEnabled(env)
+}
+
+// PopulateI18nOpts fills i18n-related fields in PluginOpts from the Polafile.
+func PopulateI18nOpts(opts *PluginOpts, pf *polafile.Polafile, env string) {
+	if pf == nil || pf.I18n == nil {
+		return
+	}
+	if !pf.I18nEnabled(env) {
+		return
+	}
+	opts.I18n = true
+	opts.I18nLocale = pf.I18nDefaultLocale(env)
+	opts.I18nDirectory = pf.I18nDirectory(env)
 }
 
 // ReadModulePath reads the module path from go.mod in the given directory.

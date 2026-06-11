@@ -70,7 +70,7 @@ func (g *generatedBridge) Inject(ctx context.Context, runtime core.JSRuntime) er
 			}
 			{{- end}}
 			{{- if .HasReturn}}
-			result, err := g.{{fieldName $action.StructName}}.{{.GoName}}({{callArgs .Params}})
+			result, err := g.{{fieldName $action.StructName}}.{{.GoName}}({{callArgs .HasContext .Params}})
 			if err != nil {
 				return nil, err
 			}
@@ -83,7 +83,7 @@ func (g *generatedBridge) Inject(ctx context.Context, runtime core.JSRuntime) er
 			_ = json.Unmarshal(b, &normalized)
 			return normalized, nil
 			{{- else}}
-			return nil, g.{{fieldName $action.StructName}}.{{.GoName}}({{callArgs .Params}})
+			return nil, g.{{fieldName $action.StructName}}.{{.GoName}}({{callArgs .HasContext .Params}})
 			{{- end}}
 		},
 		{{- end}}
