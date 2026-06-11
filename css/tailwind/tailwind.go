@@ -104,7 +104,8 @@ func (t *Tailwind) resolvedBin(inputPath string) (string, []string) {
 		}
 		dir = parent
 	}
-	return "npx", []string{"tailwindcss"}
+	// Tailwind v4 moved the CLI to @tailwindcss/cli.
+	return "npx", []string{"@tailwindcss/cli"}
 }
 
 // nodeModulesRoot walks up from the CSS file's directory to find the nearest
