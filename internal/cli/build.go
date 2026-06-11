@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 
 	"github.com/polagonow/pola/internal/autoload"
 	"github.com/polagonow/pola/internal/stubpkgs"
@@ -25,6 +26,7 @@ var buildFlags struct {
 	csrf            bool
 	securityHeaders bool
 	imageProcessing string
+	platforms       []string
 }
 
 var buildCmd = &cobra.Command{
@@ -32,11 +34,18 @@ var buildCmd = &cobra.Command{
 	Short: "Build a production binary",
 	Long: `Build a production-ready single binary in two stages:
   1. Bundle: pre-build JS/CSS assets using the full runtime
-  2. Compile: compile a Go binary with embedded assets`,
+  2. Compile: compile a Go binary with embedded assets
+
+Cross-compile for other platforms with --platform:
+  pola build --platform linux/amd64
+  pola build --platform all
+  pola build --platform linux --platform darwin`,
 	RunE: runBuild,
 	Example: `  pola build
   pola build -o ./bin/myapp
-  pola build --vm goja --renderer react`,
+  pola build --vm goja --renderer react
+  pola build --platform linux/amd64
+  pola build --platform all -o ./dist/myapp`,
 }
 
 func init() {
@@ -51,6 +60,7 @@ func init() {
 	buildCmd.Flags().BoolVar(&buildFlags.csrf, "csrf", os.Getenv("POLA_CSRF") != "false", "enable CSRF protection")
 	buildCmd.Flags().BoolVar(&buildFlags.securityHeaders, "security-headers", os.Getenv("POLA_SECURITY_HEADERS") != "false", "enable security headers")
 	buildCmd.Flags().StringVar(&buildFlags.imageProcessing, "image-processing", os.Getenv("POLA_IMAGE_PROCESSING"), "image processing adapter")
+	buildCmd.Flags().StringArrayVar(&buildFlags.platforms, "platform", nil, `target platform(s) as GOOS/GOARCH (e.g. linux/amd64); repeatable; use "all" for all supported`)
 }
 
 func runBuild(cmd *cobra.Command, _ []string) error {
@@ -60,6 +70,32 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 	}
 
 	applyPolafileDefaults(cmd, projectDir)
+
+	// Parse --platform targets.
+	targets, err := parsePlatforms(buildFlags.platforms)
+	if err != nil {
+		return err
+	}
+	multiTarget := len(targets) > 1
+	if len(targets) == 0 {
+		targets = []platformTarget{{GOOS: runtime.GOOS, GOARCH: runtime.GOARCH}}
+	}
+
+	hasCross := false
+	for _, t := range targets {
+		if !t.isHost() {
+			hasCross = true
+			break
+		}
+	}
+	if hasCross {
+		if cmd.Flags().Changed("cgo") && buildFlags.cgo != "0" {
+			fmt.Printf("Warning: cross-compilation forces CGO_ENABLED=0 (overriding --cgo=%s)\n", buildFlags.cgo)
+		}
+		if cmd.Flags().Changed("vm") && buildFlags.vm != "goja" {
+			fmt.Printf("Warning: cross-compilation forces VM=goja (overriding --vm=%s)\n", buildFlags.vm)
+		}
+	}
 
 	// Load Polafile for PolaPackage.
 	var pf polafile.Polafile
@@ -126,6 +162,7 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 
 		// ── Stage 1: Bundle ──────────────────────────────────────────────────
 		// Full runtime with bundler, osfs, css — needed to produce assets.
+		// Assets are platform-independent, so this runs once for the host.
 		fmt.Println("[stage 1] Bundling assets...")
 
 		stage1Opts := baseOpts
@@ -164,15 +201,13 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 	}
 
 	// ── Compile ──────────────────────────────────────────────────────────
-	if isAPIOnly {
-		fmt.Println("Compiling binary...")
-	} else {
-		fmt.Println("[stage 2] Compiling binary...")
-	}
-
+	// For cross targets, force goja VM so the overlay uses the pure-Go engine.
 	stage2Opts := baseOpts
 	stage2Opts.Dev = false
 	stage2Opts.Embed = true
+	if hasCross {
+		stage2Opts.Engine = "goja"
+	}
 
 	stage2Result, err := autoload.Run(projectDir, stage2Opts, verbose)
 	if err != nil {
@@ -180,32 +215,50 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 	}
 	defer cleanupOverlay(stage2Result)
 
-	// Ensure output directory exists.
-	if err := os.MkdirAll(filepath.Dir(output), 0o755); err != nil {
-		return fmt.Errorf("create output dir: %w", err)
+	for i, target := range targets {
+		if multiTarget {
+			fmt.Printf("[stage 2] Compiling %s (%d/%d)...\n", target.label(), i+1, len(targets))
+		} else if isAPIOnly {
+			fmt.Println("Compiling binary...")
+		} else {
+			fmt.Println("[stage 2] Compiling binary...")
+		}
+
+		outputPath := resolveOutputPath(output, target, multiTarget)
+
+		if err := os.MkdirAll(filepath.Dir(outputPath), 0o755); err != nil {
+			return fmt.Errorf("create output dir for %s: %w", target.label(), err)
+		}
+
+		cgoVal := buildFlags.cgo
+		if !target.isHost() {
+			cgoVal = "0"
+		}
+
+		compileArgs := []string{"build"}
+		if stage2Result != nil && stage2Result.OverlayPath != "" {
+			compileArgs = append(compileArgs, "-overlay", stage2Result.OverlayPath)
+		}
+		compileArgs = append(compileArgs, "-trimpath", "-ldflags", "-s -w", "-o", outputPath, ".")
+
+		compileCmd := exec.Command("go", compileArgs...)
+		compileCmd.Dir = projectDir
+		compileCmd.Stdout = os.Stdout
+		compileCmd.Stderr = os.Stderr
+		compileCmd.Env = append(os.Environ(),
+			"CGO_ENABLED="+cgoVal,
+			"GOOS="+target.GOOS,
+			"GOARCH="+target.GOARCH,
+			"GONOSUMCHECK=*",
+			"GONOSUMDB=*",
+			"GOFLAGS=-mod=mod",
+		)
+
+		if err := compileCmd.Run(); err != nil {
+			return fmt.Errorf("compile %s failed: %w", target.label(), err)
+		}
+
+		fmt.Printf("Built %s\n", outputPath)
 	}
-
-	compileArgs := []string{"build"}
-	if stage2Result != nil && stage2Result.OverlayPath != "" {
-		compileArgs = append(compileArgs, "-overlay", stage2Result.OverlayPath)
-	}
-	compileArgs = append(compileArgs, "-ldflags", "-s -w", "-o", output, ".")
-
-	compileCmd := exec.Command("go", compileArgs...)
-	compileCmd.Dir = projectDir
-	compileCmd.Stdout = os.Stdout
-	compileCmd.Stderr = os.Stderr
-	compileCmd.Env = append(os.Environ(),
-		"CGO_ENABLED="+buildFlags.cgo,
-		"GONOSUMCHECK=*",
-		"GONOSUMDB=*",
-		"GOFLAGS=-mod=mod",
-	)
-
-	if err := compileCmd.Run(); err != nil {
-		return fmt.Errorf("compile stage failed: %w", err)
-	}
-
-	fmt.Printf("Built %s\n", output)
 	return nil
 }
