@@ -155,7 +155,7 @@ func (r *Renderer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		if data, err := r.RenderToBytes(ctx, renderReq); err == nil {
 			ssrData = data
 			// Fill cache so subsequent requests are served instantly.
-			if deps.Cache != nil {
+			if deps.Cache != nil && renderReq.Route.Revalidate > 0 {
 				if err := deps.Cache.Set(ctx, cacheKey, ssrData, core.CacheOptions{
 					TTL: renderReq.Route.Revalidate,
 				}); err != nil {
@@ -217,8 +217,8 @@ func (r *Renderer) serveFlight(ctx context.Context, w http.ResponseWriter, req *
 		logError(deps.Logger, "pola: render", "err", err)
 	}
 
-	// Fill cache from tee buffer.
-	if tw != nil && len(tw.buf) > 0 {
+	// Fill cache from tee buffer (only when the route opts in via revalidate > 0).
+	if tw != nil && len(tw.buf) > 0 && renderReq.Route.Revalidate > 0 {
 		if err := deps.Cache.Set(ctx, "ssr:"+req.URL.Path+"?"+req.URL.RawQuery, tw.buf, core.CacheOptions{
 			TTL: renderReq.Route.Revalidate,
 		}); err != nil {
