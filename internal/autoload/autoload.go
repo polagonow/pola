@@ -126,6 +126,12 @@ type PluginOpts struct {
 	MCPInstructions string
 
 	Session         bool
+	SessionStore    string
+	SessionHost     string
+	SessionPort     string
+	SessionPassword string
+	SessionDB       string
+	SessionDSN      string
 	RateLimit       bool
 	RateLimitRPS    float64
 	RateLimitBurst  int
@@ -263,6 +269,12 @@ func PopulateSessionOpts(opts *PluginOpts, pf *polafile.Polafile, env string) {
 		return
 	}
 	opts.Session = true
+	opts.SessionStore = pf.SessionStore(env)
+	opts.SessionHost = pf.SessionHost(env)
+	opts.SessionPort = pf.SessionPort(env)
+	opts.SessionPassword = pf.SessionPassword(env)
+	opts.SessionDB = pf.SessionDB(env)
+	opts.SessionDSN = pf.SessionDSN(env)
 }
 
 // PopulateRateLimitOpts fills rate-limit-related fields in PluginOpts from the Polafile.

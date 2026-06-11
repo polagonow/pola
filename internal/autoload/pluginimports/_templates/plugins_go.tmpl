@@ -29,6 +29,12 @@ import (
 {{- end}}
 {{- if .Session}}
 	"{{.PolaPackage}}/middleware/session"
+{{- if eq .SessionStore "redis"}}
+	sessionredis "{{.PolaPackage}}/session/redis"
+{{- end}}
+{{- if eq .SessionStore "xorm"}}
+	sessionxorm "{{.PolaPackage}}/session/xorm"
+{{- end}}
 {{- end}}
 {{- if .Flash}}
 	middlewareflash "{{.PolaPackage}}/middleware/flash"
@@ -148,7 +154,13 @@ var PolaPlugins = []core.Plugin{
 	ratelimit.Plugin(ratelimit.WithRequestsPerSecond({{printf "%g" .RateLimitRPS}}), ratelimit.WithBurst({{.RateLimitBurst}})),
 {{- end}}
 {{- if .Session}}
+{{- if eq .SessionStore "redis"}}
+	session.Plugin(session.WithStore(sessionredis.MustNew(sessionredis.WithAddr("{{.SessionHost}}:{{.SessionPort}}"){{- if .SessionPassword}}, sessionredis.WithPassword("{{.SessionPassword}}"){{- end}})){{- if .Dev}}, session.WithSecure(false){{- end}}),
+{{- else if eq .SessionStore "xorm"}}
+	session.Plugin(session.WithStore(sessionxorm.MustNew([]byte("pola-session-key"), sessionxorm.WithDSN("{{.SessionDSN}}"){{- if .SessionHost}}, sessionxorm.WithDriver("{{.SessionHost}}"){{- end}})){{- if .Dev}}, session.WithSecure(false){{- end}}),
+{{- else}}
 	session.Plugin({{- if .Dev}}session.WithSecure(false){{- end}}),
+{{- end}}
 {{- end}}
 {{- if .Flash}}
 	middlewareflash.Plugin(),

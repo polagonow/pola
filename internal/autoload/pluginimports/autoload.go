@@ -124,8 +124,14 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		RateLimit      bool
 		RateLimitRPS   float64
 		RateLimitBurst int
-		Session        bool
-		Flash          bool
+		Session         bool
+		SessionStore    string
+		SessionHost     string
+		SessionPort     string
+		SessionPassword string
+		SessionDB       string
+		SessionDSN      string
+		Flash           bool
 		I18n           bool
 		I18nLocale     string
 		I18nDirectory  string
@@ -180,8 +186,14 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		RateLimit:      hasRateLimit,
 		RateLimitRPS:   opts.RateLimitRPS,
 		RateLimitBurst: opts.RateLimitBurst,
-		Session:        hasSession,
-		Flash:          hasFlash,
+		Session:         hasSession,
+		SessionStore:    cmp.Or(opts.SessionStore, "cookie"),
+		SessionHost:     opts.SessionHost,
+		SessionPort:     opts.SessionPort,
+		SessionPassword: opts.SessionPassword,
+		SessionDB:       opts.SessionDB,
+		SessionDSN:      opts.SessionDSN,
+		Flash:           hasFlash,
 		I18n:           hasI18n,
 		I18nLocale:     cmp.Or(opts.I18nLocale, "en"),
 		I18nDirectory:  cmp.Or(opts.I18nDirectory, "locales"),

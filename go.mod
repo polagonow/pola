@@ -26,12 +26,15 @@ require (
 	github.com/grafana/sobek v0.0.0-20260309140132-c198b3f43d96
 	github.com/hashicorp/golang-lru/v2 v2.0.7
 	github.com/hashicorp/hcl/v2 v2.24.0
+	github.com/lafriks/xormstore v1.4.0
 	github.com/lib/pq v1.10.9
 	github.com/magefile/mage v1.16.1
 	github.com/mattn/go-sqlite3 v1.14.28
 	github.com/modelcontextprotocol/go-sdk v1.6.1
 	github.com/prometheus/client_golang v1.23.2
+	github.com/rbcervilla/redisstore/v9 v9.0.0
 	github.com/rclone/rclone v1.73.3
+	github.com/redis/go-redis/v9 v9.8.0
 	github.com/samber/do/v2 v2.0.0
 	github.com/spf13/cobra v1.10.2
 	github.com/zclconf/go-cty v1.18.0
@@ -50,6 +53,7 @@ require (
 	modernc.org/libquickjs v0.12.3
 	modernc.org/quickjs v0.17.1
 	rogchap.com/v8go v0.9.0
+	xorm.io/xorm v1.0.6
 )
 
 require (
@@ -77,6 +81,7 @@ require (
 	github.com/cncf/xds/go v0.0.0-20251210132809-ee656c7534f5 // indirect
 	github.com/coreos/go-semver v0.3.1 // indirect
 	github.com/coreos/go-systemd/v22 v22.6.0 // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
 	github.com/dlclark/regexp2 v1.11.5 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
 	github.com/ebitengine/purego v0.9.1 // indirect
@@ -96,6 +101,7 @@ require (
 	github.com/golang-sql/civil v0.0.0-20220223132316-b832511892a9 // indirect
 	github.com/golang-sql/sqlexp v0.1.0 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
+	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/google/jsonschema-go v0.4.3 // indirect
 	github.com/google/pprof v0.0.0-20240727154555-813a5fbdbec8 // indirect
@@ -105,6 +111,7 @@ require (
 	github.com/googleapis/gax-go/v2 v2.15.0 // indirect
 	github.com/googleapis/go-gorm-spanner v1.8.6 // indirect
 	github.com/googleapis/go-sql-spanner v1.17.0 // indirect
+	github.com/gorilla/context v1.1.1 // indirect
 	github.com/gorilla/securecookie v1.1.2 // indirect
 	github.com/hashicorp/golang-lru v1.0.2 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
@@ -144,6 +151,7 @@ require (
 	github.com/shirou/gopsutil/v4 v4.25.10 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/spiffe/go-spiffe/v2 v2.6.0 // indirect
+	github.com/syndtr/goleveldb v1.0.0 // indirect
 	github.com/tetratelabs/wazero v1.9.0 // indirect
 	github.com/tklauser/go-sysconf v0.3.15 // indirect
 	github.com/tklauser/numcpus v0.10.0 // indirect
@@ -180,4 +188,5 @@ require (
 	gorm.io/driver/sqlserver v1.5.4 // indirect
 	modernc.org/mathutil v1.7.1 // indirect
 	modernc.org/memory v1.11.0 // indirect
+	xorm.io/builder v0.3.7 // indirect
 )

@@ -807,14 +807,24 @@ type SessionEnvironment struct {
 	Enabled     *bool  `hcl:"enabled,optional"`
 	Store       string `hcl:"store,optional"`
 	MaxAge      string `hcl:"max_age,optional"`
+	Host        string `hcl:"host,optional"`
+	Port        string `hcl:"port,optional"`
+	Password    string `hcl:"password,optional"`
+	DB          string `hcl:"db,optional"`
+	DSN         string `hcl:"dsn,optional"`
 }
 
 // Session holds session configuration with optional per-environment overrides.
 type Session struct {
-	Enabled bool                 `hcl:"enabled,optional"`
-	Store   string               `hcl:"store,optional"`
-	MaxAge  string               `hcl:"max_age,optional"`
-	Envs    []SessionEnvironment `hcl:"env,block"`
+	Enabled  bool                 `hcl:"enabled,optional"`
+	Store    string               `hcl:"store,optional"`
+	MaxAge   string               `hcl:"max_age,optional"`
+	Host     string               `hcl:"host,optional"`
+	Port     string               `hcl:"port,optional"`
+	Password string               `hcl:"password,optional"`
+	DB       string               `hcl:"db,optional"`
+	DSN      string               `hcl:"dsn,optional"`
+	Envs     []SessionEnvironment `hcl:"env,block"`
 }
 
 // SessionEnabled returns whether sessions are enabled for the given environment.
@@ -830,10 +840,10 @@ func (pf *Polafile) SessionEnabled(env string) bool {
 	return pf.Session.Enabled
 }
 
-// SessionStore returns the configured session store, defaulting to "memory".
+// SessionStore returns the configured session store, defaulting to "cookie".
 func (pf *Polafile) SessionStore(env string) string {
 	if pf.Session == nil {
-		return "memory"
+		return "cookie"
 	}
 	for _, e := range pf.Session.Envs {
 		if e.Environment == env && e.Store != "" {
@@ -843,7 +853,7 @@ func (pf *Polafile) SessionStore(env string) string {
 	if pf.Session.Store != "" {
 		return pf.Session.Store
 	}
-	return "memory"
+	return "cookie"
 }
 
 // SessionMaxAge returns the configured session max age, defaulting to "24h".
@@ -860,6 +870,71 @@ func (pf *Polafile) SessionMaxAge(env string) string {
 		return pf.Session.MaxAge
 	}
 	return "24h"
+}
+
+// SessionHost returns the configured session store host (for Redis).
+func (pf *Polafile) SessionHost(env string) string {
+	if pf.Session == nil {
+		return ""
+	}
+	for _, e := range pf.Session.Envs {
+		if e.Environment == env && e.Host != "" {
+			return e.Host
+		}
+	}
+	return pf.Session.Host
+}
+
+// SessionPort returns the configured session store port (for Redis).
+func (pf *Polafile) SessionPort(env string) string {
+	if pf.Session == nil {
+		return ""
+	}
+	for _, e := range pf.Session.Envs {
+		if e.Environment == env && e.Port != "" {
+			return e.Port
+		}
+	}
+	return pf.Session.Port
+}
+
+// SessionPassword returns the configured session store password (for Redis).
+func (pf *Polafile) SessionPassword(env string) string {
+	if pf.Session == nil {
+		return ""
+	}
+	for _, e := range pf.Session.Envs {
+		if e.Environment == env && e.Password != "" {
+			return e.Password
+		}
+	}
+	return pf.Session.Password
+}
+
+// SessionDB returns the configured session store DB number (for Redis).
+func (pf *Polafile) SessionDB(env string) string {
+	if pf.Session == nil {
+		return ""
+	}
+	for _, e := range pf.Session.Envs {
+		if e.Environment == env && e.DB != "" {
+			return e.DB
+		}
+	}
+	return pf.Session.DB
+}
+
+// SessionDSN returns the configured session store DSN (for xorm).
+func (pf *Polafile) SessionDSN(env string) string {
+	if pf.Session == nil {
+		return ""
+	}
+	for _, e := range pf.Session.Envs {
+		if e.Environment == env && e.DSN != "" {
+			return e.DSN
+		}
+	}
+	return pf.Session.DSN
 }
 
 // ---------- RateLimit ----------
