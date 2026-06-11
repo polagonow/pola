@@ -111,7 +111,6 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 	autoload.PopulateRateLimitOpts(&baseOpts, &pf, defaultEnv)
 	autoload.PopulateFlashOpts(&baseOpts, &pf, defaultEnv)
 	autoload.PopulateI18nOpts(&baseOpts, &pf, defaultEnv)
-	autoload.PopulateCronOpts(&baseOpts, &pf, defaultEnv)
 
 	// ── Stage 1: Bundle ──────────────────────────────────────────────────
 	// Full runtime with bundler, osfs, css — needed to produce assets.

@@ -60,12 +60,6 @@ export default async function HomePage() {
           <code className="text-xs">POST /contacts</code>
         </div>
 
-        <div className="border border-[var(--color-border)] rounded-lg p-5">
-          <h2 className="text-lg font-bold mb-1">⏰ Task Scheduling</h2>
-          <p className="text-sm text-[var(--color-muted)]">
-            Cron-based background tasks. A cleanup task runs every minute.
-          </p>
-        </div>
       </div>
     </div>
   );

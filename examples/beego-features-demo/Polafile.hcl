@@ -57,7 +57,4 @@ pola {
     directory      = "locales"
   }
 
-  cron {
-    enabled = true
-  }
 }

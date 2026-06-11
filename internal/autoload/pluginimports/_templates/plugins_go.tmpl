@@ -37,9 +37,6 @@ import (
 	polai18n "{{.PolaPackage}}/i18n"
 	"{{.PolaPackage}}/middleware/locale"
 {{- end}}
-{{- if .Cron}}
-	polacron "{{.PolaPackage}}/task/cron"
-{{- end}}
 {{- if not .Embed}}
 	{{.Renderer}}{{.Bundler}} "{{.PolaPackage}}/renderer/{{.Renderer}}/{{.Bundler}}"
 {{- else}}
@@ -159,9 +156,6 @@ var PolaPlugins = []core.Plugin{
 {{- if .I18n}}
 	polai18n.Plugin(polai18n.WithDefaultLocale("{{.I18nLocale}}"), polai18n.WithFS(func() fs.FS { f, _ := fs.Sub(polaLocaleFS, "{{.I18nDirectory}}"); return f }())),
 	locale.Plugin(locale.WithDefaultLocale("{{.I18nLocale}}")),
-{{- end}}
-{{- if .Cron}}
-	polacron.Plugin(),
 {{- end}}
 {{- if not .Embed}}
 	{{.Bundler}}.Plugin(),

@@ -149,7 +149,6 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		autoload.PopulateRateLimitOpts(&opts, &pf, defaultEnv)
 		autoload.PopulateFlashOpts(&opts, &pf, defaultEnv)
 		autoload.PopulateI18nOpts(&opts, &pf, defaultEnv)
-		autoload.PopulateCronOpts(&opts, &pf, defaultEnv)
 		overlayRes, err := autoload.Run(projectDir, opts, verbose)
 		if err != nil {
 			return err

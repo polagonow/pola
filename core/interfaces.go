@@ -289,14 +289,6 @@ type MailTransport interface {
 	Send(ctx context.Context, msg *MailMessage) error
 }
 
-// TaskScheduler manages scheduled background tasks.
-type TaskScheduler interface {
-	Name() string
-	AddFunc(spec string, fn func(ctx context.Context)) error
-	Start(ctx context.Context) error
-	Stop() error
-}
-
 // Validator validates structs and returns structured errors.
 type Validator interface {
 	Validate(v any) error

@@ -82,7 +82,6 @@ func runGenerate(_ *cobra.Command, _ []string) error {
 	autoload.PopulateRateLimitOpts(&genOpts, &pf, defaultEnv)
 	autoload.PopulateFlashOpts(&genOpts, &pf, defaultEnv)
 	autoload.PopulateI18nOpts(&genOpts, &pf, defaultEnv)
-	autoload.PopulateCronOpts(&genOpts, &pf, defaultEnv)
 	result, err := autoload.Run(projectDir, genOpts, verbose)
 	if err != nil {
 		return err

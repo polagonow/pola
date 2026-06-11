@@ -133,7 +133,6 @@ type PluginOpts struct {
 	I18n            bool
 	I18nLocale      string
 	I18nDirectory   string
-	Cron            bool
 }
 
 // RoutePackageInfo holds metadata about a discovered route package.
@@ -298,14 +297,6 @@ func PopulateI18nOpts(opts *PluginOpts, pf *polafile.Polafile, env string) {
 	opts.I18n = true
 	opts.I18nLocale = pf.I18nDefaultLocale(env)
 	opts.I18nDirectory = pf.I18nDirectory(env)
-}
-
-// PopulateCronOpts fills cron-related fields in PluginOpts from the Polafile.
-func PopulateCronOpts(opts *PluginOpts, pf *polafile.Polafile, env string) {
-	if pf == nil || pf.Cron == nil {
-		return
-	}
-	opts.Cron = pf.CronEnabled(env)
 }
 
 // ReadModulePath reads the module path from go.mod in the given directory.

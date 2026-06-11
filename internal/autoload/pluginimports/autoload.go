@@ -71,7 +71,6 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 	hasSession := opts.Session
 	hasFlash := opts.Flash
 	hasI18n := opts.I18n
-	hasCron := opts.Cron
 
 	var buf strings.Builder
 	err := pluginsTmpl.Execute(&buf, struct {
@@ -130,7 +129,6 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		I18n           bool
 		I18nLocale     string
 		I18nDirectory  string
-		Cron           bool
 	}{
 		PolaPackage:     opts.PolaPackage,
 		Engine:          opts.Engine,
@@ -187,7 +185,6 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		I18n:           hasI18n,
 		I18nLocale:     cmp.Or(opts.I18nLocale, "en"),
 		I18nDirectory:  cmp.Or(opts.I18nDirectory, "locales"),
-		Cron:           hasCron,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("execute plugins template: %w", err)

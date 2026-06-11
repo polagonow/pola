@@ -84,7 +84,6 @@ type Polafile struct {
 	RateLimit       *RateLimit       `hcl:"rate_limit,block"`
 	Flash           *Flash           `hcl:"flash,block"`
 	I18n            *I18n            `hcl:"i18n,block"`
-	Cron            *Cron            `hcl:"cron,block"`
 }
 
 // ---------- Testing ----------
@@ -1004,21 +1003,6 @@ func (pf *Polafile) I18nDirectory(env string) string {
 	return "locales"
 }
 
-// ---------- Cron ----------
-
-// Cron holds cron scheduler configuration.
-type Cron struct {
-	Enabled bool `hcl:"enabled,optional"`
-}
-
-// CronEnabled returns whether cron scheduling is enabled for the given environment.
-func (pf *Polafile) CronEnabled(_ string) bool {
-	if pf.Cron == nil {
-		return false
-	}
-	return pf.Cron.Enabled
-}
-
 // RepositoriesDir returns the configured repositories directory, defaulting to "repositories".
 func (pf *Polafile) RepositoriesDir() string {
 	if pf.Repositories != "" {
@@ -1313,14 +1297,6 @@ func Save(dir string, pf *Polafile) error {
 		iBody.SetAttributeValue("enabled", cty.BoolVal(pf.I18n.Enabled))
 		setAttr(iBody, "default_locale", pf.I18n.DefaultLocale)
 		setAttr(iBody, "directory", pf.I18n.Directory)
-	}
-
-	// Cron block.
-	if pf.Cron != nil {
-		blockBody.AppendNewline()
-		cBlock := blockBody.AppendNewBlock("cron", nil)
-		cBody := cBlock.Body()
-		cBody.SetAttributeValue("enabled", cty.BoolVal(pf.Cron.Enabled))
 	}
 
 	// Testing block.
