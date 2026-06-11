@@ -113,6 +113,12 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 	autoload.PopulateI18nOpts(&baseOpts, &pf, defaultEnv)
 
 	if !isAPIOnly {
+		// Auto-install frontend dependencies if not yet installed.
+		webDir := filepath.Join(projectDir, buildFlags.appPath)
+		if err := ensureFrontendDeps(webDir, pf); err != nil {
+			return err
+		}
+
 		// Stub @pola/actions and @pola/react into node_modules.
 		if err := stubpkgs.StubToNodeModules(filepath.Join(projectDir, buildFlags.appPath)); err != nil {
 			return fmt.Errorf("stub packages: %w", err)
