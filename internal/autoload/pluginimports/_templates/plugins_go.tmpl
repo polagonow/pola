@@ -14,7 +14,9 @@ import (
 
 	"{{.PolaPackage}}"
 	"{{.PolaPackage}}/core"
+{{- if not .APIOnly}}
 	"{{.PolaPackage}}/engine/{{.Engine}}"
+{{- end}}
 	"{{.PolaPackage}}/logger/slog"
 {{- if .CSRF}}
 	"{{.PolaPackage}}/middleware/csrf"
@@ -43,6 +45,7 @@ import (
 	polai18n "{{.PolaPackage}}/i18n"
 	"{{.PolaPackage}}/middleware/locale"
 {{- end}}
+{{- if not .APIOnly}}
 {{- if not .Embed}}
 	{{.Renderer}}{{.Bundler}} "{{.PolaPackage}}/renderer/{{.Renderer}}/{{.Bundler}}"
 {{- else}}
@@ -54,6 +57,7 @@ import (
 	"{{.PolaPackage}}/fs/osfs"
 {{- if .CSS}}
 	"{{.PolaPackage}}/css/{{.CSS}}"
+{{- end}}
 {{- end}}
 {{- end}}
 {{- if .Cache}}
@@ -119,6 +123,7 @@ var polaLocaleFS embed.FS
 
 // PolaPlugins is the set of plugins for this application.
 var PolaPlugins = []core.Plugin{
+{{- if not .APIOnly}}
 	{{.Engine}}.Plugin(),
 {{- if not .Embed}}
 	{{.Renderer}}{{.Bundler}}.Plugin(),
@@ -126,6 +131,7 @@ var PolaPlugins = []core.Plugin{
 	{{.Renderer}}.Plugin(),
 {{- end}}
 	{{.Router}}.Plugin(),
+{{- end}}
 	slog.Plugin(),
 {{- if .HasMCP}}
 	polamcp.Plugin(
@@ -169,6 +175,7 @@ var PolaPlugins = []core.Plugin{
 	polai18n.Plugin(polai18n.WithDefaultLocale("{{.I18nLocale}}"), polai18n.WithFS(func() fs.FS { f, _ := fs.Sub(polaLocaleFS, "{{.I18nDirectory}}"); return f }())),
 	locale.Plugin(locale.WithDefaultLocale("{{.I18nLocale}}")),
 {{- end}}
+{{- if not .APIOnly}}
 {{- if not .Embed}}
 	{{.Bundler}}.Plugin(),
 	osfs.Plugin(),
@@ -178,6 +185,7 @@ var PolaPlugins = []core.Plugin{
 {{- end}}
 {{- if .Embed}}
 	embedPlugin(),
+{{- end}}
 {{- end}}
 {{- if .Cache}}
 	{{.Cache}}.Plugin(),

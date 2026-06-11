@@ -135,6 +135,8 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		I18n           bool
 		I18nLocale     string
 		I18nDirectory  string
+
+		APIOnly bool
 	}{
 		PolaPackage:     opts.PolaPackage,
 		Engine:          opts.Engine,
@@ -197,6 +199,8 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		I18n:           hasI18n,
 		I18nLocale:     cmp.Or(opts.I18nLocale, "en"),
 		I18nDirectory:  cmp.Or(opts.I18nDirectory, "locales"),
+
+		APIOnly: opts.APIOnly,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("execute plugins template: %w", err)

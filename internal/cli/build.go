@@ -71,6 +71,8 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 		pf = *pfPtr
 	}
 
+	isAPIOnly := pfPtr != nil && pfPtr.IsAPIOnly()
+
 	// Determine output path.
 	output := buildFlags.output
 	if output == "" {
@@ -81,25 +83,23 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 		output = filepath.Join(projectDir, output)
 	}
 
-	// Stub @pola/actions and @pola/react into node_modules.
-	if err := stubpkgs.StubToNodeModules(filepath.Join(projectDir, buildFlags.appPath)); err != nil {
-		return fmt.Errorf("stub packages: %w", err)
-	}
-
 	baseOpts := autoload.PluginOpts{
 		PolaPackage:     pf.PolaPackage(),
-		Engine:          buildFlags.vm,
-		Bundler:         buildFlags.bundler,
-		Renderer:        buildFlags.renderer,
-		Router:          buildFlags.router,
-		CSS:             buildFlags.css,
 		Cache:           "memory",
 		CSRF:            buildFlags.csrf,
 		SecurityHeaders: buildFlags.securityHeaders,
-		AppDir:          pf.AppDir(),
 		ActionsDir:      generateFlags.actionsDir,
 		TSOut:           generateFlags.tsOut,
 		ImageProcessing: buildFlags.imageProcessing,
+		APIOnly:         isAPIOnly,
+	}
+	if !isAPIOnly {
+		baseOpts.Engine = buildFlags.vm
+		baseOpts.Bundler = buildFlags.bundler
+		baseOpts.Renderer = buildFlags.renderer
+		baseOpts.Router = buildFlags.router
+		baseOpts.CSS = buildFlags.css
+		baseOpts.AppDir = pf.AppDir()
 	}
 
 	defaultEnv := "production"
@@ -112,47 +112,57 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 	autoload.PopulateFlashOpts(&baseOpts, &pf, defaultEnv)
 	autoload.PopulateI18nOpts(&baseOpts, &pf, defaultEnv)
 
-	// ── Stage 1: Bundle ──────────────────────────────────────────────────
-	// Full runtime with bundler, osfs, css — needed to produce assets.
-	fmt.Println("[stage 1] Bundling assets...")
+	if !isAPIOnly {
+		// Stub @pola/actions and @pola/react into node_modules.
+		if err := stubpkgs.StubToNodeModules(filepath.Join(projectDir, buildFlags.appPath)); err != nil {
+			return fmt.Errorf("stub packages: %w", err)
+		}
 
-	stage1Opts := baseOpts
-	stage1Opts.Dev = false
-	stage1Opts.Embed = false
+		// ── Stage 1: Bundle ──────────────────────────────────────────────────
+		// Full runtime with bundler, osfs, css — needed to produce assets.
+		fmt.Println("[stage 1] Bundling assets...")
 
-	stage1Result, err := autoload.Run(projectDir, stage1Opts, verbose)
-	if err != nil {
-		return err
+		stage1Opts := baseOpts
+		stage1Opts.Dev = false
+		stage1Opts.Embed = false
+
+		stage1Result, err := autoload.Run(projectDir, stage1Opts, verbose)
+		if err != nil {
+			return err
+		}
+		defer cleanupOverlay(stage1Result)
+
+		bundleArgs := []string{"run"}
+		if stage1Result != nil && stage1Result.OverlayPath != "" {
+			bundleArgs = append(bundleArgs, "-overlay", stage1Result.OverlayPath)
+		}
+		bundleArgs = append(bundleArgs, ".")
+
+		bundleCmd := exec.Command("go", bundleArgs...)
+		bundleCmd.Dir = projectDir
+		bundleCmd.Stdout = os.Stdout
+		bundleCmd.Stderr = os.Stderr
+		bundleCmd.Env = append(os.Environ(),
+			"CGO_ENABLED="+buildFlags.cgo,
+			"POLA_BUILD_ONLY=true",
+			"POLA_PUBLIC_DIR=./public",
+			"POLA_WEBAPP_PATH="+buildFlags.appPath,
+			"GONOSUMCHECK=*",
+			"GONOSUMDB=*",
+			"GOFLAGS=-mod=mod",
+		)
+
+		if err := bundleCmd.Run(); err != nil {
+			return fmt.Errorf("bundle stage failed: %w", err)
+		}
 	}
-	defer cleanupOverlay(stage1Result)
 
-	bundleArgs := []string{"run"}
-	if stage1Result != nil && stage1Result.OverlayPath != "" {
-		bundleArgs = append(bundleArgs, "-overlay", stage1Result.OverlayPath)
+	// ── Compile ──────────────────────────────────────────────────────────
+	if isAPIOnly {
+		fmt.Println("Compiling binary...")
+	} else {
+		fmt.Println("[stage 2] Compiling binary...")
 	}
-	bundleArgs = append(bundleArgs, ".")
-
-	bundleCmd := exec.Command("go", bundleArgs...)
-	bundleCmd.Dir = projectDir
-	bundleCmd.Stdout = os.Stdout
-	bundleCmd.Stderr = os.Stderr
-	bundleCmd.Env = append(os.Environ(),
-		"CGO_ENABLED="+buildFlags.cgo,
-		"POLA_BUILD_ONLY=true",
-		"POLA_PUBLIC_DIR=./public",
-		"POLA_WEBAPP_PATH="+buildFlags.appPath,
-		"GONOSUMCHECK=*",
-		"GONOSUMDB=*",
-		"GOFLAGS=-mod=mod",
-	)
-
-	if err := bundleCmd.Run(); err != nil {
-		return fmt.Errorf("bundle stage failed: %w", err)
-	}
-
-	// ── Stage 2: Compile ─────────────────────────────────────────────────
-	// Embed mode: no bundler/osfs/css, assets embedded via //go:embed.
-	fmt.Println("[stage 2] Compiling binary...")
 
 	stage2Opts := baseOpts
 	stage2Opts.Dev = false

@@ -139,6 +139,8 @@ type PluginOpts struct {
 	I18n            bool
 	I18nLocale      string
 	I18nDirectory   string
+
+	APIOnly bool
 }
 
 // RoutePackageInfo holds metadata about a discovered route package.

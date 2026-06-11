@@ -68,6 +68,8 @@ type Polafile struct {
 	UI             string `hcl:"ui,optional"`
 	PackageManager string `hcl:"package_manager,optional"`
 
+	APIOnly bool `hcl:"api_only,optional"`
+
 	App          string `hcl:"app,optional"`
 	Actions      string `hcl:"actions,optional"`
 	Routes       string `hcl:"routes,optional"`
@@ -99,6 +101,14 @@ type Testing struct {
 	GenerateTests *bool `hcl:"generate_tests,optional"`
 	// Framework is the JavaScript/TypeScript test framework: "vitest" or "jest".
 	Framework string `hcl:"framework,optional"`
+}
+
+// IsAPIOnly reports whether the project is configured as API-only (no frontend).
+func (pf *Polafile) IsAPIOnly() bool {
+	if pf == nil {
+		return false
+	}
+	return pf.APIOnly
 }
 
 // GenerateTests reports whether test files should be emitted by generators.
@@ -1144,6 +1154,9 @@ func Save(dir string, pf *Polafile) error {
 
 	setAttr(blockBody, "package", pf.Package)
 	setAttr(blockBody, "version", pf.Version)
+	if pf.APIOnly {
+		blockBody.SetAttributeValue("api_only", cty.BoolVal(true))
+	}
 	setAttr(blockBody, "renderer", pf.Renderer)
 	setAttr(blockBody, "engine", pf.Engine)
 	setAttr(blockBody, "bundler", pf.Bundler)

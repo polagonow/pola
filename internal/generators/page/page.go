@@ -182,6 +182,9 @@ func (g *PageGenerator) run(cmd *cobra.Command, args []string) error {
 	if pf == nil {
 		return fmt.Errorf("Polafile.hcl not found; run 'pola new' to initialize a project")
 	}
+	if pf.IsAPIOnly() {
+		return fmt.Errorf("page generation is not available in API-only mode")
+	}
 
 	renderer := pf.Renderer
 	if renderer == "" {

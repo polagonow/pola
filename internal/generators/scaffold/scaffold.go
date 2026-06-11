@@ -10,6 +10,7 @@ import (
 	"github.com/polagonow/pola/internal/generators"
 	"github.com/polagonow/pola/internal/generators/model"
 	"github.com/polagonow/pola/internal/generators/model/schema"
+	"github.com/polagonow/pola/polafile"
 	"github.com/spf13/cobra"
 )
 
@@ -57,6 +58,11 @@ func (g *ScaffoldGenerator) Artifacts(cmd *cobra.Command, args []string, project
 		return nil, fmt.Errorf("scaffold name is required")
 	}
 	name := args[0]
+
+	if pf, _ := polafile.Load(projectDir); pf != nil && pf.IsAPIOnly() {
+		cmd.Flags().Set("skip-views", "true")
+		cmd.Flags().Set("skip-zod", "true")
+	}
 
 	skipModel, _ := cmd.Flags().GetBool("skip-model")
 	skipRepository, _ := cmd.Flags().GetBool("skip-repository")
@@ -140,6 +146,12 @@ func (g *ScaffoldGenerator) run(cmd *cobra.Command, args []string) error {
 	skipService, _ := cmd.Flags().GetBool("skip-service")
 	skipAction, _ := cmd.Flags().GetBool("skip-action")
 	skipRoute, _ := cmd.Flags().GetBool("skip-route")
+
+	// Auto-skip views and zod in API-only projects.
+	if pf, _ := polafile.Load("."); pf != nil && pf.IsAPIOnly() {
+		cmd.Flags().Set("skip-views", "true")
+		cmd.Flags().Set("skip-zod", "true")
+	}
 
 	if !skipModel {
 		fmt.Printf("Generating model %s...\n", name)

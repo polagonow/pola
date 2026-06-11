@@ -48,6 +48,10 @@ func (g *JSBridgeGenerator) run(_ *cobra.Command, _ []string) error {
 	if pf == nil {
 		return fmt.Errorf("no Polafile found in %s", projectDir)
 	}
+	if pf.IsAPIOnly() {
+		fmt.Println("API-only mode: skipping JS bridge generation.")
+		return nil
+	}
 
 	actionsDir := filepath.Join(projectDir, "actions")
 	if _, err := os.Stat(actionsDir); os.IsNotExist(err) {

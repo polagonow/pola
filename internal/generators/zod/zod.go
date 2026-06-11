@@ -123,6 +123,9 @@ func (g *ZodGenerator) run(cmd *cobra.Command, args []string) error {
 	if pf == nil {
 		pf = &polafile.Polafile{}
 	}
+	if pf.IsAPIOnly() {
+		return fmt.Errorf("zod schema generation is not available in API-only mode")
+	}
 
 	def, err := model.ParseArgs(args)
 	if err != nil {

@@ -80,37 +80,41 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		pf = *pfPtr
 	}
 
+	isAPIOnly := pfPtr != nil && pfPtr.IsAPIOnly()
+
 	if verbose {
 		fmt.Printf("Project root: %s\n", projectDir)
 	}
 
-	// Auto-install frontend dependencies if node_modules is missing.
-	webDir := filepath.Join(projectDir, serveFlags.appPath)
-	if _, err := os.Stat(filepath.Join(webDir, "node_modules")); os.IsNotExist(err) {
-		if _, err := os.Stat(filepath.Join(webDir, "package.json")); err == nil {
-			pm := pf.PackageManager
-			if pm == "" {
-				pm = detectPackageManager()
-			}
-			if i := strings.IndexByte(pm, '@'); i > 0 {
-				pm = pm[:i]
-			}
-			fmt.Printf("Installing frontend dependencies (%s install)...\n", pm)
-			if err := runInDir(webDir, pm, "install"); err != nil {
-				return fmt.Errorf("%s install: %w", pm, err)
+	if !isAPIOnly {
+		// Auto-install frontend dependencies if node_modules is missing.
+		webDir := filepath.Join(projectDir, serveFlags.appPath)
+		if _, err := os.Stat(filepath.Join(webDir, "node_modules")); os.IsNotExist(err) {
+			if _, err := os.Stat(filepath.Join(webDir, "package.json")); err == nil {
+				pm := pf.PackageManager
+				if pm == "" {
+					pm = detectPackageManager()
+				}
+				if i := strings.IndexByte(pm, '@'); i > 0 {
+					pm = pm[:i]
+				}
+				fmt.Printf("Installing frontend dependencies (%s install)...\n", pm)
+				if err := runInDir(webDir, pm, "install"); err != nil {
+					return fmt.Errorf("%s install: %w", pm, err)
+				}
 			}
 		}
-	}
 
-	// Stub @pola/actions and @pola/react into node_modules.
-	if err := stubpkgs.StubToNodeModules(filepath.Join(projectDir, serveFlags.appPath)); err != nil {
-		return fmt.Errorf("stub packages: %w", err)
-	}
+		// Stub @pola/actions and @pola/react into node_modules.
+		if err := stubpkgs.StubToNodeModules(filepath.Join(projectDir, serveFlags.appPath)); err != nil {
+			return fmt.Errorf("stub packages: %w", err)
+		}
 
-	// Run js:bridge generator to produce TypeScript declarations.
-	if err := generators.Run("js:bridge", nil, []string{}); err != nil {
-		if verbose {
-			fmt.Printf("js:bridge: %v\n", err)
+		// Run js:bridge generator to produce TypeScript declarations.
+		if err := generators.Run("js:bridge", nil, []string{}); err != nil {
+			if verbose {
+				fmt.Printf("js:bridge: %v\n", err)
+			}
 		}
 	}
 
@@ -125,19 +129,22 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		// Generate overlay (plugin imports + action bridge codegen).
 		opts := autoload.PluginOpts{
 			PolaPackage:     pf.PolaPackage(),
-			Engine:          serveFlags.vm,
-			Bundler:         serveFlags.bundler,
-			Renderer:        serveFlags.renderer,
-			Router:          serveFlags.router,
-			CSS:             serveFlags.css,
 			Cache:           "memory",
 			CSRF:            serveFlags.csrf,
 			SecurityHeaders: serveFlags.securityHeaders,
 			ImageProcessing: serveFlags.imageProcessing,
 			Dev:             true,
-			AppDir:          pf.AppDir(),
 			ActionsDir:      generateFlags.actionsDir,
 			TSOut:           generateFlags.tsOut,
+			APIOnly:         isAPIOnly,
+		}
+		if !isAPIOnly {
+			opts.Engine = serveFlags.vm
+			opts.Bundler = serveFlags.bundler
+			opts.Renderer = serveFlags.renderer
+			opts.Router = serveFlags.router
+			opts.CSS = serveFlags.css
+			opts.AppDir = pf.AppDir()
 		}
 
 		defaultEnv := "development"
