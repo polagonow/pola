@@ -53,6 +53,9 @@ type polafileSchema struct {
 // DefaultPackage is the default Go import path for the pola framework.
 const DefaultPackage = "github.com/polagonow/pola"
 
+// BoolPtr returns a pointer to the given bool value.
+func BoolPtr(v bool) *bool { return &v }
+
 // Polafile represents the contents of a Polafile.hcl.
 type Polafile struct {
 	Package        string `hcl:"package,optional"`
@@ -120,12 +123,12 @@ func (pf *Polafile) TestFramework() string {
 // CSRFEnvironment holds per-environment CSRF overrides.
 type CSRFEnvironment struct {
 	Environment string `hcl:"env,label"`
-	Enabled     bool   `hcl:"enabled,optional"`
+	Enabled     *bool  `hcl:"enabled,optional"`
 }
 
 // CSRF holds CSRF protection configuration with optional per-environment overrides.
 type CSRF struct {
-	Enabled bool              `hcl:"enabled,optional"`
+	Enabled *bool             `hcl:"enabled,optional"`
 	Envs    []CSRFEnvironment `hcl:"env,block"`
 }
 
@@ -135,10 +138,10 @@ func (pf *Polafile) CSRFEnabled(env string) bool {
 	if pf.CSRF == nil {
 		return true
 	}
-	base := pf.CSRF.Enabled
+	base := pf.CSRF.Enabled == nil || *pf.CSRF.Enabled
 	for _, e := range pf.CSRF.Envs {
-		if e.Environment == env {
-			return e.Enabled
+		if e.Environment == env && e.Enabled != nil {
+			return *e.Enabled
 		}
 	}
 	return base
@@ -149,12 +152,12 @@ func (pf *Polafile) CSRFEnabled(env string) bool {
 // SecurityHeadersEnvironment holds per-environment security headers overrides.
 type SecurityHeadersEnvironment struct {
 	Environment string `hcl:"env,label"`
-	Enabled     bool   `hcl:"enabled,optional"`
+	Enabled     *bool  `hcl:"enabled,optional"`
 }
 
 // SecurityHeaders holds security headers configuration with optional per-environment overrides.
 type SecurityHeaders struct {
-	Enabled bool                         `hcl:"enabled,optional"`
+	Enabled *bool                        `hcl:"enabled,optional"`
 	Envs    []SecurityHeadersEnvironment `hcl:"env,block"`
 }
 
@@ -164,10 +167,10 @@ func (pf *Polafile) SecurityHeadersEnabled(env string) bool {
 	if pf.SecurityHeaders == nil {
 		return true
 	}
-	base := pf.SecurityHeaders.Enabled
+	base := pf.SecurityHeaders.Enabled == nil || *pf.SecurityHeaders.Enabled
 	for _, e := range pf.SecurityHeaders.Envs {
-		if e.Environment == env {
-			return e.Enabled
+		if e.Environment == env && e.Enabled != nil {
+			return *e.Enabled
 		}
 	}
 	return base
@@ -332,7 +335,7 @@ type CacheEnvironment struct {
 
 // Cache holds cache configuration with optional per-environment overrides.
 type Cache struct {
-	Enabled  bool               `hcl:"enabled,optional"`
+	Enabled  *bool              `hcl:"enabled,optional"`
 	Adapter  string             `hcl:"adapter,optional"`
 	Host     string             `hcl:"host,optional"`
 	Port     string             `hcl:"port,optional"`
@@ -347,7 +350,7 @@ func (pf *Polafile) CacheEnabled(env string) bool {
 	if pf.Cache == nil {
 		return true
 	}
-	base := pf.Cache.Enabled
+	base := pf.Cache.Enabled == nil || *pf.Cache.Enabled
 	for _, e := range pf.Cache.Envs {
 		if e.Environment == env && e.Enabled != nil {
 			return *e.Enabled
@@ -573,7 +576,7 @@ type ImageProcessingEnvironment struct {
 
 // ImageProcessing holds image processing configuration with optional per-environment overrides.
 type ImageProcessing struct {
-	Enabled   bool                         `hcl:"enabled,optional"`
+	Enabled   *bool                        `hcl:"enabled,optional"`
 	Adapter   string                       `hcl:"adapter,optional"`
 	Path      string                       `hcl:"path,optional"`
 	MaxWidth  int                          `hcl:"max_width,optional"`
@@ -588,7 +591,7 @@ func (pf *Polafile) ImageProcessingEnabled(env string) bool {
 	if pf.ImageProcessing == nil {
 		return false
 	}
-	base := pf.ImageProcessing.Enabled
+	base := pf.ImageProcessing.Enabled == nil || *pf.ImageProcessing.Enabled
 	for _, e := range pf.ImageProcessing.Envs {
 		if e.Environment == env && e.Enabled != nil {
 			return *e.Enabled
@@ -706,7 +709,7 @@ type MCPEnvironment struct {
 // MCP holds Model Context Protocol server configuration with optional
 // per-environment overrides. Transport is "http" (default), "sse", or "stdio".
 type MCP struct {
-	Enabled      bool             `hcl:"enabled,optional"`
+	Enabled      *bool            `hcl:"enabled,optional"`
 	Transport    string           `hcl:"transport,optional"`
 	Mount        string           `hcl:"mount,optional"`
 	Name         string           `hcl:"name,optional"`
@@ -726,7 +729,7 @@ func (pf *Polafile) MCPEnabled(env string) bool {
 			return *e.Enabled
 		}
 	}
-	return pf.MCP.Enabled
+	return pf.MCP.Enabled == nil || *pf.MCP.Enabled
 }
 
 // MCPForEnv merges the base MCP config with env-specific overrides.
@@ -816,7 +819,7 @@ type SessionEnvironment struct {
 
 // Session holds session configuration with optional per-environment overrides.
 type Session struct {
-	Enabled  bool                 `hcl:"enabled,optional"`
+	Enabled  *bool                `hcl:"enabled,optional"`
 	Store    string               `hcl:"store,optional"`
 	MaxAge   string               `hcl:"max_age,optional"`
 	Host     string               `hcl:"host,optional"`
@@ -837,7 +840,7 @@ func (pf *Polafile) SessionEnabled(env string) bool {
 			return *e.Enabled
 		}
 	}
-	return pf.Session.Enabled
+	return pf.Session.Enabled == nil || *pf.Session.Enabled
 }
 
 // SessionStore returns the configured session store, defaulting to "cookie".
@@ -949,7 +952,7 @@ type RateLimitEnvironment struct {
 
 // RateLimit holds rate limiting configuration with optional per-environment overrides.
 type RateLimit struct {
-	Enabled           bool                   `hcl:"enabled,optional"`
+	Enabled           *bool                  `hcl:"enabled,optional"`
 	RequestsPerSecond float64                `hcl:"requests_per_second,optional"`
 	Burst             int                    `hcl:"burst,optional"`
 	Envs              []RateLimitEnvironment `hcl:"env,block"`
@@ -965,7 +968,7 @@ func (pf *Polafile) RateLimitEnabled(env string) bool {
 			return *e.Enabled
 		}
 	}
-	return pf.RateLimit.Enabled
+	return pf.RateLimit.Enabled == nil || *pf.RateLimit.Enabled
 }
 
 // RateLimitRPS returns the configured requests per second, defaulting to 10.
@@ -1004,7 +1007,7 @@ func (pf *Polafile) RateLimitBurst(env string) int {
 
 // Flash holds flash message configuration.
 type Flash struct {
-	Enabled bool `hcl:"enabled,optional"`
+	Enabled *bool `hcl:"enabled,optional"`
 }
 
 // FlashEnabled returns whether flash messages are enabled for the given environment.
@@ -1012,7 +1015,7 @@ func (pf *Polafile) FlashEnabled(_ string) bool {
 	if pf.Flash == nil {
 		return false
 	}
-	return pf.Flash.Enabled
+	return pf.Flash.Enabled == nil || *pf.Flash.Enabled
 }
 
 // ---------- I18n ----------
@@ -1027,7 +1030,7 @@ type I18nEnvironment struct {
 
 // I18n holds i18n configuration with optional per-environment overrides.
 type I18n struct {
-	Enabled       bool              `hcl:"enabled,optional"`
+	Enabled       *bool             `hcl:"enabled,optional"`
 	DefaultLocale string            `hcl:"default_locale,optional"`
 	Directory     string            `hcl:"directory,optional"`
 	Envs          []I18nEnvironment `hcl:"env,block"`
@@ -1043,7 +1046,7 @@ func (pf *Polafile) I18nEnabled(env string) bool {
 			return *e.Enabled
 		}
 	}
-	return pf.I18n.Enabled
+	return pf.I18n.Enabled == nil || *pf.I18n.Enabled
 }
 
 // I18nDefaultLocale returns the configured default locale, defaulting to "en".
@@ -1133,6 +1136,12 @@ func Save(dir string, pf *Polafile) error {
 		}
 	}
 
+	setBoolIfFalse := func(b *hclwrite.Body, key string, val *bool) {
+		if val != nil && !*val {
+			b.SetAttributeValue(key, cty.BoolVal(false))
+		}
+	}
+
 	setAttr(blockBody, "package", pf.Package)
 	setAttr(blockBody, "version", pf.Version)
 	setAttr(blockBody, "renderer", pf.Renderer)
@@ -1153,11 +1162,11 @@ func Save(dir string, pf *Polafile) error {
 		blockBody.AppendNewline()
 		csrfBlock := blockBody.AppendNewBlock("csrf", nil)
 		csrfBody := csrfBlock.Body()
-		csrfBody.SetAttributeValue("enabled", cty.BoolVal(pf.CSRF.Enabled))
+		setBoolIfFalse(csrfBody, "enabled", pf.CSRF.Enabled)
 		for _, e := range pf.CSRF.Envs {
 			envBlock := csrfBody.AppendNewBlock("env", []string{e.Environment})
 			envBody := envBlock.Body()
-			envBody.SetAttributeValue("enabled", cty.BoolVal(e.Enabled))
+			setBoolIfFalse(envBody, "enabled", e.Enabled)
 		}
 	}
 
@@ -1166,11 +1175,11 @@ func Save(dir string, pf *Polafile) error {
 		blockBody.AppendNewline()
 		shBlock := blockBody.AppendNewBlock("security_headers", nil)
 		shBody := shBlock.Body()
-		shBody.SetAttributeValue("enabled", cty.BoolVal(pf.SecurityHeaders.Enabled))
+		setBoolIfFalse(shBody, "enabled", pf.SecurityHeaders.Enabled)
 		for _, e := range pf.SecurityHeaders.Envs {
 			envBlock := shBody.AppendNewBlock("env", []string{e.Environment})
 			envBody := envBlock.Body()
-			envBody.SetAttributeValue("enabled", cty.BoolVal(e.Enabled))
+			setBoolIfFalse(envBody, "enabled", e.Enabled)
 		}
 	}
 
@@ -1179,7 +1188,7 @@ func Save(dir string, pf *Polafile) error {
 		blockBody.AppendNewline()
 		cBlock := blockBody.AppendNewBlock("cache", nil)
 		cBody := cBlock.Body()
-		cBody.SetAttributeValue("enabled", cty.BoolVal(pf.Cache.Enabled))
+		setBoolIfFalse(cBody, "enabled", pf.Cache.Enabled)
 		setAttr(cBody, "adapter", pf.Cache.Adapter)
 		setAttr(cBody, "host", pf.Cache.Host)
 		setAttr(cBody, "port", pf.Cache.Port)
@@ -1282,7 +1291,7 @@ func Save(dir string, pf *Polafile) error {
 		blockBody.AppendNewline()
 		ipBlock := blockBody.AppendNewBlock("image_processing", nil)
 		ipBody := ipBlock.Body()
-		ipBody.SetAttributeValue("enabled", cty.BoolVal(pf.ImageProcessing.Enabled))
+		setBoolIfFalse(ipBody, "enabled", pf.ImageProcessing.Enabled)
 		setAttr(ipBody, "adapter", pf.ImageProcessing.Adapter)
 		setAttr(ipBody, "path", pf.ImageProcessing.Path)
 		if pf.ImageProcessing.MaxWidth > 0 {
@@ -1312,7 +1321,7 @@ func Save(dir string, pf *Polafile) error {
 		blockBody.AppendNewline()
 		mcpBlock := blockBody.AppendNewBlock("mcp", nil)
 		mcpBody := mcpBlock.Body()
-		mcpBody.SetAttributeValue("enabled", cty.BoolVal(pf.MCP.Enabled))
+		setBoolIfFalse(mcpBody, "enabled", pf.MCP.Enabled)
 		setAttr(mcpBody, "transport", pf.MCP.Transport)
 		setAttr(mcpBody, "mount", pf.MCP.Mount)
 		setAttr(mcpBody, "name", pf.MCP.Name)
@@ -1337,7 +1346,7 @@ func Save(dir string, pf *Polafile) error {
 		blockBody.AppendNewline()
 		sBlock := blockBody.AppendNewBlock("session", nil)
 		sBody := sBlock.Body()
-		sBody.SetAttributeValue("enabled", cty.BoolVal(pf.Session.Enabled))
+		setBoolIfFalse(sBody, "enabled", pf.Session.Enabled)
 		setAttr(sBody, "store", pf.Session.Store)
 		setAttr(sBody, "max_age", pf.Session.MaxAge)
 	}
@@ -1347,7 +1356,7 @@ func Save(dir string, pf *Polafile) error {
 		blockBody.AppendNewline()
 		rlBlock := blockBody.AppendNewBlock("rate_limit", nil)
 		rlBody := rlBlock.Body()
-		rlBody.SetAttributeValue("enabled", cty.BoolVal(pf.RateLimit.Enabled))
+		setBoolIfFalse(rlBody, "enabled", pf.RateLimit.Enabled)
 		if pf.RateLimit.RequestsPerSecond > 0 {
 			rlBody.SetAttributeValue("requests_per_second", cty.NumberIntVal(int64(pf.RateLimit.RequestsPerSecond)))
 		}
@@ -1361,7 +1370,7 @@ func Save(dir string, pf *Polafile) error {
 		blockBody.AppendNewline()
 		fBlock := blockBody.AppendNewBlock("flash", nil)
 		fBody := fBlock.Body()
-		fBody.SetAttributeValue("enabled", cty.BoolVal(pf.Flash.Enabled))
+		setBoolIfFalse(fBody, "enabled", pf.Flash.Enabled)
 	}
 
 	// I18n block.
@@ -1369,7 +1378,7 @@ func Save(dir string, pf *Polafile) error {
 		blockBody.AppendNewline()
 		iBlock := blockBody.AppendNewBlock("i18n", nil)
 		iBody := iBlock.Body()
-		iBody.SetAttributeValue("enabled", cty.BoolVal(pf.I18n.Enabled))
+		setBoolIfFalse(iBody, "enabled", pf.I18n.Enabled)
 		setAttr(iBody, "default_locale", pf.I18n.DefaultLocale)
 		setAttr(iBody, "directory", pf.I18n.Directory)
 	}

@@ -279,9 +279,9 @@ func runNew(cmd *cobra.Command, args []string) error {
 		Routes:          "routes",
 		Repositories:    "repositories",
 		Services:        "services",
-		CSRF:            &polafile.CSRF{Enabled: newFlags.csrf},
-		SecurityHeaders: &polafile.SecurityHeaders{Enabled: newFlags.securityHeaders},
-		Cache:           &polafile.Cache{Enabled: true, Adapter: "memory"},
+		CSRF:            &polafile.CSRF{Enabled: polafile.BoolPtr(newFlags.csrf)},
+		SecurityHeaders: &polafile.SecurityHeaders{Enabled: polafile.BoolPtr(newFlags.securityHeaders)},
+		Cache:           &polafile.Cache{Adapter: "memory"},
 		Testing: &polafile.Testing{
 			GenerateTests: &generateTests,
 			Framework:     newFlags.testFramework,
