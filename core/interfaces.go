@@ -288,3 +288,16 @@ type MailTransport interface {
 	Name() string
 	Send(ctx context.Context, msg *MailMessage) error
 }
+
+// Validator validates structs and returns structured errors.
+type Validator interface {
+	Validate(v any) error
+	ValidateField(field any, tag string) error
+}
+
+// Translator provides i18n translation support.
+type Translator interface {
+	Name() string
+	T(locale, key string, args ...any) string
+	Locales() []string
+}

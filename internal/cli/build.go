@@ -101,10 +101,16 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 		baseOpts.CSS = buildFlags.css
 		baseOpts.AppDir = pf.AppDir()
 	}
-	autoload.PopulateDatabaseOpts(&baseOpts, &pf, "production")
-	autoload.PopulateStorageOpts(&baseOpts, &pf, "production")
-	autoload.ApplyMailerOpts(&baseOpts, &pf, "production")
-	autoload.PopulateMCPOpts(&baseOpts, &pf, "production")
+
+	defaultEnv := "production"
+	autoload.PopulateDatabaseOpts(&baseOpts, &pf, defaultEnv)
+	autoload.PopulateStorageOpts(&baseOpts, &pf, defaultEnv)
+	autoload.ApplyMailerOpts(&baseOpts, &pf, defaultEnv)
+	autoload.PopulateMCPOpts(&baseOpts, &pf, defaultEnv)
+	autoload.PopulateSessionOpts(&baseOpts, &pf, defaultEnv)
+	autoload.PopulateRateLimitOpts(&baseOpts, &pf, defaultEnv)
+	autoload.PopulateFlashOpts(&baseOpts, &pf, defaultEnv)
+	autoload.PopulateI18nOpts(&baseOpts, &pf, defaultEnv)
 
 	if !isAPIOnly {
 		// Stub @pola/actions and @pola/react into node_modules.

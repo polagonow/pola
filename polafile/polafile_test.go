@@ -49,9 +49,9 @@ func TestSaveAndLoad(t *testing.T) {
 		CSS:             "tailwind@^4.0.0",
 		UI:              "shadcn",
 		PackageManager:  "pnpm@^9.0.0",
-		Cache:           &Cache{Enabled: true, Adapter: "memory"},
-		CSRF:            &CSRF{Enabled: true},
-		SecurityHeaders: &SecurityHeaders{Enabled: true},
+		Cache:           &Cache{Adapter: "memory"},
+		CSRF:            &CSRF{},
+		SecurityHeaders: &SecurityHeaders{},
 		App:             "app",
 		Actions:         "actions",
 		Routes:          "routes",
@@ -259,9 +259,8 @@ func TestDatabaseDirectoryDefaults(t *testing.T) {
 func TestCSRFEnvironmentOverride(t *testing.T) {
 	pf := &Polafile{
 		CSRF: &CSRF{
-			Enabled: true,
 			Envs: []CSRFEnvironment{
-				{Environment: "test", Enabled: false},
+				{Environment: "test", Enabled: BoolPtr(false)},
 			},
 		},
 	}
@@ -277,9 +276,8 @@ func TestCSRFEnvironmentOverride(t *testing.T) {
 func TestSecurityHeadersEnvironmentOverride(t *testing.T) {
 	pf := &Polafile{
 		SecurityHeaders: &SecurityHeaders{
-			Enabled: true,
 			Envs: []SecurityHeadersEnvironment{
-				{Environment: "test", Enabled: false},
+				{Environment: "test", Enabled: BoolPtr(false)},
 			},
 		},
 	}
@@ -293,13 +291,11 @@ func TestSecurityHeadersEnvironmentOverride(t *testing.T) {
 }
 
 func TestCacheEnabledEnvironmentOverride(t *testing.T) {
-	disabled := false
 	pf := &Polafile{
 		Cache: &Cache{
-			Enabled: true,
 			Adapter: "memory",
 			Envs: []CacheEnvironment{
-				{Environment: "test", Enabled: &disabled},
+				{Environment: "test", Enabled: BoolPtr(false)},
 			},
 		},
 	}
@@ -377,5 +373,151 @@ func TestSaveOmitsEmptyFields(t *testing.T) {
 	}
 	if !strings.Contains(content, "renderer") {
 		t.Error("expected renderer to be present")
+	}
+}
+
+func TestBlockPresenceImpliesEnabled(t *testing.T) {
+	pf := &Polafile{
+		CSRF:            &CSRF{},
+		SecurityHeaders: &SecurityHeaders{},
+		Cache:           &Cache{},
+		ImageProcessing: &ImageProcessing{},
+		MCP:             &MCP{},
+		Session:         &Session{},
+		RateLimit:       &RateLimit{},
+		Flash:           &Flash{},
+		I18n:            &I18n{},
+	}
+	if !pf.CSRFEnabled("default") {
+		t.Error("CSRF block present without enabled should be true")
+	}
+	if !pf.SecurityHeadersEnabled("default") {
+		t.Error("SecurityHeaders block present without enabled should be true")
+	}
+	if !pf.CacheEnabled("default") {
+		t.Error("Cache block present without enabled should be true")
+	}
+	if !pf.ImageProcessingEnabled("default") {
+		t.Error("ImageProcessing block present without enabled should be true")
+	}
+	if !pf.MCPEnabled("default") {
+		t.Error("MCP block present without enabled should be true")
+	}
+	if !pf.SessionEnabled("default") {
+		t.Error("Session block present without enabled should be true")
+	}
+	if !pf.RateLimitEnabled("default") {
+		t.Error("RateLimit block present without enabled should be true")
+	}
+	if !pf.FlashEnabled("default") {
+		t.Error("Flash block present without enabled should be true")
+	}
+	if !pf.I18nEnabled("default") {
+		t.Error("I18n block present without enabled should be true")
+	}
+}
+
+func TestBlockPresenceExplicitlyDisabled(t *testing.T) {
+	f := BoolPtr(false)
+	pf := &Polafile{
+		CSRF:            &CSRF{Enabled: f},
+		SecurityHeaders: &SecurityHeaders{Enabled: f},
+		Cache:           &Cache{Enabled: f},
+		ImageProcessing: &ImageProcessing{Enabled: f},
+		MCP:             &MCP{Enabled: f},
+		Session:         &Session{Enabled: f},
+		RateLimit:       &RateLimit{Enabled: f},
+		Flash:           &Flash{Enabled: f},
+		I18n:            &I18n{Enabled: f},
+	}
+	if pf.CSRFEnabled("default") {
+		t.Error("CSRF explicitly disabled should be false")
+	}
+	if pf.SecurityHeadersEnabled("default") {
+		t.Error("SecurityHeaders explicitly disabled should be false")
+	}
+	if pf.CacheEnabled("default") {
+		t.Error("Cache explicitly disabled should be false")
+	}
+	if pf.ImageProcessingEnabled("default") {
+		t.Error("ImageProcessing explicitly disabled should be false")
+	}
+	if pf.MCPEnabled("default") {
+		t.Error("MCP explicitly disabled should be false")
+	}
+	if pf.SessionEnabled("default") {
+		t.Error("Session explicitly disabled should be false")
+	}
+	if pf.RateLimitEnabled("default") {
+		t.Error("RateLimit explicitly disabled should be false")
+	}
+	if pf.FlashEnabled("default") {
+		t.Error("Flash explicitly disabled should be false")
+	}
+	if pf.I18nEnabled("default") {
+		t.Error("I18n explicitly disabled should be false")
+	}
+}
+
+func TestSaveOmitsEnabledWhenImplied(t *testing.T) {
+	dir := t.TempDir()
+	pf := &Polafile{
+		Renderer: "react",
+		CSRF:     &CSRF{},
+		MCP:      &MCP{Enabled: BoolPtr(false)},
+	}
+	if err := Save(dir, pf); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	data, err := os.ReadFile(filepath.Join(dir, Filename))
+	if err != nil {
+		t.Fatalf("ReadFile: %v", err)
+	}
+	content := string(data)
+	csrfIdx := strings.Index(content, "csrf {")
+	mcpIdx := strings.Index(content, "mcp {")
+	if csrfIdx < 0 {
+		t.Fatal("expected csrf block in output")
+	}
+	if mcpIdx < 0 {
+		t.Fatal("expected mcp block in output")
+	}
+	csrfEnd := mcpIdx
+	if csrfEnd < 0 {
+		csrfEnd = len(content)
+	}
+	csrfSection := content[csrfIdx:csrfEnd]
+	if strings.Contains(csrfSection, "enabled") {
+		t.Error("csrf block should not contain enabled when implicitly enabled")
+	}
+	mcpSection := content[mcpIdx:]
+	if !strings.Contains(mcpSection, "enabled = false") {
+		t.Error("mcp block should contain enabled = false when explicitly disabled")
+	}
+}
+
+func TestSaveLoadRoundtripWithoutEnabled(t *testing.T) {
+	dir := t.TempDir()
+	pf := &Polafile{
+		Renderer:        "react",
+		CSRF:            &CSRF{},
+		SecurityHeaders: &SecurityHeaders{},
+		Cache:           &Cache{Adapter: "memory"},
+	}
+	if err := Save(dir, pf); err != nil {
+		t.Fatalf("Save: %v", err)
+	}
+	loaded, err := Load(dir)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if !loaded.CSRFEnabled("default") {
+		t.Error("CSRFEnabled after roundtrip should be true")
+	}
+	if !loaded.SecurityHeadersEnabled("default") {
+		t.Error("SecurityHeadersEnabled after roundtrip should be true")
+	}
+	if !loaded.CacheEnabled("default") {
+		t.Error("CacheEnabled after roundtrip should be true")
 	}
 }

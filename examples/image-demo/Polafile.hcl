@@ -23,7 +23,6 @@ pola {
   }
 
   cache {
-    enabled = true
     adapter = "memory"
   }
 
@@ -32,7 +31,6 @@ pola {
   # pure Go (no CGO). Output defaults to JPEG; resize/crop/quality are driven by
   # the query string the component generates.
   image_processing {
-    enabled    = true
     adapter    = "imaging"
     path       = "/_pola/image"
     max_width  = 4096

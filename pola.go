@@ -15,7 +15,10 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
+	"time"
 
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/core/env"
@@ -119,4 +122,35 @@ func NewApp(opts ...core.Option) *core.AppBuilder {
 // BuildApp builds an App from an AppBuilder.
 func BuildApp(ctx context.Context, builder *core.AppBuilder) (*core.App, error) {
 	return internal.Build(ctx, builder)
+}
+
+// ListenAndServe starts the default app with graceful shutdown support.
+// On SIGINT/SIGTERM, in-flight requests are drained within the configured
+// timeout (POLA_SHUTDOWN_TIMEOUT env var, default 30s) before the server
+// stops. Returns nil on clean shutdown.
+func ListenAndServe() error {
+	addr := Addr()
+	srv := &http.Server{Addr: addr}
+
+	shutdownTimeout := 30 * time.Second
+	if v := os.Getenv("POLA_SHUTDOWN_TIMEOUT"); v != "" {
+		if d, err := time.ParseDuration(v); err == nil {
+			shutdownTimeout = d
+		}
+	}
+
+	errCh := make(chan error, 1)
+	go func() { errCh <- srv.ListenAndServe() }()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	select {
+	case err := <-errCh:
+		return err
+	case <-quit:
+		ctx, cancel := context.WithTimeout(context.Background(), shutdownTimeout)
+		defer cancel()
+		return srv.Shutdown(ctx)
+	}
 }

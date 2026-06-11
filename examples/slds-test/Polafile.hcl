@@ -14,16 +14,11 @@ pola {
   repositories    = "repositories"
   services        = "services"
 
-  csrf {
-    enabled = true
-  }
+  csrf {}
 
-  security_headers {
-    enabled = true
-  }
+  security_headers {}
 
   cache {
-    enabled = true
     adapter = "memory"
   }
 

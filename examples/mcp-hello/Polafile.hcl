@@ -23,7 +23,6 @@ pola {
   }
 
   cache {
-    enabled = true
     adapter = "memory"
   }
 
@@ -39,7 +38,6 @@ pola {
   }
 
   mcp {
-    enabled   = true
     transport = "http"
     mount     = "/mcp"
   }

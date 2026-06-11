@@ -72,10 +72,16 @@ func runGenerate(_ *cobra.Command, _ []string) error {
 		ActionsDir:      generateFlags.actionsDir,
 		TSOut:           generateFlags.tsOut,
 	}
-	autoload.PopulateDatabaseOpts(&genOpts, &pf, "development")
-	autoload.PopulateStorageOpts(&genOpts, &pf, "development")
-	autoload.ApplyMailerOpts(&genOpts, &pf, "development")
-	autoload.PopulateMCPOpts(&genOpts, &pf, "development")
+
+	defaultEnv := "development"
+	autoload.PopulateDatabaseOpts(&genOpts, &pf, defaultEnv)
+	autoload.PopulateStorageOpts(&genOpts, &pf, defaultEnv)
+	autoload.ApplyMailerOpts(&genOpts, &pf, defaultEnv)
+	autoload.PopulateMCPOpts(&genOpts, &pf, defaultEnv)
+	autoload.PopulateSessionOpts(&genOpts, &pf, defaultEnv)
+	autoload.PopulateRateLimitOpts(&genOpts, &pf, defaultEnv)
+	autoload.PopulateFlashOpts(&genOpts, &pf, defaultEnv)
+	autoload.PopulateI18nOpts(&genOpts, &pf, defaultEnv)
 	result, err := autoload.Run(projectDir, genOpts, verbose)
 	if err != nil {
 		return err
