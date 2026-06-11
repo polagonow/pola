@@ -26,6 +26,18 @@ type nonceContextKeyType struct{}
 // from the security headers middleware to the orchestrator/shell.
 var NonceContextKey = nonceContextKeyType{}
 
+type sessionContextKeyType struct{}
+
+var SessionContextKey = sessionContextKeyType{}
+
+type flashContextKeyType struct{}
+
+var FlashContextKey = flashContextKeyType{}
+
+type localeContextKeyType struct{}
+
+var LocaleContextKey = localeContextKeyType{}
+
 // PageSegment represents one directory level in the route hierarchy.
 // Both LayoutPath and ErrorPath are optional (empty string = absent).
 type PageSegment struct {

@@ -2,6 +2,10 @@
 package main
 
 import (
+{{- if .I18n}}
+	"embed"
+	"io/fs"
+{{- end}}
 {{- if and .HasStorage (eq .StorageDriver "rclone") .StorageConfig}}
 	"os"
 {{- end}}
@@ -19,6 +23,22 @@ import (
 	"{{.PolaPackage}}/middleware/recovery"
 {{- if .SecurityHeaders}}
 	"{{.PolaPackage}}/middleware/securityheaders"
+{{- end}}
+{{- if .RateLimit}}
+	"{{.PolaPackage}}/middleware/ratelimit"
+{{- end}}
+{{- if .Session}}
+	"{{.PolaPackage}}/middleware/session"
+{{- end}}
+{{- if .Flash}}
+	middlewareflash "{{.PolaPackage}}/middleware/flash"
+{{- end}}
+{{- if .I18n}}
+	polai18n "{{.PolaPackage}}/i18n"
+	"{{.PolaPackage}}/middleware/locale"
+{{- end}}
+{{- if .Cron}}
+	polacron "{{.PolaPackage}}/task/cron"
 {{- end}}
 {{- if not .Embed}}
 	{{.Renderer}}{{.Bundler}} "{{.PolaPackage}}/renderer/{{.Renderer}}/{{.Bundler}}"
@@ -88,6 +108,12 @@ import (
 {{- end}}
 )
 
+{{- if .I18n}}
+
+//go:embed {{.I18nDirectory}}
+var polaLocaleFS embed.FS
+{{- end}}
+
 // PolaPlugins is the set of plugins for this application.
 var PolaPlugins = []core.Plugin{
 	{{.Engine}}.Plugin(),
@@ -120,6 +146,22 @@ var PolaPlugins = []core.Plugin{
 {{- end}}
 {{- if .CSRF}}
 	csrf.Plugin({{- if .Dev}}csrf.WithSecure(false){{- end}}),
+{{- end}}
+{{- if .RateLimit}}
+	ratelimit.Plugin(ratelimit.WithRequestsPerSecond({{printf "%g" .RateLimitRPS}}), ratelimit.WithBurst({{.RateLimitBurst}})),
+{{- end}}
+{{- if .Session}}
+	session.Plugin({{- if .Dev}}session.WithSecure(false){{- end}}),
+{{- end}}
+{{- if .Flash}}
+	middlewareflash.Plugin(),
+{{- end}}
+{{- if .I18n}}
+	polai18n.Plugin(polai18n.WithDefaultLocale("{{.I18nLocale}}"), polai18n.WithFS(func() fs.FS { f, _ := fs.Sub(polaLocaleFS, "{{.I18nDirectory}}"); return f }())),
+	locale.Plugin(locale.WithDefaultLocale("{{.I18nLocale}}")),
+{{- end}}
+{{- if .Cron}}
+	polacron.Plugin(),
 {{- end}}
 {{- if not .Embed}}
 	{{.Bundler}}.Plugin(),

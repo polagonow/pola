@@ -67,6 +67,11 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 	hasSecurityHeaders := opts.SecurityHeaders
 	hasStorage := opts.StorageDriver != ""
 	hasMailer := opts.MailerRenderer != "" || opts.MailerTransport != ""
+	hasRateLimit := opts.RateLimit
+	hasSession := opts.Session
+	hasFlash := opts.Flash
+	hasI18n := opts.I18n
+	hasCron := opts.Cron
 
 	var buf strings.Builder
 	err := pluginsTmpl.Execute(&buf, struct {
@@ -116,6 +121,16 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		MCPVersion      string
 		MCPInstructions string
 		MCPDisco        *autoload.MCPDiscovery
+
+		RateLimit      bool
+		RateLimitRPS   float64
+		RateLimitBurst int
+		Session        bool
+		Flash          bool
+		I18n           bool
+		I18nLocale     string
+		I18nDirectory  string
+		Cron           bool
 	}{
 		PolaPackage:     opts.PolaPackage,
 		Engine:          opts.Engine,
@@ -163,6 +178,16 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		MCPVersion:      opts.MCPVersion,
 		MCPInstructions: opts.MCPInstructions,
 		MCPDisco:        mcpDisco,
+
+		RateLimit:      hasRateLimit,
+		RateLimitRPS:   opts.RateLimitRPS,
+		RateLimitBurst: opts.RateLimitBurst,
+		Session:        hasSession,
+		Flash:          hasFlash,
+		I18n:           hasI18n,
+		I18nLocale:     cmp.Or(opts.I18nLocale, "en"),
+		I18nDirectory:  cmp.Or(opts.I18nDirectory, "locales"),
+		Cron:           hasCron,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("execute plugins template: %w", err)

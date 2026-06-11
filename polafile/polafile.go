@@ -80,6 +80,11 @@ type Polafile struct {
 	ImageProcessing *ImageProcessing `hcl:"image_processing,block"`
 	MCP             *MCP             `hcl:"mcp,block"`
 	Testing         *Testing         `hcl:"testing,block"`
+	Session         *Session         `hcl:"session,block"`
+	RateLimit       *RateLimit       `hcl:"rate_limit,block"`
+	Flash           *Flash           `hcl:"flash,block"`
+	I18n            *I18n            `hcl:"i18n,block"`
+	Cron            *Cron            `hcl:"cron,block"`
 }
 
 // ---------- Testing ----------
@@ -795,6 +800,225 @@ func (pf *Polafile) MCPInstructions(env string) string {
 	return pf.MCPForEnv(env).Instructions
 }
 
+// ---------- Session ----------
+
+// SessionEnvironment holds per-environment session overrides.
+type SessionEnvironment struct {
+	Environment string `hcl:"env,label"`
+	Enabled     *bool  `hcl:"enabled,optional"`
+	Store       string `hcl:"store,optional"`
+	MaxAge      string `hcl:"max_age,optional"`
+}
+
+// Session holds session configuration with optional per-environment overrides.
+type Session struct {
+	Enabled bool                 `hcl:"enabled,optional"`
+	Store   string               `hcl:"store,optional"`
+	MaxAge  string               `hcl:"max_age,optional"`
+	Envs    []SessionEnvironment `hcl:"env,block"`
+}
+
+// SessionEnabled returns whether sessions are enabled for the given environment.
+func (pf *Polafile) SessionEnabled(env string) bool {
+	if pf.Session == nil {
+		return false
+	}
+	for _, e := range pf.Session.Envs {
+		if e.Environment == env && e.Enabled != nil {
+			return *e.Enabled
+		}
+	}
+	return pf.Session.Enabled
+}
+
+// SessionStore returns the configured session store, defaulting to "memory".
+func (pf *Polafile) SessionStore(env string) string {
+	if pf.Session == nil {
+		return "memory"
+	}
+	for _, e := range pf.Session.Envs {
+		if e.Environment == env && e.Store != "" {
+			return e.Store
+		}
+	}
+	if pf.Session.Store != "" {
+		return pf.Session.Store
+	}
+	return "memory"
+}
+
+// SessionMaxAge returns the configured session max age, defaulting to "24h".
+func (pf *Polafile) SessionMaxAge(env string) string {
+	if pf.Session == nil {
+		return "24h"
+	}
+	for _, e := range pf.Session.Envs {
+		if e.Environment == env && e.MaxAge != "" {
+			return e.MaxAge
+		}
+	}
+	if pf.Session.MaxAge != "" {
+		return pf.Session.MaxAge
+	}
+	return "24h"
+}
+
+// ---------- RateLimit ----------
+
+// RateLimitEnvironment holds per-environment rate limit overrides.
+type RateLimitEnvironment struct {
+	Environment       string  `hcl:"env,label"`
+	Enabled           *bool   `hcl:"enabled,optional"`
+	RequestsPerSecond float64 `hcl:"requests_per_second,optional"`
+	Burst             int     `hcl:"burst,optional"`
+}
+
+// RateLimit holds rate limiting configuration with optional per-environment overrides.
+type RateLimit struct {
+	Enabled           bool                   `hcl:"enabled,optional"`
+	RequestsPerSecond float64                `hcl:"requests_per_second,optional"`
+	Burst             int                    `hcl:"burst,optional"`
+	Envs              []RateLimitEnvironment `hcl:"env,block"`
+}
+
+// RateLimitEnabled returns whether rate limiting is enabled for the given environment.
+func (pf *Polafile) RateLimitEnabled(env string) bool {
+	if pf.RateLimit == nil {
+		return false
+	}
+	for _, e := range pf.RateLimit.Envs {
+		if e.Environment == env && e.Enabled != nil {
+			return *e.Enabled
+		}
+	}
+	return pf.RateLimit.Enabled
+}
+
+// RateLimitRPS returns the configured requests per second, defaulting to 10.
+func (pf *Polafile) RateLimitRPS(env string) float64 {
+	if pf.RateLimit == nil {
+		return 10
+	}
+	for _, e := range pf.RateLimit.Envs {
+		if e.Environment == env && e.RequestsPerSecond > 0 {
+			return e.RequestsPerSecond
+		}
+	}
+	if pf.RateLimit.RequestsPerSecond > 0 {
+		return pf.RateLimit.RequestsPerSecond
+	}
+	return 10
+}
+
+// RateLimitBurst returns the configured burst size, defaulting to 20.
+func (pf *Polafile) RateLimitBurst(env string) int {
+	if pf.RateLimit == nil {
+		return 20
+	}
+	for _, e := range pf.RateLimit.Envs {
+		if e.Environment == env && e.Burst > 0 {
+			return e.Burst
+		}
+	}
+	if pf.RateLimit.Burst > 0 {
+		return pf.RateLimit.Burst
+	}
+	return 20
+}
+
+// ---------- Flash ----------
+
+// Flash holds flash message configuration.
+type Flash struct {
+	Enabled bool `hcl:"enabled,optional"`
+}
+
+// FlashEnabled returns whether flash messages are enabled for the given environment.
+func (pf *Polafile) FlashEnabled(_ string) bool {
+	if pf.Flash == nil {
+		return false
+	}
+	return pf.Flash.Enabled
+}
+
+// ---------- I18n ----------
+
+// I18nEnvironment holds per-environment i18n overrides.
+type I18nEnvironment struct {
+	Environment   string `hcl:"env,label"`
+	Enabled       *bool  `hcl:"enabled,optional"`
+	DefaultLocale string `hcl:"default_locale,optional"`
+	Directory     string `hcl:"directory,optional"`
+}
+
+// I18n holds i18n configuration with optional per-environment overrides.
+type I18n struct {
+	Enabled       bool              `hcl:"enabled,optional"`
+	DefaultLocale string            `hcl:"default_locale,optional"`
+	Directory     string            `hcl:"directory,optional"`
+	Envs          []I18nEnvironment `hcl:"env,block"`
+}
+
+// I18nEnabled returns whether i18n is enabled for the given environment.
+func (pf *Polafile) I18nEnabled(env string) bool {
+	if pf.I18n == nil {
+		return false
+	}
+	for _, e := range pf.I18n.Envs {
+		if e.Environment == env && e.Enabled != nil {
+			return *e.Enabled
+		}
+	}
+	return pf.I18n.Enabled
+}
+
+// I18nDefaultLocale returns the configured default locale, defaulting to "en".
+func (pf *Polafile) I18nDefaultLocale(env string) string {
+	if pf.I18n == nil {
+		return "en"
+	}
+	for _, e := range pf.I18n.Envs {
+		if e.Environment == env && e.DefaultLocale != "" {
+			return e.DefaultLocale
+		}
+	}
+	if pf.I18n.DefaultLocale != "" {
+		return pf.I18n.DefaultLocale
+	}
+	return "en"
+}
+
+// I18nDirectory returns the configured locale directory, defaulting to "locales".
+func (pf *Polafile) I18nDirectory(env string) string {
+	if pf.I18n == nil {
+		return "locales"
+	}
+	for _, e := range pf.I18n.Envs {
+		if e.Environment == env && e.Directory != "" {
+			return e.Directory
+		}
+	}
+	if pf.I18n.Directory != "" {
+		return pf.I18n.Directory
+	}
+	return "locales"
+}
+
+// ---------- Cron ----------
+
+// Cron holds cron scheduler configuration.
+type Cron struct {
+	Enabled bool `hcl:"enabled,optional"`
+}
+
+// CronEnabled returns whether cron scheduling is enabled for the given environment.
+func (pf *Polafile) CronEnabled(_ string) bool {
+	if pf.Cron == nil {
+		return false
+	}
+	return pf.Cron.Enabled
+}
+
 // RepositoriesDir returns the configured repositories directory, defaulting to "repositories".
 func (pf *Polafile) RepositoriesDir() string {
 	if pf.Repositories != "" {
@@ -1047,6 +1271,56 @@ func Save(dir string, pf *Polafile) error {
 			setAttr(envBody, "version", e.Version)
 			setAttr(envBody, "instructions", e.Instructions)
 		}
+	}
+
+	// Session block.
+	if pf.Session != nil {
+		blockBody.AppendNewline()
+		sBlock := blockBody.AppendNewBlock("session", nil)
+		sBody := sBlock.Body()
+		sBody.SetAttributeValue("enabled", cty.BoolVal(pf.Session.Enabled))
+		setAttr(sBody, "store", pf.Session.Store)
+		setAttr(sBody, "max_age", pf.Session.MaxAge)
+	}
+
+	// RateLimit block.
+	if pf.RateLimit != nil {
+		blockBody.AppendNewline()
+		rlBlock := blockBody.AppendNewBlock("rate_limit", nil)
+		rlBody := rlBlock.Body()
+		rlBody.SetAttributeValue("enabled", cty.BoolVal(pf.RateLimit.Enabled))
+		if pf.RateLimit.RequestsPerSecond > 0 {
+			rlBody.SetAttributeValue("requests_per_second", cty.NumberIntVal(int64(pf.RateLimit.RequestsPerSecond)))
+		}
+		if pf.RateLimit.Burst > 0 {
+			rlBody.SetAttributeValue("burst", cty.NumberIntVal(int64(pf.RateLimit.Burst)))
+		}
+	}
+
+	// Flash block.
+	if pf.Flash != nil {
+		blockBody.AppendNewline()
+		fBlock := blockBody.AppendNewBlock("flash", nil)
+		fBody := fBlock.Body()
+		fBody.SetAttributeValue("enabled", cty.BoolVal(pf.Flash.Enabled))
+	}
+
+	// I18n block.
+	if pf.I18n != nil {
+		blockBody.AppendNewline()
+		iBlock := blockBody.AppendNewBlock("i18n", nil)
+		iBody := iBlock.Body()
+		iBody.SetAttributeValue("enabled", cty.BoolVal(pf.I18n.Enabled))
+		setAttr(iBody, "default_locale", pf.I18n.DefaultLocale)
+		setAttr(iBody, "directory", pf.I18n.Directory)
+	}
+
+	// Cron block.
+	if pf.Cron != nil {
+		blockBody.AppendNewline()
+		cBlock := blockBody.AppendNewBlock("cron", nil)
+		cBody := cBlock.Body()
+		cBody.SetAttributeValue("enabled", cty.BoolVal(pf.Cron.Enabled))
 	}
 
 	// Testing block.

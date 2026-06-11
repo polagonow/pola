@@ -1,0 +1,8 @@
+{
+  "greeting": "Bonjour, %s!",
+  "farewell": "Au revoir, %s!",
+  "login_success": "Bon retour!",
+  "register_success": "Compte créé avec succès!",
+  "logout_success": "Vous avez été déconnecté.",
+  "welcome": "Bienvenue à la démo Beego Features"
+}

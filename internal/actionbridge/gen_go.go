@@ -59,10 +59,13 @@ func GenerateGo(result *ParseResult, polaPackage string) ([]byte, error) {
 		"castArg": func(i int, p ParamDef) string {
 			return goArgCast(i, p)
 		},
-		"callArgs": func(params []ParamDef) string {
-			args := make([]string, len(params))
+		"callArgs": func(hasContext bool, params []ParamDef) string {
+			var args []string
+			if hasContext {
+				args = append(args, "ctx")
+			}
 			for i := range params {
-				args[i] = fmt.Sprintf("p%d", i)
+				args = append(args, fmt.Sprintf("p%d", i))
 			}
 			return strings.Join(args, ", ")
 		},

@@ -101,10 +101,17 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 		TSOut:           generateFlags.tsOut,
 		ImageProcessing: buildFlags.imageProcessing,
 	}
-	autoload.PopulateDatabaseOpts(&baseOpts, &pf, "production")
-	autoload.PopulateStorageOpts(&baseOpts, &pf, "production")
-	autoload.ApplyMailerOpts(&baseOpts, &pf, "production")
-	autoload.PopulateMCPOpts(&baseOpts, &pf, "production")
+
+	defaultEnv := "production"
+	autoload.PopulateDatabaseOpts(&baseOpts, &pf, defaultEnv)
+	autoload.PopulateStorageOpts(&baseOpts, &pf, defaultEnv)
+	autoload.ApplyMailerOpts(&baseOpts, &pf, defaultEnv)
+	autoload.PopulateMCPOpts(&baseOpts, &pf, defaultEnv)
+	autoload.PopulateSessionOpts(&baseOpts, &pf, defaultEnv)
+	autoload.PopulateRateLimitOpts(&baseOpts, &pf, defaultEnv)
+	autoload.PopulateFlashOpts(&baseOpts, &pf, defaultEnv)
+	autoload.PopulateI18nOpts(&baseOpts, &pf, defaultEnv)
+	autoload.PopulateCronOpts(&baseOpts, &pf, defaultEnv)
 
 	// ── Stage 1: Bundle ──────────────────────────────────────────────────
 	// Full runtime with bundler, osfs, css — needed to produce assets.

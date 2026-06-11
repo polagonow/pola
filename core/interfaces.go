@@ -288,3 +288,24 @@ type MailTransport interface {
 	Name() string
 	Send(ctx context.Context, msg *MailMessage) error
 }
+
+// TaskScheduler manages scheduled background tasks.
+type TaskScheduler interface {
+	Name() string
+	AddFunc(spec string, fn func(ctx context.Context)) error
+	Start(ctx context.Context) error
+	Stop() error
+}
+
+// Validator validates structs and returns structured errors.
+type Validator interface {
+	Validate(v any) error
+	ValidateField(field any, tag string) error
+}
+
+// Translator provides i18n translation support.
+type Translator interface {
+	Name() string
+	T(locale, key string, args ...any) string
+	Locales() []string
+}
