@@ -11,4 +11,4 @@ vendor/
 # Pola
 /public/assets/
 /pola_plugins.go
-/.pola/
+/.pola/bin/
