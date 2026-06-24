@@ -178,11 +178,12 @@ type SvcDiscovery struct {
 
 // RouteServiceDep holds the service dependency info discovered in a route package.
 type RouteServiceDep struct {
-	ServicePkg  string // e.g. "services"
-	ServiceType string // e.g. "PostService"
-	ServicePath string // e.g. "myapp/services"
-	HasStorage  bool   // true if Route struct has a storage.Storage field
-	BlobRepo    string // e.g. "StorageBlobRepository" if Route depends on a *Repository field; empty if none
+	ServicePkg       string // e.g. "services"
+	ServiceType      string // e.g. "PostService"
+	ServicePath      string // e.g. "myapp/services"
+	ServiceInterface bool   // true when the field type is an interface (e.g. TodoServiceInterface)
+	HasStorage       bool   // true if Route struct has a storage.Storage field
+	BlobRepo         string // e.g. "StorageBlobRepository" if Route depends on a *Repository field; empty if none
 }
 
 // EnvOrBool returns the boolean value from an env var if set, otherwise the fallback.

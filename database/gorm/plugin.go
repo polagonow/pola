@@ -84,11 +84,6 @@ func (p *gormPlugin) Register(r *core.Registry) {
 	})
 }
 
-func (p *gormPlugin) Start(_ context.Context) error {
-	_, err := core.Invoke[*gormpkg.DB](p.registry)
-	return err
-}
-
 func (p *gormPlugin) Shutdown(_ context.Context) error {
 	if p.db != nil {
 		sqlDB, err := p.db.DB()

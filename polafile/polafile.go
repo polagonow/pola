@@ -16,9 +16,11 @@ import (
 	"strings"
 
 	"dario.cat/mergo"
+	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsimple"
 	"github.com/hashicorp/hcl/v2/hclwrite"
 	"github.com/zclconf/go-cty/cty"
+	"github.com/zclconf/go-cty/cty/function"
 )
 
 // ParseVersioned splits a "name@version" string into its parts.
@@ -1126,10 +1128,26 @@ func Load(dir string) (*Polafile, error) {
 	}
 
 	var schema polafileSchema
-	if err := hclsimple.Decode(Filename, data, nil, &schema); err != nil {
+	if err := hclsimple.Decode(Filename, data, hclEvalContext(), &schema); err != nil {
 		return nil, fmt.Errorf("parse %s: %w", Filename, err)
 	}
 	return &schema.Pola, nil
+}
+
+func hclEvalContext() *hcl.EvalContext {
+	return &hcl.EvalContext{
+		Functions: map[string]function.Function{
+			"env": function.New(&function.Spec{
+				Params: []function.Parameter{
+					{Name: "name", Type: cty.String},
+				},
+				Type: function.StaticReturnType(cty.String),
+				Impl: func(args []cty.Value, retType cty.Type) (cty.Value, error) {
+					return cty.StringVal(os.Getenv(args[0].AsString())), nil
+				},
+			}),
+		},
+	}
 }
 
 // Save writes a Polafile.hcl to the given directory.

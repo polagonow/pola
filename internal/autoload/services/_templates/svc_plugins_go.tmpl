@@ -18,6 +18,9 @@ func {{.Name}}ServicePlugin() core.Plugin {
 				}
 				return New{{.Name}}Service(repo), nil
 			})
+			core.Provide[{{.Name}}ServiceInterface](r, func() ({{.Name}}ServiceInterface, error) {
+				return core.Invoke[*{{.Name}}Service](r)
+			})
 		},
 	}
 }
