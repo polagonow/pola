@@ -121,7 +121,11 @@ func generateRouteInit(pkgName, polaPackage, modPath string, dep *autoload.Route
 		var body, args []string
 		if dep.ServicePkg != "" {
 			imports = append(imports, dep.ServicePath)
-			body = append(body, fmt.Sprintf("svc := core.MustInvoke[*%s.%s](r)", dep.ServicePkg, dep.ServiceType))
+			if dep.ServiceInterface {
+				body = append(body, fmt.Sprintf("svc := core.MustInvoke[%s.%s](r)", dep.ServicePkg, dep.ServiceType))
+			} else {
+				body = append(body, fmt.Sprintf("svc := core.MustInvoke[*%s.%s](r)", dep.ServicePkg, dep.ServiceType))
+			}
 			args = append(args, "svc")
 		}
 		if dep.HasStorage {
@@ -207,6 +211,11 @@ func discoverRouteServiceDep(routeDir, modPath string) *autoload.RouteServiceDep
 							dep.HasStorage = true
 						} else if ident.Name == "repositories" && strings.HasSuffix(typeName, "Repository") {
 							dep.BlobRepo = typeName
+						} else if strings.HasSuffix(typeName, "ServiceInterface") && dep.ServicePkg == "" {
+							dep.ServicePkg = ident.Name
+							dep.ServiceType = typeName
+							dep.ServicePath = modPath + "/" + ident.Name
+							dep.ServiceInterface = true
 						}
 					}
 				}

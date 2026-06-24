@@ -110,6 +110,15 @@ func Addr() string {
 	return defaultApp.env.Address + ":" + defaultApp.env.Port
 }
 
+// Registry returns the DI registry of the default app.
+// Must be called after Ready().
+func Registry() *core.Registry {
+	if defaultApp.app == nil {
+		return nil
+	}
+	return defaultApp.app.Registry()
+}
+
 // NewApp creates an AppBuilder for explicit plugin-based construction.
 //
 //	builder := pola.NewApp(core.WithDev(true))
