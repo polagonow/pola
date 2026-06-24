@@ -76,6 +76,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 	if err != nil {
 		return fmt.Errorf("load Polafile: %w", err)
 	}
+	pfPtr = polafile.ApplyEnvOverrides(pfPtr)
 	if pfPtr != nil {
 		pf = *pfPtr
 	}

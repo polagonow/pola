@@ -13,6 +13,9 @@ import (
 	_ "github.com/joho/godotenv/autoload"
 
 	"{{.PolaPackage}}"
+{{- if or .Database .RateLimit .Session .HasMailer .HasMCP .HasStorage .I18n}}
+	polaenv "{{.PolaPackage}}/env"
+{{- end}}
 	"{{.PolaPackage}}/core"
 {{- if not .APIOnly}}
 	"{{.PolaPackage}}/engine/{{.Engine}}"
@@ -135,16 +138,16 @@ var PolaPlugins = []core.Plugin{
 	slog.Plugin(),
 {{- if .HasMCP}}
 	polamcp.Plugin(
-		polamcp.WithTransport(polamcp.Transport("{{.MCPTransport}}")),
-		polamcp.WithMount("{{.MCPMount}}"),
+		polamcp.WithTransport(polamcp.Transport(polaenv.String("POLA_MCP_TRANSPORT", "{{.MCPTransport}}"))),
+		polamcp.WithMount(polaenv.String("POLA_MCP_MOUNT", "{{.MCPMount}}")),
 {{- if .MCPName}}
-		polamcp.WithName("{{.MCPName}}"),
+		polamcp.WithName(polaenv.String("POLA_MCP_NAME", "{{.MCPName}}")),
 {{- end}}
 {{- if .MCPVersion}}
-		polamcp.WithVersion("{{.MCPVersion}}"),
+		polamcp.WithVersion(polaenv.String("POLA_MCP_VERSION", "{{.MCPVersion}}")),
 {{- end}}
 {{- if .MCPInstructions}}
-		polamcp.WithInstructions({{printf "%q" .MCPInstructions}}),
+		polamcp.WithInstructions(polaenv.String("POLA_MCP_INSTRUCTIONS", {{printf "%q" .MCPInstructions}})),
 {{- end}}
 	),
 {{- end}}
@@ -157,13 +160,13 @@ var PolaPlugins = []core.Plugin{
 	csrf.Plugin({{- if .Dev}}csrf.WithSecure(false){{- end}}),
 {{- end}}
 {{- if .RateLimit}}
-	ratelimit.Plugin(ratelimit.WithRequestsPerSecond({{printf "%g" .RateLimitRPS}}), ratelimit.WithBurst({{.RateLimitBurst}})),
+	ratelimit.Plugin(ratelimit.WithRequestsPerSecond(polaenv.Float64("POLA_RATE_LIMIT_RPS", {{printf "%g" .RateLimitRPS}})), ratelimit.WithBurst(polaenv.Int("POLA_RATE_LIMIT_BURST", {{.RateLimitBurst}}))),
 {{- end}}
 {{- if .Session}}
 {{- if eq .SessionStore "redis"}}
-	session.Plugin(session.WithStore(sessionredis.MustNew(sessionredis.WithAddr("{{.SessionHost}}:{{.SessionPort}}"){{- if .SessionPassword}}, sessionredis.WithPassword("{{.SessionPassword}}"){{- end}})){{- if .Dev}}, session.WithSecure(false){{- end}}),
+	session.Plugin(session.WithStore(sessionredis.MustNew(sessionredis.WithAddr(polaenv.String("POLA_SESSION_HOST", "{{.SessionHost}}")+":"+polaenv.String("POLA_SESSION_PORT", "{{.SessionPort}}")){{- if .SessionPassword}}, sessionredis.WithPassword(polaenv.String("POLA_SESSION_PASSWORD", "{{.SessionPassword}}")){{- end}})){{- if .Dev}}, session.WithSecure(false){{- end}}),
 {{- else if eq .SessionStore "xorm"}}
-	session.Plugin(session.WithStore(sessionxorm.MustNew([]byte("pola-session-key"), sessionxorm.WithDSN("{{.SessionDSN}}"){{- if .SessionHost}}, sessionxorm.WithDriver("{{.SessionHost}}"){{- end}})){{- if .Dev}}, session.WithSecure(false){{- end}}),
+	session.Plugin(session.WithStore(sessionxorm.MustNew([]byte("pola-session-key"), sessionxorm.WithDSN(polaenv.String("POLA_SESSION_DSN", "{{.SessionDSN}}")){{- if .SessionHost}}, sessionxorm.WithDriver(polaenv.String("POLA_SESSION_HOST", "{{.SessionHost}}")){{- end}})){{- if .Dev}}, session.WithSecure(false){{- end}}),
 {{- else}}
 	session.Plugin({{- if .Dev}}session.WithSecure(false){{- end}}),
 {{- end}}
@@ -172,8 +175,8 @@ var PolaPlugins = []core.Plugin{
 	middlewareflash.Plugin(),
 {{- end}}
 {{- if .I18n}}
-	polai18n.Plugin(polai18n.WithDefaultLocale("{{.I18nLocale}}"), polai18n.WithFS(func() fs.FS { f, _ := fs.Sub(polaLocaleFS, "{{.I18nDirectory}}"); return f }())),
-	locale.Plugin(locale.WithDefaultLocale("{{.I18nLocale}}")),
+	polai18n.Plugin(polai18n.WithDefaultLocale(polaenv.String("POLA_I18N_DEFAULT_LOCALE", "{{.I18nLocale}}")), polai18n.WithFS(func() fs.FS { f, _ := fs.Sub(polaLocaleFS, "{{.I18nDirectory}}"); return f }())),
+	locale.Plugin(locale.WithDefaultLocale(polaenv.String("POLA_I18N_DEFAULT_LOCALE", "{{.I18nLocale}}"))),
 {{- end}}
 {{- if not .APIOnly}}
 {{- if not .Embed}}
@@ -193,34 +196,34 @@ var PolaPlugins = []core.Plugin{
 {{- if .Database}}
 	database{{.Database}}.Plugin(
 {{- if .DatabaseAdapter}}
-		database{{.Database}}.WithAdapter("{{.DatabaseAdapter}}"),
+		database{{.Database}}.WithAdapter(polaenv.String("POLA_DATABASE_ADAPTER", "{{.DatabaseAdapter}}")),
 {{- end}}
 {{- if .DatabaseURL}}
-		database{{.Database}}.WithURL("{{.DatabaseURL}}"),
+		database{{.Database}}.WithURL(polaenv.String("POLA_DATABASE_URL", "{{.DatabaseURL}}")),
 {{- end}}
 {{- if .DatabaseHost}}
-		database{{.Database}}.WithHost("{{.DatabaseHost}}"),
+		database{{.Database}}.WithHost(polaenv.String("POLA_DATABASE_HOST", "{{.DatabaseHost}}")),
 {{- end}}
 {{- if .DatabasePort}}
-		database{{.Database}}.WithPort("{{.DatabasePort}}"),
+		database{{.Database}}.WithPort(polaenv.String("POLA_DATABASE_PORT", "{{.DatabasePort}}")),
 {{- end}}
 {{- if .DatabaseUser}}
-		database{{.Database}}.WithUser("{{.DatabaseUser}}"),
+		database{{.Database}}.WithUser(polaenv.String("POLA_DATABASE_USER", "{{.DatabaseUser}}")),
 {{- end}}
 {{- if .DatabasePass}}
-		database{{.Database}}.WithPassword("{{.DatabasePass}}"),
+		database{{.Database}}.WithPassword(polaenv.String("POLA_DATABASE_PASSWORD", "{{.DatabasePass}}")),
 {{- end}}
 {{- if .DatabaseName}}
-		database{{.Database}}.WithName("{{.DatabaseName}}"),
+		database{{.Database}}.WithName(polaenv.String("POLA_DATABASE_NAME", "{{.DatabaseName}}")),
 {{- end}}
 	),
 {{- end}}
 {{- if .HasStorage}}
 	storage.Plugin(
 {{- if eq .StorageDriver "rclone"}}
-		storagedriver.NewStorage("", "{{.StorageRoot}}"),
+		storagedriver.NewStorage("", polaenv.String("POLA_STORAGE_ROOT", "{{.StorageRoot}}")),
 {{- else}}
-		storagedriver.NewStorage(storagedriver.Config{Root: "{{.StorageRoot}}"}),
+		storagedriver.NewStorage(storagedriver.Config{Root: polaenv.String("POLA_STORAGE_ROOT", "{{.StorageRoot}}")}),
 {{- end}}
 	),
 {{- end}}
@@ -253,17 +256,17 @@ var PolaPlugins = []core.Plugin{
 	mailerrenderer.Plugin(),
 {{- if eq .MailerTransport "smtp"}}
 	mailertransport.Plugin(mailertransport.Config{
-		Host:     "{{.SMTPHost}}",
-		Port:     "{{.SMTPPort}}",
-		Username: "{{.SMTPUsername}}",
-		Password: "{{.SMTPPassword}}",
-		TLS:      {{.SMTPTLS}},
+		Host:     polaenv.String("POLA_MAILER_HOST", "{{.SMTPHost}}"),
+		Port:     polaenv.String("POLA_MAILER_PORT", "{{.SMTPPort}}"),
+		Username: polaenv.String("POLA_MAILER_USERNAME", "{{.SMTPUsername}}"),
+		Password: polaenv.String("POLA_MAILER_PASSWORD", "{{.SMTPPassword}}"),
+		TLS:      polaenv.Bool("POLA_MAILER_TLS", {{.SMTPTLS}}),
 	}),
 {{- else}}
 	mailertransport.Plugin(),
 {{- end}}
 	mailer.Plugin(mailer.Config{
-		From: "{{.MailerFrom}}",
+		From: polaenv.String("POLA_MAILER_FROM", "{{.MailerFrom}}"),
 	}),
 {{- end}}
 {{- if .ImageProcessing}}

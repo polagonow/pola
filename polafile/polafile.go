@@ -68,7 +68,7 @@ type Polafile struct {
 	UI             string `hcl:"ui,optional"`
 	PackageManager string `hcl:"package_manager,optional"`
 
-	APIOnly bool `hcl:"api_only,optional"`
+	APIOnly bool `hcl:"api_only,optional" env:"POLA_API_ONLY"`
 
 	App          string `hcl:"app,optional"`
 	Actions      string `hcl:"actions,optional"`
@@ -138,7 +138,7 @@ type CSRFEnvironment struct {
 
 // CSRF holds CSRF protection configuration with optional per-environment overrides.
 type CSRF struct {
-	Enabled *bool             `hcl:"enabled,optional"`
+	Enabled *bool             `hcl:"enabled,optional" env:"POLA_CSRF_ENABLED"`
 	Envs    []CSRFEnvironment `hcl:"env,block"`
 }
 
@@ -167,7 +167,7 @@ type SecurityHeadersEnvironment struct {
 
 // SecurityHeaders holds security headers configuration with optional per-environment overrides.
 type SecurityHeaders struct {
-	Enabled *bool                        `hcl:"enabled,optional"`
+	Enabled *bool                        `hcl:"enabled,optional" env:"POLA_SECURITY_HEADERS_ENABLED"`
 	Envs    []SecurityHeadersEnvironment `hcl:"env,block"`
 }
 
@@ -211,15 +211,15 @@ type Migrations struct {
 
 // Database holds database configuration with optional per-environment overrides.
 type Database struct {
-	URL                string                `hcl:"url,optional"`
-	Host               string                `hcl:"host,optional"`
-	Port               string                `hcl:"port,optional"`
-	User               string                `hcl:"user,optional"`
-	Password           string                `hcl:"password,optional"`
-	Name               string                `hcl:"name,optional"`
+	URL                string                `hcl:"url,optional" env:"POLA_DATABASE_URL"`
+	Host               string                `hcl:"host,optional" env:"POLA_DATABASE_HOST"`
+	Port               string                `hcl:"port,optional" env:"POLA_DATABASE_PORT"`
+	User               string                `hcl:"user,optional" env:"POLA_DATABASE_USER"`
+	Password           string                `hcl:"password,optional" env:"POLA_DATABASE_PASSWORD"`
+	Name               string                `hcl:"name,optional" env:"POLA_DATABASE_NAME"`
 	Models             string                `hcl:"models,optional"`
-	Adapter            string                `hcl:"adapter,optional"`
-	ORM                string                `hcl:"orm,optional"`
+	Adapter            string                `hcl:"adapter,optional" env:"POLA_DATABASE_ADAPTER"`
+	ORM                string                `hcl:"orm,optional" env:"POLA_DATABASE_ORM"`
 	OrmImplementations string                `hcl:"orm_implementations,optional"`
 	Migrations         *Migrations           `hcl:"migrations,block"`
 	Envs               []DatabaseEnvironment `hcl:"env,block"`
@@ -345,12 +345,12 @@ type CacheEnvironment struct {
 
 // Cache holds cache configuration with optional per-environment overrides.
 type Cache struct {
-	Enabled  *bool              `hcl:"enabled,optional"`
-	Adapter  string             `hcl:"adapter,optional"`
-	Host     string             `hcl:"host,optional"`
-	Port     string             `hcl:"port,optional"`
-	Password string             `hcl:"password,optional"`
-	DB       string             `hcl:"db,optional"`
+	Enabled  *bool              `hcl:"enabled,optional" env:"POLA_CACHE_ENABLED"`
+	Adapter  string             `hcl:"adapter,optional" env:"POLA_CACHE_ADAPTER"`
+	Host     string             `hcl:"host,optional" env:"POLA_CACHE_HOST"`
+	Port     string             `hcl:"port,optional" env:"POLA_CACHE_PORT"`
+	Password string             `hcl:"password,optional" env:"POLA_CACHE_PASSWORD"`
+	DB       string             `hcl:"db,optional" env:"POLA_CACHE_DB"`
 	Envs     []CacheEnvironment `hcl:"env,block"`
 }
 
@@ -423,9 +423,9 @@ type StorageEnvironment struct {
 // (e.g. "myremote:bucket/path") for rclone.
 // ConfigPath is the path to the rclone config file (optional, defaults to rclone's default).
 type StorageConfig struct {
-	Driver     string               `hcl:"driver,optional"`
-	Root       string               `hcl:"root,optional"`
-	ConfigPath string               `hcl:"config_path,optional"`
+	Driver     string               `hcl:"driver,optional" env:"POLA_STORAGE_DRIVER"`
+	Root       string               `hcl:"root,optional" env:"POLA_STORAGE_ROOT"`
+	ConfigPath string               `hcl:"config_path,optional" env:"POLA_STORAGE_CONFIG_PATH"`
 	Envs       []StorageEnvironment `hcl:"env,block"`
 }
 
@@ -500,14 +500,14 @@ type MailerEnvironment struct {
 
 // Mailer holds mailer configuration with optional per-environment overrides.
 type Mailer struct {
-	Renderer  string             `hcl:"renderer,optional"`
-	Transport string             `hcl:"transport,optional"`
-	From      string             `hcl:"from,optional"`
-	Host      string             `hcl:"host,optional"`
-	Port      string             `hcl:"port,optional"`
-	Username  string             `hcl:"username,optional"`
-	Password  string             `hcl:"password,optional"`
-	TLS       string             `hcl:"tls,optional"`
+	Renderer  string             `hcl:"renderer,optional" env:"POLA_MAILER_RENDERER"`
+	Transport string             `hcl:"transport,optional" env:"POLA_MAILER_TRANSPORT"`
+	From      string             `hcl:"from,optional" env:"POLA_MAILER_FROM"`
+	Host      string             `hcl:"host,optional" env:"POLA_MAILER_HOST"`
+	Port      string             `hcl:"port,optional" env:"POLA_MAILER_PORT"`
+	Username  string             `hcl:"username,optional" env:"POLA_MAILER_USERNAME"`
+	Password  string             `hcl:"password,optional" env:"POLA_MAILER_PASSWORD"`
+	TLS       string             `hcl:"tls,optional" env:"POLA_MAILER_TLS"`
 	Envs      []MailerEnvironment `hcl:"env,block"`
 }
 
@@ -586,12 +586,12 @@ type ImageProcessingEnvironment struct {
 
 // ImageProcessing holds image processing configuration with optional per-environment overrides.
 type ImageProcessing struct {
-	Enabled   *bool                        `hcl:"enabled,optional"`
-	Adapter   string                       `hcl:"adapter,optional"`
-	Path      string                       `hcl:"path,optional"`
-	MaxWidth  int                          `hcl:"max_width,optional"`
-	MaxHeight int                          `hcl:"max_height,optional"`
-	Format    string                       `hcl:"format,optional"`
+	Enabled   *bool                        `hcl:"enabled,optional" env:"POLA_IMAGE_PROCESSING_ENABLED"`
+	Adapter   string                       `hcl:"adapter,optional" env:"POLA_IMAGE_PROCESSING_ADAPTER"`
+	Path      string                       `hcl:"path,optional" env:"POLA_IMAGE_PROCESSING_PATH"`
+	MaxWidth  int                          `hcl:"max_width,optional" env:"POLA_IMAGE_PROCESSING_MAX_WIDTH"`
+	MaxHeight int                          `hcl:"max_height,optional" env:"POLA_IMAGE_PROCESSING_MAX_HEIGHT"`
+	Format    string                       `hcl:"format,optional" env:"POLA_IMAGE_PROCESSING_FORMAT"`
 	Envs      []ImageProcessingEnvironment `hcl:"env,block"`
 }
 
@@ -719,12 +719,12 @@ type MCPEnvironment struct {
 // MCP holds Model Context Protocol server configuration with optional
 // per-environment overrides. Transport is "http" (default), "sse", or "stdio".
 type MCP struct {
-	Enabled      *bool            `hcl:"enabled,optional"`
-	Transport    string           `hcl:"transport,optional"`
-	Mount        string           `hcl:"mount,optional"`
-	Name         string           `hcl:"name,optional"`
-	Version      string           `hcl:"version,optional"`
-	Instructions string           `hcl:"instructions,optional"`
+	Enabled      *bool            `hcl:"enabled,optional" env:"POLA_MCP_ENABLED"`
+	Transport    string           `hcl:"transport,optional" env:"POLA_MCP_TRANSPORT"`
+	Mount        string           `hcl:"mount,optional" env:"POLA_MCP_MOUNT"`
+	Name         string           `hcl:"name,optional" env:"POLA_MCP_NAME"`
+	Version      string           `hcl:"version,optional" env:"POLA_MCP_VERSION"`
+	Instructions string           `hcl:"instructions,optional" env:"POLA_MCP_INSTRUCTIONS"`
 	Envs         []MCPEnvironment `hcl:"env,block"`
 }
 
@@ -829,14 +829,14 @@ type SessionEnvironment struct {
 
 // Session holds session configuration with optional per-environment overrides.
 type Session struct {
-	Enabled  *bool                `hcl:"enabled,optional"`
-	Store    string               `hcl:"store,optional"`
-	MaxAge   string               `hcl:"max_age,optional"`
-	Host     string               `hcl:"host,optional"`
-	Port     string               `hcl:"port,optional"`
-	Password string               `hcl:"password,optional"`
-	DB       string               `hcl:"db,optional"`
-	DSN      string               `hcl:"dsn,optional"`
+	Enabled  *bool                `hcl:"enabled,optional" env:"POLA_SESSION_ENABLED"`
+	Store    string               `hcl:"store,optional" env:"POLA_SESSION_STORE"`
+	MaxAge   string               `hcl:"max_age,optional" env:"POLA_SESSION_MAX_AGE"`
+	Host     string               `hcl:"host,optional" env:"POLA_SESSION_HOST"`
+	Port     string               `hcl:"port,optional" env:"POLA_SESSION_PORT"`
+	Password string               `hcl:"password,optional" env:"POLA_SESSION_PASSWORD"`
+	DB       string               `hcl:"db,optional" env:"POLA_SESSION_DB"`
+	DSN      string               `hcl:"dsn,optional" env:"POLA_SESSION_DSN"`
 	Envs     []SessionEnvironment `hcl:"env,block"`
 }
 
@@ -962,9 +962,9 @@ type RateLimitEnvironment struct {
 
 // RateLimit holds rate limiting configuration with optional per-environment overrides.
 type RateLimit struct {
-	Enabled           *bool                  `hcl:"enabled,optional"`
-	RequestsPerSecond float64                `hcl:"requests_per_second,optional"`
-	Burst             int                    `hcl:"burst,optional"`
+	Enabled           *bool                  `hcl:"enabled,optional" env:"POLA_RATE_LIMIT_ENABLED"`
+	RequestsPerSecond float64                `hcl:"requests_per_second,optional" env:"POLA_RATE_LIMIT_RPS"`
+	Burst             int                    `hcl:"burst,optional" env:"POLA_RATE_LIMIT_BURST"`
 	Envs              []RateLimitEnvironment `hcl:"env,block"`
 }
 
@@ -1017,7 +1017,7 @@ func (pf *Polafile) RateLimitBurst(env string) int {
 
 // Flash holds flash message configuration.
 type Flash struct {
-	Enabled *bool `hcl:"enabled,optional"`
+	Enabled *bool `hcl:"enabled,optional" env:"POLA_FLASH_ENABLED"`
 }
 
 // FlashEnabled returns whether flash messages are enabled for the given environment.
@@ -1040,9 +1040,9 @@ type I18nEnvironment struct {
 
 // I18n holds i18n configuration with optional per-environment overrides.
 type I18n struct {
-	Enabled       *bool             `hcl:"enabled,optional"`
-	DefaultLocale string            `hcl:"default_locale,optional"`
-	Directory     string            `hcl:"directory,optional"`
+	Enabled       *bool             `hcl:"enabled,optional" env:"POLA_I18N_ENABLED"`
+	DefaultLocale string            `hcl:"default_locale,optional" env:"POLA_I18N_DEFAULT_LOCALE"`
+	Directory     string            `hcl:"directory,optional" env:"POLA_I18N_DIRECTORY"`
 	Envs          []I18nEnvironment `hcl:"env,block"`
 }
 

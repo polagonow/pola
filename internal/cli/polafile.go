@@ -19,7 +19,11 @@ func nameOnly(s string) string {
 // Resolution order: CLI flag (explicit) > env var > Polafile > hardcoded default.
 func applyPolafileDefaults(cmd *cobra.Command, projectDir string) {
 	pf, err := polafile.Load(projectDir)
-	if err != nil || pf == nil {
+	if err != nil {
+		return
+	}
+	pf = polafile.ApplyEnvOverrides(pf)
+	if pf == nil {
 		return
 	}
 	if !pf.IsAPIOnly() {
