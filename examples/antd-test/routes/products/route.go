@@ -5,7 +5,9 @@ import (
 
 	"antd-test/repositories"
 	"antd-test/services"
-	"github.com/polagonow/pola/routes"
+	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/request"
+	"github.com/polagonow/pola/validation"
 )
 
 // Route handles /products requests.
@@ -19,111 +21,94 @@ func NewRoute(svc *services.ProductService) *Route {
 }
 
 // GET /products
-func (r *Route) GET(w http.ResponseWriter, req *http.Request) {
-	id := routes.Param(req, "id")
+func (r *Route) GET(c core.Context) error {
+	id := c.Param("id")
 	if id != "" {
-		n, err := routes.ParseUintID(req)
+		n, err := request.PathParamUint(c, "id")
 		if err != nil {
-			routes.WriteError(w, http.StatusBadRequest, err.Error())
-			return
+			return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
 		}
-		entity, err := r.svc.Get(req.Context(), n)
+		entity, err := r.svc.Get(c.Ctx(), n)
 		if err != nil {
-			routes.WriteError(w, http.StatusNotFound, err.Error())
-			return
+			return c.JSON(http.StatusNotFound, core.M{"error": err.Error()})
 		}
-		routes.WriteJSON(w, http.StatusOK, entity)
-		return
+		return c.JSON(http.StatusOK, entity)
 	}
 
 	params := repositories.ListParams{
-		Page:    routes.QueryInt(req, "page", 1),
-		PerPage: routes.QueryInt(req, "per_page", repositories.DefaultPerPage),
+		Page:    request.QueryParamInt(c, "page", 1),
+		PerPage: request.QueryParamInt(c, "per_page", repositories.DefaultPerPage),
 	}
-	result, err := r.svc.List(req.Context(), params)
+	result, err := r.svc.List(c.Ctx(), params)
 	if err != nil {
-		routes.WriteError(w, http.StatusInternalServerError, err.Error())
-		return
+		return c.JSON(http.StatusInternalServerError, core.M{"error": err.Error()})
 	}
-	routes.WriteJSON(w, http.StatusOK, result)
+	return c.JSON(http.StatusOK, result)
 }
 
 // POST /products
-func (r *Route) POST(w http.ResponseWriter, req *http.Request) {
+func (r *Route) POST(c core.Context) error {
 	var entity repositories.Product
-	if err := routes.DecodeJSON(req, &entity); err != nil {
-		routes.WriteError(w, http.StatusBadRequest, err.Error())
-		return
+	if err := c.ShouldBind(&entity); err != nil {
+		return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
 	}
-	if err := routes.Validate(&entity); err != nil {
-		routes.WriteError(w, http.StatusUnprocessableEntity, err.Error())
-		return
+	if err := validation.Validate(&entity); err != nil {
+		return c.JSON(http.StatusUnprocessableEntity, core.M{"error": err.Error()})
 	}
-	if err := r.svc.Create(req.Context(), &entity); err != nil {
-		routes.WriteError(w, http.StatusInternalServerError, err.Error())
-		return
+	if err := r.svc.Create(c.Ctx(), &entity); err != nil {
+		return c.JSON(http.StatusInternalServerError, core.M{"error": err.Error()})
 	}
-	routes.WriteJSON(w, http.StatusCreated, entity)
+	return c.JSON(http.StatusCreated, entity)
 }
 
 // PUT /products
-func (r *Route) PUT(w http.ResponseWriter, req *http.Request) {
-	id, err := routes.ParseUintID(req)
+func (r *Route) PUT(c core.Context) error {
+	id, err := request.PathParamUint(c, "id")
 	if err != nil {
-		routes.WriteError(w, http.StatusBadRequest, err.Error())
-		return
+		return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
 	}
 	var entity repositories.Product
-	if err := routes.DecodeJSON(req, &entity); err != nil {
-		routes.WriteError(w, http.StatusBadRequest, err.Error())
-		return
+	if err := c.ShouldBind(&entity); err != nil {
+		return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
 	}
-	if err := routes.Validate(&entity); err != nil {
-		routes.WriteError(w, http.StatusUnprocessableEntity, err.Error())
-		return
+	if err := validation.Validate(&entity); err != nil {
+		return c.JSON(http.StatusUnprocessableEntity, core.M{"error": err.Error()})
 	}
 	entity.ID = id
-	if err := r.svc.Update(req.Context(), &entity); err != nil {
-		routes.WriteError(w, http.StatusInternalServerError, err.Error())
-		return
+	if err := r.svc.Update(c.Ctx(), &entity); err != nil {
+		return c.JSON(http.StatusInternalServerError, core.M{"error": err.Error()})
 	}
-	routes.WriteJSON(w, http.StatusOK, entity)
+	return c.JSON(http.StatusOK, entity)
 }
 
 // PATCH /products
-func (r *Route) PATCH(w http.ResponseWriter, req *http.Request) {
-	id, err := routes.ParseUintID(req)
+func (r *Route) PATCH(c core.Context) error {
+	id, err := request.PathParamUint(c, "id")
 	if err != nil {
-		routes.WriteError(w, http.StatusBadRequest, err.Error())
-		return
+		return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
 	}
 	var entity repositories.Product
-	if err := routes.DecodeJSON(req, &entity); err != nil {
-		routes.WriteError(w, http.StatusBadRequest, err.Error())
-		return
+	if err := c.ShouldBind(&entity); err != nil {
+		return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
 	}
-	if err := routes.Validate(&entity); err != nil {
-		routes.WriteError(w, http.StatusUnprocessableEntity, err.Error())
-		return
+	if err := validation.Validate(&entity); err != nil {
+		return c.JSON(http.StatusUnprocessableEntity, core.M{"error": err.Error()})
 	}
 	entity.ID = id
-	if err := r.svc.Update(req.Context(), &entity); err != nil {
-		routes.WriteError(w, http.StatusInternalServerError, err.Error())
-		return
+	if err := r.svc.Update(c.Ctx(), &entity); err != nil {
+		return c.JSON(http.StatusInternalServerError, core.M{"error": err.Error()})
 	}
-	routes.WriteJSON(w, http.StatusOK, entity)
+	return c.JSON(http.StatusOK, entity)
 }
 
 // DELETE /products
-func (r *Route) DELETE(w http.ResponseWriter, req *http.Request) {
-	id, err := routes.ParseUintID(req)
+func (r *Route) DELETE(c core.Context) error {
+	id, err := request.PathParamUint(c, "id")
 	if err != nil {
-		routes.WriteError(w, http.StatusBadRequest, err.Error())
-		return
+		return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
 	}
-	if err := r.svc.Delete(req.Context(), id); err != nil {
-		routes.WriteError(w, http.StatusInternalServerError, err.Error())
-		return
+	if err := r.svc.Delete(c.Ctx(), id); err != nil {
+		return c.JSON(http.StatusInternalServerError, core.M{"error": err.Error()})
 	}
-	w.WriteHeader(http.StatusNoContent)
+	return c.NoContent(http.StatusNoContent)
 }

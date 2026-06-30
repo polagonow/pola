@@ -19,6 +19,7 @@ var buildFlags struct {
 	renderer        string
 	bundler         string
 	router          string
+	framework       string
 	css             string
 	vm              string
 	cgo             string
@@ -53,6 +54,7 @@ func init() {
 	buildCmd.Flags().StringVar(&buildFlags.renderer, "renderer", cmp.Or(os.Getenv("POLA_RENDERER"), "react"), "view renderer")
 	buildCmd.Flags().StringVar(&buildFlags.bundler, "bundler", cmp.Or(os.Getenv("POLA_BUNDLER"), "esbuild"), "JS bundler")
 	buildCmd.Flags().StringVar(&buildFlags.router, "router", cmp.Or(os.Getenv("POLA_ROUTER"), "nextjs"), "router style")
+	buildCmd.Flags().StringVar(&buildFlags.framework, "framework", cmp.Or(os.Getenv("POLA_WEB_FRAMEWORK"), "std"), "HTTP web framework (std, gin, echo, chi)")
 	buildCmd.Flags().StringVar(&buildFlags.css, "css", cmp.Or(os.Getenv("POLA_CSS"), "tailwind"), "CSS processor")
 	buildCmd.Flags().StringVar(&buildFlags.vm, "vm", cmp.Or(os.Getenv("POLA_VM"), "goja"), "JS engine")
 	buildCmd.Flags().StringVar(&buildFlags.cgo, "cgo", cmp.Or(os.Getenv("CGO_ENABLED"), "1"), "CGO_ENABLED value")
@@ -122,6 +124,7 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 
 	baseOpts := autoload.PluginOpts{
 		PolaPackage:     pf.PolaPackage(),
+		Framework:       buildFlags.framework,
 		Cache:           "memory",
 		CSRF:            buildFlags.csrf,
 		SecurityHeaders: buildFlags.securityHeaders,

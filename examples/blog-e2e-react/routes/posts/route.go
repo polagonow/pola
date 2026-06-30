@@ -1,10 +1,11 @@
 package posts
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
+
+	"github.com/polagonow/pola/core"
 )
 
 // Route handles API requests for blog posts.
@@ -32,20 +33,18 @@ var posts = []Post{
 		Author:  "Jane Doe", Date: "2024-02-03", Tags: []string{"react", "rsc"}},
 }
 
-func (r *Route) GET(w http.ResponseWriter, req *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(posts)
+func (r *Route) GET(c core.Context) error {
+	return c.JSON(http.StatusOK, posts)
 }
 
-func (r *Route) POST(w http.ResponseWriter, req *http.Request) {
+func (r *Route) POST(c core.Context) error {
 	var input struct {
 		Title   string   `json:"title"`
 		Excerpt string   `json:"excerpt"`
 		Tags    []string `json:"tags"`
 	}
-	if err := json.NewDecoder(req.Body).Decode(&input); err != nil {
-		http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
-		return
+	if err := c.ShouldBind(&input); err != nil {
+		return c.JSON(http.StatusBadRequest, core.M{"error": "invalid JSON"})
 	}
 
 	post := Post{
@@ -59,7 +58,5 @@ func (r *Route) POST(w http.ResponseWriter, req *http.Request) {
 	}
 	posts = append(posts, post)
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(post)
+	return c.JSON(http.StatusCreated, post)
 }

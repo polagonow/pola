@@ -1,9 +1,9 @@
 package contacts
 
 import (
-	"encoding/json"
 	"net/http"
 
+	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/validation"
 )
 
@@ -17,23 +17,17 @@ type Contact struct {
 
 var v = validation.New()
 
-func (r *Route) POST(w http.ResponseWriter, req *http.Request) {
+func (r *Route) POST(c core.Context) error {
 	var input Contact
-	if err := json.NewDecoder(req.Body).Decode(&input); err != nil {
-		http.Error(w, `{"error":"invalid JSON"}`, http.StatusBadRequest)
-		return
+	if err := c.ShouldBind(&input); err != nil {
+		return c.JSON(http.StatusBadRequest, core.M{"error": "invalid JSON"})
 	}
 
 	if err := v.Validate(&input); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnprocessableEntity)
-		json.NewEncoder(w).Encode(map[string]any{"errors": err})
-		return
+		return c.JSON(http.StatusUnprocessableEntity, core.M{"errors": err})
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]any{
+	return c.JSON(http.StatusCreated, core.M{
 		"status":  "ok",
 		"contact": input,
 	})

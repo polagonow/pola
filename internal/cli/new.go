@@ -51,6 +51,7 @@ var newFlags struct {
 	renderer        string
 	bundler         string
 	router          string
+	framework       string
 	css             string
 	vm              string
 	ui              string
@@ -89,6 +90,7 @@ func init() {
 	newCmd.Flags().StringVar(&newFlags.renderer, "renderer", "react", "view renderer (react)")
 	newCmd.Flags().StringVar(&newFlags.bundler, "bundler", "esbuild", "JS bundler (esbuild)")
 	newCmd.Flags().StringVar(&newFlags.router, "router", "nextjs", "router style (nextjs)")
+	newCmd.Flags().StringVar(&newFlags.framework, "framework", "std", "HTTP web framework (std, gin, echo, chi)")
 	newCmd.Flags().StringVar(&newFlags.css, "css", "none", "CSS processor (tailwind, sass, none)")
 	newCmd.Flags().StringVar(&newFlags.vm, "vm", "goja", "JS engine (goja)")
 	newCmd.Flags().StringVar(&newFlags.ui, "ui", "none", "UI component library (shadcn, mui, slds, ads, carbon, patternfly, fluentui, antd, none)")
@@ -250,6 +252,7 @@ func runNew(cmd *cobra.Command, args []string) error {
 		Renderer:      newFlags.renderer,
 		Bundler:       newFlags.bundler,
 		Router:        newFlags.router,
+		Framework:     newFlags.framework,
 		CSS:           newFlags.css,
 		UI:            newFlags.ui,
 		VM:            newFlags.vm,
@@ -283,6 +286,7 @@ func runNew(cmd *cobra.Command, args []string) error {
 	pf := &polafile.Polafile{
 		Package:         modulePath,
 		Version:         version,
+		Framework:       newFlags.framework,
 		APIOnly:         newFlags.apiOnly,
 		Routes:          "routes",
 		Repositories:    "repositories",
@@ -322,6 +326,7 @@ func runNew(cmd *cobra.Command, args []string) error {
 	// This file is removed after tidy — at runtime it's injected via overlay.
 	pluginOpts := autoload.PluginOpts{
 		PolaPackage:     polafile.DefaultPackage,
+		Framework:       newFlags.framework,
 		Cache:           "memory",
 		CSRF:            newFlags.csrf,
 		SecurityHeaders: newFlags.securityHeaders,

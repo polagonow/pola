@@ -1,10 +1,10 @@
-package routes
+package validation
 
 import "testing"
 
 func TestValidate_Valid(t *testing.T) {
 	v := struct {
-		Name string `valid:"required"`
+		Name string `validate:"required"`
 	}{Name: "alice"}
 
 	if err := Validate(v); err != nil {
@@ -14,7 +14,7 @@ func TestValidate_Valid(t *testing.T) {
 
 func TestValidate_MissingRequired(t *testing.T) {
 	v := struct {
-		Name string `valid:"required"`
+		Name string `validate:"required"`
 	}{}
 
 	if err := Validate(v); err == nil {
@@ -24,7 +24,7 @@ func TestValidate_MissingRequired(t *testing.T) {
 
 func TestValidate_Optional(t *testing.T) {
 	v := struct {
-		Name string `valid:"optional"`
+		Name string `validate:"omitempty,alpha"`
 	}{}
 
 	if err := Validate(v); err != nil {

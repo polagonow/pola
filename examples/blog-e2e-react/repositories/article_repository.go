@@ -7,8 +7,8 @@ import (
 // Article represents the article entity for the repository layer.
 type Article struct {
 	ID    uint   `json:"id"`
-	Title string `json:"title" valid:"required"`
-	Body  string `json:"body" valid:"required"`
+	Title string `json:"title" validate:"required"`
+	Body  string `json:"body" validate:"required"`
 }
 
 // ArticleRepository defines the contract for article persistence operations.

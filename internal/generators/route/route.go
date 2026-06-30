@@ -23,6 +23,9 @@ var (
 	routeTmpl = template.Must(
 		template.New("route_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/route_go.tmpl"),
 	)
+	routeFuncTmpl = template.Must(
+		template.New("route_func_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/route_func_go.tmpl"),
+	)
 	routeServiceTmpl = template.Must(
 		template.New("route_service_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/route_service_go.tmpl"),
 	)
@@ -83,6 +86,7 @@ Use --service=Name to wire the route to a generated service via DI.`,
   pola generate route Posts GET,POST,DELETE --service=Post`,
 	}
 	cmd.Flags().String("service", "", "wire route handlers to the named service via DI")
+	cmd.Flags().Bool("func", false, "generate a function-based route (package-level verb functions) instead of a struct")
 	cmd.Flags().String("id-type", "uint", "Go type for the entity ID (uint or string)")
 	cmd.Flags().MarkHidden("id-type")
 	cmd.Flags().Bool("has-file-upload", false, "generate multipart file upload handling")
@@ -149,6 +153,10 @@ func (g *RouteGenerator) run(cmd *cobra.Command, args []string) error {
 	routePath := "/" + strings.Join(segments, "/")
 
 	serviceName, _ := cmd.Flags().GetString("service")
+	funcMode, _ := cmd.Flags().GetBool("func")
+	if funcMode && serviceName != "" {
+		return fmt.Errorf("--func cannot be combined with --service (function routes have no constructor for DI)")
+	}
 
 	var buf strings.Builder
 	if serviceName != "" {
@@ -218,7 +226,11 @@ func (g *RouteGenerator) run(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("execute route service template: %w", err)
 		}
 	} else {
-		if err := routeTmpl.Execute(&buf, struct {
+		tmpl := routeTmpl
+		if funcMode {
+			tmpl = routeFuncTmpl
+		}
+		if err := tmpl.Execute(&buf, struct {
 			Package   string
 			RoutePath string
 			Methods   []string
@@ -250,7 +262,8 @@ func (g *RouteGenerator) run(cmd *cobra.Command, args []string) error {
 				Package   string
 				RoutePath string
 				Methods   []string
-			}{Package: pkgName, RoutePath: routePath, Methods: methods}); err != nil {
+				Func      bool
+			}{Package: pkgName, RoutePath: routePath, Methods: methods, Func: funcMode}); err != nil {
 				return fmt.Errorf("execute route test template: %w", err)
 			}
 		default:

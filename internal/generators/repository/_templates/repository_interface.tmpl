@@ -11,7 +11,7 @@ import (
 type [[.Name]] struct {
 	ID [[.IDGoType]] `json:"id"`
 [[- range .Fields]]
-	[[.Name]] [[.GoType]] `json:"[[.JSONName]]" valid:"[[.ValidTag]]"`
+	[[.Name]] [[.GoType]] `json:"[[.JSONName]]" validate:"[[.ValidTag]]"`
 [[- end]]
 }
 

@@ -7,7 +7,7 @@ import (
 // SampleEntity represents the sample_entity entity for the repository layer.
 type SampleEntity struct {
 	ID   uint   `json:"id"`
-	Name string `json:"name" valid:"required"`
+	Name string `json:"name" validate:"required"`
 }
 
 // SampleEntityRepository defines the contract for sample_entity persistence operations.

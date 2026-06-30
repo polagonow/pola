@@ -1,11 +1,11 @@
 package login
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"beego-features-demo/services"
 
+	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/flash"
 	"github.com/polagonow/pola/i18n"
 	"github.com/polagonow/pola/middleware/session"
@@ -19,32 +19,25 @@ func NewRoute(svc *services.UserService) *Route {
 	return &Route{svc: svc}
 }
 
-func (r *Route) POST(w http.ResponseWriter, req *http.Request) {
+func (r *Route) POST(c core.Context) error {
 	var input struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	}
-	if err := json.NewDecoder(req.Body).Decode(&input); err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]any{"error": "invalid JSON"})
-		return
+	if err := c.ShouldBind(&input); err != nil {
+		return c.JSON(http.StatusBadRequest, core.M{"error": "invalid JSON"})
 	}
 
-	user, err := r.svc.Authenticate(req.Context(), input.Username, input.Password)
+	user, err := r.svc.Authenticate(c.Ctx(), input.Username, input.Password)
 	if err != nil {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusUnauthorized)
-		json.NewEncoder(w).Encode(map[string]any{"error": "invalid credentials"})
-		return
+		return c.JSON(http.StatusUnauthorized, core.M{"error": "invalid credentials"})
 	}
 
-	session.Set(req.Context(), "user_id", user.ID)
-	session.Set(req.Context(), "username", user.Username)
-	flash.Set(req.Context(), "success", i18n.T(req.Context(), "login_success"))
+	session.Set(c.Ctx(), "user_id", user.ID)
+	session.Set(c.Ctx(), "username", user.Username)
+	flash.Set(c.Ctx(), "success", i18n.T(c.Ctx(), "login_success"))
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
+	return c.JSON(http.StatusOK, core.M{
 		"id":       user.ID,
 		"username": user.Username,
 	})

@@ -64,6 +64,7 @@ type Polafile struct {
 	Engine         string `hcl:"engine,optional"`
 	Bundler        string `hcl:"bundler,optional"`
 	Router         string `hcl:"router,optional"`
+	Framework      string `hcl:"framework,optional" env:"POLA_WEB_FRAMEWORK"`
 	CSS            string `hcl:"css,optional"`
 	UI             string `hcl:"ui,optional"`
 	PackageManager string `hcl:"package_manager,optional"`
@@ -101,6 +102,15 @@ type Testing struct {
 	GenerateTests *bool `hcl:"generate_tests,optional"`
 	// Framework is the JavaScript/TypeScript test framework: "vitest" or "jest".
 	Framework string `hcl:"framework,optional"`
+}
+
+// WebFramework returns the configured HTTP web framework, defaulting to "std"
+// (net/http). Supported: "std", "gin", "echo", "chi".
+func (pf *Polafile) WebFramework() string {
+	if pf == nil || pf.Framework == "" {
+		return "std"
+	}
+	return pf.Framework
 }
 
 // IsAPIOnly reports whether the project is configured as API-only (no frontend).

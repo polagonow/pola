@@ -38,23 +38,91 @@ func (a *autoloadImpl) Contribute(ctx *autoload.Context) error {
 		return nil
 	}
 
-	routePkgs := discoverRoutePackages(ctx.ProjectDir, ctx.ModPath)
-	ctx.Discovery.RoutePkgs = routePkgs
+	var routePkgs []autoload.RoutePackageInfo
+	for _, rp := range discoverRoutePackages(ctx.ProjectDir, ctx.ModPath) {
+		hasStruct, funcRoutes := scanRouteStyle(rp.AbsDir)
+		// Skip directories under routes/ that aren't actually route packages
+		// (no Route struct and no verb functions) — e.g. shared helpers.
+		if !hasStruct && len(funcRoutes) == 0 {
+			continue
+		}
+		routePkgs = append(routePkgs, rp)
 
-	for i, rp := range routePkgs {
-		dep := discoverRouteServiceDep(rp.AbsDir, ctx.ModPath)
-		src, err := generateRouteInit(rp.PkgName, ctx.Opts.PolaPackage, ctx.ModPath, dep)
+		var dep *autoload.RouteServiceDep
+		if hasStruct {
+			dep = discoverRouteServiceDep(rp.AbsDir, ctx.ModPath)
+		}
+		src, err := generateRouteInit(rp.PkgName, ctx.Opts.PolaPackage, ctx.ModPath, dep, hasStruct, funcRoutes)
 		if err != nil {
 			return fmt.Errorf("generate route init for %s: %w", rp.PkgName, err)
 		}
-		initPath := filepath.Join(ctx.TmpDir, fmt.Sprintf("pola_route_init_%d.go", i))
+		initPath := filepath.Join(ctx.TmpDir, fmt.Sprintf("pola_route_init_%d.go", len(routePkgs)-1))
 		if err := os.WriteFile(initPath, src, 0o644); err != nil {
 			return fmt.Errorf("write route init for %s: %w", rp.PkgName, err)
 		}
 		ctx.Replace[filepath.Join(rp.AbsDir, "pola_route_init.go")] = initPath
 	}
+	ctx.Discovery.RoutePkgs = routePkgs
 
 	return nil
+}
+
+// httpVerbs is the set of method names recognized as route handlers.
+var httpVerbs = map[string]bool{
+	"GET": true, "POST": true, "PUT": true, "PATCH": true, "DELETE": true,
+	"HEAD": true, "OPTIONS": true, "CONNECT": true, "TRACE": true,
+}
+
+// scanRouteStyle inspects a route package's .go files (skipping generated
+// pola_* files) and reports whether it declares a `Route` struct (struct-based)
+// and which package-level functions are named after HTTP verbs (function-based).
+func scanRouteStyle(routeDir string) (hasStruct bool, funcRoutes []string) {
+	fset := token.NewFileSet()
+	entries, err := os.ReadDir(routeDir)
+	if err != nil {
+		return false, nil
+	}
+	seen := map[string]bool{}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasPrefix(entry.Name(), "pola_") {
+			continue
+		}
+		f, err := parser.ParseFile(fset, filepath.Join(routeDir, entry.Name()), nil, 0)
+		if err != nil {
+			continue
+		}
+		for _, decl := range f.Decls {
+			switch d := decl.(type) {
+			case *ast.GenDecl:
+				if d.Tok != token.TYPE {
+					continue
+				}
+				for _, spec := range d.Specs {
+					if ts, ok := spec.(*ast.TypeSpec); ok && ts.Name.Name == "Route" {
+						hasStruct = true
+					}
+				}
+			case *ast.FuncDecl:
+				// Package-level function (no receiver) named after an HTTP verb,
+				// with a single param and single result (func(core.Context) error).
+				if d.Recv != nil || !httpVerbs[d.Name.Name] {
+					continue
+				}
+				if d.Type.Params == nil || len(d.Type.Params.List) != 1 {
+					continue
+				}
+				if d.Type.Results == nil || len(d.Type.Results.List) != 1 {
+					continue
+				}
+				if !seen[d.Name.Name] {
+					seen[d.Name.Name] = true
+					funcRoutes = append(funcRoutes, d.Name.Name)
+				}
+			}
+		}
+	}
+	sort.Strings(funcRoutes)
+	return hasStruct, funcRoutes
 }
 
 // discoverRoutePackages walks the routes/ directory and returns metadata
@@ -100,21 +168,23 @@ func discoverRoutePackages(projectDir, modPath string) []autoload.RoutePackageIn
 // below derives the imports, factory body, and constructor args; the template
 // only renders the file skeleton.
 type routeInitData struct {
-	PkgName string
-	HasDep  bool
-	Imports []string // raw import paths; the template quotes them
-	Body    []string // factory body lines, e.g. "svc := core.MustInvoke[*pkg.T](r)"
-	Args    string   // joined NewRoute arguments
+	PkgName    string
+	HasStruct  bool     // package declares a Route struct (struct-based)
+	HasDep     bool     // Route struct has constructor dependencies
+	Imports    []string // raw import paths; the template quotes them
+	Body       []string // factory body lines, e.g. "svc := core.MustInvoke[*pkg.T](r)"
+	Args       string   // joined NewRoute arguments
+	FuncRoutes []string // verb names of package-level function routes
 }
 
 // generateRouteInit returns the source for a pola_route_init.go file that
-// registers a route factory via init().
-func generateRouteInit(pkgName, polaPackage, modPath string, dep *autoload.RouteServiceDep) ([]byte, error) {
-	imports := []string{
-		polaPackage + "/core",
-		polaPackage + "/routes",
+// registers struct-based and/or function-based routes via init().
+func generateRouteInit(pkgName, polaPackage, modPath string, dep *autoload.RouteServiceDep, hasStruct bool, funcRoutes []string) ([]byte, error) {
+	imports := []string{polaPackage + "/routes"}
+	if hasStruct {
+		imports = append(imports, polaPackage+"/core")
 	}
-	data := routeInitData{PkgName: pkgName, Imports: imports}
+	data := routeInitData{PkgName: pkgName, HasStruct: hasStruct, FuncRoutes: funcRoutes, Imports: imports}
 
 	if dep != nil {
 		data.HasDep = true

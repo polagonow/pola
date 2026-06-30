@@ -8,6 +8,7 @@ import (
 )
 
 func init() {
+{{- if .HasStruct }}
 {{- if .HasDep }}
 	routes.Register(func(r *core.Registry) any {
 {{- range .Body }}
@@ -17,5 +18,9 @@ func init() {
 	})
 {{- else }}
 	routes.Register(func(_ *core.Registry) any { return &Route{} })
+{{- end }}
+{{- end }}
+{{- range .FuncRoutes }}
+	routes.RegisterFunc("{{ . }}", {{ . }})
 {{- end }}
 }

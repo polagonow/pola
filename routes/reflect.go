@@ -2,8 +2,9 @@ package routes
 
 import (
 	"fmt"
-	"net/http"
 	"reflect"
+
+	"github.com/polagonow/pola/core"
 )
 
 // Pather is optionally implemented by route structs to override the
@@ -20,55 +21,47 @@ type Memberer interface {
 	Member() bool
 }
 
-// httpMethods lists the HTTP methods discovered on route structs.
+// httpMethods lists the HTTP methods discovered on route structs / packages.
 var httpMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "CONNECT", "TRACE"}
 
-// discoveredAction holds a discovered HTTP method handler on a route struct.
+// discoveredAction holds a discovered HTTP method handler.
 type discoveredAction struct {
-	Method  string           // HTTP method (GET, POST, etc.)
-	Handler http.HandlerFunc // bound method
+	Method  string
+	Handler core.HandlerFunc
 }
 
 // discoverActions inspects the route struct for methods named after HTTP verbs
-// (GET, POST, PUT, PATCH, DELETE, HEAD, OPTIONS, CONNECT, TRACE). Each must have the signature:
+// (GET, POST, PUT, …). Each must have the signature:
 //
-//	func(http.ResponseWriter, *http.Request)
+//	func(core.Context) error
 func discoverActions(route any) ([]discoveredAction, error) {
 	rv := reflect.ValueOf(route)
 	rt := rv.Type()
 
 	var result []discoveredAction
-
 	for _, method := range httpMethods {
-		m, ok := rt.MethodByName(method)
-		if !ok {
+		if _, ok := rt.MethodByName(method); !ok {
 			continue
 		}
-
-		// Validate signature: receiver + (http.ResponseWriter, *http.Request)
-		mt := m.Type
-		if mt.NumIn() != 3 || mt.NumOut() != 0 {
-			return nil, fmt.Errorf("routes: %s.%s must have signature func(http.ResponseWriter, *http.Request), got %s",
-				rt.Elem().Name(), method, mt)
-		}
-
-		writerType := reflect.TypeOf((*http.ResponseWriter)(nil)).Elem()
-		requestType := reflect.TypeOf((*http.Request)(nil))
-		if !mt.In(1).Implements(writerType) || mt.In(2) != requestType {
-			return nil, fmt.Errorf("routes: %s.%s must have signature func(http.ResponseWriter, *http.Request), got %s",
-				rt.Elem().Name(), method, mt)
-		}
-
 		fn := rv.MethodByName(method)
-		handler := func(w http.ResponseWriter, r *http.Request) {
-			fn.Call([]reflect.Value{reflect.ValueOf(w), reflect.ValueOf(r)})
+		h, err := adaptHandler(fn.Interface(), fmt.Sprintf("%s.%s", rt.Elem().Name(), method))
+		if err != nil {
+			return nil, err
 		}
-
-		result = append(result, discoveredAction{
-			Method:  method,
-			Handler: handler,
-		})
+		result = append(result, discoveredAction{Method: method, Handler: h})
 	}
-
 	return result, nil
+}
+
+// adaptHandler converts a handler into a core.HandlerFunc, or returns an error
+// describing the expected signature.
+func adaptHandler(fn any, name string) (core.HandlerFunc, error) {
+	switch h := fn.(type) {
+	case core.HandlerFunc:
+		return h, nil
+	case func(core.Context) error:
+		return h, nil
+	default:
+		return nil, fmt.Errorf("routes: %s must be func(core.Context) error, got %T", name, fn)
+	}
 }

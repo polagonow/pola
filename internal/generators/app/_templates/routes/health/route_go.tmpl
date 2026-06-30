@@ -1,20 +1,19 @@
 package health
 
 import (
-	"encoding/json"
-	"net/http"
 	"runtime"
 	"time"
+
+	"github.com/polagonow/pola/core"
 )
 
-// Route handles health check requests.
+// GET /health → returns server status as JSON.
 //
-//	GET /health → returns server status as JSON
-type Route struct{}
-
-func (r *Route) GET(w http.ResponseWriter, req *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
+// This is a function-based route: a package-level function named after the HTTP
+// verb. (The alternative is a struct with verb methods — use that when the
+// handler needs dependencies injected via a NewRoute constructor.)
+func GET(c core.Context) error {
+	return c.JSON(200, core.M{
 		"status":    "ok",
 		"timestamp": time.Now().Format(time.RFC3339),
 		"go":        runtime.Version(),

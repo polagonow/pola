@@ -36,6 +36,15 @@ func New() *PlaygroundValidator {
 	return &PlaygroundValidator{v: validator.New(validator.WithRequiredStructEnabled())}
 }
 
+// defaultValidator backs the package-level Validate convenience.
+var defaultValidator = New()
+
+// Validate validates v using the default go-playground validator, returning
+// structured ValidationErrors on failure.
+func Validate(v any) error {
+	return defaultValidator.Validate(v)
+}
+
 func (pv *PlaygroundValidator) Validate(val any) error {
 	err := pv.v.Struct(val)
 	if err == nil {

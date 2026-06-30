@@ -1,9 +1,9 @@
 package logout
 
 import (
-	"encoding/json"
 	"net/http"
 
+	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/flash"
 	"github.com/polagonow/pola/i18n"
 	"github.com/polagonow/pola/middleware/session"
@@ -11,10 +11,9 @@ import (
 
 type Route struct{}
 
-func (r *Route) POST(w http.ResponseWriter, req *http.Request) {
-	session.Clear(req.Context())
-	flash.Set(req.Context(), "success", i18n.T(req.Context(), "logout_success"))
+func (r *Route) POST(c core.Context) error {
+	session.Clear(c.Ctx())
+	flash.Set(c.Ctx(), "success", i18n.T(c.Ctx(), "logout_success"))
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{"status": "ok"})
+	return c.JSON(http.StatusOK, core.M{"status": "ok"})
 }

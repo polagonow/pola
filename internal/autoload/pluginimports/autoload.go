@@ -75,6 +75,7 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 	var buf strings.Builder
 	err := pluginsTmpl.Execute(&buf, struct {
 		PolaPackage     string
+		Framework       string
 		Engine          string
 		Bundler         string
 		Renderer        string
@@ -139,6 +140,7 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		APIOnly bool
 	}{
 		PolaPackage:     opts.PolaPackage,
+		Framework:       cmp.Or(opts.Framework, "std"),
 		Engine:          opts.Engine,
 		Bundler:         opts.Bundler,
 		Renderer:        opts.Renderer,

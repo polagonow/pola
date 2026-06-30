@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/polagonow/pola/routes"
+	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/storage"
 	"[[ .Module ]]/repositories"
 )
@@ -26,36 +26,35 @@ func NewRoute(store storage.Storage, blobs repositories.StorageBlobRepository) *
 func (r *Route) Path() string { return "/storage_blobs/:id" }
 
 // GET /storage_blobs/:id streams the blob's bytes back to the client.
-func (r *Route) GET(w http.ResponseWriter, req *http.Request) {
-	idStr := routes.Param(req, "id")
+func (r *Route) GET(c core.Context) error {
+	idStr := c.Param("id")
 	if idStr == "" {
-		routes.WriteError(w, http.StatusBadRequest, "missing id")
-		return
+		return c.JSON(http.StatusBadRequest, core.M{"error": "missing id"})
 	}
 	id, err := strconv.ParseUint(idStr, 10, 64)
 	if err != nil {
-		routes.WriteError(w, http.StatusBadRequest, "invalid id")
-		return
+		return c.JSON(http.StatusBadRequest, core.M{"error": "invalid id"})
 	}
 
-	blob, err := r.blobs.Get(req.Context(), uint(id))
+	blob, err := r.blobs.Get(c.Ctx(), uint(id))
 	if err != nil {
-		routes.WriteError(w, http.StatusNotFound, "blob not found")
-		return
+		return c.JSON(http.StatusNotFound, core.M{"error": "blob not found"})
 	}
 
-	rc, err := r.store.Open(req.Context(), blob.Key)
+	rc, err := r.store.Open(c.Ctx(), blob.Key)
 	if err != nil {
-		routes.WriteError(w, http.StatusNotFound, err.Error())
-		return
+		return c.JSON(http.StatusNotFound, core.M{"error": err.Error()})
 	}
 	defer rc.Close()
 
+	w := c.Writer()
 	if blob.ContentType != "" {
 		w.Header().Set("Content-Type", blob.ContentType)
 	}
 	if blob.Filename != "" {
 		w.Header().Set("Content-Disposition", "inline; filename=\""+blob.Filename+"\"")
 	}
-	io.Copy(w, rc)
+	w.WriteHeader(http.StatusOK)
+	_, err = io.Copy(w, rc)
+	return err
 }

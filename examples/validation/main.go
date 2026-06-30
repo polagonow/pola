@@ -6,7 +6,7 @@ import (
 
 	"validation/repositories"
 
-	"github.com/polagonow/pola/routes"
+	"github.com/polagonow/pola/validation"
 )
 
 func main() {
@@ -16,18 +16,18 @@ func main() {
 		Website: "https://alice.dev",
 		Phone:   "5551234567",
 	}
-	if err := routes.Validate(&valid); err != nil {
+	if err := validation.Validate(&valid); err != nil {
 		fmt.Fprintf(os.Stderr, "unexpected error: %v\n", err)
 		os.Exit(1)
 	}
 	fmt.Println("valid contact: OK")
 
 	invalid := repositories.Contact{
-		Name:  "Alice123",          // not alphabetic
-		Email: "not-an-email",      // not a valid email
-		Phone: "not-numeric",       // not digits
+		Name:  "Alice123",     // not alphabetic
+		Email: "not-an-email", // not a valid email
+		Phone: "not-numeric",  // not digits
 	}
-	if err := routes.Validate(&invalid); err != nil {
+	if err := validation.Validate(&invalid); err != nil {
 		fmt.Printf("invalid contact caught: %v\n", err)
 	}
 
@@ -38,7 +38,7 @@ func main() {
 		Port:       "8080",
 		Version:    "1.2.3",
 	}
-	if err := routes.Validate(&server); err != nil {
+	if err := validation.Validate(&server); err != nil {
 		fmt.Fprintf(os.Stderr, "unexpected error: %v\n", err)
 		os.Exit(1)
 	}
