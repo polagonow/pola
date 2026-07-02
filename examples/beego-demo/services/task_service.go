@@ -1,57 +1,32 @@
 package services
 
 import (
-	"context"
-
 	"beego-demo/repositories"
 
-	"github.com/polagonow/pola/repository"
+	"github.com/polagonow/pola/service"
 )
 
-// TaskServiceInterface is the contract a Task service must satisfy.
-// Routes and other call sites depend on this interface so tests can substitute
-// mocks. The concrete TaskService type below satisfies it.
+// TaskServiceInterface is the contract for task business logic. It embeds
+// the framework's standard CRUD service; add custom business methods here.
+// Routes and other call sites depend on this interface.
 type TaskServiceInterface interface {
-	Create(ctx context.Context, entity *repositories.Task) error
-	Get(ctx context.Context, id uint) (*repositories.Task, error)
-	List(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.Task], error)
-	Update(ctx context.Context, entity *repositories.Task) error
-	Delete(ctx context.Context, id uint) error
+	service.Service[repositories.Task, uint]
 }
 
-// TaskService handles business logic for task operations.
+// TaskService handles business logic for task operations. The embedded
+// generic service delegates CRUD to the repository; override a method (e.g.
+// Create) on this struct to add validation or business rules, using s.repo.
 type TaskService struct {
+	service.Service[repositories.Task, uint]
 	repo repositories.TaskRepository
 }
 
 // NewTaskService creates a new TaskService.
 func NewTaskService(repo repositories.TaskRepository) *TaskService {
-	return &TaskService{repo: repo}
+	return &TaskService{
+		Service: service.New[repositories.Task, uint](repo),
+		repo:    repo,
+	}
 }
 
-// Create creates a new task.
-func (s *TaskService) Create(ctx context.Context, entity *repositories.Task) error {
-	// TODO: add business logic / validation
-	return s.repo.Create(ctx, entity)
-}
-
-// Get returns a task by its ID.
-func (s *TaskService) Get(ctx context.Context, id uint) (*repositories.Task, error) {
-	return s.repo.Get(ctx, id)
-}
-
-// List returns a paginated list of tasks.
-func (s *TaskService) List(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.Task], error) {
-	return s.repo.List(ctx, params)
-}
-
-// Update updates an existing task.
-func (s *TaskService) Update(ctx context.Context, entity *repositories.Task) error {
-	// TODO: add business logic / validation
-	return s.repo.Update(ctx, entity)
-}
-
-// Delete removes a task by its ID.
-func (s *TaskService) Delete(ctx context.Context, id uint) error {
-	return s.repo.Delete(ctx, id)
-}
+var _ TaskServiceInterface = (*TaskService)(nil)
