@@ -1,7 +1,7 @@
 package repositories
 
 import (
-	"context"
+	"github.com/polagonow/pola/repository"
 )
 
 // Greeting represents the greeting entity for the repository layer.
@@ -10,11 +10,9 @@ type Greeting struct {
 	Message string `json:"message" validate:"required"`
 }
 
-// GreetingRepository defines the contract for greeting persistence operations.
+// GreetingRepository defines the contract for greeting persistence
+// operations. It embeds the framework's standard CRUD contract; add custom
+// query methods here.
 type GreetingRepository interface {
-	Create(ctx context.Context, entity *Greeting) error
-	Get(ctx context.Context, id uint) (*Greeting, error)
-	List(ctx context.Context, params ListParams) (*ListResult[*Greeting], error)
-	Update(ctx context.Context, entity *Greeting) error
-	Delete(ctx context.Context, id uint) error
+	repository.Repository[Greeting, uint]
 }
