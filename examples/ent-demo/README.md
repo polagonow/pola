@@ -2,11 +2,10 @@
 
 API-only Pola app verifying the **Ent** repository path end-to-end: an ent
 schema (`db/models/schema/task.go`) with its generated client
-(`db/client/ent`), a per-entity generated repository (ent stays generated —
-its typed codegen client has no generic surface), a service, and `/tasks`
-routes. The generated interface still embeds the framework's
-`repository.Repository[Task, uint]` contract, which the ent implementation
-satisfies.
+(`db/client/ent`), a slim generated repository that embeds the framework's
+generic `repository/ent` implementation (reflection-bound to the client's
+`Task` sub-client, field writes via ent's runtime-validated `ent.Mutation`
+API), a service, and `/tasks` routes.
 
 Generated with:
 

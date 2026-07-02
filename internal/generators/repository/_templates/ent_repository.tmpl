@@ -1,128 +1,35 @@
 package ent
 
 import (
-	"context"
-	"fmt"
-
 	"[[.ModulePath]]/[[.EntClientDir]]"
-	ent[[.Name]] "[[.ModulePath]]/[[.EntClientDir]]/[[.EntPackage]]"
+
+	"[[.PolaPackage]]/repository"
+	entrepo "[[.PolaPackage]]/repository/ent"
+
 	"[[.ModulePath]]/repositories"
 [[- if eq .IDGoType "string"]]
 	"github.com/google/uuid"
 [[- end]]
 )
 
+// [[.LowerName]]Repository is the Ent-backed [[.Name]]Repository. The
+// embedded generic implementation supplies Create/Get/List/Update/Delete by
+// binding to the generated client's [[.Name]] sub-client and driving field
+// writes through ent's Mutation interface; add custom queries as methods on
+// this struct using r.client.
 type [[.LowerName]]Repository struct {
+	repository.Repository[ repositories.[[.Name]], [[.IDGoType]] ]
 	client *ent.Client
 }
 
 // New[[.Name]]Repository creates a new Ent-backed [[.Name]]Repository.
 func New[[.Name]]Repository(client *ent.Client) repositories.[[.Name]]Repository {
-	return &[[.LowerName]]Repository{client: client}
-}
-
-func (r *[[.LowerName]]Repository) Create(ctx context.Context, entity *repositories.[[.Name]]) error {
+	return &[[.LowerName]]Repository{
 [[- if eq .IDGoType "string"]]
-	if entity.ID == "" {
-		entity.ID = uuid.New().String()
-	}
-[[- end]]
-	_, err := r.client.[[.Name]].Create().
-	[[- if eq .IDGoType "string"]]
-		SetID(entity.ID).
-	[[- end]]
-	[[- range .Fields]]
-		Set[[.Name]](entity.[[.Name]]).
-	[[- end]]
-		Save(ctx)
-	return err
-}
-
-func (r *[[.LowerName]]Repository) Get(ctx context.Context, id [[.IDGoType]]) (*repositories.[[.Name]], error) {
-[[- if eq .IDGoType "string"]]
-	e, err := r.client.[[.Name]].Get(ctx, id)
+		Repository: entrepo.New[repositories.[[.Name]], string](client, repository.WithNewID(uuid.NewString)),
 [[- else]]
-	e, err := r.client.[[.Name]].Get(ctx, int(id))
+		Repository: entrepo.New[repositories.[[.Name]], [[.IDGoType]]](client),
 [[- end]]
-	if err != nil {
-		return nil, fmt.Errorf("get [[.SnakeName]] by id: %w", err)
+		client: client,
 	}
-	return &repositories.[[.Name]]{
-[[- if eq .IDGoType "string"]]
-		ID: e.ID,
-[[- else]]
-		ID: uint(e.ID),
-[[- end]]
-	[[- range .Fields]]
-		[[.Name]]: e.[[.Name]],
-	[[- end]]
-	}, nil
 }
-
-func (r *[[.LowerName]]Repository) List(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.[[.Name]]], error) {
-	params = params.Normalize()
-
-	total, err := r.client.[[.Name]].Query().Count(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("count [[.PluralSnake]]: %w", err)
-	}
-
-	entries, err := r.client.[[.Name]].Query().
-		Offset(params.Offset()).
-		Limit(params.PerPage).
-		All(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list [[.PluralSnake]]: %w", err)
-	}
-
-	items := make([]*repositories.[[.Name]], len(entries))
-	for i, e := range entries {
-		items[i] = &repositories.[[.Name]]{
-[[- if eq .IDGoType "string"]]
-			ID: e.ID,
-[[- else]]
-			ID: uint(e.ID),
-[[- end]]
-		[[- range $.Fields]]
-			[[.Name]]: e.[[.Name]],
-		[[- end]]
-		}
-	}
-
-	totalPages := total / params.PerPage
-	if total%params.PerPage != 0 {
-		totalPages++
-	}
-
-	return &repositories.ListResult[*repositories.[[.Name]]]{
-		Items:      items,
-		Total:      total,
-		Page:       params.Page,
-		PerPage:    params.PerPage,
-		TotalPages: totalPages,
-	}, nil
-}
-
-func (r *[[.LowerName]]Repository) Update(ctx context.Context, entity *repositories.[[.Name]]) error {
-[[- if eq .IDGoType "string"]]
-	_, err := r.client.[[.Name]].UpdateOneID(entity.ID).
-[[- else]]
-	_, err := r.client.[[.Name]].UpdateOneID(int(entity.ID)).
-[[- end]]
-	[[- range .Fields]]
-		Set[[.Name]](entity.[[.Name]]).
-	[[- end]]
-		Save(ctx)
-	return err
-}
-
-func (r *[[.LowerName]]Repository) Delete(ctx context.Context, id [[.IDGoType]]) error {
-[[- if eq .IDGoType "string"]]
-	return r.client.[[.Name]].DeleteOneID(id).Exec(ctx)
-[[- else]]
-	return r.client.[[.Name]].DeleteOneID(int(id)).Exec(ctx)
-[[- end]]
-}
-
-// Ensure [[.SnakeName]] import is used.
-var _ = ent[[.Name]].Table

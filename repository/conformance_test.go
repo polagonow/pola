@@ -13,6 +13,8 @@ import (
 
 	"github.com/polagonow/pola/repository"
 	beegorepo "github.com/polagonow/pola/repository/beego"
+	entrepo "github.com/polagonow/pola/repository/ent"
+	entfix "github.com/polagonow/pola/repository/ent/enttest/ent"
 	gormrepo "github.com/polagonow/pola/repository/gorm"
 )
 
@@ -56,6 +58,22 @@ func newBeegoWidgetRepo(t *testing.T) repository.Repository[Widget, uint] {
 	return beegorepo.New[Widget, uint](beegoorm.NewOrm())
 }
 
+// newEntWidgetRepo opens the framework's generated ent test fixture (see
+// repository/ent/enttest) — the Widget schema there mirrors this suite's
+// entity — and binds the generic reflection-backed implementation to it.
+func newEntWidgetRepo(t *testing.T) repository.Repository[Widget, uint] {
+	t.Helper()
+	client, err := entfix.Open("sqlite3", "file:entconformance?mode=memory&cache=shared&_fk=1")
+	if err != nil {
+		t.Fatalf("open ent client: %v", err)
+	}
+	t.Cleanup(func() { client.Close() })
+	if err := client.Schema.Create(context.Background()); err != nil {
+		t.Fatalf("schema create: %v", err)
+	}
+	return entrepo.New[Widget, uint](client)
+}
+
 // TestConformance runs the same observable-behavior suite against every
 // generic ORM implementation — the persistence twin of
 // webframework/conformance_test.go. Each adapter starts on an empty store and
@@ -64,6 +82,7 @@ func TestConformance(t *testing.T) {
 	factories := map[string]func(t *testing.T) repository.Repository[Widget, uint]{
 		"gorm":  newGormWidgetRepo,
 		"beego": newBeegoWidgetRepo,
+		"ent":   newEntWidgetRepo,
 	}
 
 	for name, factory := range factories {
@@ -135,9 +154,10 @@ func TestConformance(t *testing.T) {
 				if err == nil {
 					t.Fatal("expected error for missing row")
 				}
-				// Both adapters share the wrapped-message format; the wrapped
-				// driver error differs (gorm.ErrRecordNotFound vs orm.ErrNoRows)
-				// until a cross-ORM repository.ErrNotFound exists.
+				// All adapters share the wrapped-message format; the wrapped
+				// driver error differs (gorm.ErrRecordNotFound vs orm.ErrNoRows
+				// vs *ent.NotFoundError) until a cross-ORM repository.ErrNotFound
+				// exists.
 				if !strings.HasPrefix(err.Error(), "get widget by id:") {
 					t.Errorf("error = %q, want prefix 'get widget by id:'", err)
 				}
