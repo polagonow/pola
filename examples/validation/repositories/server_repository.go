@@ -1,7 +1,7 @@
 package repositories
 
 import (
-	"context"
+	"github.com/polagonow/pola/repository"
 )
 
 // Server represents a server entity showcasing networking validator types.
@@ -18,11 +18,9 @@ type Server struct {
 	Version    string `json:"version" validate:"omitempty,semver"`
 }
 
-// ServerRepository defines the contract for server persistence operations.
+// ServerRepository defines the contract for server persistence
+// operations. It embeds the framework's standard CRUD contract; add custom
+// query methods here.
 type ServerRepository interface {
-	Create(ctx context.Context, entity *Server) error
-	Get(ctx context.Context, id uint) (*Server, error)
-	List(ctx context.Context, params ListParams) (*ListResult[*Server], error)
-	Update(ctx context.Context, entity *Server) error
-	Delete(ctx context.Context, id uint) error
+	repository.Repository[Server, uint]
 }

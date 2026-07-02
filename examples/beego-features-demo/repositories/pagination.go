@@ -1,30 +1,14 @@
 package repositories
 
-const DefaultPerPage = 25
+import "github.com/polagonow/pola/repository"
 
-type ListParams struct {
-	Page    int `json:"page"`
-	PerPage int `json:"per_page"`
-}
+// ListParams holds pagination parameters. It aliases the framework type so
+// generated services, routes and hand-written code share one definition with
+// the framework's generic repositories.
+type ListParams = repository.ListParams
 
-func (p ListParams) Normalize() ListParams {
-	if p.Page < 1 {
-		p.Page = 1
-	}
-	if p.PerPage < 1 {
-		p.PerPage = DefaultPerPage
-	}
-	return p
-}
+// ListResult wraps a page of results with pagination metadata.
+type ListResult[T any] = repository.ListResult[T]
 
-func (p ListParams) Offset() int {
-	return (p.Page - 1) * p.PerPage
-}
-
-type ListResult[T any] struct {
-	Items      []T `json:"items"`
-	Total      int `json:"total"`
-	Page       int `json:"page"`
-	PerPage    int `json:"per_page"`
-	TotalPages int `json:"total_pages"`
-}
+// DefaultPerPage is the default number of items per page.
+const DefaultPerPage = repository.DefaultPerPage
