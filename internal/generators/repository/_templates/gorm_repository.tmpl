@@ -1,73 +1,33 @@
 package gorm
 
 import (
-	"context"
-	"fmt"
-
 	"gorm.io/gorm"
+
+	"[[.PolaPackage]]/repository"
+	gormrepo "[[.PolaPackage]]/repository/gorm"
+
 	"[[.ModulePath]]/repositories"
 [[- if eq .IDGoType "string"]]
 	"github.com/google/uuid"
 [[- end]]
 )
 
+// [[.LowerName]]Repository is the GORM-backed [[.Name]]Repository. The
+// embedded generic implementation supplies Create/Get/List/Update/Delete;
+// add custom queries as methods on this struct using r.db.
 type [[.LowerName]]Repository struct {
+	repository.Repository[ repositories.[[.Name]], [[.IDGoType]] ]
 	db *gorm.DB
 }
 
 // New[[.Name]]Repository creates a new GORM-backed [[.Name]]Repository.
 func New[[.Name]]Repository(db *gorm.DB) repositories.[[.Name]]Repository {
-	return &[[.LowerName]]Repository{db: db}
-}
-
-func (r *[[.LowerName]]Repository) Create(ctx context.Context, entity *repositories.[[.Name]]) error {
+	return &[[.LowerName]]Repository{
 [[- if eq .IDGoType "string"]]
-	if entity.ID == "" {
-		entity.ID = uuid.New().String()
-	}
+		Repository: gormrepo.New[repositories.[[.Name]], string](db, repository.WithNewID(uuid.NewString)),
+[[- else]]
+		Repository: gormrepo.New[repositories.[[.Name]], [[.IDGoType]]](db),
 [[- end]]
-	return r.db.WithContext(ctx).Create(entity).Error
-}
-
-func (r *[[.LowerName]]Repository) Get(ctx context.Context, id [[.IDGoType]]) (*repositories.[[.Name]], error) {
-	var entity repositories.[[.Name]]
-	if err := r.db.WithContext(ctx).First(&entity, id).Error; err != nil {
-		return nil, fmt.Errorf("get [[.SnakeName]] by id: %w", err)
+		db: db,
 	}
-	return &entity, nil
-}
-
-func (r *[[.LowerName]]Repository) List(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.[[.Name]]], error) {
-	params = params.Normalize()
-
-	var total int64
-	if err := r.db.WithContext(ctx).Model(&repositories.[[.Name]]{}).Count(&total).Error; err != nil {
-		return nil, fmt.Errorf("count [[.PluralSnake]]: %w", err)
-	}
-
-	var items []*repositories.[[.Name]]
-	if err := r.db.WithContext(ctx).Offset(params.Offset()).Limit(params.PerPage).Find(&items).Error; err != nil {
-		return nil, fmt.Errorf("list [[.PluralSnake]]: %w", err)
-	}
-
-	totalPages := int(total) / params.PerPage
-	if int(total)%params.PerPage != 0 {
-		totalPages++
-	}
-
-	return &repositories.ListResult[*repositories.[[.Name]]]{
-		Items:      items,
-		Total:      int(total),
-		Page:       params.Page,
-		PerPage:    params.PerPage,
-		TotalPages: totalPages,
-	}, nil
-}
-
-func (r *[[.LowerName]]Repository) Update(ctx context.Context, entity *repositories.[[.Name]]) error {
-	return r.db.WithContext(ctx).Save(entity).Error
-}
-
-func (r *[[.LowerName]]Repository) Delete(ctx context.Context, id [[.IDGoType]]) error {
-	return r.db.WithContext(ctx).Delete(&repositories.[[.Name]]{}, id).Error
 }

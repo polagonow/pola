@@ -5,6 +5,8 @@ import (
 
 	"blog-e2e-react/repositories"
 	"blog-e2e-react/services"
+
+	"github.com/polagonow/pola/repository"
 )
 
 // SampleEntityAction exposes functions and variables to JavaScript via the Pola bridge.
@@ -33,8 +35,8 @@ func NewSampleEntityAction(svc *services.SampleEntityService) *SampleEntityActio
 }
 
 // List returns a paginated list of SampleEntity entities. Becomes SampleEntityAction.list(page, perPage) in JavaScript.
-func (a *SampleEntityAction) List(page, perPage int) (*repositories.ListResult[*repositories.SampleEntity], error) {
-	return a.svc.List(context.TODO(), repositories.ListParams{Page: page, PerPage: perPage})
+func (a *SampleEntityAction) List(page, perPage int) (*repository.ListResult[*repositories.SampleEntity], error) {
+	return a.svc.List(context.TODO(), repository.ListParams{Page: page, PerPage: perPage})
 }
 
 // Get returns a single SampleEntity by ID. Becomes SampleEntityAction.Get(id) in JavaScript.

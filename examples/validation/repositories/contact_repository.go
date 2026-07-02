@@ -1,7 +1,7 @@
 package repositories
 
 import (
-	"context"
+	"github.com/polagonow/pola/repository"
 )
 
 // Contact represents a contact entity showcasing govalidator field types.
@@ -17,11 +17,9 @@ type Contact struct {
 	Phone   string `json:"phone" validate:"omitempty,numeric"`
 }
 
-// ContactRepository defines the contract for contact persistence operations.
+// ContactRepository defines the contract for contact persistence
+// operations. It embeds the framework's standard CRUD contract; add custom
+// query methods here.
 type ContactRepository interface {
-	Create(ctx context.Context, entity *Contact) error
-	Get(ctx context.Context, id uint) (*Contact, error)
-	List(ctx context.Context, params ListParams) (*ListResult[*Contact], error)
-	Update(ctx context.Context, entity *Contact) error
-	Delete(ctx context.Context, id uint) error
+	repository.Repository[Contact, uint]
 }

@@ -24,10 +24,6 @@ var serviceTmpl = template.Must(
 	template.New("service_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/service_go.tmpl"),
 )
 
-var serviceTestTmpl = template.Must(
-	template.New("service_test_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/service_test_go.tmpl"),
-)
-
 // ServiceGenerator scaffolds service structs with business logic methods.
 type ServiceGenerator struct{}
 
@@ -60,14 +56,10 @@ Field definitions follow the same syntax as the model generator.`,
 	}
 }
 
-func servicePaths(name, projectDir, svcDir string, generateTests bool) []string {
+func servicePaths(name, projectDir, svcDir string) []string {
 	snake := schema.SnakeCase(name)
 	serviceDir := filepath.Join(projectDir, svcDir)
-	paths := []string{filepath.Join(serviceDir, snake+"_service.go")}
-	if generateTests {
-		paths = append(paths, filepath.Join(serviceDir, snake+"_service_test.go"))
-	}
-	return paths
+	return []string{filepath.Join(serviceDir, snake+"_service.go")}
 }
 
 func (g *ServiceGenerator) Artifacts(cmd *cobra.Command, args []string, projectDir string) ([]string, error) {
@@ -86,8 +78,7 @@ func (g *ServiceGenerator) Artifacts(cmd *cobra.Command, args []string, projectD
 	if pf != nil {
 		svcDir = pf.ServicesDir()
 	}
-	genTests := generators.ShouldGenerateTests(cmd, pf.GenerateTests())
-	return servicePaths(def.Name, projectDir, svcDir, genTests), nil
+	return servicePaths(def.Name, projectDir, svcDir), nil
 }
 
 func (g *ServiceGenerator) run(cmd *cobra.Command, args []string) error {
@@ -138,21 +129,6 @@ func (g *ServiceGenerator) run(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("Created %s\n", filePath)
-
-	if generators.ShouldGenerateTests(cmd, pf.GenerateTests()) {
-		testPath := filepath.Join(serviceDir, data.SnakeName+"_service_test.go")
-		if err := generators.CheckCollision(cmd, testPath); err != nil {
-			return err
-		}
-		var testBuf strings.Builder
-		if err := serviceTestTmpl.Execute(&testBuf, data); err != nil {
-			return fmt.Errorf("execute service test template: %w", err)
-		}
-		if err := os.WriteFile(testPath, []byte(testBuf.String()), 0o644); err != nil {
-			return fmt.Errorf("write %s: %w", testPath, err)
-		}
-		fmt.Printf("Created %s\n", testPath)
-	}
 
 	return generators.RunAfterHooks(g, projectDir)
 }

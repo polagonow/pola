@@ -3,11 +3,13 @@ package greetings
 import (
 	"net/http"
 
-	"github.com/polagonow/pola/core"
-	"github.com/polagonow/pola/request"
-	"github.com/polagonow/pola/validation"
 	"mcp-hello/repositories"
 	"mcp-hello/services"
+
+	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/repository"
+	"github.com/polagonow/pola/request"
+	"github.com/polagonow/pola/validation"
 )
 
 // Route handles /greetings requests.
@@ -35,9 +37,9 @@ func (r *Route) GET(c core.Context) error {
 		return c.JSON(http.StatusOK, entity)
 	}
 
-	params := repositories.ListParams{
+	params := repository.ListParams{
 		Page:    request.QueryParamInt(c, "page", 1),
-		PerPage: request.QueryParamInt(c, "per_page", repositories.DefaultPerPage),
+		PerPage: request.QueryParamInt(c, "per_page", repository.DefaultPerPage),
 	}
 	result, err := r.svc.List(c.Ctx(), params)
 	if err != nil {

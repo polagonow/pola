@@ -1,7 +1,7 @@
 package repositories
 
 import (
-	"context"
+	"github.com/polagonow/pola/repository"
 )
 
 // Product represents the product entity for the repository layer.
@@ -11,11 +11,9 @@ type Product struct {
 	Amount int    `json:"amount" validate:"required"`
 }
 
-// ProductRepository defines the contract for product persistence operations.
+// ProductRepository defines the contract for product persistence
+// operations. It embeds the framework's standard CRUD contract; add custom
+// query methods here.
 type ProductRepository interface {
-	Create(ctx context.Context, entity *Product) error
-	Get(ctx context.Context, id uint) (*Product, error)
-	List(ctx context.Context, params ListParams) (*ListResult[*Product], error)
-	Update(ctx context.Context, entity *Product) error
-	Delete(ctx context.Context, id uint) error
+	repository.Repository[Product, uint]
 }
