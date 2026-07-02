@@ -10,6 +10,8 @@ Generated with:
 
 ```
 pola new beego-demo --api-only
+pola generate model Task title:string done:bool        # db/models/beego/task.go + migration
+pola db migrate                                         # apply migrations (dev.db)
 pola generate repository Task title:string done:bool
 pola generate service Task
 pola generate route Task GET,POST,PUT,DELETE --service=Task
