@@ -8,7 +8,9 @@ import (
 	"testing"
 
 	"ent-demo/repositories"
+
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/repository"
 	"github.com/polagonow/pola/webframework/std"
 )
 
@@ -18,7 +20,7 @@ import (
 type mockTaskService struct {
 	createFn func(ctx context.Context, e *repositories.Task) error
 	getFn    func(ctx context.Context, id uint) (*repositories.Task, error)
-	listFn   func(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.Task], error)
+	listFn   func(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.Task], error)
 	updateFn func(ctx context.Context, e *repositories.Task) error
 	deleteFn func(ctx context.Context, id uint) error
 }
@@ -35,7 +37,7 @@ func (m *mockTaskService) Get(ctx context.Context, id uint) (*repositories.Task,
 	}
 	return m.getFn(ctx, id)
 }
-func (m *mockTaskService) List(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.Task], error) {
+func (m *mockTaskService) List(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.Task], error) {
 	if m.listFn == nil {
 		panic("listFn not set")
 	}
@@ -65,8 +67,8 @@ func serve(method string, body io.Reader, h core.HandlerFunc) *httptest.Response
 
 func TestRoute_GET_List(t *testing.T) {
 	svc := &mockTaskService{
-		listFn: func(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.Task], error) {
-			return &repositories.ListResult[*repositories.Task]{Page: params.Page, PerPage: params.PerPage}, nil
+		listFn: func(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.Task], error) {
+			return &repository.ListResult[*repositories.Task]{Page: params.Page, PerPage: params.PerPage}, nil
 		},
 	}
 	w := serve("GET", nil, NewRoute(svc).GET)

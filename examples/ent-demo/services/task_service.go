@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"ent-demo/repositories"
+
+	"github.com/polagonow/pola/repository"
 )
 
 // TaskServiceInterface is the contract a Task service must satisfy.
@@ -12,7 +14,7 @@ import (
 type TaskServiceInterface interface {
 	Create(ctx context.Context, entity *repositories.Task) error
 	Get(ctx context.Context, id uint) (*repositories.Task, error)
-	List(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.Task], error)
+	List(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.Task], error)
 	Update(ctx context.Context, entity *repositories.Task) error
 	Delete(ctx context.Context, id uint) error
 }
@@ -39,7 +41,7 @@ func (s *TaskService) Get(ctx context.Context, id uint) (*repositories.Task, err
 }
 
 // List returns a paginated list of tasks.
-func (s *TaskService) List(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.Task], error) {
+func (s *TaskService) List(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.Task], error) {
 	return s.repo.List(ctx, params)
 }
 

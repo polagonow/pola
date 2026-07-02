@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"[[.ModulePath]]/repositories"
+
+	"github.com/polagonow/pola/repository"
 )
 
 // mock[[.Name]]Repository is a hand-rolled mock implementing
@@ -15,7 +17,7 @@ import (
 type mock[[.Name]]Repository struct {
 	createFn func(ctx context.Context, e *repositories.[[.Name]]) error
 	getFn    func(ctx context.Context, id [[.IDGoType]]) (*repositories.[[.Name]], error)
-	listFn   func(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.[[.Name]]], error)
+	listFn   func(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.[[.Name]]], error)
 	updateFn func(ctx context.Context, e *repositories.[[.Name]]) error
 	deleteFn func(ctx context.Context, id [[.IDGoType]]) error
 }
@@ -32,7 +34,7 @@ func (m *mock[[.Name]]Repository) Get(ctx context.Context, id [[.IDGoType]]) (*r
 	}
 	return m.getFn(ctx, id)
 }
-func (m *mock[[.Name]]Repository) List(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.[[.Name]]], error) {
+func (m *mock[[.Name]]Repository) List(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.[[.Name]]], error) {
 	if m.listFn == nil {
 		panic("listFn not set")
 	}
@@ -101,14 +103,14 @@ func Test[[.Name]]Service_Get_DelegatesToRepo(t *testing.T) {
 }
 
 func Test[[.Name]]Service_List_DelegatesToRepo(t *testing.T) {
-	want := &repositories.ListResult[*repositories.[[.Name]]]{Page: 1, PerPage: 10}
+	want := &repository.ListResult[*repositories.[[.Name]]]{Page: 1, PerPage: 10}
 	repo := &mock[[.Name]]Repository{
-		listFn: func(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.[[.Name]]], error) {
+		listFn: func(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.[[.Name]]], error) {
 			return want, nil
 		},
 	}
 	svc := New[[.Name]]Service(repo)
-	got, err := svc.List(context.Background(), repositories.ListParams{Page: 1, PerPage: 10})
+	got, err := svc.List(context.Background(), repository.ListParams{Page: 1, PerPage: 10})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}

@@ -7,6 +7,7 @@ import (
 
 	"github.com/beego/beego/v2/client/orm"
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/polagonow/pola/repository"
 
 	"beego-demo/repositories"
 )
@@ -54,7 +55,7 @@ func TestTaskRepository_CRUD(t *testing.T) {
 		t.Error("expected Done=true after update")
 	}
 
-	list, err := repo.List(ctx, repositories.ListParams{Page: 1, PerPage: 10})
+	list, err := repo.List(ctx, repository.ListParams{Page: 1, PerPage: 10})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}

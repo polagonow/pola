@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"slds-test/repositories"
+
+	"github.com/polagonow/pola/repository"
 )
 
 // ProductService handles business logic for product operations.
@@ -28,7 +30,7 @@ func (s *ProductService) Get(ctx context.Context, id uint) (*repositories.Produc
 }
 
 // List returns a paginated list of products.
-func (s *ProductService) List(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.Product], error) {
+func (s *ProductService) List(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.Product], error) {
 	return s.repo.List(ctx, params)
 }
 

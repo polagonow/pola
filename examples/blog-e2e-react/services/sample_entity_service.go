@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"blog-e2e-react/repositories"
+
+	"github.com/polagonow/pola/repository"
 )
 
 // SampleEntityService handles business logic for sample_entity operations.
@@ -28,7 +30,7 @@ func (s *SampleEntityService) Get(ctx context.Context, id uint) (*repositories.S
 }
 
 // List returns a paginated list of sample_entities.
-func (s *SampleEntityService) List(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.SampleEntity], error) {
+func (s *SampleEntityService) List(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.SampleEntity], error) {
 	return s.repo.List(ctx, params)
 }
 
