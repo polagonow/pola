@@ -24,7 +24,7 @@ type ProductService struct {
 // NewProductService creates a new ProductService.
 func NewProductService(repo repositories.ProductRepository) *ProductService {
 	return &ProductService{
-		Service: service.New[repositories.Product, uint](repo),
+		Service: service.New(repo),
 		repo:    repo,
 	}
 }

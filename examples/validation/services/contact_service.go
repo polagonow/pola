@@ -24,7 +24,7 @@ type ContactService struct {
 // NewContactService creates a new ContactService.
 func NewContactService(repo repositories.ContactRepository) *ContactService {
 	return &ContactService{
-		Service: service.New[repositories.Contact, uint](repo),
+		Service: service.New(repo),
 		repo:    repo,
 	}
 }
