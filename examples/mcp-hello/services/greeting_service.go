@@ -1,46 +1,32 @@
 package services
 
 import (
-	"context"
-
 	"mcp-hello/repositories"
 
-	"github.com/polagonow/pola/repository"
+	"github.com/polagonow/pola/service"
 )
 
-// GreetingService handles business logic for greeting operations.
+// GreetingServiceInterface is the contract for greeting business logic. It embeds
+// the framework's standard CRUD service; add custom business methods here.
+// Routes and other call sites depend on this interface.
+type GreetingServiceInterface interface {
+	service.Service[repositories.Greeting, uint]
+}
+
+// GreetingService handles business logic for greeting operations. The embedded
+// generic service delegates CRUD to the repository; override a method (e.g.
+// Create) on this struct to add validation or business rules, using s.repo.
 type GreetingService struct {
+	service.Service[repositories.Greeting, uint]
 	repo repositories.GreetingRepository
 }
 
 // NewGreetingService creates a new GreetingService.
 func NewGreetingService(repo repositories.GreetingRepository) *GreetingService {
-	return &GreetingService{repo: repo}
+	return &GreetingService{
+		Service: service.New[repositories.Greeting, uint](repo),
+		repo:    repo,
+	}
 }
 
-// Create creates a new greeting.
-func (s *GreetingService) Create(ctx context.Context, entity *repositories.Greeting) error {
-	// TODO: add business logic / validation
-	return s.repo.Create(ctx, entity)
-}
-
-// Get returns a greeting by its ID.
-func (s *GreetingService) Get(ctx context.Context, id uint) (*repositories.Greeting, error) {
-	return s.repo.Get(ctx, id)
-}
-
-// List returns a paginated list of greetings.
-func (s *GreetingService) List(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.Greeting], error) {
-	return s.repo.List(ctx, params)
-}
-
-// Update updates an existing greeting.
-func (s *GreetingService) Update(ctx context.Context, entity *repositories.Greeting) error {
-	// TODO: add business logic / validation
-	return s.repo.Update(ctx, entity)
-}
-
-// Delete removes a greeting by its ID.
-func (s *GreetingService) Delete(ctx context.Context, id uint) error {
-	return s.repo.Delete(ctx, id)
-}
+var _ GreetingServiceInterface = (*GreetingService)(nil)
