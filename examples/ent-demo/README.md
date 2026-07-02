@@ -11,7 +11,8 @@ Generated with:
 
 ```
 pola new ent-demo --api-only
-pola generate model Task title:string done:bool   # ent schema + codegen
+pola generate model Task title:string done:bool   # db/models/schema/task.go + ent codegen + migration
+pola db migrate                                   # apply migrations (dev.db)
 pola generate repository Task title:string done:bool
 pola generate service Task
 pola generate route Task GET,POST,PUT,DELETE --service=Task

@@ -9,6 +9,8 @@ Generated with:
 
 ```
 pola new gorm-demo --api-only
+pola generate model Task title:string done:bool        # db/models/gorm/task.go + migration
+pola db migrate                                         # apply migrations (dev.db)
 pola generate repository Task title:string done:bool
 pola generate service Task
 pola generate route Task GET,POST,PUT,DELETE --service=Task
