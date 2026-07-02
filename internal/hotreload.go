@@ -284,16 +284,31 @@ func NewHotReloader(cfg *core.Config, registry *core.Registry, initial *core.App
 					NotFoundRoute: h.notFoundRoute,
 				})
 
-				// Resolve API router for hot-reload rebuild.
-				var apiRouter core.APIRouter
-				if ar, err := core.Invoke[core.APIRouter](registry); err == nil {
-					apiRouter = ar
-				}
+				// Re-mount onto a fresh web framework. Route specs were cached
+				// during the initial build and are replayed here (route Go code
+				// can't change without a restart, so re-discovery is unneeded).
 				memoInjectors := WrapInjectorsWithMemo(injs)
-				orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, renderCache, mws, memoInjectors, nil, assets, true)
-				orch.SetServerActionHandlers(newServerActionHandler(renderer, newOutput, memoInjectors, renderCache, true, logger))
+				specs, specErr := getRouteSpecs(registry)
+				if specErr != nil {
+					logger.Error("hotreload: discover api routes", "err", specErr)
+					continue
+				}
+				handler := mountApp(mountDeps{
+					fw:         newFramework(registry),
+					renderer:   renderer,
+					router:     router,
+					cache:      renderCache,
+					metrics:    metrics,
+					tracer:     tracer,
+					pprof:      pprof,
+					assets:     assets,
+					action:     newServerActionHandler(renderer, newOutput, memoInjectors, renderCache, true, logger),
+					middleware: mws,
+					injectors:  memoInjectors,
+					specs:      specs,
+				})
 
-				newApp := newApp(cfg, registry, orch)
+				newApp := newApp(cfg, registry, handler)
 				newApp.SetArtifacts(newOutput)
 				h.current.Store(&liveApp{app: newApp, handler: newApp})
 

@@ -1,12 +1,15 @@
 package [[ .Package ]]
 
 import (
-	"bytes"
 	"context"
+	"io"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"[[ .ModulePath ]]/repositories"
+	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/webframework/std"
 )
 
 // mock[[ .ServiceName ]]Service is a hand-rolled mock satisfying
@@ -51,6 +54,15 @@ func (m *mock[[ .ServiceName ]]Service) Delete(ctx context.Context, id [[ .IDGoT
 	return m.deleteFn(ctx, id)
 }
 
+// serve registers h on a std framework and serves a single request.
+func serve(method string, body io.Reader, h core.HandlerFunc) *httptest.ResponseRecorder {
+	fw := std.New()
+	fw.Handle(method, "[[ .RoutePath ]]", h)
+	w := httptest.NewRecorder()
+	fw.Handler().ServeHTTP(w, httptest.NewRequest(method, "[[ .RoutePath ]]", body))
+	return w
+}
+
 [[ range .Methods ]]
 [[ if eq . "GET" -]]
 func TestRoute_GET_List(t *testing.T) {
@@ -59,65 +71,42 @@ func TestRoute_GET_List(t *testing.T) {
 			return &repositories.ListResult[*repositories.[[ $.ServiceName ]]]{Page: params.Page, PerPage: params.PerPage}, nil
 		},
 	}
-	r := NewRoute(svc)
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "[[ $.RoutePath ]]", nil)
-	r.GET(w, req)
+	w := serve("GET", nil, NewRoute(svc).GET)
 	if w.Code != 200 {
 		t.Fatalf("status: got %d want 200; body=%q", w.Code, w.Body.String())
 	}
 }
 [[ else if eq . "POST" -]]
 func TestRoute_POST_BadJSON(t *testing.T) {
-	svc := &mock[[ $.ServiceName ]]Service{}
-	r := NewRoute(svc)
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("POST", "[[ $.RoutePath ]]", bytes.NewBufferString("not-json"))
-	r.POST(w, req)
+	w := serve("POST", strings.NewReader("not-json"), NewRoute(&mock[[ $.ServiceName ]]Service{}).POST)
 	if w.Code != 400 {
 		t.Fatalf("status: got %d want 400 for bad JSON; body=%q", w.Code, w.Body.String())
 	}
 }
 [[ else if eq . "DELETE" -]]
 func TestRoute_DELETE_MissingID(t *testing.T) {
-	svc := &mock[[ $.ServiceName ]]Service{}
-	r := NewRoute(svc)
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("DELETE", "[[ $.RoutePath ]]", nil)
-	r.DELETE(w, req)
+	w := serve("DELETE", nil, NewRoute(&mock[[ $.ServiceName ]]Service{}).DELETE)
 	if w.Code != 400 {
 		t.Fatalf("status: got %d want 400 for missing id; body=%q", w.Code, w.Body.String())
 	}
 }
 [[ else if eq . "PUT" -]]
 func TestRoute_PUT_MissingID(t *testing.T) {
-	svc := &mock[[ $.ServiceName ]]Service{}
-	r := NewRoute(svc)
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("PUT", "[[ $.RoutePath ]]", bytes.NewBufferString(`{}`))
-	r.PUT(w, req)
+	w := serve("PUT", strings.NewReader(`{}`), NewRoute(&mock[[ $.ServiceName ]]Service{}).PUT)
 	if w.Code != 400 {
 		t.Fatalf("status: got %d want 400 for missing id; body=%q", w.Code, w.Body.String())
 	}
 }
 [[ else if eq . "PATCH" -]]
 func TestRoute_PATCH_MissingID(t *testing.T) {
-	svc := &mock[[ $.ServiceName ]]Service{}
-	r := NewRoute(svc)
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("PATCH", "[[ $.RoutePath ]]", bytes.NewBufferString(`{}`))
-	r.PATCH(w, req)
+	w := serve("PATCH", strings.NewReader(`{}`), NewRoute(&mock[[ $.ServiceName ]]Service{}).PATCH)
 	if w.Code != 400 {
 		t.Fatalf("status: got %d want 400 for missing id; body=%q", w.Code, w.Body.String())
 	}
 }
 [[ else -]]
 func TestRoute_[[ . ]]_DoesNotPanic(t *testing.T) {
-	svc := &mock[[ $.ServiceName ]]Service{}
-	r := NewRoute(svc)
-	w := httptest.NewRecorder()
-	req := httptest.NewRequest("[[ . ]]", "[[ $.RoutePath ]]", nil)
-	r.[[ . ]](w, req)
+	w := serve("[[ . ]]", nil, NewRoute(&mock[[ $.ServiceName ]]Service{}).[[ . ]])
 	_ = w.Result()
 }
 [[ end -]]

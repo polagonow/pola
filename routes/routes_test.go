@@ -7,281 +7,162 @@ import (
 	"testing"
 
 	"github.com/polagonow/pola/core"
-	"github.com/polagonow/pola/patternmatch"
+	"github.com/polagonow/pola/webframework/std"
 )
 
-// usersRoute simulates a route struct for /users.
+// ── Test route types ─────────────────────────────────────────────────────────
+
+// usersRoute is a simple struct route.
 type usersRoute struct {
 	getBody  string
 	postBody string
 }
 
-func (r *usersRoute) GET(w http.ResponseWriter, req *http.Request) {
-	w.Write([]byte(r.getBody)) //nolint:errcheck
-}
-func (r *usersRoute) POST(w http.ResponseWriter, req *http.Request) {
-	w.Write([]byte(r.postBody)) //nolint:errcheck
-}
+func (r *usersRoute) GET(c core.Context) error  { return c.String(200, r.getBody) }
+func (r *usersRoute) POST(c core.Context) error { return c.String(201, r.postBody) }
 
-// userByIDRoute simulates a route struct for /users/:id.
-type userByIDRoute struct{}
+// ctxRoute uses the framework-neutral func(core.Context) error signature.
+type ctxRoute struct{}
 
-func (r *userByIDRoute) GET(w http.ResponseWriter, req *http.Request) {
-	id := Param(req, "id")
-	w.Write([]byte("user:" + id)) //nolint:errcheck
-}
-func (r *userByIDRoute) DELETE(w http.ResponseWriter, req *http.Request) {
-	id := Param(req, "id")
-	w.Write([]byte("deleted:" + id)) //nolint:errcheck
+func (*ctxRoute) GET(c core.Context) error { return c.String(200, "ctx-ok") }
+func (*ctxRoute) DELETE(c core.Context) error {
+	return c.String(200, "deleted:"+c.Param("id"))
 }
 
-func TestRouter_StaticRoutes(t *testing.T) {
-	router := New()
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
-	route := &usersRoute{getBody: "list-users", postBody: "created"}
-	discovered, err := discoverActions(route)
+// mount builds a std framework from specs and returns its handler.
+func mount(specs RouteSpecs) http.Handler {
+	fw := std.New()
+	for _, s := range specs {
+		fw.Handle(s.Method, s.Pattern, s.Handler)
+	}
+	return fw.Handler()
+}
+
+func do(h http.Handler, method, path string) *httptest.ResponseRecorder {
+	w := httptest.NewRecorder()
+	h.ServeHTTP(w, httptest.NewRequest(method, path, nil))
+	return w
+}
+
+// specsFor discovers specs for a single struct without touching global queues.
+func specsFor(t *testing.T, h any, registered map[string]bool) RouteSpecs {
+	t.Helper()
+	base, err := basePatternFor(h, registered)
+	if err != nil {
+		t.Fatalf("basePatternFor: %v", err)
+	}
+	actions, err := discoverActions(h)
 	if err != nil {
 		t.Fatalf("discoverActions: %v", err)
 	}
-	for _, action := range discovered {
-		addRoute(router, "/users", action.Method, action.Handler)
-	}
+	return splitActions(base, actions)
+}
 
-	// GET /users
-	{
-		req := httptest.NewRequest("GET", "/users", nil)
-		handler, params, ok := router.Match(req)
-		if !ok {
-			t.Fatal("expected match for GET /users")
-		}
-		w := httptest.NewRecorder()
-		req = WithParams(req, params)
-		handler(w, req)
-		if w.Body.String() != "list-users" {
-			t.Errorf("GET /users body = %q, want %q", w.Body.String(), "list-users")
-		}
-	}
+// ── Tests ────────────────────────────────────────────────────────────────────
 
-	// POST /users
-	{
-		req := httptest.NewRequest("POST", "/users", nil)
-		handler, params, ok := router.Match(req)
-		if !ok {
-			t.Fatal("expected match for POST /users")
-		}
-		w := httptest.NewRecorder()
-		req = WithParams(req, params)
-		handler(w, req)
-		if w.Body.String() != "created" {
-			t.Errorf("POST /users body = %q, want %q", w.Body.String(), "created")
-		}
-	}
+func TestStructRoute(t *testing.T) {
+	specs := specsFor(t, &usersRoute{getBody: "list", postBody: "created"}, nil)
+	// usersRoute is defined in package "routes", so base pattern derives to "/".
+	h := mount(specs)
 
-	// PUT /users → 405
-	{
-		req := httptest.NewRequest("PUT", "/users", nil)
-		handler, _, ok := router.Match(req)
-		if !ok {
-			t.Fatal("expected 405 match for PUT /users")
-		}
-		w := httptest.NewRecorder()
-		handler(w, req)
-		if w.Code != http.StatusMethodNotAllowed {
-			t.Errorf("PUT /users status = %d, want %d", w.Code, http.StatusMethodNotAllowed)
-		}
-		if w.Header().Get("Allow") == "" {
-			t.Error("expected Allow header on 405")
-		}
+	if w := do(h, "GET", "/"); w.Body.String() != "list" {
+		t.Errorf("GET / = %q, want %q", w.Body.String(), "list")
 	}
-
-	// GET /nonexistent → no match
-	{
-		req := httptest.NewRequest("GET", "/nonexistent", nil)
-		_, _, ok := router.Match(req)
-		if ok {
-			t.Error("expected no match for GET /nonexistent")
-		}
+	if w := do(h, "POST", "/"); w.Body.String() != "created" {
+		t.Errorf("POST / = %q, want %q", w.Body.String(), "created")
+	}
+	// PUT not defined → 405 with Allow header.
+	w := do(h, "PUT", "/")
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("PUT / status = %d, want 405", w.Code)
+	}
+	if w.Header().Get("Allow") == "" {
+		t.Error("expected Allow header on 405")
 	}
 }
 
-func TestRouter_DynamicRoutes(t *testing.T) {
-	router := New()
+func TestContextHandlerSignature(t *testing.T) {
+	// Force a member route for DELETE via a custom path so /:id is appended.
+	specs := splitActions("/widgets", mustActions(t, &ctxRoute{}))
+	h := mount(specs)
 
-	route := &userByIDRoute{}
-	discovered, err := discoverActions(route)
-	if err != nil {
-		t.Fatalf("discoverActions: %v", err)
+	if w := do(h, "GET", "/widgets"); w.Body.String() != "ctx-ok" {
+		t.Errorf("GET /widgets = %q, want %q", w.Body.String(), "ctx-ok")
 	}
-	for _, action := range discovered {
-		addRoute(router, "/users/:id", action.Method, action.Handler)
-	}
-
-	// GET /users/42
-	{
-		req := httptest.NewRequest("GET", "/users/42", nil)
-		handler, params, ok := router.Match(req)
-		if !ok {
-			t.Fatal("expected match for GET /users/42")
-		}
-		w := httptest.NewRecorder()
-		req = WithParams(req, params)
-		handler(w, req)
-		if w.Body.String() != "user:42" {
-			t.Errorf("GET /users/42 body = %q, want %q", w.Body.String(), "user:42")
-		}
-	}
-
-	// DELETE /users/42
-	{
-		req := httptest.NewRequest("DELETE", "/users/42", nil)
-		handler, params, ok := router.Match(req)
-		if !ok {
-			t.Fatal("expected match for DELETE /users/42")
-		}
-		w := httptest.NewRecorder()
-		req = WithParams(req, params)
-		handler(w, req)
-		if w.Body.String() != "deleted:42" {
-			t.Errorf("DELETE /users/42 body = %q, want %q", w.Body.String(), "deleted:42")
-		}
+	if w := do(h, "DELETE", "/widgets/42"); w.Body.String() != "deleted:42" {
+		t.Errorf("DELETE /widgets/42 = %q, want %q", w.Body.String(), "deleted:42")
 	}
 }
 
-func TestRouter_FactoryPattern(t *testing.T) {
+func TestMemberCollectionSplit(t *testing.T) {
+	specs := splitActions("/users", mustActions(t, &ctxRoute{}))
+	byMethod := map[string]string{}
+	for _, s := range specs {
+		byMethod[s.Method] = s.Pattern
+	}
+	if byMethod["GET"] != "/users" {
+		t.Errorf("GET pattern = %q, want /users", byMethod["GET"])
+	}
+	if byMethod["DELETE"] != "/users/:id" {
+		t.Errorf("DELETE pattern = %q, want /users/:id", byMethod["DELETE"])
+	}
+}
+
+func TestDiscoverFactoryAndFunc(t *testing.T) {
 	registry := core.NewRegistry()
-	core.ProvideValue[string](registry, "injected-value")
+	core.ProvideValue[string](registry, "injected")
 
 	Register(func(r *core.Registry) any {
-		val := core.MustInvoke[string](r)
-		return &initRoute{Value: val}
+		_ = core.MustInvoke[string](r) // exercise DI resolution
+		return &usersRoute{getBody: "g", postBody: "p"}
 	})
+	RegisterFunc("GET", func(c core.Context) error { return c.String(200, "fn") })
 
-	router := New()
-	if err := router.Build(registry); err != nil {
-		t.Fatalf("Build: %v", err)
-	}
-}
-
-type initRoute struct {
-	Value string
-}
-
-func (r *initRoute) GET(w http.ResponseWriter, req *http.Request) {
-	w.Write([]byte(r.Value)) //nolint:errcheck
-}
-
-func TestRouter_ParamExtraction(t *testing.T) {
-	req := httptest.NewRequest("GET", "/users/42", nil)
-	req = WithParams(req, map[string]any{"id": "42"})
-
-	if Param(req, "id") != "42" {
-		t.Errorf("Param(req, 'id') = %q, want %q", Param(req, "id"), "42")
-	}
-	if Param(req, "missing") != "" {
-		t.Errorf("Param(req, 'missing') = %q, want empty", Param(req, "missing"))
-	}
-}
-
-// ── Pather (custom path override) tests ──────────────────────────────────────
-
-type customPathRoute struct{}
-
-func (*customPathRoute) Path() string { return "/api/v2/hooks" }
-func (r *customPathRoute) POST(w http.ResponseWriter, req *http.Request) {
-	w.Write([]byte("hook-received")) //nolint:errcheck
-}
-
-func TestRouter_CustomPath(t *testing.T) {
-	router := New()
-	route := &customPathRoute{}
-
-	discovered, err := discoverActions(route)
+	specs, err := Discover(registry)
 	if err != nil {
-		t.Fatalf("discoverActions: %v", err)
+		t.Fatalf("Discover: %v", err)
 	}
-
-	for _, action := range discovered {
-		addRoute(router, route.Path(), action.Method, action.Handler)
+	if len(specs) == 0 {
+		t.Fatal("expected specs from Discover")
 	}
-
-	req := httptest.NewRequest("POST", "/api/v2/hooks", nil)
-	handler, _, matched := router.Match(req)
-	if !matched {
-		t.Fatal("expected match for POST /api/v2/hooks")
-	}
-	w := httptest.NewRecorder()
-	handler(w, req)
-	if w.Body.String() != "hook-received" {
-		t.Errorf("body = %q, want %q", w.Body.String(), "hook-received")
+	// Both the struct GET/POST and the function GET should resolve to "/" (this
+	// test package's relative routes path is empty → "/").
+	h := mount(specs)
+	if w := do(h, "POST", "/"); w.Body.String() != "p" {
+		t.Errorf("POST / = %q, want p", w.Body.String())
 	}
 }
 
-type dynamicCustomRoute struct{}
-
-func (*dynamicCustomRoute) Path() string { return "/widgets/:widget_id/parts" }
-func (r *dynamicCustomRoute) GET(w http.ResponseWriter, req *http.Request) {
-	wid := Param(req, "widget_id")
-	w.Write([]byte("parts-for:" + wid)) //nolint:errcheck
-}
-
-func TestRouter_CustomPath_Dynamic(t *testing.T) {
-	router := New()
-	route := &dynamicCustomRoute{}
-
-	discovered, err := discoverActions(route)
-	if err != nil {
-		t.Fatalf("discoverActions: %v", err)
-	}
-	for _, action := range discovered {
-		addRoute(router, route.Path(), action.Method, action.Handler)
-	}
-
-	req := httptest.NewRequest("GET", "/widgets/99/parts", nil)
-	handler, params, matched := router.Match(req)
-	if !matched {
-		t.Fatal("expected match for GET /widgets/99/parts")
-	}
-	w := httptest.NewRecorder()
-	req = WithParams(req, params)
-	handler(w, req)
-	if w.Body.String() != "parts-for:99" {
-		t.Errorf("body = %q, want %q", w.Body.String(), "parts-for:99")
+func TestCustomPathValidation(t *testing.T) {
+	_, err := basePatternFor(&badPathRoute{}, nil)
+	if err == nil || !strings.Contains(err.Error(), "must return a path starting with '/'") {
+		t.Fatalf("expected leading-slash validation error, got %v", err)
 	}
 }
 
 type badPathRoute struct{}
 
-func (*badPathRoute) Path() string                                   { return "no-leading-slash" }
-func (r *badPathRoute) GET(w http.ResponseWriter, req *http.Request) {}
+func (*badPathRoute) Path() string             { return "no-leading-slash" }
+func (*badPathRoute) GET(_ core.Context) error { return nil }
 
-func TestRouter_CustomPath_ValidationError(t *testing.T) {
-	// Build() should reject a Pather that returns a path without leading "/".
-	pending = append(pending, func(_ *core.Registry) any { return &badPathRoute{} })
-
-	router := New()
-	registry := core.NewRegistry()
-	err := router.Build(registry)
-	if err == nil {
-		t.Fatal("expected error for path without leading '/'")
+func TestParamExtraction(t *testing.T) {
+	req := httptest.NewRequest("GET", "/users/42", nil)
+	req = core.WithParams(req, map[string]any{"id": "42"})
+	if core.Param(req, "id") != "42" {
+		t.Errorf("Param id = %q, want 42", core.Param(req, "id"))
 	}
-	if !strings.Contains(err.Error(), "must return a path starting with '/'") {
-		t.Errorf("unexpected error: %v", err)
+	if core.Param(req, "missing") != "" {
+		t.Errorf("Param missing = %q, want empty", core.Param(req, "missing"))
 	}
 }
 
-// addRoute is a test helper that adds a route directly to the router.
-func addRoute(r *Router, pattern, method string, handler http.HandlerFunc) {
-	compiled := patternmatch.CompilePattern(pattern)
-	ar := &apiRoute{
-		pattern:  pattern,
-		method:   method,
-		compiled: compiled,
-		handler:  handler,
+func mustActions(t *testing.T, h any) []discoveredAction {
+	t.Helper()
+	a, err := discoverActions(h)
+	if err != nil {
+		t.Fatalf("discoverActions: %v", err)
 	}
-	if compiled.IsStatic {
-		r.staticRoutes[pattern] = append(r.staticRoutes[pattern], ar)
-	} else {
-		r.dynamicRoutes = append(r.dynamicRoutes, ar)
-		sortAPIRoutes(r.dynamicRoutes)
-	}
+	return a
 }

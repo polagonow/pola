@@ -1,0 +1,10 @@
+package [[ .Package ]]
+
+import "github.com/polagonow/pola/core"
+[[ range .Methods ]]
+// [[ . ]] [[ $.RoutePath ]]
+func [[ . ]](c core.Context) error {
+	// TODO: implement
+	return c.JSON(200, core.M{"ok": true})
+}
+[[ end ]]

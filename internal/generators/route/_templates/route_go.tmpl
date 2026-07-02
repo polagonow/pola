@@ -1,12 +1,13 @@
 package [[ .Package ]]
 
-import "net/http"
+import "github.com/polagonow/pola/core"
 
 // Route handles [[ .RoutePath ]] requests.
 type Route struct{}
 [[ range .Methods ]]
 // [[ . ]] [[ $.RoutePath ]]
-func (r *Route) [[ . ]](w http.ResponseWriter, req *http.Request) {
+func (r *Route) [[ . ]](c core.Context) error {
 	// TODO: implement
+	return c.JSON(200, core.M{"ok": true})
 }
 [[ end ]]

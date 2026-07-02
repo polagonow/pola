@@ -7,7 +7,7 @@ import (
 // Greeting represents the greeting entity for the repository layer.
 type Greeting struct {
 	ID      uint   `json:"id"`
-	Message string `json:"message" valid:"required"`
+	Message string `json:"message" validate:"required"`
 }
 
 // GreetingRepository defines the contract for greeting persistence operations.

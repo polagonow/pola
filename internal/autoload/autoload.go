@@ -84,6 +84,7 @@ type Result struct {
 // PluginOpts holds parameters for plugin generation.
 type PluginOpts struct {
 	PolaPackage     string
+	Framework       string // web framework: "std", "gin", "echo", "chi"
 	Engine          string
 	Bundler         string
 	Renderer        string

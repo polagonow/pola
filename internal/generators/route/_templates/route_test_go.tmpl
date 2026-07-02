@@ -3,18 +3,21 @@ package [[ .Package ]]
 import (
 	"net/http/httptest"
 	"testing"
+
+	"github.com/polagonow/pola/webframework/std"
 )
 
 // These tests are intentionally smoke-level: the no-service route is a stub
-// with TODOs. They verify the handlers don't panic when invoked and can be
+// with TODOs. They verify the handlers don't panic when served and can be
 // extended once the bodies are implemented.
 
 [[ range .Methods ]]
 func TestRoute_[[ . ]]_DoesNotPanic(t *testing.T) {
-	r := &Route{}
+	fw := std.New()
+	fw.Handle("[[ . ]]", "[[ $.RoutePath ]]", [[ if $.Func ]][[ . ]][[ else ]](&Route{}).[[ . ]][[ end ]])
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("[[ . ]]", "[[ $.RoutePath ]]", nil)
-	r.[[ . ]](w, req)
+	fw.Handler().ServeHTTP(w, req)
 	_ = w.Result()
 }
 [[ end ]]

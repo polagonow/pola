@@ -23,6 +23,7 @@ type Data struct {
 	Renderer      string
 	Bundler       string
 	Router        string
+	Framework     string // HTTP web framework: "std", "gin", "echo", "chi"
 	CSS           string
 	UI            string
 	VM            string

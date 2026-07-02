@@ -2,9 +2,6 @@ package routes
 
 import "strings"
 
-// pathToPattern converts a Go package path to a URL pattern using the
-// livebud alternating-segment convention.
-//
 // It finds "routes" in the import path, takes everything after it, and
 // applies the resource/param alternation: nested resources under a registered
 // resource get a ":id" param segment inserted.

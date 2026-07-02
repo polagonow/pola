@@ -27,6 +27,7 @@ var serveFlags struct {
 	renderer        string
 	bundler         string
 	router          string
+	framework       string
 	css             string
 	vm              string
 	appPath         string
@@ -51,6 +52,7 @@ func init() {
 	serveCmd.Flags().StringVar(&serveFlags.renderer, "renderer", cmp.Or(os.Getenv("POLA_RENDERER"), "react"), "view renderer")
 	serveCmd.Flags().StringVar(&serveFlags.bundler, "bundler", cmp.Or(os.Getenv("POLA_BUNDLER"), "esbuild"), "JS bundler")
 	serveCmd.Flags().StringVar(&serveFlags.router, "router", cmp.Or(os.Getenv("POLA_ROUTER"), "nextjs"), "router style")
+	serveCmd.Flags().StringVar(&serveFlags.framework, "framework", cmp.Or(os.Getenv("POLA_WEB_FRAMEWORK"), "std"), "HTTP web framework (std, gin, echo, chi)")
 	serveCmd.Flags().StringVar(&serveFlags.css, "css", cmp.Or(os.Getenv("POLA_CSS"), "tailwind"), "CSS processor")
 	serveCmd.Flags().StringVar(&serveFlags.vm, "vm", cmp.Or(os.Getenv("POLA_VM"), "goja"), "JS engine")
 	serveCmd.Flags().StringVar(&serveFlags.appPath, "app-path", cmp.Or(os.Getenv("POLA_WEBAPP_PATH"), "./web"), "path to the web app directory")
@@ -118,6 +120,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		// Generate overlay (plugin imports + action bridge codegen).
 		opts := autoload.PluginOpts{
 			PolaPackage:     pf.PolaPackage(),
+			Framework:       serveFlags.framework,
 			Cache:           "memory",
 			CSRF:            serveFlags.csrf,
 			SecurityHeaders: serveFlags.securityHeaders,

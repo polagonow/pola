@@ -35,6 +35,7 @@ func applyPolafileDefaults(cmd *cobra.Command, projectDir string) {
 		applyIfUnchanged(cmd, "pm", "POLA_PM", nameOnly(pf.PackageManager))
 		applyIfUnchanged(cmd, "app-path", "POLA_WEBAPP_PATH", "./"+pf.AppDir())
 	}
+	applyIfUnchanged(cmd, "framework", "POLA_WEB_FRAMEWORK", nameOnly(pf.Framework))
 	applyIfUnchanged(cmd, "cache", "POLA_CACHE", pf.CacheAdapter("default"))
 	applyIfUnchanged(cmd, "csrf", "POLA_CSRF", strconv.FormatBool(pf.CSRFEnabled("default")))
 	applyIfUnchanged(cmd, "security-headers", "POLA_SECURITY_HEADERS", strconv.FormatBool(pf.SecurityHeadersEnabled("default")))

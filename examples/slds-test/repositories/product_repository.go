@@ -7,8 +7,8 @@ import (
 // Product represents the product entity for the repository layer.
 type Product struct {
 	ID     uint   `json:"id"`
-	Name   string `json:"name" valid:"required"`
-	Amount int    `json:"amount" valid:"required"`
+	Name   string `json:"name" validate:"required"`
+	Amount int    `json:"amount" validate:"required"`
 }
 
 // ProductRepository defines the contract for product persistence operations.

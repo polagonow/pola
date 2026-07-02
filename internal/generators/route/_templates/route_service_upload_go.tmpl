@@ -8,8 +8,10 @@ import (
 	"github.com/google/uuid"
 	"[[ .ModulePath ]]/repositories"
 	"[[ .ModulePath ]]/services"
-	"github.com/polagonow/pola/routes"
+	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/request"
 	"github.com/polagonow/pola/storage"
+	"github.com/polagonow/pola/validation"
 )
 
 // Route handles [[ .RoutePath ]] requests with file upload support.
@@ -26,237 +28,208 @@ func NewRoute(svc services.[[ .ServiceName ]]ServiceInterface, store storage.Sto
 [[ range .Methods ]]
 [[ if eq . "GET" -]]
 // GET [[ $.RoutePath ]]
-func (r *Route) GET(w http.ResponseWriter, req *http.Request) {
-	id := routes.Param(req, "id")
-	if id != "" {
+func (r *Route) GET(c core.Context) error {
+	if request.PathParam(c, "id") != "" {
 [[ if eq $.IDGoType "string" -]]
-		entity, err := r.svc.Get(req.Context(), id)
+		entity, err := r.svc.Get(c.Ctx(), request.PathParam(c, "id"))
 [[ else -]]
-		n, err := routes.ParseUintID(req)
+		n, err := request.PathParamUint(c, "id")
 		if err != nil {
-			routes.WriteError(w, http.StatusBadRequest, err.Error())
-			return
+			return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
 		}
-		entity, err := r.svc.Get(req.Context(), n)
+		entity, err := r.svc.Get(c.Ctx(), n)
 [[ end -]]
 		if err != nil {
-			routes.WriteError(w, http.StatusNotFound, err.Error())
-			return
+			return c.JSON(http.StatusNotFound, core.M{"error": err.Error()})
 		}
-		routes.WriteJSON(w, http.StatusOK, entity)
-		return
+		return c.JSON(http.StatusOK, entity)
 	}
 
 	params := repositories.ListParams{
-		Page:    routes.QueryInt(req, "page", 1),
-		PerPage: routes.QueryInt(req, "per_page", repositories.DefaultPerPage),
+		Page:    request.QueryParamInt(c, "page", 1),
+		PerPage: request.QueryParamInt(c, "per_page", repositories.DefaultPerPage),
 	}
-	result, err := r.svc.List(req.Context(), params)
+	result, err := r.svc.List(c.Ctx(), params)
 	if err != nil {
-		routes.WriteError(w, http.StatusInternalServerError, err.Error())
-		return
+		return c.JSON(http.StatusInternalServerError, core.M{"error": err.Error()})
 	}
-	routes.WriteJSON(w, http.StatusOK, result)
+	return c.JSON(http.StatusOK, result)
 }
 [[ else if eq . "POST" -]]
 // POST [[ $.RoutePath ]]
-func (r *Route) POST(w http.ResponseWriter, req *http.Request) {
+func (r *Route) POST(c core.Context) error {
 	var entity repositories.[[ $.ServiceName ]]
-	if err := routes.DecodeMultipartJSON(req, &entity, 32<<20); err != nil {
-		routes.WriteError(w, http.StatusBadRequest, err.Error())
-		return
+	if err := request.DecodeMultipartJSON(c, &entity, 32<<20); err != nil {
+		return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
 	}
-	if err := routes.Validate(&entity); err != nil {
-		routes.WriteError(w, http.StatusUnprocessableEntity, err.Error())
-		return
+	if err := validation.Validate(&entity); err != nil {
+		return c.JSON(http.StatusUnprocessableEntity, core.M{"error": err.Error()})
 	}
 
-	ctx := req.Context()
+	ctx := c.Ctx()
 [[ range $.FileFields ]]
-	if fh, ok := req.MultipartForm.File["[[ .Name ]]"]; ok && len(fh) > 0 {
-		f, err := fh[0].Open()
+	if fh, err := c.FormFile("[[ .Name ]]"); err == nil && fh != nil {
+		f, err := fh.Open()
 		if err != nil {
-			routes.WriteError(w, http.StatusBadRequest, fmt.Sprintf("open file %q: %v", "[[ .Name ]]", err))
-			return
+			return c.JSON(http.StatusBadRequest, core.M{"error": fmt.Sprintf("open file %q: %v", "[[ .Name ]]", err)})
 		}
 		defer f.Close()
 
-		key := path.Join("uploads", "[[ $.Package ]]", uuid.New().String(), fh[0].Filename)
+		key := path.Join("uploads", "[[ $.Package ]]", uuid.New().String(), fh.Filename)
 		if err := r.store.Save(ctx, f, key); err != nil {
-			routes.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("save file: %v", err))
-			return
+			return c.JSON(http.StatusInternalServerError, core.M{"error": fmt.Sprintf("save file: %v", err)})
 		}
 
 		blob := repositories.StorageBlob{
 			Key:         key,
-			Filename:    fh[0].Filename,
-			ContentType: fh[0].Header.Get("Content-Type"),
-			ByteSize:    fh[0].Size,
+			Filename:    fh.Filename,
+			ContentType: fh.Header.Get("Content-Type"),
+			ByteSize:    fh.Size,
 		}
 		if err := r.blobs.Create(ctx, &blob); err != nil {
-			routes.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("create blob: %v", err))
-			return
+			return c.JSON(http.StatusInternalServerError, core.M{"error": fmt.Sprintf("create blob: %v", err)})
 		}
 		entity.[[ .PascalName ]]ID = blob.ID
 	}
 [[ end ]]
 	if err := r.svc.Create(ctx, &entity); err != nil {
-		routes.WriteError(w, http.StatusInternalServerError, err.Error())
-		return
+		return c.JSON(http.StatusInternalServerError, core.M{"error": err.Error()})
 	}
-	routes.WriteJSON(w, http.StatusCreated, entity)
+	return c.JSON(http.StatusCreated, entity)
 }
 [[ else if eq . "PUT" -]]
 // PUT [[ $.RoutePath ]]
-func (r *Route) PUT(w http.ResponseWriter, req *http.Request) {
+func (r *Route) PUT(c core.Context) error {
 [[ if eq $.IDGoType "string" -]]
-	id, ok := routes.IDParam(req)
-	if !ok {
-		routes.WriteError(w, http.StatusBadRequest, "missing id")
-		return
+	id := request.PathParam(c, "id")
+	if id == "" {
+		return c.JSON(http.StatusBadRequest, core.M{"error": "missing id"})
 	}
 [[ else -]]
-	id, err := routes.ParseUintID(req)
+	id, err := request.PathParamUint(c, "id")
 	if err != nil {
-		routes.WriteError(w, http.StatusBadRequest, err.Error())
-		return
+		return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
 	}
 [[ end -]]
 	var entity repositories.[[ $.ServiceName ]]
-	if err := routes.DecodeMultipartJSON(req, &entity, 32<<20); err != nil {
-		routes.WriteError(w, http.StatusBadRequest, err.Error())
-		return
+	if err := request.DecodeMultipartJSON(c, &entity, 32<<20); err != nil {
+		return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
 	}
-	if err := routes.Validate(&entity); err != nil {
-		routes.WriteError(w, http.StatusUnprocessableEntity, err.Error())
-		return
+	if err := validation.Validate(&entity); err != nil {
+		return c.JSON(http.StatusUnprocessableEntity, core.M{"error": err.Error()})
 	}
 	entity.ID = id
 
-	ctx := req.Context()
+	ctx := c.Ctx()
 [[ range $.FileFields ]]
-	if fh, ok := req.MultipartForm.File["[[ .Name ]]"]; ok && len(fh) > 0 {
-		f, err := fh[0].Open()
+	if fh, err := c.FormFile("[[ .Name ]]"); err == nil && fh != nil {
+		f, err := fh.Open()
 		if err != nil {
-			routes.WriteError(w, http.StatusBadRequest, fmt.Sprintf("open file %q: %v", "[[ .Name ]]", err))
-			return
+			return c.JSON(http.StatusBadRequest, core.M{"error": fmt.Sprintf("open file %q: %v", "[[ .Name ]]", err)})
 		}
 		defer f.Close()
 
-		key := path.Join("uploads", "[[ $.Package ]]", uuid.New().String(), fh[0].Filename)
+		key := path.Join("uploads", "[[ $.Package ]]", uuid.New().String(), fh.Filename)
 		if err := r.store.Save(ctx, f, key); err != nil {
-			routes.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("save file: %v", err))
-			return
+			return c.JSON(http.StatusInternalServerError, core.M{"error": fmt.Sprintf("save file: %v", err)})
 		}
 
 		blob := repositories.StorageBlob{
 			Key:         key,
-			Filename:    fh[0].Filename,
-			ContentType: fh[0].Header.Get("Content-Type"),
-			ByteSize:    fh[0].Size,
+			Filename:    fh.Filename,
+			ContentType: fh.Header.Get("Content-Type"),
+			ByteSize:    fh.Size,
 		}
 		if err := r.blobs.Create(ctx, &blob); err != nil {
-			routes.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("create blob: %v", err))
-			return
+			return c.JSON(http.StatusInternalServerError, core.M{"error": fmt.Sprintf("create blob: %v", err)})
 		}
 		entity.[[ .PascalName ]]ID = blob.ID
 	}
 [[ end ]]
 	if err := r.svc.Update(ctx, &entity); err != nil {
-		routes.WriteError(w, http.StatusInternalServerError, err.Error())
-		return
+		return c.JSON(http.StatusInternalServerError, core.M{"error": err.Error()})
 	}
-	routes.WriteJSON(w, http.StatusOK, entity)
+	return c.JSON(http.StatusOK, entity)
 }
 [[ else if eq . "PATCH" -]]
 // PATCH [[ $.RoutePath ]]
-func (r *Route) PATCH(w http.ResponseWriter, req *http.Request) {
+func (r *Route) PATCH(c core.Context) error {
 [[ if eq $.IDGoType "string" -]]
-	id, ok := routes.IDParam(req)
-	if !ok {
-		routes.WriteError(w, http.StatusBadRequest, "missing id")
-		return
+	id := request.PathParam(c, "id")
+	if id == "" {
+		return c.JSON(http.StatusBadRequest, core.M{"error": "missing id"})
 	}
 [[ else -]]
-	id, err := routes.ParseUintID(req)
+	id, err := request.PathParamUint(c, "id")
 	if err != nil {
-		routes.WriteError(w, http.StatusBadRequest, err.Error())
-		return
+		return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
 	}
 [[ end -]]
 	var entity repositories.[[ $.ServiceName ]]
-	if err := routes.DecodeMultipartJSON(req, &entity, 32<<20); err != nil {
-		routes.WriteError(w, http.StatusBadRequest, err.Error())
-		return
+	if err := request.DecodeMultipartJSON(c, &entity, 32<<20); err != nil {
+		return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
 	}
-	if err := routes.Validate(&entity); err != nil {
-		routes.WriteError(w, http.StatusUnprocessableEntity, err.Error())
-		return
+	if err := validation.Validate(&entity); err != nil {
+		return c.JSON(http.StatusUnprocessableEntity, core.M{"error": err.Error()})
 	}
 	entity.ID = id
 
-	ctx := req.Context()
+	ctx := c.Ctx()
 [[ range $.FileFields ]]
-	if fh, ok := req.MultipartForm.File["[[ .Name ]]"]; ok && len(fh) > 0 {
-		f, err := fh[0].Open()
+	if fh, err := c.FormFile("[[ .Name ]]"); err == nil && fh != nil {
+		f, err := fh.Open()
 		if err != nil {
-			routes.WriteError(w, http.StatusBadRequest, fmt.Sprintf("open file %q: %v", "[[ .Name ]]", err))
-			return
+			return c.JSON(http.StatusBadRequest, core.M{"error": fmt.Sprintf("open file %q: %v", "[[ .Name ]]", err)})
 		}
 		defer f.Close()
 
-		key := path.Join("uploads", "[[ $.Package ]]", uuid.New().String(), fh[0].Filename)
+		key := path.Join("uploads", "[[ $.Package ]]", uuid.New().String(), fh.Filename)
 		if err := r.store.Save(ctx, f, key); err != nil {
-			routes.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("save file: %v", err))
-			return
+			return c.JSON(http.StatusInternalServerError, core.M{"error": fmt.Sprintf("save file: %v", err)})
 		}
 
 		blob := repositories.StorageBlob{
 			Key:         key,
-			Filename:    fh[0].Filename,
-			ContentType: fh[0].Header.Get("Content-Type"),
-			ByteSize:    fh[0].Size,
+			Filename:    fh.Filename,
+			ContentType: fh.Header.Get("Content-Type"),
+			ByteSize:    fh.Size,
 		}
 		if err := r.blobs.Create(ctx, &blob); err != nil {
-			routes.WriteError(w, http.StatusInternalServerError, fmt.Sprintf("create blob: %v", err))
-			return
+			return c.JSON(http.StatusInternalServerError, core.M{"error": fmt.Sprintf("create blob: %v", err)})
 		}
 		entity.[[ .PascalName ]]ID = blob.ID
 	}
 [[ end ]]
 	if err := r.svc.Update(ctx, &entity); err != nil {
-		routes.WriteError(w, http.StatusInternalServerError, err.Error())
-		return
+		return c.JSON(http.StatusInternalServerError, core.M{"error": err.Error()})
 	}
-	routes.WriteJSON(w, http.StatusOK, entity)
+	return c.JSON(http.StatusOK, entity)
 }
 [[ else if eq . "DELETE" -]]
 // DELETE [[ $.RoutePath ]]
-func (r *Route) DELETE(w http.ResponseWriter, req *http.Request) {
+func (r *Route) DELETE(c core.Context) error {
 [[ if eq $.IDGoType "string" -]]
-	id, ok := routes.IDParam(req)
-	if !ok {
-		routes.WriteError(w, http.StatusBadRequest, "missing id")
-		return
+	id := request.PathParam(c, "id")
+	if id == "" {
+		return c.JSON(http.StatusBadRequest, core.M{"error": "missing id"})
 	}
-	if err := r.svc.Delete(req.Context(), id); err != nil {
+	if err := r.svc.Delete(c.Ctx(), id); err != nil {
 [[ else -]]
-	id, err := routes.ParseUintID(req)
+	id, err := request.PathParamUint(c, "id")
 	if err != nil {
-		routes.WriteError(w, http.StatusBadRequest, err.Error())
-		return
+		return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
 	}
-	if err := r.svc.Delete(req.Context(), id); err != nil {
+	if err := r.svc.Delete(c.Ctx(), id); err != nil {
 [[ end -]]
-		routes.WriteError(w, http.StatusInternalServerError, err.Error())
-		return
+		return c.JSON(http.StatusInternalServerError, core.M{"error": err.Error()})
 	}
-	w.WriteHeader(http.StatusNoContent)
+	return c.NoContent(http.StatusNoContent)
 }
 [[ else -]]
 // [[ . ]] [[ $.RoutePath ]]
-func (r *Route) [[ . ]](w http.ResponseWriter, req *http.Request) {
+func (r *Route) [[ . ]](c core.Context) error {
 	// TODO: implement
+	return c.JSON(http.StatusOK, core.M{"ok": true})
 }
 [[ end -]]
 [[ end -]]

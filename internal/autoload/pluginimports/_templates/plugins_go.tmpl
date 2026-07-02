@@ -17,6 +17,7 @@ import (
 	polaenv "{{.PolaPackage}}/env"
 {{- end}}
 	"{{.PolaPackage}}/core"
+	webfw "{{.PolaPackage}}/webframework/{{.Framework}}"
 {{- if not .APIOnly}}
 	"{{.PolaPackage}}/engine/{{.Engine}}"
 {{- end}}
@@ -80,9 +81,6 @@ import (
 {{- if .ImageProcessing}}
 	imageprocessing{{.ImageProcessing}} "{{.PolaPackage}}/imageprocessing/{{.ImageProcessing}}"
 {{- end}}
-{{- if .HasRoutes}}
-	"{{.PolaPackage}}/routes"
-{{- end}}
 {{- if .HasStorage}}
 	"{{.PolaPackage}}/storage"
 {{- if eq .StorageDriver "rclone"}}
@@ -135,6 +133,7 @@ var PolaPlugins = []core.Plugin{
 {{- end}}
 	{{.Router}}.Plugin(),
 {{- end}}
+	webfw.Plugin(),
 	slog.Plugin(),
 {{- if .HasMCP}}
 	polamcp.Plugin(
@@ -271,9 +270,6 @@ var PolaPlugins = []core.Plugin{
 {{- end}}
 {{- if .ImageProcessing}}
 	imageprocessing{{.ImageProcessing}}.Plugin(),
-{{- end}}
-{{- if .HasRoutes}}
-	routes.Plugin(),
 {{- end}}
 {{- if .ActionsImport}}
 	actions.Plugin(),

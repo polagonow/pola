@@ -316,7 +316,7 @@ func buildData(def *schema.ModelDefinition, modulePath string) repoData {
 					Name:     schema.PascalCase(f.Name) + "ID",
 					JSONName: schema.SnakeCase(f.Name) + "_id",
 					GoType:   "uint",
-					ValidTag: "optional",
+					ValidTag: "omitempty",
 				})
 			}
 			continue
@@ -345,8 +345,11 @@ func buildData(def *schema.ModelDefinition, modulePath string) repoData {
 	return data
 }
 
+// validatorTag maps schema field types to go-playground/validator tag
+// fragments. Types without a built-in go-playground tag (e.g. Port) are omitted
+// and validated only by required/omitempty.
 var validatorTag = map[schema.FieldType]string{
-	schema.FieldUUID:         "uuidv4",
+	schema.FieldUUID:         "uuid4",
 	schema.FieldEmail:        "email",
 	schema.FieldURL:          "url",
 	schema.FieldIP:           "ip",
@@ -357,11 +360,10 @@ var validatorTag = map[schema.FieldType]string{
 	schema.FieldNumeric:      "numeric",
 	schema.FieldAlphanumeric: "alphanum",
 	schema.FieldHexColor:     "hexcolor",
-	schema.FieldCreditCard:   "creditcard",
+	schema.FieldCreditCard:   "credit_card",
 	schema.FieldBase64:       "base64",
 	schema.FieldLatitude:     "latitude",
 	schema.FieldLongitude:    "longitude",
-	schema.FieldPort:         "port",
 	schema.FieldSemver:       "semver",
 }
 
@@ -371,7 +373,7 @@ func validTagForField(f schema.Field) string {
 	}
 	base := "required"
 	if f.Optional {
-		base = "optional"
+		base = "omitempty"
 	}
 	if tag, ok := validatorTag[f.Type]; ok {
 		return base + "," + tag

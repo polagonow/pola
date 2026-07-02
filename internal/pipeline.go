@@ -13,7 +13,6 @@ import (
 	"github.com/polagonow/pola/core/reserved"
 	"github.com/polagonow/pola/mailer"
 	reactrenderer "github.com/polagonow/pola/mailer/renderer/react"
-	"github.com/polagonow/pola/routes"
 )
 
 // prebuildMeta is the JSON schema for prebuild-meta.json written during mage Bundle
@@ -160,18 +159,10 @@ func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, er
 	middleware := registry.Middleware()
 	runtimeInjectors := registry.RuntimeInjectors()
 
-	// ── 1.5. Build API routes ───────────────────────────────────────────
-	var apiRouter core.APIRouter
-	if ar, err := core.Invoke[core.APIRouter](registry); err == nil {
-		type builder interface {
-			Build(*core.Registry) error
-		}
-		if b, ok := ar.(builder); ok {
-			if buildErr := b.Build(registry); buildErr != nil {
-				return nil, fmt.Errorf("pola: build api routes: %w", buildErr)
-			}
-		}
-		apiRouter = ar
+	// ── 1.5. Discover API routes ────────────────────────────────────────
+	specs, err := getRouteSpecs(registry)
+	if err != nil {
+		return nil, fmt.Errorf("pola: discover api routes: %w", err)
 	}
 
 	// Propagate logger to all components that accept it.
@@ -343,12 +334,24 @@ func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, er
 		NotFoundRoute: notFoundRoute,
 	})
 
-	// ── 9. Wire orchestrator ──────────────────────────────────────────────
+	// ── 9. Mount app onto the selected web framework ──────────────────────
 	// Wrap injectors with per-request memoization to deduplicate Go calls.
 	memoInjectors := WrapInjectorsWithMemo(runtimeInjectors)
 
-	orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, renderCache, middleware, memoInjectors, routes, assets, cfg.Dev)
-	orch.SetServerActionHandlers(newServerActionHandler(renderer, bundleOutput, memoInjectors, renderCache, cfg.Dev, logger))
+	handler := mountApp(mountDeps{
+		fw:         newFramework(registry),
+		renderer:   renderer,
+		router:     router,
+		cache:      renderCache,
+		metrics:    metrics,
+		tracer:     tracer,
+		pprof:      pprof,
+		assets:     assets,
+		action:     newServerActionHandler(renderer, bundleOutput, memoInjectors, renderCache, cfg.Dev, logger),
+		middleware: middleware,
+		injectors:  memoInjectors,
+		specs:      specs,
+	})
 
 	// ── Copy static public files ────────────────────────────────────────
 	srcPublic := filepath.Join(absWebAppPath, "public")
@@ -373,7 +376,7 @@ func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, er
 	}
 
 	// ── 11. Return App ─────────────────────────────────────────────────────
-	app := newApp(cfg, registry, orch)
+	app := newApp(cfg, registry, handler)
 	app.SetArtifacts(bundleOutput)
 
 	// In dev mode wrap the app in a hot-reloader so file changes trigger a
@@ -502,21 +505,25 @@ func buildFromPrebuilt(
 	memoInjectors := WrapInjectorsWithMemo(injectors)
 
 	// In prebuild/embed mode, API routes are still compiled into the binary.
-	var apiRouter core.APIRouter
-	if ar, err := core.Invoke[core.APIRouter](registry); err == nil {
-		type builder interface {
-			Build(*core.Registry) error
-		}
-		if b, ok := ar.(builder); ok {
-			if buildErr := b.Build(registry); buildErr != nil {
-				return nil, fmt.Errorf("pola: build api routes: %w", buildErr)
-			}
-		}
-		apiRouter = ar
+	specs, err := getRouteSpecs(registry)
+	if err != nil {
+		return nil, fmt.Errorf("pola: discover api routes: %w", err)
 	}
-	orch := NewOrchestrator(renderer, router, apiRouter, logger, metrics, tracer, pprof, renderCache, middleware, memoInjectors, artifacts.Routes, assets, false)
-	orch.SetServerActionHandlers(newServerActionHandler(renderer, artifacts.BundleOutput, memoInjectors, renderCache, false, logger))
-	app := newApp(cfg, registry, orch)
+	handler := mountApp(mountDeps{
+		fw:         newFramework(registry),
+		renderer:   renderer,
+		router:     router,
+		cache:      renderCache,
+		metrics:    metrics,
+		tracer:     tracer,
+		pprof:      pprof,
+		assets:     assets,
+		action:     newServerActionHandler(renderer, artifacts.BundleOutput, memoInjectors, renderCache, false, logger),
+		middleware: middleware,
+		injectors:  memoInjectors,
+		specs:      specs,
+	})
+	app := newApp(cfg, registry, handler)
 	app.SetArtifacts(artifacts.BundleOutput)
 	return app, nil
 }
@@ -605,57 +612,33 @@ func buildAPIOnly(cfg *core.Config, registry *core.Registry) (*core.App, error) 
 		return nil, fmt.Errorf("pola: no Logger registered — use slog.Plugin()")
 	}
 
-	var apiRouter core.APIRouter
-	if ar, err := core.Invoke[core.APIRouter](registry); err == nil {
-		type builder interface {
-			Build(*core.Registry) error
-		}
-		if b, ok := ar.(builder); ok {
-			if buildErr := b.Build(registry); buildErr != nil {
-				return nil, fmt.Errorf("pola: build api routes: %w", buildErr)
-			}
-		}
-		apiRouter = ar
+	specs, err := getRouteSpecs(registry)
+	if err != nil {
+		return nil, fmt.Errorf("pola: discover api routes: %w", err)
 	}
 
 	metrics, _ := core.Invoke[core.Metrics](registry)
 	tracer, _ := core.Invoke[core.Tracer](registry)
 	pprofSvc, _ := core.Invoke[core.Pprof](registry)
+	cache, _ := core.Invoke[core.Cache](registry)
 	middleware := registry.Middleware()
+	injectors := WrapInjectorsWithMemo(registry.RuntimeInjectors())
 
 	logger.Info("pola: API-only mode (no renderer/bundler)")
 
-	var handler http.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		if tracer != nil {
-			var span core.Span
-			ctx, span = tracer.StartSpan(ctx, "pola.api")
-			defer span.End()
-			r = r.WithContext(ctx)
-		}
-		if metrics != nil && r.URL.Path == metrics.Path() {
-			metrics.Handler().ServeHTTP(w, r)
-			return
-		}
-		if pprofSvc != nil && strings.HasPrefix(r.URL.Path, pprofSvc.Path()) {
-			pprofSvc.Handler().ServeHTTP(w, r)
-			return
-		}
-		if apiRouter != nil {
-			if h, params, ok := apiRouter.Match(r); ok {
-				if params != nil {
-					r = routes.WithParams(r, params)
-				}
-				h(w, r)
-				return
-			}
-		}
-		http.NotFound(w, r)
+	handler := mountApp(mountDeps{
+		fw:         newFramework(registry),
+		renderer:   nil, // no renderer → 404 fallback
+		router:     nil,
+		cache:      cache,
+		metrics:    metrics,
+		tracer:     tracer,
+		pprof:      pprofSvc,
+		assets:     nil,
+		middleware: middleware,
+		injectors:  injectors,
+		specs:      specs,
 	})
-
-	for i := len(middleware) - 1; i >= 0; i-- {
-		handler = middleware[i].Wrap(handler)
-	}
 
 	return newApp(cfg, registry, handler), nil
 }

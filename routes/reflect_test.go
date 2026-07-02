@@ -1,9 +1,9 @@
 package routes
 
 import (
-	"net/http"
-	"net/http/httptest"
 	"testing"
+
+	"github.com/polagonow/pola/core"
 )
 
 // testRoute is a mock route struct with HTTP method handlers.
@@ -14,10 +14,10 @@ type testRoute struct {
 	deleteCalled bool
 }
 
-func (r *testRoute) GET(w http.ResponseWriter, req *http.Request)    { r.getCalled = true }
-func (r *testRoute) POST(w http.ResponseWriter, req *http.Request)   { r.postCalled = true }
-func (r *testRoute) PUT(w http.ResponseWriter, req *http.Request)    { r.putCalled = true }
-func (r *testRoute) DELETE(w http.ResponseWriter, req *http.Request) { r.deleteCalled = true }
+func (r *testRoute) GET(core.Context) error    { r.getCalled = true; return nil }
+func (r *testRoute) POST(core.Context) error   { r.postCalled = true; return nil }
+func (r *testRoute) PUT(core.Context) error    { r.putCalled = true; return nil }
+func (r *testRoute) DELETE(core.Context) error { r.deleteCalled = true; return nil }
 
 func TestDiscoverActions(t *testing.T) {
 	route := &testRoute{}
@@ -49,24 +49,18 @@ func TestDiscoverActions_InvokesHandler(t *testing.T) {
 		t.Fatalf("discoverActions: %v", err)
 	}
 
-	for _, d := range discovered {
-		if d.Method == "GET" {
-			w := httptest.NewRecorder()
-			req := httptest.NewRequest("GET", "/", nil)
-			d.Handler(w, req)
-			if !route.getCalled {
-				t.Error("GET handler did not invoke the method")
-			}
-			break
-		}
+	h := mount(splitActions("/t", discovered))
+	do(h, "GET", "/t")
+	if !route.getCalled {
+		t.Error("GET handler did not invoke the method")
 	}
 }
 
 // partialRoute only has some methods.
 type partialRoute struct{}
 
-func (r *partialRoute) POST(w http.ResponseWriter, req *http.Request)   {}
-func (r *partialRoute) DELETE(w http.ResponseWriter, req *http.Request) {}
+func (r *partialRoute) POST(core.Context) error   { return nil }
+func (r *partialRoute) DELETE(core.Context) error { return nil }
 
 func TestDiscoverActions_Partial(t *testing.T) {
 	route := &partialRoute{}

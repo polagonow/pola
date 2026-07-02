@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"[[ .ModulePath ]]/repositories"
+	"github.com/polagonow/pola/webframework/std"
 )
 
 // mock[[ .ServiceName ]]Service satisfies services.[[ .ServiceName ]]ServiceInterface.
@@ -57,10 +58,10 @@ func TestRoute_GET_List(t *testing.T) {
 		},
 	}
 	// store and blobs are nil — GET doesn't exercise them.
-	r := NewRoute(svc, nil, nil)
+	fw := std.New()
+	fw.Handle("GET", "[[ .RoutePath ]]", NewRoute(svc, nil, nil).GET)
 	w := httptest.NewRecorder()
-	req := httptest.NewRequest("GET", "[[ .RoutePath ]]", nil)
-	r.GET(w, req)
+	fw.Handler().ServeHTTP(w, httptest.NewRequest("GET", "[[ .RoutePath ]]", nil))
 	if w.Code != 200 {
 		t.Fatalf("status: got %d want 200; body=%q", w.Code, w.Body.String())
 	}
