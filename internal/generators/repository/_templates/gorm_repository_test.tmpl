@@ -10,25 +10,22 @@ import (
 	"[[.ModulePath]]/repositories"
 )
 
-// newTestRepo opens an in-memory SQLite database, auto-migrates the entity,
-// and returns a fresh repository for use in a single test.
-func newTestRepo(t *testing.T) (repositories.[[.Name]]Repository, *gorm.DB) {
-	t.Helper()
-	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
+// Test[[.Name]]Repository_CRUD is a wiring smoke test: it proves the entity
+// auto-migrates and round-trips through the framework-backed repository.
+// Behavioral coverage (pagination math, error wrapping, id generation) lives
+// in the framework's repository conformance tests.
+func Test[[.Name]]Repository_CRUD(t *testing.T) {
+	if testing.Short() {
+		t.Skip("integration test")
+	}
+	db, err := gorm.Open(sqlite.Open("file::memory:"), &gorm.Config{})
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
 	if err := db.AutoMigrate(&repositories.[[.Name]]{}); err != nil {
 		t.Fatalf("auto-migrate: %v", err)
 	}
-	return New[[.Name]]Repository(db), db
-}
-
-func Test[[.Name]]Repository_CreateAndGet(t *testing.T) {
-	if testing.Short() {
-		t.Skip("integration test")
-	}
-	repo, _ := newTestRepo(t)
+	repo := New[[.Name]]Repository(db)
 	ctx := context.Background()
 
 	entity := &repositories.[[.Name]]{}
@@ -44,48 +41,12 @@ func Test[[.Name]]Repository_CreateAndGet(t *testing.T) {
 		t.Fatal("expected ID to be set by Create")
 	}
 [[- end ]]
-
-	got, err := repo.Get(ctx, entity.ID)
-	if err != nil {
+	if _, err := repo.Get(ctx, entity.ID); err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	if got.ID != entity.ID {
-		t.Fatalf("Get returned id %v want %v", got.ID, entity.ID)
-	}
-}
-
-func Test[[.Name]]Repository_List(t *testing.T) {
-	if testing.Short() {
-		t.Skip("integration test")
-	}
-	repo, _ := newTestRepo(t)
-	ctx := context.Background()
-
-	for i := 0; i < 3; i++ {
-		if err := repo.Create(ctx, &repositories.[[.Name]]{}); err != nil {
-			t.Fatalf("Create #%d: %v", i, err)
-		}
-	}
-
 	result, err := repo.List(ctx, repositories.ListParams{Page: 1, PerPage: 10})
-	if err != nil {
-		t.Fatalf("List: %v", err)
-	}
-	if result.Total < 3 {
-		t.Fatalf("Total: got %d want >= 3", result.Total)
-	}
-}
-
-func Test[[.Name]]Repository_Delete(t *testing.T) {
-	if testing.Short() {
-		t.Skip("integration test")
-	}
-	repo, _ := newTestRepo(t)
-	ctx := context.Background()
-
-	entity := &repositories.[[.Name]]{}
-	if err := repo.Create(ctx, entity); err != nil {
-		t.Fatalf("Create: %v", err)
+	if err != nil || result.Total < 1 {
+		t.Fatalf("List: result=%+v err=%v", result, err)
 	}
 	if err := repo.Delete(ctx, entity.ID); err != nil {
 		t.Fatalf("Delete: %v", err)

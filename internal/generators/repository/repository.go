@@ -28,9 +28,6 @@ var (
 	paginationTmpl = template.Must(
 		template.New("pagination_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/pagination_go.tmpl"),
 	)
-	paginationTestTmpl = template.Must(
-		template.New("pagination_test_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/pagination_test_go.tmpl"),
-	)
 )
 
 // ormTestTemplate returns the test template paired with the named ORM's
@@ -180,6 +177,7 @@ func (g *RepositoryGenerator) run(cmd *cobra.Command, args []string) error {
 	data := buildData(def, modulePath)
 	data.PolaPackage = pf.PolaPackage()
 	data.EntClientDir = pf.DatabaseEntClientDir()
+	data.ORM = orm
 
 	// Ensure repository directory exists.
 	interfaceDir := filepath.Join(projectDir, repoDir)
@@ -187,31 +185,28 @@ func (g *RepositoryGenerator) run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("create repository dir: %w", err)
 	}
 
-	// Generate shared pagination.go once (skip if it already exists).
+	// Ensure pagination.go aliases the framework's pagination types. Legacy
+	// projects carry a full local copy whose ListParams is a distinct type;
+	// newly generated repositories are typed against the framework's, so a
+	// legacy file must be upgraded or the project stops compiling.
 	paginationPath := filepath.Join(interfaceDir, "pagination.go")
-	if _, err := os.Stat(paginationPath); os.IsNotExist(err) {
+	marker := data.PolaPackage + "/repository"
+	existing, statErr := os.ReadFile(paginationPath)
+	if statErr != nil && !os.IsNotExist(statErr) {
+		return fmt.Errorf("read %s: %w", paginationPath, statErr)
+	}
+	if os.IsNotExist(statErr) || !strings.Contains(string(existing), marker) {
 		var pbuf strings.Builder
-		if err := paginationTmpl.Execute(&pbuf, nil); err != nil {
+		if err := paginationTmpl.Execute(&pbuf, data); err != nil {
 			return fmt.Errorf("execute pagination template: %w", err)
 		}
 		if err := os.WriteFile(paginationPath, []byte(pbuf.String()), 0o644); err != nil {
 			return fmt.Errorf("write %s: %w", paginationPath, err)
 		}
-		fmt.Printf("Created %s\n", paginationPath)
-	}
-
-	// Generate shared pagination_test.go once.
-	if generators.ShouldGenerateTests(cmd, pf.GenerateTests()) {
-		paginationTestPath := filepath.Join(interfaceDir, "pagination_test.go")
-		if _, err := os.Stat(paginationTestPath); os.IsNotExist(err) {
-			var pbuf strings.Builder
-			if err := paginationTestTmpl.Execute(&pbuf, nil); err != nil {
-				return fmt.Errorf("execute pagination test template: %w", err)
-			}
-			if err := os.WriteFile(paginationTestPath, []byte(pbuf.String()), 0o644); err != nil {
-				return fmt.Errorf("write %s: %w", paginationTestPath, err)
-			}
-			fmt.Printf("Created %s\n", paginationTestPath)
+		if os.IsNotExist(statErr) {
+			fmt.Printf("Created %s\n", paginationPath)
+		} else {
+			fmt.Printf("Updated %s to alias framework pagination types\n", paginationPath)
 		}
 	}
 
@@ -276,6 +271,7 @@ type repoData struct {
 	PluralSnake  string
 	EntPackage   string // all-lowercase name used by ent for sub-packages (e.g. "sampleentity")
 	EntClientDir string // directory for ent-generated client (e.g. "db/ent")
+	ORM          string // selected ORM ("gorm", "ent", "beego")
 	IDGoType     string // "uint" or "string"
 	Fields       []repoField
 	Imports      []string
