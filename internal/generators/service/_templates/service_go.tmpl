@@ -25,7 +25,7 @@ type [[.Name]]Service struct {
 // New[[.Name]]Service creates a new [[.Name]]Service.
 func New[[.Name]]Service(repo repositories.[[.Name]]Repository) *[[.Name]]Service {
 	return &[[.Name]]Service{
-		Service: service.New[repositories.[[.Name]], [[.IDGoType]]](repo),
+		Service: service.New(repo),
 		repo:    repo,
 	}
 }

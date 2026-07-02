@@ -24,7 +24,7 @@ type TaskService struct {
 // NewTaskService creates a new TaskService.
 func NewTaskService(repo repositories.TaskRepository) *TaskService {
 	return &TaskService{
-		Service: service.New[repositories.Task, uint](repo),
+		Service: service.New(repo),
 		repo:    repo,
 	}
 }

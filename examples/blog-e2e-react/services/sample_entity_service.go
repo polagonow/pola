@@ -24,7 +24,7 @@ type SampleEntityService struct {
 // NewSampleEntityService creates a new SampleEntityService.
 func NewSampleEntityService(repo repositories.SampleEntityRepository) *SampleEntityService {
 	return &SampleEntityService{
-		Service: service.New[repositories.SampleEntity, uint](repo),
+		Service: service.New(repo),
 		repo:    repo,
 	}
 }

@@ -24,7 +24,7 @@ type GreetingService struct {
 // NewGreetingService creates a new GreetingService.
 func NewGreetingService(repo repositories.GreetingRepository) *GreetingService {
 	return &GreetingService{
-		Service: service.New[repositories.Greeting, uint](repo),
+		Service: service.New(repo),
 		repo:    repo,
 	}
 }
