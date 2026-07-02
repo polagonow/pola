@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	"beego-demo/repositories"
+
+	"github.com/polagonow/pola/repository"
 )
 
 // mockTaskRepository is a hand-rolled mock implementing
@@ -15,7 +17,7 @@ import (
 type mockTaskRepository struct {
 	createFn func(ctx context.Context, e *repositories.Task) error
 	getFn    func(ctx context.Context, id uint) (*repositories.Task, error)
-	listFn   func(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.Task], error)
+	listFn   func(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.Task], error)
 	updateFn func(ctx context.Context, e *repositories.Task) error
 	deleteFn func(ctx context.Context, id uint) error
 }
@@ -32,7 +34,7 @@ func (m *mockTaskRepository) Get(ctx context.Context, id uint) (*repositories.Ta
 	}
 	return m.getFn(ctx, id)
 }
-func (m *mockTaskRepository) List(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.Task], error) {
+func (m *mockTaskRepository) List(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.Task], error) {
 	if m.listFn == nil {
 		panic("listFn not set")
 	}
@@ -97,14 +99,14 @@ func TestTaskService_Get_DelegatesToRepo(t *testing.T) {
 }
 
 func TestTaskService_List_DelegatesToRepo(t *testing.T) {
-	want := &repositories.ListResult[*repositories.Task]{Page: 1, PerPage: 10}
+	want := &repository.ListResult[*repositories.Task]{Page: 1, PerPage: 10}
 	repo := &mockTaskRepository{
-		listFn: func(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.Task], error) {
+		listFn: func(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.Task], error) {
 			return want, nil
 		},
 	}
 	svc := NewTaskService(repo)
-	got, err := svc.List(context.Background(), repositories.ListParams{Page: 1, PerPage: 10})
+	got, err := svc.List(context.Background(), repository.ListParams{Page: 1, PerPage: 10})
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}

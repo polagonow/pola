@@ -21,13 +21,8 @@ import (
 //go:embed all:_templates
 var templates embed.FS
 
-var (
-	interfaceTmpl = template.Must(
-		template.New("repository_interface.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/repository_interface.tmpl"),
-	)
-	paginationTmpl = template.Must(
-		template.New("pagination_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/pagination_go.tmpl"),
-	)
+var interfaceTmpl = template.Must(
+	template.New("repository_interface.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/repository_interface.tmpl"),
 )
 
 // ormTestTemplate returns the test template paired with the named ORM's
@@ -185,30 +180,9 @@ func (g *RepositoryGenerator) run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("create repository dir: %w", err)
 	}
 
-	// Ensure pagination.go aliases the framework's pagination types. Legacy
-	// projects carry a full local copy whose ListParams is a distinct type;
-	// newly generated repositories are typed against the framework's, so a
-	// legacy file must be upgraded or the project stops compiling.
-	paginationPath := filepath.Join(interfaceDir, "pagination.go")
-	marker := data.PolaPackage + "/repository"
-	existing, statErr := os.ReadFile(paginationPath)
-	if statErr != nil && !os.IsNotExist(statErr) {
-		return fmt.Errorf("read %s: %w", paginationPath, statErr)
-	}
-	if os.IsNotExist(statErr) || !strings.Contains(string(existing), marker) {
-		var pbuf strings.Builder
-		if err := paginationTmpl.Execute(&pbuf, data); err != nil {
-			return fmt.Errorf("execute pagination template: %w", err)
-		}
-		if err := os.WriteFile(paginationPath, []byte(pbuf.String()), 0o644); err != nil {
-			return fmt.Errorf("write %s: %w", paginationPath, err)
-		}
-		if os.IsNotExist(statErr) {
-			fmt.Printf("Created %s\n", paginationPath)
-		} else {
-			fmt.Printf("Updated %s to alias framework pagination types\n", paginationPath)
-		}
-	}
+	// Pagination types (ListParams/ListResult/DefaultPerPage) live in the
+	// framework's repository package; generated services and routes reference
+	// them directly, so no per-project pagination.go is emitted.
 
 	// Generate interface file.
 	interfacePath := filepath.Join(interfaceDir, data.SnakeName+"_repository.go")

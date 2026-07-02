@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	_ "github.com/mattn/go-sqlite3"
+	"github.com/polagonow/pola/repository"
 
 	"ent-demo/db/client/ent"
 	"ent-demo/repositories"
@@ -46,7 +47,7 @@ func TestTaskRepository_CRUD(t *testing.T) {
 	if _, err := repo.Get(ctx, entity.ID); err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	result, err := repo.List(ctx, repositories.ListParams{Page: 1, PerPage: 10})
+	result, err := repo.List(ctx, repository.ListParams{Page: 1, PerPage: 10})
 	if err != nil || result.Total < 1 {
 		t.Fatalf("List: result=%+v err=%v", result, err)
 	}

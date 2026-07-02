@@ -8,6 +8,8 @@ import (
 	"gorm.io/gorm"
 
 	"[[.ModulePath]]/repositories"
+
+	"[[.PolaPackage]]/repository"
 )
 
 // Test[[.Name]]Repository_CRUD is a wiring smoke test: it proves the entity
@@ -44,7 +46,7 @@ func Test[[.Name]]Repository_CRUD(t *testing.T) {
 	if _, err := repo.Get(ctx, entity.ID); err != nil {
 		t.Fatalf("Get: %v", err)
 	}
-	result, err := repo.List(ctx, repositories.ListParams{Page: 1, PerPage: 10})
+	result, err := repo.List(ctx, repository.ListParams{Page: 1, PerPage: 10})
 	if err != nil || result.Total < 1 {
 		t.Fatalf("List: result=%+v err=%v", result, err)
 	}

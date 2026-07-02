@@ -6,13 +6,15 @@ import (
 	"testing"
 
 	"[[ .ModulePath ]]/repositories"
+
+	"github.com/polagonow/pola/repository"
 )
 
 // mock[[ .ServiceName ]]Service satisfies services.[[ .ServiceName ]]ServiceInterface.
 type mock[[ .ServiceName ]]Service struct {
 	createFn func(ctx context.Context, e *repositories.[[ .ServiceName ]]) error
 	getFn    func(ctx context.Context, id [[ .IDGoType ]]) (*repositories.[[ .ServiceName ]], error)
-	listFn   func(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.[[ .ServiceName ]]], error)
+	listFn   func(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.[[ .ServiceName ]]], error)
 	updateFn func(ctx context.Context, e *repositories.[[ .ServiceName ]]) error
 	deleteFn func(ctx context.Context, id [[ .IDGoType ]]) error
 }
@@ -29,7 +31,7 @@ func (m *mock[[ .ServiceName ]]Service) Get(ctx context.Context, id [[ .IDGoType
 	}
 	return m.getFn(ctx, id)
 }
-func (m *mock[[ .ServiceName ]]Service) List(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.[[ .ServiceName ]]], error) {
+func (m *mock[[ .ServiceName ]]Service) List(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.[[ .ServiceName ]]], error) {
 	if m.listFn == nil {
 		panic("listFn not set")
 	}
@@ -49,9 +51,9 @@ func (m *mock[[ .ServiceName ]]Service) Delete(ctx context.Context, id [[ .IDGoT
 }
 
 func Test[[ .Name ]]_List(t *testing.T) {
-	want := &repositories.ListResult[*repositories.[[ .ServiceName ]]]{Page: 2, PerPage: 25}
+	want := &repository.ListResult[*repositories.[[ .ServiceName ]]]{Page: 2, PerPage: 25}
 	svc := &mock[[ .ServiceName ]]Service{
-		listFn: func(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.[[ .ServiceName ]]], error) {
+		listFn: func(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.[[ .ServiceName ]]], error) {
 			if params.Page != 2 || params.PerPage != 25 {
 				t.Fatalf("params: got page=%d perPage=%d", params.Page, params.PerPage)
 			}

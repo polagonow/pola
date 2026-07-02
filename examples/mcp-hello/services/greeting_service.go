@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"mcp-hello/repositories"
+
+	"github.com/polagonow/pola/repository"
 )
 
 // GreetingService handles business logic for greeting operations.
@@ -28,7 +30,7 @@ func (s *GreetingService) Get(ctx context.Context, id uint) (*repositories.Greet
 }
 
 // List returns a paginated list of greetings.
-func (s *GreetingService) List(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.Greeting], error) {
+func (s *GreetingService) List(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.Greeting], error) {
 	return s.repo.List(ctx, params)
 }
 

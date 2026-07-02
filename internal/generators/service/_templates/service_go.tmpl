@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"[[.ModulePath]]/repositories"
+
+	"github.com/polagonow/pola/repository"
 )
 
 // [[.Name]]ServiceInterface is the contract a [[.Name]] service must satisfy.
@@ -12,7 +14,7 @@ import (
 type [[.Name]]ServiceInterface interface {
 	Create(ctx context.Context, entity *repositories.[[.Name]]) error
 	Get(ctx context.Context, id [[.IDGoType]]) (*repositories.[[.Name]], error)
-	List(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.[[.Name]]], error)
+	List(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.[[.Name]]], error)
 	Update(ctx context.Context, entity *repositories.[[.Name]]) error
 	Delete(ctx context.Context, id [[.IDGoType]]) error
 }
@@ -39,7 +41,7 @@ func (s *[[.Name]]Service) Get(ctx context.Context, id [[.IDGoType]]) (*reposito
 }
 
 // List returns a paginated list of [[.PluralSnake]].
-func (s *[[.Name]]Service) List(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.[[.Name]]], error) {
+func (s *[[.Name]]Service) List(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.[[.Name]]], error) {
 	return s.repo.List(ctx, params)
 }
 

@@ -8,6 +8,7 @@ import (
 	sdk "github.com/modelcontextprotocol/go-sdk/mcp"
 
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/repository"
 
 	"mcp-hello/repositories"
 	"mcp-hello/services"
@@ -63,7 +64,7 @@ func (t *GreetingTool) Handle(ctx context.Context, req *sdk.CallToolRequest) (*s
 		}, nil
 	}
 
-	page, err := t.svc.List(ctx, repositories.ListParams{PerPage: 50})
+	page, err := t.svc.List(ctx, repository.ListParams{PerPage: 50})
 	if err != nil {
 		return nil, fmt.Errorf("list greetings: %w", err)
 	}
