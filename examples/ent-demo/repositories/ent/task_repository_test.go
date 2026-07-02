@@ -7,11 +7,12 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 
 	"ent-demo/db/client/ent"
+	"ent-demo/repositories"
 )
 
-// newTestClient opens an in-memory SQLite-backed ent client and runs the
-// schema migration. Each call creates an isolated database.
-func newTestClient(t *testing.T) *ent.Client {
+// newTaskTestClient opens an in-memory SQLite-backed ent client and runs
+// the schema migration. Each call creates an isolated database.
+func newTaskTestClient(t *testing.T) *ent.Client {
 	t.Helper()
 	client, err := ent.Open("sqlite3", "file:ent_task_test?mode=memory&cache=shared&_fk=1")
 	if err != nil {
@@ -24,20 +25,35 @@ func newTestClient(t *testing.T) *ent.Client {
 	return client
 }
 
-func TestTaskRepository_Compiles(t *testing.T) {
+// TestTaskRepository_CRUD is a wiring smoke test: it proves the entity
+// round-trips through the framework-backed repository against the generated
+// ent client. Behavioral coverage (pagination math, error wrapping, field
+// dispatch) lives in the framework's repository conformance tests.
+func TestTaskRepository_CRUD(t *testing.T) {
 	if testing.Short() {
 		t.Skip("integration test")
 	}
-	client := newTestClient(t)
-	repo := NewTaskRepository(client)
-	if repo == nil {
-		t.Fatal("expected non-nil repository")
+	repo := NewTaskRepository(newTaskTestClient(t))
+	ctx := context.Background()
+
+	entity := &repositories.Task{}
+	if err := repo.Create(ctx, entity); err != nil {
+		t.Fatalf("Create: %v", err)
 	}
-	// Smoke: verify the constructor returns a value satisfying the
-	// repositories.TaskRepository interface (compile-checked via the
-	// constructor's return type) and that List against an empty database
-	// returns a zero-Total result rather than an error.
-	// Full CRUD coverage requires field values that satisfy the schema's
-	// non-nullable constraints — extend this test with concrete values
-	// suited to your schema.
+	if entity.ID == 0 {
+		t.Fatal("expected ID to be set by Create")
+	}
+	if _, err := repo.Get(ctx, entity.ID); err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	result, err := repo.List(ctx, repositories.ListParams{Page: 1, PerPage: 10})
+	if err != nil || result.Total < 1 {
+		t.Fatalf("List: result=%+v err=%v", result, err)
+	}
+	if err := repo.Delete(ctx, entity.ID); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if _, err := repo.Get(ctx, entity.ID); err == nil {
+		t.Fatal("expected Get to error after Delete")
+	}
 }
