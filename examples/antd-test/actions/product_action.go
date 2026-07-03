@@ -3,6 +3,7 @@ package actions
 import (
 	"context"
 
+	"github.com/polagonow/pola/core"
 	"antd-test/repositories"
 	"antd-test/services"
 
@@ -29,9 +30,10 @@ type ProductAction struct {
 	svc *services.ProductService
 }
 
-// NewProductAction creates a ProductAction with its service dependency.
-func NewProductAction(svc *services.ProductService) *ProductAction {
-	return &ProductAction{svc: svc}
+// NewProductAction creates a ProductAction, resolving its dependencies from
+// the DI registry.
+func NewProductAction(r *core.Registry) *ProductAction {
+	return &ProductAction{svc: core.MustInvoke[*services.ProductService](r)}
 }
 
 // List returns a paginated list of Product entities. Becomes ProductAction.list(page, perPage) in JavaScript.

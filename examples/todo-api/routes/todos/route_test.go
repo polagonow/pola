@@ -6,8 +6,18 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/polagonow/pola/core"
 	"todo-api/repositories"
+	"todo-api/services"
 )
+
+// newTestRoute wires the route to the given mock service through a fresh DI
+// registry, exercising the real registry-style constructor.
+func newTestRoute(svc services.TodoServiceInterface) *Route {
+	r := core.NewRegistry()
+	core.ProvideValue[services.TodoServiceInterface](r, svc)
+	return NewRoute(r)
+}
 
 // mockTodoService is a hand-rolled mock satisfying
 // services.TodoServiceInterface. Each method is backed by a
@@ -57,7 +67,7 @@ func TestRoute_GET_List(t *testing.T) {
 			return &repositories.ListResult[*repositories.Todo]{Page: params.Page, PerPage: params.PerPage}, nil
 		},
 	}
-	r := NewRoute(svc)
+	r := newTestRoute(svc)
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/todos", nil)
 	r.GET(w, req)
@@ -68,7 +78,7 @@ func TestRoute_GET_List(t *testing.T) {
 
 func TestRoute_POST_BadJSON(t *testing.T) {
 	svc := &mockTodoService{}
-	r := NewRoute(svc)
+	r := newTestRoute(svc)
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("POST", "/todos", bytes.NewBufferString("not-json"))
 	r.POST(w, req)
@@ -79,7 +89,7 @@ func TestRoute_POST_BadJSON(t *testing.T) {
 
 func TestRoute_PUT_MissingID(t *testing.T) {
 	svc := &mockTodoService{}
-	r := NewRoute(svc)
+	r := newTestRoute(svc)
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("PUT", "/todos", bytes.NewBufferString(`{}`))
 	r.PUT(w, req)
@@ -90,7 +100,7 @@ func TestRoute_PUT_MissingID(t *testing.T) {
 
 func TestRoute_PATCH_MissingID(t *testing.T) {
 	svc := &mockTodoService{}
-	r := NewRoute(svc)
+	r := newTestRoute(svc)
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("PATCH", "/todos", bytes.NewBufferString(`{}`))
 	r.PATCH(w, req)
@@ -101,7 +111,7 @@ func TestRoute_PATCH_MissingID(t *testing.T) {
 
 func TestRoute_DELETE_MissingID(t *testing.T) {
 	svc := &mockTodoService{}
-	r := NewRoute(svc)
+	r := newTestRoute(svc)
 	w := httptest.NewRecorder()
 	req := httptest.NewRequest("DELETE", "/todos", nil)
 	r.DELETE(w, req)

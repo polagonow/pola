@@ -5,8 +5,17 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/polagonow/pola/core"
 	"todo-api/repositories"
 )
+
+// newTestTodoService wires the service to the given mock repository through a
+// fresh DI registry, exercising the real registry-style constructor.
+func newTestTodoService(repo repositories.TodoRepository) *TodoService {
+	r := core.NewRegistry()
+	core.ProvideValue[repositories.TodoRepository](r, repo)
+	return NewTodoService(r)
+}
 
 // mockTodoRepository is a hand-rolled mock implementing
 // repositories.TodoRepository. Each method is backed by a *Fn field that
@@ -59,7 +68,7 @@ func TestTodoService_Create_DelegatesToRepo(t *testing.T) {
 			return nil
 		},
 	}
-	svc := NewTodoService(repo)
+	svc := newTestTodoService(repo)
 	if err := svc.Create(context.Background(), &repositories.Todo{}); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -73,7 +82,7 @@ func TestTodoService_Create_PropagatesError(t *testing.T) {
 	repo := &mockTodoRepository{
 		createFn: func(ctx context.Context, e *repositories.Todo) error { return want },
 	}
-	svc := NewTodoService(repo)
+	svc := newTestTodoService(repo)
 	if err := svc.Create(context.Background(), &repositories.Todo{}); !errors.Is(err, want) {
 		t.Fatalf("got err %v, want %v", err, want)
 	}
@@ -86,7 +95,7 @@ func TestTodoService_Get_DelegatesToRepo(t *testing.T) {
 			return want, nil
 		},
 	}
-	svc := NewTodoService(repo)
+	svc := newTestTodoService(repo)
 	got, err := svc.Get(context.Background(), 0)
 	if err != nil {
 		t.Fatalf("Get: %v", err)
@@ -103,7 +112,7 @@ func TestTodoService_List_DelegatesToRepo(t *testing.T) {
 			return want, nil
 		},
 	}
-	svc := NewTodoService(repo)
+	svc := newTestTodoService(repo)
 	got, err := svc.List(context.Background(), repositories.ListParams{Page: 1, PerPage: 10})
 	if err != nil {
 		t.Fatalf("List: %v", err)
@@ -121,7 +130,7 @@ func TestTodoService_Update_DelegatesToRepo(t *testing.T) {
 			return nil
 		},
 	}
-	svc := NewTodoService(repo)
+	svc := newTestTodoService(repo)
 	if err := svc.Update(context.Background(), &repositories.Todo{}); err != nil {
 		t.Fatalf("Update: %v", err)
 	}
@@ -138,7 +147,7 @@ func TestTodoService_Delete_DelegatesToRepo(t *testing.T) {
 			return nil
 		},
 	}
-	svc := NewTodoService(repo)
+	svc := newTestTodoService(repo)
 	if err := svc.Delete(context.Background(), 0); err != nil {
 		t.Fatalf("Delete: %v", err)
 	}

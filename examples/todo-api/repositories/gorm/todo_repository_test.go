@@ -7,11 +7,12 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
+	"github.com/polagonow/pola/core"
 	"todo-api/repositories"
 )
 
 // newTestRepo opens an in-memory SQLite database, auto-migrates the entity,
-// and returns a fresh repository for use in a single test.
+// and returns a fresh registry-constructed repository for use in a single test.
 func newTestRepo(t *testing.T) (repositories.TodoRepository, *gorm.DB) {
 	t.Helper()
 	db, err := gorm.Open(sqlite.Open("file::memory:?cache=shared"), &gorm.Config{})
@@ -21,7 +22,9 @@ func newTestRepo(t *testing.T) (repositories.TodoRepository, *gorm.DB) {
 	if err := db.AutoMigrate(&repositories.Todo{}); err != nil {
 		t.Fatalf("auto-migrate: %v", err)
 	}
-	return NewTodoRepository(db), db
+	r := core.NewRegistry()
+	core.ProvideValue[*gorm.DB](r, db)
+	return NewTodoRepository(r), db
 }
 
 func TestTodoRepository_CreateAndGet(t *testing.T) {

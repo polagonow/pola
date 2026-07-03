@@ -1,9 +1,10 @@
 package services
 
 import (
-	"[[.ModulePath]]/repositories"
-
+	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/service"
+
+	"[[.ModulePath]]/repositories"
 )
 
 // [[.Name]]ServiceInterface is the contract for [[.SnakeName]] business logic.
@@ -22,8 +23,10 @@ type [[.Name]]Service struct {
 	repo repositories.[[.Name]]Repository
 }
 
-// New[[.Name]]Service creates a new [[.Name]]Service.
-func New[[.Name]]Service(repo repositories.[[.Name]]Repository) *[[.Name]]Service {
+// New[[.Name]]Service creates a new [[.Name]]Service, resolving its
+// dependencies from the DI registry.
+func New[[.Name]]Service(r *core.Registry) *[[.Name]]Service {
+	repo := core.MustInvoke[repositories.[[.Name]]Repository](r)
 	return &[[.Name]]Service{
 		Service: service.New(repo),
 		repo:    repo,

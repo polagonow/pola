@@ -3,6 +3,7 @@ package gorm
 import (
 	"gorm.io/gorm"
 
+	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/repository"
 	gormrepo "github.com/polagonow/pola/repository/gorm"
 
@@ -17,8 +18,10 @@ type greetingRepository struct {
 	db *gorm.DB
 }
 
-// NewGreetingRepository creates a new GORM-backed GreetingRepository.
-func NewGreetingRepository(db *gorm.DB) repositories.GreetingRepository {
+// NewGreetingRepository creates a new GORM-backed GreetingRepository, resolving
+// its dependencies from the DI registry.
+func NewGreetingRepository(r *core.Registry) repositories.GreetingRepository {
+	db := core.MustInvoke[*gorm.DB](r)
 	return &greetingRepository{
 		Repository: gormrepo.New[repositories.Greeting, uint](db),
 		db:         db,

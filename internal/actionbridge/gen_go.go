@@ -37,24 +37,34 @@ func (d goTemplData) StructNameFor(m MethodDef) string {
 
 // GenerateGo produces the generated_bridge.go source code.
 func GenerateGo(result *ParseResult, polaPackage string) ([]byte, error) {
+	registryType := "*" + polaPackage + "/core.Registry"
+
+	goTypeShort := func(goType string) string {
+		// Preserve pointer prefix before stripping package path.
+		prefix := ""
+		if strings.HasPrefix(goType, "*") {
+			prefix = "*"
+			goType = goType[1:]
+		}
+		if idx := strings.LastIndex(goType, "/"); idx >= 0 {
+			rest := goType[idx+1:]
+			if dotIdx := strings.Index(rest, "."); dotIdx >= 0 {
+				return prefix + rest
+			}
+		}
+		return prefix + goType
+	}
+
 	funcMap := template.FuncMap{
 		"fieldName": func(structName string) string {
 			return CamelCase(structName)
 		},
-		"goTypeShort": func(goType string) string {
-			// Preserve pointer prefix before stripping package path.
-			prefix := ""
-			if strings.HasPrefix(goType, "*") {
-				prefix = "*"
-				goType = goType[1:]
+		"goTypeShort": goTypeShort,
+		"ctorArg": func(p FieldDef) string {
+			if p.GoType == registryType {
+				return "r"
 			}
-			if idx := strings.LastIndex(goType, "/"); idx >= 0 {
-				rest := goType[idx+1:]
-				if dotIdx := strings.Index(rest, "."); dotIdx >= 0 {
-					return prefix + rest
-				}
-			}
-			return prefix + goType
+			return fmt.Sprintf("core.MustInvoke[%s](r)", goTypeShort(p.GoType))
 		},
 		"castArg": func(i int, p ParamDef) string {
 			return goArgCast(i, p)
@@ -80,7 +90,7 @@ func GenerateGo(result *ParseResult, polaPackage string) ([]byte, error) {
 		PackageName:        result.PackageName,
 		PolaPackage:        polaPackage,
 		Actions:            result.Actions,
-		ConstructorImports: collectConstructorImports(result.Actions),
+		ConstructorImports: collectConstructorImports(result.Actions, polaPackage),
 	}
 
 	var buf bytes.Buffer
@@ -91,17 +101,22 @@ func GenerateGo(result *ParseResult, polaPackage string) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// collectConstructorImports returns deduplicated import paths needed by all action constructors.
-func collectConstructorImports(actions []ActionDef) []string {
+// collectConstructorImports returns deduplicated import paths needed by all
+// action constructors. The framework's core package is always imported by the
+// template's fixed header, so it's excluded here to avoid a "redeclared" error
+// when a constructor takes *core.Registry.
+func collectConstructorImports(actions []ActionDef, polaPackage string) []string {
+	corePath := polaPackage + "/core"
 	seen := make(map[string]bool)
 	for _, a := range actions {
 		if a.Constructor == nil {
 			continue
 		}
 		for _, p := range a.Constructor.Params {
-			if p.TypePath != "" {
-				seen[p.TypePath] = true
+			if p.TypePath == "" || p.TypePath == corePath {
+				continue
 			}
+			seen[p.TypePath] = true
 		}
 	}
 	imports := make([]string, 0, len(seen))

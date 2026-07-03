@@ -24,7 +24,7 @@ func TestGenerateSource_Frameworks(t *testing.T) {
 				Router:      "nextjs",
 				APIOnly:     apiOnly,
 			}
-			src, err := GenerateSource(opts, "", []string{"app/routes/health"}, nil, nil, nil)
+			src, err := GenerateSource(opts, "", []string{"app/routes/health"}, nil, nil, nil, nil)
 			if err != nil {
 				t.Fatalf("%s apiOnly=%v: generate: %v", fw, apiOnly, err)
 			}
@@ -49,7 +49,7 @@ func TestGenerateSource_Frameworks(t *testing.T) {
 // TestGenerateSource_DefaultFramework ensures an empty Framework defaults to std.
 func TestGenerateSource_DefaultFramework(t *testing.T) {
 	opts := autoload.PluginOpts{PolaPackage: "github.com/polagonow/pola", APIOnly: true}
-	src, err := GenerateSource(opts, "", nil, nil, nil, nil)
+	src, err := GenerateSource(opts, "", nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatal(err)
 	}

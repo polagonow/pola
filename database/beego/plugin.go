@@ -90,4 +90,3 @@ func (p *beegoPlugin) Shutdown(_ context.Context) error {
 	// Beego manages its own connection pool internally.
 	return nil
 }
-

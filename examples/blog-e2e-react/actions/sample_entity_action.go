@@ -3,6 +3,7 @@ package actions
 import (
 	"context"
 
+	"github.com/polagonow/pola/core"
 	"blog-e2e-react/repositories"
 	"blog-e2e-react/services"
 
@@ -29,9 +30,10 @@ type SampleEntityAction struct {
 	svc *services.SampleEntityService
 }
 
-// NewSampleEntityAction creates a SampleEntityAction with its service dependency.
-func NewSampleEntityAction(svc *services.SampleEntityService) *SampleEntityAction {
-	return &SampleEntityAction{svc: svc}
+// NewSampleEntityAction creates a SampleEntityAction, resolving its
+// dependencies from the DI registry.
+func NewSampleEntityAction(r *core.Registry) *SampleEntityAction {
+	return &SampleEntityAction{svc: core.MustInvoke[*services.SampleEntityService](r)}
 }
 
 // List returns a paginated list of SampleEntity entities. Becomes SampleEntityAction.list(page, perPage) in JavaScript.

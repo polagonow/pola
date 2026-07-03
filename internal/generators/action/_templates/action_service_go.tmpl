@@ -3,6 +3,7 @@ package actions
 import (
 	"context"
 
+	"github.com/polagonow/pola/core"
 	"[[ .ModulePath ]]/repositories"
 	"[[ .ModulePath ]]/services"
 
@@ -29,9 +30,9 @@ type [[ .Name ]] struct {
 	svc services.[[ .ServiceName ]]ServiceInterface
 }
 
-// New[[ .Name ]] creates a [[ .Name ]] with its service dependency.
-func New[[ .Name ]](svc services.[[ .ServiceName ]]ServiceInterface) *[[ .Name ]] {
-	return &[[ .Name ]]{svc: svc}
+// New[[ .Name ]] creates a [[ .Name ]], resolving its dependencies from the DI registry.
+func New[[ .Name ]](r *core.Registry) *[[ .Name ]] {
+	return &[[ .Name ]]{svc: core.MustInvoke[services.[[ .ServiceName ]]ServiceInterface](r)}
 }
 
 // List returns a paginated list of [[ .ServiceName ]] entities. Becomes [[ .Name ]].list(page, perPage) in JavaScript.

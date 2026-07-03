@@ -3,6 +3,7 @@ package todos
 import (
 	"net/http"
 
+	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/routes"
 	"todo-api/repositories"
 	"todo-api/services"
@@ -13,9 +14,9 @@ type Route struct {
 	svc services.TodoServiceInterface
 }
 
-// NewRoute creates a Route with its service dependency.
-func NewRoute(svc services.TodoServiceInterface) *Route {
-	return &Route{svc: svc}
+// NewRoute creates a Route, resolving its dependencies from the DI registry.
+func NewRoute(r *core.Registry) *Route {
+	return &Route{svc: core.MustInvoke[services.TodoServiceInterface](r)}
 }
 
 // GET /todos

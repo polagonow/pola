@@ -3,6 +3,7 @@ package gorm
 import (
 	"gorm.io/gorm"
 
+	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/repository"
 	gormrepo "github.com/polagonow/pola/repository/gorm"
 
@@ -17,8 +18,10 @@ type sampleEntityRepository struct {
 	db *gorm.DB
 }
 
-// NewSampleEntityRepository creates a new GORM-backed SampleEntityRepository.
-func NewSampleEntityRepository(db *gorm.DB) repositories.SampleEntityRepository {
+// NewSampleEntityRepository creates a new GORM-backed SampleEntityRepository,
+// resolving its dependencies from the DI registry.
+func NewSampleEntityRepository(r *core.Registry) repositories.SampleEntityRepository {
+	db := core.MustInvoke[*gorm.DB](r)
 	return &sampleEntityRepository{
 		Repository: gormrepo.New[repositories.SampleEntity, uint](db),
 		db:         db,

@@ -4,17 +4,18 @@ import (
 	"context"
 	"fmt"
 
-	"beego-features-demo/repositories"
-
 	"gorm.io/gorm"
+
+	"github.com/polagonow/pola/core"
+	"beego-features-demo/repositories"
 )
 
 type userRepository struct {
 	db *gorm.DB
 }
 
-func NewUserRepository(db *gorm.DB) repositories.UserRepository {
-	return &userRepository{db: db}
+func NewUserRepository(r *core.Registry) repositories.UserRepository {
+	return &userRepository{db: core.MustInvoke[*gorm.DB](r)}
 }
 
 func (r *userRepository) Create(ctx context.Context, user *repositories.User) error {

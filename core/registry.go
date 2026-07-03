@@ -53,11 +53,13 @@ type Registry struct {
 	injectors  []RuntimeInjector
 }
 
-// NewRegistry creates a new empty Registry backed by a do.Injector.
+// NewRegistry creates a new empty Registry backed by a do.Injector. The
+// Registry self-registers so user code (constructors, tests, hand-written
+// route factories) can pull it back out with core.MustInvoke[*core.Registry](r).
 func NewRegistry() *Registry {
-	return &Registry{
-		injector: do.New(),
-	}
+	r := &Registry{injector: do.New()}
+	do.ProvideValue(r.injector, r)
+	return r
 }
 
 // Provide registers a singleton service by its concrete type.

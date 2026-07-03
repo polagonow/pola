@@ -15,6 +15,7 @@ import (
 	"text/template"
 
 	"github.com/polagonow/pola/internal/autoload"
+	"github.com/polagonow/pola/internal/autoload/ctorscan"
 )
 
 //go:embed _templates/route_init_go.tmpl
@@ -30,7 +31,7 @@ func init() {
 	autoload.Register(&autoloadImpl{})
 }
 
-func (a *autoloadImpl) Name() string { return "routes" }
+func (a *autoloadImpl) Name() string  { return "routes" }
 func (a *autoloadImpl) Priority() int { return 200 }
 
 func (a *autoloadImpl) Contribute(ctx *autoload.Context) error {
@@ -48,11 +49,22 @@ func (a *autoloadImpl) Contribute(ctx *autoload.Context) error {
 		}
 		routePkgs = append(routePkgs, rp)
 
+		var ctorParams []ctorscan.Param
+		var hasCtor bool
 		var dep *autoload.RouteServiceDep
 		if hasStruct {
-			dep = discoverRouteServiceDep(rp.AbsDir, ctx.ModPath)
+			found, p, err := discoverRouteCtor(rp.AbsDir, ctx.Opts.PolaPackage)
+			if err != nil {
+				return fmt.Errorf("scan NewRoute in %s: %w", rp.PkgName, err)
+			}
+			if found {
+				hasCtor = true
+				ctorParams = p
+			} else {
+				dep = discoverRouteServiceDep(rp.AbsDir, ctx.ModPath)
+			}
 		}
-		src, err := generateRouteInit(rp.PkgName, ctx.Opts.PolaPackage, ctx.ModPath, dep, hasStruct, funcRoutes)
+		src, err := generateRouteInit(rp.PkgName, ctx.Opts.PolaPackage, ctx.ModPath, dep, hasStruct, funcRoutes, hasCtor, ctorParams)
 		if err != nil {
 			return fmt.Errorf("generate route init for %s: %w", rp.PkgName, err)
 		}
@@ -103,8 +115,6 @@ func scanRouteStyle(routeDir string) (hasStruct bool, funcRoutes []string) {
 					}
 				}
 			case *ast.FuncDecl:
-				// Package-level function (no receiver) named after an HTTP verb,
-				// with a single param and single result (func(core.Context) error).
 				if d.Recv != nil || !httpVerbs[d.Name.Name] {
 					continue
 				}
@@ -123,6 +133,41 @@ func scanRouteStyle(routeDir string) (hasStruct bool, funcRoutes []string) {
 	}
 	sort.Strings(funcRoutes)
 	return hasStruct, funcRoutes
+}
+
+// discoverRouteCtor scans a route package for a package-level func NewRoute(...)
+// and returns the ctorscan-resolved parameters. The first return value is true
+// when a NewRoute constructor exists — including the zero-parameter case where
+// the returned param slice is nil/empty. Returns (false, nil, nil) when no
+// NewRoute exists — callers fall back to field-scan; returns an error when a
+// parameter type cannot be resolved.
+func discoverRouteCtor(routeDir, polaPackage string) (bool, []ctorscan.Param, error) {
+	fset := token.NewFileSet()
+	entries, err := os.ReadDir(routeDir)
+	if err != nil {
+		return false, nil, nil
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") || strings.HasPrefix(entry.Name(), "pola_") {
+			continue
+		}
+		if strings.HasSuffix(entry.Name(), "_test.go") {
+			continue
+		}
+		f, err := parser.ParseFile(fset, filepath.Join(routeDir, entry.Name()), nil, 0)
+		if err != nil {
+			continue
+		}
+		for _, decl := range f.Decls {
+			fd, ok := decl.(*ast.FuncDecl)
+			if !ok || fd.Recv != nil || fd.Name.Name != "NewRoute" {
+				continue
+			}
+			params, err := ctorscan.ScanParams(fd, f, entry.Name(), polaPackage)
+			return true, params, err
+		}
+	}
+	return false, nil, nil
 }
 
 // discoverRoutePackages walks the routes/ directory and returns metadata
@@ -164,33 +209,52 @@ func discoverRoutePackages(projectDir, modPath string) []autoload.RoutePackageIn
 	return pkgs
 }
 
-// routeInitData drives the route_init_go.tmpl template. The discovery logic
-// below derives the imports, factory body, and constructor args; the template
-// only renders the file skeleton.
+// routeInitData drives the route_init_go.tmpl template.
 type routeInitData struct {
 	PkgName    string
-	HasStruct  bool     // package declares a Route struct (struct-based)
-	HasDep     bool     // Route struct has constructor dependencies
-	Imports    []string // raw import paths; the template quotes them
-	Body       []string // factory body lines, e.g. "svc := core.MustInvoke[*pkg.T](r)"
-	Args       string   // joined NewRoute arguments
-	FuncRoutes []string // verb names of package-level function routes
+	HasStruct  bool              // package declares a Route struct
+	HasDep     bool              // Route struct has constructor dependencies
+	Imports    []ctorscan.Import // alias-aware imports
+	Body       []string          // factory body lines
+	Args       string            // joined NewRoute arguments
+	FuncRoutes []string          // verb names of package-level function routes
 }
 
 // generateRouteInit returns the source for a pola_route_init.go file that
 // registers struct-based and/or function-based routes via init().
-func generateRouteInit(pkgName, polaPackage, modPath string, dep *autoload.RouteServiceDep, hasStruct bool, funcRoutes []string) ([]byte, error) {
-	imports := []string{polaPackage + "/routes"}
+//
+// When hasCtor is true, args and body are derived from the NewRoute
+// constructor parameters (registry-style; zero params → NewRoute()).
+// When hasCtor is false, the legacy field-scan dep is used.
+func generateRouteInit(pkgName, polaPackage, modPath string, dep *autoload.RouteServiceDep, hasStruct bool, funcRoutes []string, hasCtor bool, ctorParams []ctorscan.Param) ([]byte, error) {
+	imports := []ctorscan.Import{{Path: polaPackage + "/routes"}}
 	if hasStruct {
-		imports = append(imports, polaPackage+"/core")
+		imports = append(imports, ctorscan.Import{Path: polaPackage + "/core"})
 	}
-	data := routeInitData{PkgName: pkgName, HasStruct: hasStruct, FuncRoutes: funcRoutes, Imports: imports}
+	data := routeInitData{PkgName: pkgName, HasStruct: hasStruct, FuncRoutes: funcRoutes}
 
-	if dep != nil {
+	if hasStruct && hasCtor {
+		data.HasDep = true
+		var body, args []string
+		for i, p := range ctorParams {
+			if p.IsRegistry {
+				args = append(args, "r")
+				continue
+			}
+			local := fmt.Sprintf("p%d", i)
+			body = append(body, fmt.Sprintf("%s := core.MustInvoke[%s](r)", local, p.Type))
+			args = append(args, local)
+		}
+		data.Body = body
+		data.Args = strings.Join(args, ", ")
+		skip := map[string]struct{}{polaPackage + "/core": {}}
+		extra, _ := ctorscan.MergeImports(ctorParams, skip)
+		imports = append(imports, extra...)
+	} else if dep != nil {
 		data.HasDep = true
 		var body, args []string
 		if dep.ServicePkg != "" {
-			imports = append(imports, dep.ServicePath)
+			imports = append(imports, ctorscan.Import{Path: dep.ServicePath})
 			if dep.ServiceInterface {
 				body = append(body, fmt.Sprintf("svc := core.MustInvoke[%s.%s](r)", dep.ServicePkg, dep.ServiceType))
 			} else {
@@ -199,19 +263,19 @@ func generateRouteInit(pkgName, polaPackage, modPath string, dep *autoload.Route
 			args = append(args, "svc")
 		}
 		if dep.HasStorage {
-			imports = append(imports, polaPackage+"/storage")
+			imports = append(imports, ctorscan.Import{Path: polaPackage + "/storage"})
 			body = append(body, "store := core.MustInvoke[storage.Storage](r)")
 			args = append(args, "store")
 		}
 		if dep.BlobRepo != "" && modPath != "" {
-			imports = append(imports, modPath+"/repositories")
+			imports = append(imports, ctorscan.Import{Path: modPath + "/repositories"})
 			body = append(body, fmt.Sprintf("blobs := core.MustInvoke[repositories.%s](r)", dep.BlobRepo))
 			args = append(args, "blobs")
 		}
-		data.Imports = imports
 		data.Body = body
 		data.Args = strings.Join(args, ", ")
 	}
+	data.Imports = imports
 
 	var buf strings.Builder
 	if err := routeInitTmpl.Execute(&buf, data); err != nil {

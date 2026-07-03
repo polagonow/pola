@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/polagonow/pola/internal/autoload/ctorscan"
 	"github.com/polagonow/pola/polafile"
 )
 
@@ -42,13 +43,14 @@ type Context struct {
 // Discovery accumulates results from earlier autoloads so that later ones
 // (e.g. pluginimports) can read them without coupling to specific autoloads.
 type Discovery struct {
-	ActionsImport string
-	HasActions    bool
-	RoutePkgs     []RoutePackageInfo
-	RepoDisco     *RepoDiscovery
-	SvcDisco      *SvcDiscovery
-	TSOutPath     string
-	MCPDisco      *MCPDiscovery
+	ActionsImport  string
+	HasActions     bool
+	RoutePkgs      []RoutePackageInfo
+	RepoDisco      *RepoDiscovery
+	EntClientDisco *EntClientDiscovery
+	SvcDisco       *SvcDiscovery
+	TSOutPath      string
+	MCPDisco       *MCPDiscovery
 }
 
 // MCPDiscovery holds the constructors discovered under mcp/tools, mcp/resources,
@@ -151,30 +153,51 @@ type RoutePackageInfo struct {
 	PkgName    string // e.g. "uganda"
 }
 
-// PluginEntry holds a discovered plugin name with its pre-computed snake_case form.
+// PluginEntry holds a discovered plugin name with its pre-computed snake_case
+// form and — for param-aware entries — the ordered constructor parameters
+// and the precomputed positional argument list ("r", "p0", "r, p1", ...).
+// HasInterface signals to the services template that a matching
+// {Name}ServiceInterface exists and the alias provider should be emitted.
 type PluginEntry struct {
-	Name      string // e.g. "User"
-	SnakeName string // e.g. "user"
+	Name         string
+	SnakeName    string
+	Params       []ctorscan.Param
+	Args         string
+	HasInterface bool
 }
 
 // RepoDiscovery holds discovered repository registration info for the overlay.
+// ExtraImports lists imports required by constructor parameters (deduped).
 type RepoDiscovery struct {
-	ImportPath   string        // e.g. "myapp/repositories/gorm"
-	RepoImport   string        // e.g. "myapp/repositories"
-	ModulePath   string        // e.g. "myapp"
-	EntClientDir string        // e.g. "db/orm/ent"
-	RepoDir      string        // e.g. "repositories"
-	ORM          string        // e.g. "gorm", "ent", "beego"
-	PkgName      string        // e.g. "gorm"
-	Repositories []PluginEntry // e.g. [{Name: "User", SnakeName: "user"}]
+	PolaPackage  string
+	ImportPath   string
+	RepoImport   string
+	ModulePath   string
+	EntClientDir string
+	RepoDir      string
+	ORM          string
+	PkgName      string
+	Repositories []PluginEntry
+	ExtraImports []ctorscan.Import
+}
+
+// EntClientDiscovery is populated by the entclient autoload when an
+// EntClientPlugin has been emitted; the top-level plugin manifest uses it to
+// reference the plugin in PolaPlugins. PkgName is the local package name at
+// the emission site and ImportPath is the fully-qualified module path.
+type EntClientDiscovery struct {
+	PkgName    string
+	ImportPath string
 }
 
 // SvcDiscovery holds discovered service constructor info for the overlay.
+// ExtraImports lists imports required by constructor parameters (deduped).
 type SvcDiscovery struct {
-	ImportPath string        // e.g. "myapp/services"
-	RepoImport string        // e.g. "myapp/repositories"
-	PkgName    string        // e.g. "services"
-	Services   []PluginEntry // e.g. [{Name: "User", SnakeName: "user"}]
+	ImportPath   string
+	RepoImport   string
+	PkgName      string
+	Services     []PluginEntry
+	ExtraImports []ctorscan.Import
 }
 
 // RouteServiceDep holds the service dependency info discovered in a route package.

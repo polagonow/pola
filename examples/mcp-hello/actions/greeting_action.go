@@ -3,6 +3,7 @@ package actions
 import (
 	"context"
 
+	"github.com/polagonow/pola/core"
 	"mcp-hello/repositories"
 	"mcp-hello/services"
 
@@ -29,9 +30,10 @@ type GreetingAction struct {
 	svc *services.GreetingService
 }
 
-// NewGreetingAction creates a GreetingAction with its service dependency.
-func NewGreetingAction(svc *services.GreetingService) *GreetingAction {
-	return &GreetingAction{svc: svc}
+// NewGreetingAction creates a GreetingAction, resolving its dependencies from
+// the DI registry.
+func NewGreetingAction(r *core.Registry) *GreetingAction {
+	return &GreetingAction{svc: core.MustInvoke[*services.GreetingService](r)}
 }
 
 // List returns a paginated list of Greeting entities. Becomes GreetingAction.list(page, perPage) in JavaScript.

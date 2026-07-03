@@ -347,7 +347,7 @@ func runNew(cmd *cobra.Command, args []string) error {
 	pluginsPath := filepath.Join(targetDir, "pola_plugins.go")
 	pluginsSrc, err := pluginimports.GenerateSource(pluginOpts, actionsImport, []string{
 		modulePath + "/routes/health",
-	}, nil, nil, nil)
+	}, nil, nil, nil, nil)
 	if err != nil {
 		return fmt.Errorf("generate plugins: %w", err)
 	}

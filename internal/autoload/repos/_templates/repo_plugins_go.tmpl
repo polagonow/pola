@@ -4,51 +4,27 @@ package {{.PkgName}}
 import (
 	"{{.PolaPackage}}/core"
 	"{{.RepoImport}}"
-{{- if eq .ORM "gorm"}}
-	"gorm.io/gorm"
-{{- end}}
-{{- if eq .ORM "ent"}}
-	"{{.ModulePath}}/{{.EntClientDir}}"
-	entsql "entgo.io/ent/dialect/sql"
-{{- end}}
-{{- if eq .ORM "beego"}}
-	"github.com/beego/beego/v2/client/orm"
+{{- range .ExtraImports}}
+	{{if .Alias}}{{.Alias}} {{end}}"{{.Path}}"
 {{- end}}
 )
-{{range .Repositories}}
+{{- range .Repositories}}
 // {{.Name}}RepositoryPlugin returns a Plugin that registers the {{.Name}}Repository.
 func {{.Name}}RepositoryPlugin() core.Plugin {
 	return core.PluginFunc{
 		PluginName: "{{.SnakeName}}-repository",
 		Fn: func(r *core.Registry) {
-{{- if eq $.ORM "gorm"}}
 			core.Provide[repositories.{{.Name}}Repository](r, func() (repositories.{{.Name}}Repository, error) {
-				db, err := core.Invoke[*gorm.DB](r)
+{{- range $i, $p := .Params}}
+{{- if not $p.IsRegistry}}
+				p{{$i}}, err := core.Invoke[{{$p.Type}}](r)
 				if err != nil {
 					return nil, err
 				}
-				return New{{.Name}}Repository(db), nil
-			})
 {{- end}}
-{{- if eq $.ORM "ent"}}
-			core.Provide[repositories.{{.Name}}Repository](r, func() (repositories.{{.Name}}Repository, error) {
-				drv, err := core.Invoke[*entsql.Driver](r)
-				if err != nil {
-					return nil, err
-				}
-				client := ent.NewClient(ent.Driver(drv))
-				return New{{.Name}}Repository(client), nil
-			})
 {{- end}}
-{{- if eq $.ORM "beego"}}
-			core.Provide[repositories.{{.Name}}Repository](r, func() (repositories.{{.Name}}Repository, error) {
-				o, err := core.Invoke[orm.Ormer](r)
-				if err != nil {
-					return nil, err
-				}
-				return New{{.Name}}Repository(o), nil
+				return New{{.Name}}Repository({{.Args}}), nil
 			})
-{{- end}}
 		},
 	}
 }

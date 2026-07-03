@@ -5,10 +5,20 @@ import (
 	"errors"
 	"testing"
 
-	"[[ .ModulePath ]]/repositories"
-
+	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/repository"
+
+	"[[ .ModulePath ]]/repositories"
+	"[[ .ModulePath ]]/services"
 )
+
+// newTest[[ .Name ]] wires the action to the given mock service through a
+// fresh DI registry, exercising the real registry-style constructor.
+func newTest[[ .Name ]](svc services.[[ .ServiceName ]]ServiceInterface) *[[ .Name ]] {
+	r := core.NewRegistry()
+	core.ProvideValue[services.[[ .ServiceName ]]ServiceInterface](r, svc)
+	return New[[ .Name ]](r)
+}
 
 // mock[[ .ServiceName ]]Service satisfies services.[[ .ServiceName ]]ServiceInterface.
 type mock[[ .ServiceName ]]Service struct {
@@ -60,7 +70,7 @@ func Test[[ .Name ]]_List(t *testing.T) {
 			return want, nil
 		},
 	}
-	a := New[[ .Name ]](svc)
+	a := newTest[[ .Name ]](svc)
 	got, err := a.List(2, 25)
 	if err != nil {
 		t.Fatalf("List: %v", err)
@@ -77,7 +87,7 @@ func Test[[ .Name ]]_Get(t *testing.T) {
 			return want, nil
 		},
 	}
-	a := New[[ .Name ]](svc)
+	a := newTest[[ .Name ]](svc)
 [[ if eq .IDGoType "string" -]]
 	got, err := a.Get("")
 [[ else -]]
@@ -98,7 +108,7 @@ func Test[[ .Name ]]_Get_PropagatesError(t *testing.T) {
 			return nil, wantErr
 		},
 	}
-	a := New[[ .Name ]](svc)
+	a := newTest[[ .Name ]](svc)
 [[ if eq .IDGoType "string" -]]
 	if _, err := a.Get(""); !errors.Is(err, wantErr) {
 [[ else -]]

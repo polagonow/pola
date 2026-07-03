@@ -3,6 +3,7 @@ package gorm
 import (
 	"gorm.io/gorm"
 
+	"[[.PolaPackage]]/core"
 	"[[.PolaPackage]]/repository"
 	gormrepo "[[.PolaPackage]]/repository/gorm"
 
@@ -20,8 +21,10 @@ type [[.LowerName]]Repository struct {
 	db *gorm.DB
 }
 
-// New[[.Name]]Repository creates a new GORM-backed [[.Name]]Repository.
-func New[[.Name]]Repository(db *gorm.DB) repositories.[[.Name]]Repository {
+// New[[.Name]]Repository creates a new GORM-backed [[.Name]]Repository,
+// resolving its dependencies from the DI registry.
+func New[[.Name]]Repository(r *core.Registry) repositories.[[.Name]]Repository {
+	db := core.MustInvoke[*gorm.DB](r)
 	return &[[.LowerName]]Repository{
 [[- if eq .IDGoType "string"]]
 		Repository: gormrepo.New[repositories.[[.Name]], string](db, repository.WithNewID(uuid.NewString)),

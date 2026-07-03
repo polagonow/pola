@@ -204,6 +204,80 @@ func TestCamelCase(t *testing.T) {
 	}
 }
 
+// TestGenerateGoRegistryConstructor verifies that a constructor taking
+// *core.Registry receives the literal r in the generated bridge (no
+// core.MustInvoke call), and that the core package is imported exactly
+// once (from the fixed template header, not the constructor imports).
+func TestGenerateGoRegistryConstructor(t *testing.T) {
+	polaPackage := "github.com/polagonow/pola"
+	result := &ParseResult{
+		PackageName: "actions",
+		Actions: []ActionDef{{
+			StructName: "Blog",
+			Methods: []MethodDef{{
+				GoName: "GetPosts", JSName: "getPosts", HasReturn: true,
+			}},
+			Constructor: &ConstructorDef{
+				FuncName: "NewBlog",
+				Params: []FieldDef{{
+					Name:     "r",
+					GoType:   "*" + polaPackage + "/core.Registry",
+					TypePath: polaPackage + "/core",
+				}},
+			},
+		}},
+	}
+	src, err := GenerateGo(result, polaPackage)
+	if err != nil {
+		t.Fatalf("GenerateGo: %v", err)
+	}
+	s := string(src)
+	if !strings.Contains(s, "blog: NewBlog(r)") {
+		t.Errorf("want registry passthrough constructor call, got:\n%s", s)
+	}
+	if strings.Contains(s, "core.MustInvoke[*core.Registry](r)") {
+		t.Errorf("must not resolve *core.Registry via MustInvoke, got:\n%s", s)
+	}
+	if count := strings.Count(s, `"`+polaPackage+`/core"`); count != 1 {
+		t.Errorf("core import count = %d, want 1 (from template header only)", count)
+	}
+}
+
+// TestGenerateGoMixedRegistryAndDep covers a constructor with a *core.Registry
+// param and a normal dep param — the registry passes through as r, the dep
+// resolves via core.MustInvoke, and only its own path is imported.
+func TestGenerateGoMixedRegistryAndDep(t *testing.T) {
+	polaPackage := "github.com/polagonow/pola"
+	result := &ParseResult{
+		PackageName: "actions",
+		Actions: []ActionDef{{
+			StructName: "Blog",
+			Methods:    []MethodDef{{GoName: "GetPosts", JSName: "getPosts", HasReturn: true}},
+			Constructor: &ConstructorDef{
+				FuncName: "NewBlog",
+				Params: []FieldDef{
+					{Name: "r", GoType: "*" + polaPackage + "/core.Registry", TypePath: polaPackage + "/core"},
+					{Name: "svc", GoType: "*testapp/services.BlogService", TypePath: "testapp/services"},
+				},
+			},
+		}},
+	}
+	src, err := GenerateGo(result, polaPackage)
+	if err != nil {
+		t.Fatalf("GenerateGo: %v", err)
+	}
+	s := string(src)
+	if !strings.Contains(s, "blog: NewBlog(r, core.MustInvoke[*services.BlogService](r))") {
+		t.Errorf("want mixed passthrough constructor call, got:\n%s", s)
+	}
+	if !strings.Contains(s, `"testapp/services"`) {
+		t.Errorf("want services import, got:\n%s", s)
+	}
+	if count := strings.Count(s, `"`+polaPackage+`/core"`); count != 1 {
+		t.Errorf("core import count = %d, want 1", count)
+	}
+}
+
 func TestNoActions(t *testing.T) {
 	tmpDir := t.TempDir()
 	actionsDir := filepath.Join(tmpDir, "actions")

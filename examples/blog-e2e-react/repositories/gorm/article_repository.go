@@ -3,6 +3,7 @@ package gorm
 import (
 	"gorm.io/gorm"
 
+	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/repository"
 	gormrepo "github.com/polagonow/pola/repository/gorm"
 
@@ -17,8 +18,10 @@ type articleRepository struct {
 	db *gorm.DB
 }
 
-// NewArticleRepository creates a new GORM-backed ArticleRepository.
-func NewArticleRepository(db *gorm.DB) repositories.ArticleRepository {
+// NewArticleRepository creates a new GORM-backed ArticleRepository, resolving
+// its dependencies from the DI registry.
+func NewArticleRepository(r *core.Registry) repositories.ArticleRepository {
+	db := core.MustInvoke[*gorm.DB](r)
 	return &articleRepository{
 		Repository: gormrepo.New[repositories.Article, uint](db),
 		db:         db,

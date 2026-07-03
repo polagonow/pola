@@ -1,9 +1,10 @@
 package services
 
 import (
-	"validation/repositories"
-
+	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/service"
+
+	"validation/repositories"
 )
 
 // ContactServiceInterface is the contract for contact business logic. It embeds
@@ -21,8 +22,10 @@ type ContactService struct {
 	repo repositories.ContactRepository
 }
 
-// NewContactService creates a new ContactService.
-func NewContactService(repo repositories.ContactRepository) *ContactService {
+// NewContactService creates a new ContactService, resolving its dependencies
+// from the DI registry.
+func NewContactService(r *core.Registry) *ContactService {
+	repo := core.MustInvoke[repositories.ContactRepository](r)
 	return &ContactService{
 		Service: service.New(repo),
 		repo:    repo,

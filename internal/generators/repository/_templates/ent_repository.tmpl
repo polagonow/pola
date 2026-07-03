@@ -1,11 +1,11 @@
 package ent
 
 import (
-	"[[.ModulePath]]/[[.EntClientDir]]"
-
+	"[[.PolaPackage]]/core"
 	"[[.PolaPackage]]/repository"
 	entrepo "[[.PolaPackage]]/repository/ent"
 
+	"[[.ModulePath]]/[[.EntClientDir]]"
 	"[[.ModulePath]]/repositories"
 [[- if eq .IDGoType "string"]]
 	"github.com/google/uuid"
@@ -22,8 +22,10 @@ type [[.LowerName]]Repository struct {
 	client *ent.Client
 }
 
-// New[[.Name]]Repository creates a new Ent-backed [[.Name]]Repository.
-func New[[.Name]]Repository(client *ent.Client) repositories.[[.Name]]Repository {
+// New[[.Name]]Repository creates a new Ent-backed [[.Name]]Repository,
+// resolving its dependencies from the DI registry.
+func New[[.Name]]Repository(r *core.Registry) repositories.[[.Name]]Repository {
+	client := core.MustInvoke[*ent.Client](r)
 	return &[[.LowerName]]Repository{
 [[- if eq .IDGoType "string"]]
 		Repository: entrepo.New[repositories.[[.Name]], string](client, repository.WithNewID(uuid.NewString)),
