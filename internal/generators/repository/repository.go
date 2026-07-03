@@ -21,16 +21,8 @@ import (
 //go:embed all:_templates
 var templates embed.FS
 
-var (
-	interfaceTmpl = template.Must(
-		template.New("repository_interface.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/repository_interface.tmpl"),
-	)
-	paginationTmpl = template.Must(
-		template.New("pagination_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/pagination_go.tmpl"),
-	)
-	paginationTestTmpl = template.Must(
-		template.New("pagination_test_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/pagination_test_go.tmpl"),
-	)
+var interfaceTmpl = template.Must(
+	template.New("repository_interface.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/repository_interface.tmpl"),
 )
 
 // ormTestTemplate returns the test template paired with the named ORM's
@@ -180,6 +172,7 @@ func (g *RepositoryGenerator) run(cmd *cobra.Command, args []string) error {
 	data := buildData(def, modulePath)
 	data.PolaPackage = pf.PolaPackage()
 	data.EntClientDir = pf.DatabaseEntClientDir()
+	data.ORM = orm
 
 	// Ensure repository directory exists.
 	interfaceDir := filepath.Join(projectDir, repoDir)
@@ -187,33 +180,9 @@ func (g *RepositoryGenerator) run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("create repository dir: %w", err)
 	}
 
-	// Generate shared pagination.go once (skip if it already exists).
-	paginationPath := filepath.Join(interfaceDir, "pagination.go")
-	if _, err := os.Stat(paginationPath); os.IsNotExist(err) {
-		var pbuf strings.Builder
-		if err := paginationTmpl.Execute(&pbuf, nil); err != nil {
-			return fmt.Errorf("execute pagination template: %w", err)
-		}
-		if err := os.WriteFile(paginationPath, []byte(pbuf.String()), 0o644); err != nil {
-			return fmt.Errorf("write %s: %w", paginationPath, err)
-		}
-		fmt.Printf("Created %s\n", paginationPath)
-	}
-
-	// Generate shared pagination_test.go once.
-	if generators.ShouldGenerateTests(cmd, pf.GenerateTests()) {
-		paginationTestPath := filepath.Join(interfaceDir, "pagination_test.go")
-		if _, err := os.Stat(paginationTestPath); os.IsNotExist(err) {
-			var pbuf strings.Builder
-			if err := paginationTestTmpl.Execute(&pbuf, nil); err != nil {
-				return fmt.Errorf("execute pagination test template: %w", err)
-			}
-			if err := os.WriteFile(paginationTestPath, []byte(pbuf.String()), 0o644); err != nil {
-				return fmt.Errorf("write %s: %w", paginationTestPath, err)
-			}
-			fmt.Printf("Created %s\n", paginationTestPath)
-		}
-	}
+	// Pagination types (ListParams/ListResult/DefaultPerPage) live in the
+	// framework's repository package; generated services and routes reference
+	// them directly, so no per-project pagination.go is emitted.
 
 	// Generate interface file.
 	interfacePath := filepath.Join(interfaceDir, data.SnakeName+"_repository.go")
@@ -276,6 +245,7 @@ type repoData struct {
 	PluralSnake  string
 	EntPackage   string // all-lowercase name used by ent for sub-packages (e.g. "sampleentity")
 	EntClientDir string // directory for ent-generated client (e.g. "db/ent")
+	ORM          string // selected ORM ("gorm", "ent", "beego")
 	IDGoType     string // "uint" or "string"
 	Fields       []repoField
 	Imports      []string

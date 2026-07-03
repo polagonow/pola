@@ -5,6 +5,8 @@ import (
 
 	"mcp-hello/repositories"
 	"mcp-hello/services"
+
+	"github.com/polagonow/pola/repository"
 )
 
 // GreetingAction exposes functions and variables to JavaScript via the Pola bridge.
@@ -33,8 +35,8 @@ func NewGreetingAction(svc *services.GreetingService) *GreetingAction {
 }
 
 // List returns a paginated list of Greeting entities. Becomes GreetingAction.list(page, perPage) in JavaScript.
-func (a *GreetingAction) List(page, perPage int) (*repositories.ListResult[*repositories.Greeting], error) {
-	return a.svc.List(context.TODO(), repositories.ListParams{Page: page, PerPage: perPage})
+func (a *GreetingAction) List(page, perPage int) (*repository.ListResult[*repositories.Greeting], error) {
+	return a.svc.List(context.TODO(), repository.ListParams{Page: page, PerPage: perPage})
 }
 
 // Get returns a single Greeting by ID. Becomes GreetingAction.Get(id) in JavaScript.

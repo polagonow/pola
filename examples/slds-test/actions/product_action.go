@@ -5,6 +5,8 @@ import (
 
 	"slds-test/repositories"
 	"slds-test/services"
+
+	"github.com/polagonow/pola/repository"
 )
 
 // ProductAction exposes functions and variables to JavaScript via the Pola bridge.
@@ -33,8 +35,8 @@ func NewProductAction(svc *services.ProductService) *ProductAction {
 }
 
 // List returns a paginated list of Product entities. Becomes ProductAction.list(page, perPage) in JavaScript.
-func (a *ProductAction) List(page, perPage int) (*repositories.ListResult[*repositories.Product], error) {
-	return a.svc.List(context.TODO(), repositories.ListParams{Page: page, PerPage: perPage})
+func (a *ProductAction) List(page, perPage int) (*repository.ListResult[*repositories.Product], error) {
+	return a.svc.List(context.TODO(), repository.ListParams{Page: page, PerPage: perPage})
 }
 
 // Get returns a single Product by ID. Becomes ProductAction.Get(id) in JavaScript.
