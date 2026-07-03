@@ -1,20 +1,21 @@
 table "todos" {
   schema = schema.main
   column "id" {
-    null = true
-    type = sql("bigserial")
+    null           = true
+    type           = integer
+    auto_increment = true
   }
   column "created_at" {
     null = true
-    type = sql("timestamptz")
+    type = datetime
   }
   column "updated_at" {
     null = true
-    type = sql("timestamptz")
+    type = datetime
   }
   column "deleted_at" {
     null = true
-    type = sql("timestamptz")
+    type = datetime
   }
   column "title" {
     null = true
@@ -22,7 +23,7 @@ table "todos" {
   }
   column "completed" {
     null = true
-    type = boolean
+    type = numeric
   }
   primary_key {
     columns = [column.id]

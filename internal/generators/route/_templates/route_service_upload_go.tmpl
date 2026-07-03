@@ -22,9 +22,13 @@ type Route struct {
 	blobs repositories.StorageBlobRepository
 }
 
-// NewRoute creates a Route with its dependencies.
-func NewRoute(svc services.[[ .ServiceName ]]ServiceInterface, store storage.Storage, blobs repositories.StorageBlobRepository) *Route {
-	return &Route{svc: svc, store: store, blobs: blobs}
+// NewRoute creates a Route, resolving its dependencies from the DI registry.
+func NewRoute(r *core.Registry) *Route {
+	return &Route{
+		svc:   core.MustInvoke[services.[[ .ServiceName ]]ServiceInterface](r),
+		store: core.MustInvoke[storage.Storage](r),
+		blobs: core.MustInvoke[repositories.StorageBlobRepository](r),
+	}
 }
 [[ range .Methods ]]
 [[ if eq . "GET" -]]

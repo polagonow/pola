@@ -6,6 +6,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 
+	"github.com/polagonow/pola/core"
 	"[[.ModulePath]]/[[.EntClientDir]]"
 	"[[.ModulePath]]/repositories"
 
@@ -29,13 +30,17 @@ func new[[.Name]]TestClient(t *testing.T) *ent.Client {
 
 // Test[[.Name]]Repository_CRUD is a wiring smoke test: it proves the entity
 // round-trips through the framework-backed repository against the generated
-// ent client. Behavioral coverage (pagination math, error wrapping, field
-// dispatch) lives in the framework's repository conformance tests.
+// ent client, constructed through the DI registry. Behavioral coverage
+// (pagination math, error wrapping, field dispatch) lives in the framework's
+// repository conformance tests.
 func Test[[.Name]]Repository_CRUD(t *testing.T) {
 	if testing.Short() {
 		t.Skip("integration test")
 	}
-	repo := New[[.Name]]Repository(new[[.Name]]TestClient(t))
+	client := new[[.Name]]TestClient(t)
+	r := core.NewRegistry()
+	core.ProvideValue[*ent.Client](r, client)
+	repo := New[[.Name]]Repository(r)
 	ctx := context.Background()
 
 	entity := &repositories.[[.Name]]{}

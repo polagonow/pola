@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 
+	"github.com/polagonow/pola/core"
 	"todo-api/repositories"
 )
 
@@ -22,9 +23,10 @@ type TodoService struct {
 	repo repositories.TodoRepository
 }
 
-// NewTodoService creates a new TodoService.
-func NewTodoService(repo repositories.TodoRepository) *TodoService {
-	return &TodoService{repo: repo}
+// NewTodoService creates a new TodoService, resolving its dependencies from
+// the DI registry.
+func NewTodoService(r *core.Registry) *TodoService {
+	return &TodoService{repo: core.MustInvoke[repositories.TodoRepository](r)}
 }
 
 // Create creates a new todo.

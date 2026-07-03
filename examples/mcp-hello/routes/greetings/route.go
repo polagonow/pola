@@ -17,9 +17,9 @@ type Route struct {
 	svc *services.GreetingService
 }
 
-// NewRoute creates a Route with its service dependency.
-func NewRoute(svc *services.GreetingService) *Route {
-	return &Route{svc: svc}
+// NewRoute creates a Route, resolving its dependencies from the DI registry.
+func NewRoute(r *core.Registry) *Route {
+	return &Route{svc: core.MustInvoke[*services.GreetingService](r)}
 }
 
 // GET /greetings

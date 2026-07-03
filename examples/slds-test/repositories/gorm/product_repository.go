@@ -3,6 +3,7 @@ package gorm
 import (
 	"gorm.io/gorm"
 
+	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/repository"
 	gormrepo "github.com/polagonow/pola/repository/gorm"
 
@@ -17,8 +18,10 @@ type productRepository struct {
 	db *gorm.DB
 }
 
-// NewProductRepository creates a new GORM-backed ProductRepository.
-func NewProductRepository(db *gorm.DB) repositories.ProductRepository {
+// NewProductRepository creates a new GORM-backed ProductRepository, resolving
+// its dependencies from the DI registry.
+func NewProductRepository(r *core.Registry) repositories.ProductRepository {
+	db := core.MustInvoke[*gorm.DB](r)
 	return &productRepository{
 		Repository: gormrepo.New[repositories.Product, uint](db),
 		db:         db,

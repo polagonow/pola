@@ -3,6 +3,7 @@ package gorm
 import (
 	"gorm.io/gorm"
 
+	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/repository"
 	gormrepo "github.com/polagonow/pola/repository/gorm"
 
@@ -17,8 +18,10 @@ type contactRepository struct {
 	db *gorm.DB
 }
 
-// NewContactRepository creates a new GORM-backed ContactRepository.
-func NewContactRepository(db *gorm.DB) repositories.ContactRepository {
+// NewContactRepository creates a new GORM-backed ContactRepository, resolving
+// its dependencies from the DI registry.
+func NewContactRepository(r *core.Registry) repositories.ContactRepository {
+	db := core.MustInvoke[*gorm.DB](r)
 	return &contactRepository{
 		Repository: gormrepo.New[repositories.Contact, uint](db),
 		db:         db,

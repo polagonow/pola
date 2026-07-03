@@ -8,10 +8,19 @@ import (
 	"testing"
 
 	"[[ .ModulePath ]]/repositories"
+	"[[ .ModulePath ]]/services"
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/repository"
 	"github.com/polagonow/pola/webframework/std"
 )
+
+// newTestRoute wires the route to the given mock service through a fresh DI
+// registry, exercising the real registry-style constructor.
+func newTestRoute(svc services.[[ .ServiceName ]]ServiceInterface) *Route {
+	r := core.NewRegistry()
+	core.ProvideValue[services.[[ .ServiceName ]]ServiceInterface](r, svc)
+	return NewRoute(r)
+}
 
 // mock[[ .ServiceName ]]Service is a hand-rolled mock satisfying
 // services.[[ .ServiceName ]]ServiceInterface. Each method is backed by a
@@ -72,42 +81,42 @@ func TestRoute_GET_List(t *testing.T) {
 			return &repository.ListResult[*repositories.[[ $.ServiceName ]]]{Page: params.Page, PerPage: params.PerPage}, nil
 		},
 	}
-	w := serve("GET", nil, NewRoute(svc).GET)
+	w := serve("GET", nil, newTestRoute(svc).GET)
 	if w.Code != 200 {
 		t.Fatalf("status: got %d want 200; body=%q", w.Code, w.Body.String())
 	}
 }
 [[ else if eq . "POST" -]]
 func TestRoute_POST_BadJSON(t *testing.T) {
-	w := serve("POST", strings.NewReader("not-json"), NewRoute(&mock[[ $.ServiceName ]]Service{}).POST)
+	w := serve("POST", strings.NewReader("not-json"), newTestRoute(&mock[[ $.ServiceName ]]Service{}).POST)
 	if w.Code != 400 {
 		t.Fatalf("status: got %d want 400 for bad JSON; body=%q", w.Code, w.Body.String())
 	}
 }
 [[ else if eq . "DELETE" -]]
 func TestRoute_DELETE_MissingID(t *testing.T) {
-	w := serve("DELETE", nil, NewRoute(&mock[[ $.ServiceName ]]Service{}).DELETE)
+	w := serve("DELETE", nil, newTestRoute(&mock[[ $.ServiceName ]]Service{}).DELETE)
 	if w.Code != 400 {
 		t.Fatalf("status: got %d want 400 for missing id; body=%q", w.Code, w.Body.String())
 	}
 }
 [[ else if eq . "PUT" -]]
 func TestRoute_PUT_MissingID(t *testing.T) {
-	w := serve("PUT", strings.NewReader(`{}`), NewRoute(&mock[[ $.ServiceName ]]Service{}).PUT)
+	w := serve("PUT", strings.NewReader(`{}`), newTestRoute(&mock[[ $.ServiceName ]]Service{}).PUT)
 	if w.Code != 400 {
 		t.Fatalf("status: got %d want 400 for missing id; body=%q", w.Code, w.Body.String())
 	}
 }
 [[ else if eq . "PATCH" -]]
 func TestRoute_PATCH_MissingID(t *testing.T) {
-	w := serve("PATCH", strings.NewReader(`{}`), NewRoute(&mock[[ $.ServiceName ]]Service{}).PATCH)
+	w := serve("PATCH", strings.NewReader(`{}`), newTestRoute(&mock[[ $.ServiceName ]]Service{}).PATCH)
 	if w.Code != 400 {
 		t.Fatalf("status: got %d want 400 for missing id; body=%q", w.Code, w.Body.String())
 	}
 }
 [[ else -]]
 func TestRoute_[[ . ]]_DoesNotPanic(t *testing.T) {
-	w := serve("[[ . ]]", nil, NewRoute(&mock[[ $.ServiceName ]]Service{}).[[ . ]])
+	w := serve("[[ . ]]", nil, newTestRoute(&mock[[ $.ServiceName ]]Service{}).[[ . ]])
 	_ = w.Result()
 }
 [[ end -]]

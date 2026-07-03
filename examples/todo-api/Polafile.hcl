@@ -6,8 +6,7 @@ pola {
   services     = "services"
 
   database {
-    url     = env("DATABASE_URL")
-    adapter = "postgresql"
+    adapter = "sqlite"
     orm     = "gorm"
   }
 

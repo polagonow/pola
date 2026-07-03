@@ -4,19 +4,19 @@ import (
 	"context"
 	"errors"
 
-	"beego-features-demo/services"
-
+	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/flash"
 	"github.com/polagonow/pola/i18n"
 	"github.com/polagonow/pola/middleware/session"
+	"beego-features-demo/services"
 )
 
 type Auth struct {
 	svc *services.UserService
 }
 
-func NewAuth(svc *services.UserService) *Auth {
-	return &Auth{svc: svc}
+func NewAuth(r *core.Registry) *Auth {
+	return &Auth{svc: core.MustInvoke[*services.UserService](r)}
 }
 
 func (a *Auth) Login(ctx context.Context, username, password string) (map[string]any, error) {

@@ -40,6 +40,22 @@ func TestRegistryProvideAndInvoke(t *testing.T) {
 	}
 }
 
+func TestRegistrySelfInvoke(t *testing.T) {
+	r := core.NewRegistry()
+
+	got, err := core.Invoke[*core.Registry](r)
+	if err != nil {
+		t.Fatalf("Invoke[*Registry]: %v", err)
+	}
+	if got != r {
+		t.Fatalf("Invoke[*Registry] returned a different registry")
+	}
+
+	if mustGot := core.MustInvoke[*core.Registry](r); mustGot != r {
+		t.Fatalf("MustInvoke[*Registry] returned a different registry")
+	}
+}
+
 func TestRegistryMiddlewareAndInjectors(t *testing.T) {
 	r := core.NewRegistry()
 

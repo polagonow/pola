@@ -1,9 +1,10 @@
 package services
 
 import (
-	"slds-test/repositories"
-
+	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/service"
+
+	"slds-test/repositories"
 )
 
 // ProductServiceInterface is the contract for product business logic. It embeds
@@ -21,8 +22,10 @@ type ProductService struct {
 	repo repositories.ProductRepository
 }
 
-// NewProductService creates a new ProductService.
-func NewProductService(repo repositories.ProductRepository) *ProductService {
+// NewProductService creates a new ProductService, resolving its dependencies
+// from the DI registry.
+func NewProductService(r *core.Registry) *ProductService {
+	repo := core.MustInvoke[repositories.ProductRepository](r)
 	return &ProductService{
 		Service: service.New(repo),
 		repo:    repo,

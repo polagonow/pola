@@ -4,17 +4,17 @@ import (
 	"context"
 	"errors"
 
-	"beego-features-demo/repositories"
-
 	"github.com/polagonow/pola/auth/password"
+	"github.com/polagonow/pola/core"
+	"beego-features-demo/repositories"
 )
 
 type UserService struct {
 	repo repositories.UserRepository
 }
 
-func NewUserService(repo repositories.UserRepository) *UserService {
-	return &UserService{repo: repo}
+func NewUserService(r *core.Registry) *UserService {
+	return &UserService{repo: core.MustInvoke[repositories.UserRepository](r)}
 }
 
 func (s *UserService) Register(ctx context.Context, username, pass, displayName string) (*repositories.User, error) {

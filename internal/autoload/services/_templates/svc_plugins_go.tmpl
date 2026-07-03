@@ -3,7 +3,9 @@ package {{.PkgName}}
 
 import (
 	"{{.PolaPackage}}/core"
-	"{{.RepoImport}}"
+{{- range .ExtraImports}}
+	{{if .Alias}}{{.Alias}} {{end}}"{{.Path}}"
+{{- end}}
 )
 {{range .Services}}
 // {{.Name}}ServicePlugin returns a Plugin that registers the {{.Name}}Service.
@@ -12,15 +14,21 @@ func {{.Name}}ServicePlugin() core.Plugin {
 		PluginName: "{{.SnakeName}}-service",
 		Fn: func(r *core.Registry) {
 			core.Provide[*{{.Name}}Service](r, func() (*{{.Name}}Service, error) {
-				repo, err := core.Invoke[repositories.{{.Name}}Repository](r)
+{{- range $i, $p := .Params}}
+{{- if not $p.IsRegistry}}
+				p{{$i}}, err := core.Invoke[{{$p.Type}}](r)
 				if err != nil {
 					return nil, err
 				}
-				return New{{.Name}}Service(repo), nil
+{{- end}}
+{{- end}}
+				return New{{.Name}}Service({{.Args}}), nil
 			})
+{{- if .HasInterface}}
 			core.Provide[{{.Name}}ServiceInterface](r, func() ({{.Name}}ServiceInterface, error) {
 				return core.Invoke[*{{.Name}}Service](r)
 			})
+{{- end}}
 		},
 	}
 }

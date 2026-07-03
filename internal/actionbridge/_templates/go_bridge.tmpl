@@ -28,7 +28,7 @@ func Plugin() core.Plugin {
 			g := &generatedBridge{
 				{{- range .Actions}}
 				{{- if .Constructor}}
-				{{fieldName .StructName}}: {{.Constructor.FuncName}}({{range $i, $p := .Constructor.Params}}{{if $i}}, {{end}}core.MustInvoke[{{goTypeShort $p.GoType}}](r){{end}}),
+				{{fieldName .StructName}}: {{.Constructor.FuncName}}({{range $i, $p := .Constructor.Params}}{{if $i}}, {{end}}{{ctorArg $p}}{{end}}),
 				{{- else}}
 				{{fieldName .StructName}}: &{{.StructName}}{},
 				{{- end}}

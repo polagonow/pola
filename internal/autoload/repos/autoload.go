@@ -14,6 +14,7 @@ import (
 	"text/template"
 
 	"github.com/polagonow/pola/internal/autoload"
+	"github.com/polagonow/pola/internal/autoload/ctorscan"
 	"github.com/polagonow/pola/internal/generators/model/schema"
 	"github.com/polagonow/pola/polafile"
 )
@@ -31,7 +32,7 @@ func init() {
 	autoload.Register(&autoloadImpl{})
 }
 
-func (a *autoloadImpl) Name() string { return "repos" }
+func (a *autoloadImpl) Name() string  { return "repos" }
 func (a *autoloadImpl) Priority() int { return 300 }
 
 func (a *autoloadImpl) Contribute(ctx *autoload.Context) error {
@@ -47,7 +48,10 @@ func (a *autoloadImpl) Contribute(ctx *autoload.Context) error {
 		entClientDir = pf.DatabaseEntClientDir()
 	}
 
-	repoDisco := discoverRepositoryRegistrations(ctx.ProjectDir, repoDir, entClientDir, ctx.Opts.Database, ctx.ModPath)
+	repoDisco, err := discoverRepositoryRegistrations(ctx.ProjectDir, repoDir, entClientDir, ctx.Opts.Database, ctx.ModPath, ctx.Opts.PolaPackage)
+	if err != nil {
+		return err
+	}
 	if repoDisco == nil {
 		return nil
 	}
@@ -55,23 +59,7 @@ func (a *autoloadImpl) Contribute(ctx *autoload.Context) error {
 	ctx.Discovery.RepoDisco = repoDisco
 
 	var buf strings.Builder
-	if err := repoPluginsTmpl.Execute(&buf, struct {
-		PolaPackage  string
-		PkgName      string
-		ORM          string
-		RepoImport   string
-		ModulePath   string
-		EntClientDir string
-		Repositories []autoload.PluginEntry
-	}{
-		PolaPackage:  ctx.Opts.PolaPackage,
-		PkgName:      repoDisco.PkgName,
-		ORM:          repoDisco.ORM,
-		RepoImport:   repoDisco.RepoImport,
-		ModulePath:   repoDisco.ModulePath,
-		EntClientDir: repoDisco.EntClientDir,
-		Repositories: repoDisco.Repositories,
-	}); err != nil {
+	if err := repoPluginsTmpl.Execute(&buf, repoDisco); err != nil {
 		return fmt.Errorf("execute repo plugins template: %w", err)
 	}
 
@@ -86,24 +74,37 @@ func (a *autoloadImpl) Contribute(ctx *autoload.Context) error {
 	return nil
 }
 
+type discoveredRepo struct {
+	name     string
+	filename string
+	fd       *ast.FuncDecl
+	file     *ast.File
+}
+
 // discoverRepositoryRegistrations scans repositories/{orm}/ for exported
-// New*Repository constructor functions and returns their names.
-func discoverRepositoryRegistrations(projectDir, repoDir, entClientDir, orm, modPath string) *autoload.RepoDiscovery {
+// New*Repository constructors, extracts each constructor's parameters via
+// ctorscan, and returns the merged plugin discovery data. Returns nil when
+// no repositories are found; returns an error when a constructor uses an
+// unsupported parameter shape.
+func discoverRepositoryRegistrations(projectDir, repoDir, entClientDir, orm, modPath, polaPackage string) (*autoload.RepoDiscovery, error) {
 	ormDir := filepath.Join(projectDir, repoDir, orm)
 	info, err := os.Stat(ormDir)
 	if err != nil || !info.IsDir() {
-		return nil
+		return nil, nil
 	}
 
 	entries, err := os.ReadDir(ormDir)
 	if err != nil {
-		return nil
+		return nil, nil
 	}
 
-	var repos []autoload.PluginEntry
+	var found []discoveredRepo
 	fset := token.NewFileSet()
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".go") {
+			continue
+		}
+		if strings.HasSuffix(entry.Name(), "_test.go") {
 			continue
 		}
 		f, err := parser.ParseFile(fset, filepath.Join(ormDir, entry.Name()), nil, 0)
@@ -119,22 +120,51 @@ func discoverRepositoryRegistrations(projectDir, repoDir, entClientDir, orm, mod
 			if strings.HasPrefix(name, "New") && strings.HasSuffix(name, "Repository") {
 				modelName := strings.TrimPrefix(name, "New")
 				modelName = strings.TrimSuffix(modelName, "Repository")
-				if modelName != "" {
-					repos = append(repos, autoload.PluginEntry{
-						Name:      modelName,
-						SnakeName: schema.SnakeCase(modelName),
-					})
+				if modelName == "" {
+					continue
 				}
+				found = append(found, discoveredRepo{name: modelName, filename: entry.Name(), fd: fd, file: f})
 			}
 		}
 	}
 
-	if len(repos) == 0 {
-		return nil
+	if len(found) == 0 {
+		return nil, nil
 	}
 
-	sort.Slice(repos, func(i, j int) bool { return repos[i].Name < repos[j].Name })
+	sort.Slice(found, func(i, j int) bool {
+		if found[i].name != found[j].name {
+			return found[i].name < found[j].name
+		}
+		return found[i].filename < found[j].filename
+	})
+
+	seen := map[string]struct{}{}
+	var repos []autoload.PluginEntry
+	var allParams []ctorscan.Param
+	for _, d := range found {
+		if _, dup := seen[d.name]; dup {
+			continue
+		}
+		seen[d.name] = struct{}{}
+		params, err := ctorscan.ScanParams(d.fd, d.file, d.filename, polaPackage)
+		if err != nil {
+			return nil, fmt.Errorf("autoload repos: %w", err)
+		}
+		allParams = append(allParams, params...)
+		repos = append(repos, autoload.PluginEntry{
+			Name:      d.name,
+			SnakeName: schema.SnakeCase(d.name),
+			Params:    params,
+			Args:      renderArgs(params),
+		})
+	}
+
+	skip := map[string]struct{}{polaPackage + "/core": {}}
+	extra, _ := ctorscan.MergeImports(allParams, skip)
+
 	return &autoload.RepoDiscovery{
+		PolaPackage:  polaPackage,
 		ImportPath:   modPath + "/" + filepath.ToSlash(filepath.Join(repoDir, orm)),
 		RepoImport:   modPath + "/" + filepath.ToSlash(repoDir),
 		ModulePath:   modPath,
@@ -143,5 +173,23 @@ func discoverRepositoryRegistrations(projectDir, repoDir, entClientDir, orm, mod
 		ORM:          orm,
 		PkgName:      orm,
 		Repositories: repos,
+		ExtraImports: extra,
+	}, nil
+}
+
+// renderArgs joins the constructor arguments in the same order as the params
+// slice. Registry params become "r"; others become "p0", "p1", ...
+func renderArgs(params []ctorscan.Param) string {
+	if len(params) == 0 {
+		return ""
 	}
+	parts := make([]string, len(params))
+	for i, p := range params {
+		if p.IsRegistry {
+			parts[i] = "r"
+		} else {
+			parts[i] = fmt.Sprintf("p%d", i)
+		}
+	}
+	return strings.Join(parts, ", ")
 }

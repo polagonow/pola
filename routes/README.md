@@ -306,9 +306,10 @@ The path must start with `/`.
 
 ## Dependency Injection
 
-Struct-based routes receive dependencies through a `NewRoute` constructor. The
-build-time overlay resolves each argument from the DI container and calls the
-constructor for you:
+Struct-based routes receive the DI registry through a `NewRoute(r *core.Registry)`
+constructor and pull whatever dependencies they need from it with
+`core.MustInvoke[T](r)`. The build-time overlay calls the constructor for you
+before any requests are served:
 
 ```go
 package posts
@@ -322,10 +323,11 @@ type Route struct {
     svc *services.PostService
 }
 
-// The generated overlay invokes NewRoute, resolving each argument from the
-// registry (core.MustInvoke), before any requests are served.
-func NewRoute(svc *services.PostService) *Route {
-    return &Route{svc: svc}
+// The generated overlay invokes NewRoute with the DI registry; the constructor
+// pulls its own dependencies out of it. Add or remove fields freely — no need
+// to touch a separate wiring layer.
+func NewRoute(r *core.Registry) *Route {
+    return &Route{svc: core.MustInvoke[*services.PostService](r)}
 }
 
 func (r *Route) GET(c core.Context) error {
@@ -337,9 +339,24 @@ func (r *Route) GET(c core.Context) error {
 }
 ```
 
-`pola generate route Posts --service=Post` scaffolds this wiring (service,
-storage, and repository dependencies are detected automatically). Function-based
-routes have no constructor, so `--func` cannot be combined with `--service`.
+`pola generate route Posts --service=Post` scaffolds this registry-style wiring.
+Function-based routes have no constructor, so `--func` cannot be combined with
+`--service`.
+
+**Backward-compatible explicit-dependency style also works.** If you prefer, list
+the dependencies as constructor parameters and the autoloader will resolve them
+by type — service interfaces, `storage.Storage`, and blob repositories are all
+picked up:
+
+```go
+func NewRoute(svc services.PostServiceInterface) *Route {
+    return &Route{svc: svc}
+}
+```
+
+Mixed signatures (`NewRoute(r *core.Registry, svc services.PostServiceInterface)`)
+are supported as well; the registry parameter is passed through verbatim while
+the other parameters are resolved with `core.Invoke[T]`.
 
 ## File Uploads
 

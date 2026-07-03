@@ -424,7 +424,7 @@ pola generate mcp <subcommand> [args]
 | `resource <Name>` | Create an MCP resource under `mcp/resources/` |
 | `prompt <Name>` | Create an MCP prompt under `mcp/prompts/` |
 
-Generated DI tools take `*core.Registry` in their constructor so they can resolve services, repositories, or any other plugin from the framework's DI container. A separate `mcp` autoload scans `mcp/{tools,resources,prompts}` for `New<Name>{Tool,Resource,Prompt}` constructors and emits per-package plugins that wire each provider to the running `*mcp.Server`.
+Repositories, services, routes, actions, and MCP tools/resources/prompts all follow the same pattern: their constructors take `*core.Registry` and resolve their own dependencies with `core.MustInvoke[T](r)`. Each autoload (`repos`, `services`, `routes`, `actionbridge`, `mcp`) scans the corresponding directory for `New*` constructors and emits per-package plugins that wire them into the DI container — including auto-generating an `EntClientPlugin` when an ent-backed repository is present, so `*ent.Client` becomes a first-class DI dependency. Backward-compat: an autoload also accepts explicit-dep signatures like `NewTodoService(repo repositories.TodoRepository)` and resolves them by type.
 
 **Examples**
 

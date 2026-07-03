@@ -36,7 +36,7 @@ func (a *autoloadImpl) Contribute(ctx *autoload.Context) error {
 		routeImports[i] = rp.ImportPath
 	}
 
-	pluginsSrc, err := GenerateSource(ctx.Opts, ctx.Discovery.ActionsImport, routeImports, ctx.Discovery.RepoDisco, ctx.Discovery.SvcDisco, ctx.Discovery.MCPDisco)
+	pluginsSrc, err := GenerateSource(ctx.Opts, ctx.Discovery.ActionsImport, routeImports, ctx.Discovery.RepoDisco, ctx.Discovery.EntClientDisco, ctx.Discovery.SvcDisco, ctx.Discovery.MCPDisco)
 	if err != nil {
 		return fmt.Errorf("generate plugins: %w", err)
 	}
@@ -58,7 +58,7 @@ func (a *autoloadImpl) Contribute(ctx *autoload.Context) error {
 // GenerateSource returns the source for pola_plugins.go. This is exported
 // so that the "pola new" command can call it directly (without running the
 // full autoload pipeline) to produce a temporary file for go mod tidy.
-func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports []string, repoDisco *autoload.RepoDiscovery, svcDisco *autoload.SvcDiscovery, mcpDisco *autoload.MCPDiscovery) ([]byte, error) {
+func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports []string, repoDisco *autoload.RepoDiscovery, entClientDisco *autoload.EntClientDiscovery, svcDisco *autoload.SvcDiscovery, mcpDisco *autoload.MCPDiscovery) ([]byte, error) {
 	hasCSS := opts.CSS != "" && opts.CSS != "none"
 	hasCache := opts.Cache != "" && opts.Cache != "none"
 	hasDatabase := opts.Database != ""
@@ -99,6 +99,7 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		ActionsImport   string
 		RouteImports    []string
 		RepoPlugins     *autoload.RepoDiscovery
+		EntClient       *autoload.EntClientDiscovery
 		ServicePlugins  *autoload.SvcDiscovery
 		HasStorage      bool
 		StorageDriver   string // "fs" or "rclone"
@@ -164,6 +165,7 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		ActionsImport:   actionsImport,
 		RouteImports:    routeImports,
 		RepoPlugins:     repoDisco,
+		EntClient:       entClientDisco,
 		ServicePlugins:  svcDisco,
 		HasStorage:      hasStorage,
 		StorageDriver:   opts.StorageDriver,

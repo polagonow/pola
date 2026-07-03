@@ -1,9 +1,10 @@
 package services
 
 import (
-	"blog-e2e-react/repositories"
-
+	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/service"
+
+	"blog-e2e-react/repositories"
 )
 
 // SampleEntityServiceInterface is the contract for sample_entity business logic. It embeds
@@ -21,8 +22,10 @@ type SampleEntityService struct {
 	repo repositories.SampleEntityRepository
 }
 
-// NewSampleEntityService creates a new SampleEntityService.
-func NewSampleEntityService(repo repositories.SampleEntityRepository) *SampleEntityService {
+// NewSampleEntityService creates a new SampleEntityService, resolving its
+// dependencies from the DI registry.
+func NewSampleEntityService(r *core.Registry) *SampleEntityService {
+	repo := core.MustInvoke[repositories.SampleEntityRepository](r)
 	return &SampleEntityService{
 		Service: service.New(repo),
 		repo:    repo,

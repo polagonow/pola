@@ -155,6 +155,13 @@ func Parse(actionsDir string) (*ParseResult, error) {
 					}
 				}
 			}
+			// Action constructors must resolve dependencies from the DI
+			// registry via core.MustInvoke inside the body — only *core.Registry
+			// (or no parameters at all) is accepted as a parameter type.
+			isRegistry := fd.TypePath != "" && fd.GoType == "*"+fd.TypePath+".Registry" && strings.HasSuffix(fd.TypePath, "/core")
+			if !isRegistry {
+				return nil, fmt.Errorf("%s parameter %d has type %s; action constructors must take (r *core.Registry) or no parameters — resolve dependencies from the registry via core.MustInvoke inside the constructor body", ctorName, j+1, fd.GoType)
+			}
 			ctor.Params = append(ctor.Params, fd)
 		}
 		result.Actions[i].Constructor = ctor

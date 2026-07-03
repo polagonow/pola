@@ -3,6 +3,7 @@ package beego
 import (
 	"github.com/beego/beego/v2/client/orm"
 
+	"[[.PolaPackage]]/core"
 	"[[.PolaPackage]]/repository"
 	beegorepo "[[.PolaPackage]]/repository/beego"
 
@@ -21,8 +22,10 @@ type [[.LowerName]]Repository struct {
 	ormer orm.Ormer
 }
 
-// New[[.Name]]Repository creates a new Beego ORM-backed [[.Name]]Repository.
-func New[[.Name]]Repository(o orm.Ormer) repositories.[[.Name]]Repository {
+// New[[.Name]]Repository creates a new Beego ORM-backed [[.Name]]Repository,
+// resolving its dependencies from the DI registry.
+func New[[.Name]]Repository(r *core.Registry) repositories.[[.Name]]Repository {
+	o := core.MustInvoke[orm.Ormer](r)
 	return &[[.LowerName]]Repository{
 [[- if eq .IDGoType "string"]]
 		Repository: beegorepo.New[repositories.[[.Name]], string](o, repository.WithNewID(uuid.NewString)),

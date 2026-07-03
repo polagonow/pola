@@ -7,15 +7,16 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
+	"github.com/polagonow/pola/core"
 	"[[.ModulePath]]/repositories"
 
 	"[[.PolaPackage]]/repository"
 )
 
 // Test[[.Name]]Repository_CRUD is a wiring smoke test: it proves the entity
-// auto-migrates and round-trips through the framework-backed repository.
-// Behavioral coverage (pagination math, error wrapping, id generation) lives
-// in the framework's repository conformance tests.
+// auto-migrates and round-trips through the framework-backed repository built
+// via the DI registry. Behavioral coverage (pagination math, error wrapping,
+// id generation) lives in the framework's repository conformance tests.
 func Test[[.Name]]Repository_CRUD(t *testing.T) {
 	if testing.Short() {
 		t.Skip("integration test")
@@ -27,7 +28,9 @@ func Test[[.Name]]Repository_CRUD(t *testing.T) {
 	if err := db.AutoMigrate(&repositories.[[.Name]]{}); err != nil {
 		t.Fatalf("auto-migrate: %v", err)
 	}
-	repo := New[[.Name]]Repository(db)
+	r := core.NewRegistry()
+	core.ProvideValue[*gorm.DB](r, db)
+	repo := New[[.Name]]Repository(r)
 	ctx := context.Background()
 
 	entity := &repositories.[[.Name]]{}

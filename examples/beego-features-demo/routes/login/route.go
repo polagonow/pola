@@ -15,8 +15,8 @@ type Route struct {
 	svc *services.UserService
 }
 
-func NewRoute(svc *services.UserService) *Route {
-	return &Route{svc: svc}
+func NewRoute(r *core.Registry) *Route {
+	return &Route{svc: core.MustInvoke[*services.UserService](r)}
 }
 
 func (r *Route) POST(c core.Context) error {

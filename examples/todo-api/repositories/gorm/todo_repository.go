@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"gorm.io/gorm"
+
+	"github.com/polagonow/pola/core"
 	"todo-api/repositories"
 )
 
@@ -12,9 +14,10 @@ type todoRepository struct {
 	db *gorm.DB
 }
 
-// NewTodoRepository creates a new GORM-backed TodoRepository.
-func NewTodoRepository(db *gorm.DB) repositories.TodoRepository {
-	return &todoRepository{db: db}
+// NewTodoRepository creates a new GORM-backed TodoRepository, resolving its
+// dependencies from the DI registry.
+func NewTodoRepository(r *core.Registry) repositories.TodoRepository {
+	return &todoRepository{db: core.MustInvoke[*gorm.DB](r)}
 }
 
 func (r *todoRepository) Create(ctx context.Context, entity *repositories.Todo) error {

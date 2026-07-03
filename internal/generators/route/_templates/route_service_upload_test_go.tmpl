@@ -5,10 +5,25 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"[[ .ModulePath ]]/repositories"
+	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/repository"
+	"github.com/polagonow/pola/storage"
 	"github.com/polagonow/pola/webframework/std"
+
+	"[[ .ModulePath ]]/repositories"
+	"[[ .ModulePath ]]/services"
 )
+
+// newTestRoute wires the route to the given mock service through a fresh DI
+// registry, exercising the real registry-style constructor. Storage and the
+// blob repository are provided as typed nils — they aren't exercised by GET.
+func newTestRoute(svc services.[[ .ServiceName ]]ServiceInterface) *Route {
+	r := core.NewRegistry()
+	core.ProvideValue[services.[[ .ServiceName ]]ServiceInterface](r, svc)
+	core.ProvideValue[storage.Storage](r, nil)
+	core.ProvideValue[repositories.StorageBlobRepository](r, nil)
+	return NewRoute(r)
+}
 
 // mock[[ .ServiceName ]]Service satisfies services.[[ .ServiceName ]]ServiceInterface.
 type mock[[ .ServiceName ]]Service struct {
@@ -60,7 +75,7 @@ func TestRoute_GET_List(t *testing.T) {
 	}
 	// store and blobs are nil — GET doesn't exercise them.
 	fw := std.New()
-	fw.Handle("GET", "[[ .RoutePath ]]", NewRoute(svc, nil, nil).GET)
+	fw.Handle("GET", "[[ .RoutePath ]]", newTestRoute(svc).GET)
 	w := httptest.NewRecorder()
 	fw.Handler().ServeHTTP(w, httptest.NewRequest("GET", "[[ .RoutePath ]]", nil))
 	if w.Code != 200 {
