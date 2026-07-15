@@ -26,6 +26,37 @@ func MustBind(c Context, err error) error {
 	return err
 }
 
+// validator is the request validator used by the Bind* (must-variant) methods.
+// It is installed by the validation plugin: core cannot import validation
+// directly because validation imports core to satisfy core.Validator, so the
+// dependency is inverted through this hook. When nil, Bind* skips validation.
+var validator func(any) error
+
+// SetValidator installs the validator that the Bind* methods run after a
+// successful bind. Passing nil disables bind-time validation. The validation
+// plugin calls this at registration; apps rarely call it directly.
+func SetValidator(fn func(any) error) { validator = fn }
+
+// MustBindValidate completes a "must"-style bind and validate. It writes a 400
+// JSON response when the bind failed; otherwise, when a validator is installed,
+// it validates v and writes a 422 JSON response when validation fails. It
+// returns the first error encountered (nil on success); on a non-nil return the
+// response has already been written. Adapters compose it as
+// core.MustBindValidate(c, v, c.ShouldBindX(v)).
+func MustBindValidate(c Context, v any, bindErr error) error {
+	if bindErr != nil {
+		_ = c.JSON(http.StatusBadRequest, M{"error": bindErr.Error()})
+		return bindErr
+	}
+	if validator != nil {
+		if err := validator(v); err != nil {
+			_ = c.JSON(http.StatusUnprocessableEntity, M{"error": err.Error()})
+			return err
+		}
+	}
+	return nil
+}
+
 // ShouldBindUri maps path parameters into the struct pointed to by v using
 // `uri:"name"` struct tags (the framework-neutral equivalent of gin's
 // ShouldBindUri). Path params are single-valued.

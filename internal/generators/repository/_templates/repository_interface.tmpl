@@ -1,39 +1,15 @@
 package repositories
 
 import (
-[[- range .Imports]]
-	[[.]]
-[[- end]]
 	"[[.PolaPackage]]/repository"
+
+	"[[.ModulePath]]/[[.ModelsDir]]"
 )
 
-// [[.Name]] represents the [[.SnakeName]] entity for the repository layer.
-type [[.Name]] struct {
-[[- if eq .ORM "beego"]]
-[[- if eq .IDGoType "string"]]
-	ID string `orm:"column(id);pk;size(36)" json:"id"`
-[[- else]]
-	ID uint `orm:"column(id);auto;pk" json:"id"`
-[[- end]]
-[[- range .Fields]]
-	[[.Name]] [[.GoType]] `orm:"column([[.JSONName]])" json:"[[.JSONName]]" validate:"[[.ValidTag]]"`
-[[- end]]
-[[- else]]
-	ID [[.IDGoType]] `json:"id"`
-[[- range .Fields]]
-	[[.Name]] [[.GoType]] `json:"[[.JSONName]]" validate:"[[.ValidTag]]"`
-[[- end]]
-[[- end]]
-}
-[[- if eq .ORM "beego"]]
-
-// TableName maps [[.Name]] to the [[.PluralSnake]] table, matching migrations.
-func ([[.Name]]) TableName() string { return "[[.PluralSnake]]" }
-[[- end]]
-
 // [[.Name]]Repository defines the contract for [[.SnakeName]] persistence
-// operations. It embeds the framework's standard CRUD contract; add custom
-// query methods here.
+// operations. The entity type is the canonical model in [[.ModelsDir]] — the
+// single source of truth for the schema and the transport entity. It embeds the
+// framework's standard CRUD contract; add custom query methods here.
 type [[.Name]]Repository interface {
-	repository.Repository[ [[.Name]], [[.IDGoType]] ]
+	repository.Repository[ [[.ModelsPkg]].[[.Name]], [[.IDGoType]]]
 }

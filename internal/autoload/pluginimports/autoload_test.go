@@ -38,6 +38,13 @@ func TestGenerateSource_Frameworks(t *testing.T) {
 			if !strings.Contains(s, "webfw.Plugin()") {
 				t.Errorf("%s apiOnly=%v: missing webfw.Plugin() registration", fw, apiOnly)
 			}
+			// Validation is always on so c.Bind validates without per-handler code.
+			if !strings.Contains(s, "validation.Plugin()") {
+				t.Errorf("%s apiOnly=%v: missing validation.Plugin() registration", fw, apiOnly)
+			}
+			if !strings.Contains(s, `/validation"`) {
+				t.Errorf("%s apiOnly=%v: missing validation import", fw, apiOnly)
+			}
 			// routes.Plugin() must no longer be generated.
 			if strings.Contains(s, "routes.Plugin()") {
 				t.Errorf("%s apiOnly=%v: legacy routes.Plugin() should not be generated", fw, apiOnly)

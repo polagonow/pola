@@ -102,11 +102,15 @@ func (e *echoContext) ShouldBindUri(v any) error    { return core.ShouldBindUri(
 func (e *echoContext) ShouldBindHeader(v any) error { return core.ShouldBindHeader(e, v) }
 func (e *echoContext) ShouldBindQuery(v any) error  { return core.ShouldBindQuery(e, v) }
 func (e *echoContext) ShouldBindForm(v any) error   { return core.ShouldBindForm(e, v) }
-func (e *echoContext) Bind(v any) error             { return core.MustBind(e, e.ShouldBind(v)) }
-func (e *echoContext) BindUri(v any) error          { return core.MustBind(e, e.ShouldBindUri(v)) }
-func (e *echoContext) BindHeader(v any) error       { return core.MustBind(e, e.ShouldBindHeader(v)) }
-func (e *echoContext) BindQuery(v any) error        { return core.MustBind(e, e.ShouldBindQuery(v)) }
-func (e *echoContext) BindForm(v any) error         { return core.MustBind(e, e.ShouldBindForm(v)) }
+func (e *echoContext) Bind(v any) error             { return core.MustBindValidate(e, v, e.ShouldBind(v)) }
+func (e *echoContext) BindUri(v any) error          { return core.MustBindValidate(e, v, e.ShouldBindUri(v)) }
+func (e *echoContext) BindHeader(v any) error {
+	return core.MustBindValidate(e, v, e.ShouldBindHeader(v))
+}
+func (e *echoContext) BindQuery(v any) error {
+	return core.MustBindValidate(e, v, e.ShouldBindQuery(v))
+}
+func (e *echoContext) BindForm(v any) error         { return core.MustBindValidate(e, v, e.ShouldBindForm(v)) }
 func (e *echoContext) FormValue(name string) string { return e.c.FormValue(name) }
 func (e *echoContext) FormFile(name string) (*multipart.FileHeader, error) {
 	return e.c.FormFile(name)

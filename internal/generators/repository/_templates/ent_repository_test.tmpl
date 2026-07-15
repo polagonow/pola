@@ -8,7 +8,7 @@ import (
 
 	"github.com/polagonow/pola/core"
 	"[[.ModulePath]]/[[.EntClientDir]]"
-	"[[.ModulePath]]/repositories"
+	"[[.ModulePath]]/[[.ModelsDir]]"
 
 	"[[.PolaPackage]]/repository"
 )
@@ -43,7 +43,7 @@ func Test[[.Name]]Repository_CRUD(t *testing.T) {
 	repo := New[[.Name]]Repository(r)
 	ctx := context.Background()
 
-	entity := &repositories.[[.Name]]{}
+	entity := &[[.ModelsPkg]].[[.Name]]{}
 	if err := repo.Create(ctx, entity); err != nil {
 		t.Fatalf("Create: %v", err)
 	}

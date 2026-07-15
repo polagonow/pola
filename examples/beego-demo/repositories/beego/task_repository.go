@@ -6,6 +6,7 @@ import (
 	"github.com/polagonow/pola/repository"
 	beegorepo "github.com/polagonow/pola/repository/beego"
 
+	"beego-demo/db/models"
 	"beego-demo/repositories"
 )
 
@@ -14,14 +15,14 @@ import (
 // registers the entity with beego's model cache; add custom queries as
 // methods on this struct using r.ormer.
 type taskRepository struct {
-	repository.Repository[repositories.Task, uint]
+	repository.Repository[models.Task, uint]
 	ormer orm.Ormer
 }
 
 // NewTaskRepository creates a new Beego ORM-backed TaskRepository.
 func NewTaskRepository(o orm.Ormer) repositories.TaskRepository {
 	return &taskRepository{
-		Repository: beegorepo.New[repositories.Task, uint](o),
+		Repository: beegorepo.New[models.Task, uint](o),
 		ormer:      o,
 	}
 }

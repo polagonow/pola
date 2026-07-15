@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/polagonow/pola/core"
-	"antd-test/repositories"
+	"antd-test/db/models"
 	"antd-test/services"
 
 	"github.com/polagonow/pola/repository"
@@ -37,11 +37,11 @@ func NewProductAction(r *core.Registry) *ProductAction {
 }
 
 // List returns a paginated list of Product entities. Becomes ProductAction.list(page, perPage) in JavaScript.
-func (a *ProductAction) List(page, perPage int) (*repository.ListResult[*repositories.Product], error) {
+func (a *ProductAction) List(page, perPage int) (*repository.ListResult[*models.Product], error) {
 	return a.svc.List(context.TODO(), repository.ListParams{Page: page, PerPage: perPage})
 }
 
 // Get returns a single Product by ID. Becomes ProductAction.Get(id) in JavaScript.
-func (a *ProductAction) Get(id uint) (*repositories.Product, error) {
+func (a *ProductAction) Get(id uint) (*models.Product, error) {
 	return a.svc.Get(context.TODO(), id)
 }

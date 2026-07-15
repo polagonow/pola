@@ -3,13 +3,12 @@ package greetings
 import (
 	"net/http"
 
-	"mcp-hello/repositories"
+	"mcp-hello/db/models"
 	"mcp-hello/services"
 
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/repository"
 	"github.com/polagonow/pola/request"
-	"github.com/polagonow/pola/validation"
 )
 
 // Route handles /greetings requests.
@@ -50,12 +49,9 @@ func (r *Route) GET(c core.Context) error {
 
 // POST /greetings
 func (r *Route) POST(c core.Context) error {
-	var entity repositories.Greeting
-	if err := c.ShouldBind(&entity); err != nil {
-		return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
-	}
-	if err := validation.Validate(&entity); err != nil {
-		return c.JSON(http.StatusUnprocessableEntity, core.M{"error": err.Error()})
+	var entity models.Greeting
+	if err := c.Bind(&entity); err != nil {
+		return err
 	}
 	if err := r.svc.Create(c.Ctx(), &entity); err != nil {
 		return c.JSON(http.StatusInternalServerError, core.M{"error": err.Error()})
@@ -69,12 +65,9 @@ func (r *Route) PUT(c core.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
 	}
-	var entity repositories.Greeting
-	if err := c.ShouldBind(&entity); err != nil {
-		return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
-	}
-	if err := validation.Validate(&entity); err != nil {
-		return c.JSON(http.StatusUnprocessableEntity, core.M{"error": err.Error()})
+	var entity models.Greeting
+	if err := c.Bind(&entity); err != nil {
+		return err
 	}
 	entity.ID = id
 	if err := r.svc.Update(c.Ctx(), &entity); err != nil {
@@ -89,12 +82,9 @@ func (r *Route) PATCH(c core.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
 	}
-	var entity repositories.Greeting
-	if err := c.ShouldBind(&entity); err != nil {
-		return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
-	}
-	if err := validation.Validate(&entity); err != nil {
-		return c.JSON(http.StatusUnprocessableEntity, core.M{"error": err.Error()})
+	var entity models.Greeting
+	if err := c.Bind(&entity); err != nil {
+		return err
 	}
 	entity.ID = id
 	if err := r.svc.Update(c.Ctx(), &entity); err != nil {

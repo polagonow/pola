@@ -1,15 +1,25 @@
 package model
 
 import (
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/polagonow/pola/internal/generators/model/canonical"
 	"github.com/polagonow/pola/internal/generators/model/schema"
 )
 
+// seedModel writes a canonical model file into dir so ValidateReferences can
+// resolve references against the single source of truth.
+func seedModel(t *testing.T, dir string, def *schema.ModelDefinition) {
+	t.Helper()
+	if err := canonical.Generate(def, dir); err != nil {
+		t.Fatalf("seed %s: %v", def.Name, err)
+	}
+}
+
 func TestValidateReferences_ModelNotFound(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "models")
 	def := &schema.ModelDefinition{
 		Name: "Article",
 		Fields: []schema.Field{
@@ -17,9 +27,7 @@ func TestValidateReferences_ModelNotFound(t *testing.T) {
 			{Name: "author", Type: schema.FieldReferences},
 		},
 	}
-
-	dir := t.TempDir()
-	err := ValidateReferences(def, dir, "ent")
+	err := ValidateReferences(def, dir)
 	if err == nil {
 		t.Fatal("expected error for missing referenced model")
 	}
@@ -31,170 +39,75 @@ func TestValidateReferences_ModelNotFound(t *testing.T) {
 	}
 }
 
-func TestValidateReferences_EntDefaultID(t *testing.T) {
-	dir := t.TempDir()
-	entDir := filepath.Join(dir, "schema")
-	os.MkdirAll(entDir, 0o755)
-
-	// Write a minimal ent schema with default ID (no explicit id field).
-	authorSchema := `package schema
-
-type Author struct { ent.Schema }
-func (Author) Fields() []ent.Field {
-	return []ent.Field{
-		field.String("name"),
-	}
-}
-`
-	os.WriteFile(filepath.Join(entDir, "author.go"), []byte(authorSchema), 0o644)
-
+func TestValidateReferences_AutoID(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "models")
+	seedModel(t, dir, &schema.ModelDefinition{
+		Name:   "Author",
+		Fields: []schema.Field{{Name: "name", Type: schema.FieldString}},
+	})
 	def := &schema.ModelDefinition{
-		Name: "Article",
-		Fields: []schema.Field{
-			{Name: "author", Type: schema.FieldReferences},
-		},
+		Name:   "Article",
+		Fields: []schema.Field{{Name: "author", Type: schema.FieldReferences}},
 	}
-
-	err := ValidateReferences(def, dir, "ent")
-	if err != nil {
+	if err := ValidateReferences(def, dir); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
-	// Ent default ID type is int.
-	if def.Fields[0].RefIDType != schema.FieldInt {
-		t.Errorf("RefIDType = %q, want %q", def.Fields[0].RefIDType, schema.FieldInt)
+	// Auto-increment PK → empty RefIDType (uint foreign key).
+	if got := def.Fields[0].RefIDType; got != "" {
+		t.Errorf("RefIDType = %q, want empty (auto-increment)", got)
 	}
 }
 
-func TestValidateReferences_EntUUIDID(t *testing.T) {
-	dir := t.TempDir()
-	entDir := filepath.Join(dir, "schema")
-	os.MkdirAll(entDir, 0o755)
-
-	// Write an ent schema with UUID ID.
-	authorSchema := `package schema
-
-type Author struct { ent.Schema }
-func (Author) Fields() []ent.Field {
-	return []ent.Field{
-		field.UUID("id", uuid.UUID{}),
-		field.String("name"),
-	}
-}
-`
-	os.WriteFile(filepath.Join(entDir, "author.go"), []byte(authorSchema), 0o644)
-
+func TestValidateReferences_UUIDID(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "models")
+	seedModel(t, dir, &schema.ModelDefinition{
+		Name:   "Author",
+		IDType: schema.FieldUUID,
+		Fields: []schema.Field{{Name: "name", Type: schema.FieldString}},
+	})
 	def := &schema.ModelDefinition{
-		Name: "Article",
-		Fields: []schema.Field{
-			{Name: "author", Type: schema.FieldReferences},
-		},
+		Name:   "Article",
+		Fields: []schema.Field{{Name: "author", Type: schema.FieldReferences}},
 	}
-
-	err := ValidateReferences(def, dir, "ent")
-	if err != nil {
+	if err := ValidateReferences(def, dir); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
-	if def.Fields[0].RefIDType != schema.FieldUUID {
-		t.Errorf("RefIDType = %q, want %q", def.Fields[0].RefIDType, schema.FieldUUID)
-	}
-}
-
-func TestValidateReferences_GormDefaultID(t *testing.T) {
-	dir := t.TempDir()
-	gormDir := filepath.Join(dir, "gorm")
-	os.MkdirAll(gormDir, 0o755)
-
-	authorModel := `package gorm
-
-type Author struct {
-	gorm.Model
-	Name string
-}
-`
-	os.WriteFile(filepath.Join(gormDir, "author.go"), []byte(authorModel), 0o644)
-
-	def := &schema.ModelDefinition{
-		Name: "Article",
-		Fields: []schema.Field{
-			{Name: "author", Type: schema.FieldReferences},
-		},
-	}
-
-	err := ValidateReferences(def, dir, "gorm")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	// gorm.Model uses uint → mapped to int64.
-	if def.Fields[0].RefIDType != schema.FieldInt64 {
-		t.Errorf("RefIDType = %q, want %q", def.Fields[0].RefIDType, schema.FieldInt64)
-	}
-}
-
-func TestValidateReferences_GormCustomID(t *testing.T) {
-	dir := t.TempDir()
-	gormDir := filepath.Join(dir, "gorm")
-	os.MkdirAll(gormDir, 0o755)
-
-	authorModel := `package gorm
-
-type Author struct {
-	ID   uuid.UUID
-	Name string
-}
-`
-	os.WriteFile(filepath.Join(gormDir, "author.go"), []byte(authorModel), 0o644)
-
-	def := &schema.ModelDefinition{
-		Name: "Article",
-		Fields: []schema.Field{
-			{Name: "author", Type: schema.FieldReferences},
-		},
-	}
-
-	err := ValidateReferences(def, dir, "gorm")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	if def.Fields[0].RefIDType != schema.FieldUUID {
-		t.Errorf("RefIDType = %q, want %q", def.Fields[0].RefIDType, schema.FieldUUID)
+	if got := def.Fields[0].RefIDType; got != schema.FieldUUID {
+		t.Errorf("RefIDType = %q, want %q", got, schema.FieldUUID)
 	}
 }
 
 func TestValidateReferences_PolymorphicSkipsExistence(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "models")
 	def := &schema.ModelDefinition{
-		Name: "Comment",
-		Fields: []schema.Field{
-			{Name: "commentable", Type: schema.FieldReferences, Polymorphic: true},
-		},
+		Name:   "Comment",
+		Fields: []schema.Field{{Name: "commentable", Type: schema.FieldReferences, Polymorphic: true}},
 	}
-
-	dir := t.TempDir()
-	// No models exist — polymorphic should not error.
-	err := ValidateReferences(def, dir, "ent")
-	if err != nil {
+	if err := ValidateReferences(def, dir); err != nil {
 		t.Fatalf("unexpected error for polymorphic: %v", err)
 	}
+	if got := def.Fields[0].RefIDType; got != "" {
+		t.Errorf("RefIDType = %q, want empty (default)", got)
+	}
+}
 
-	// Should get default ID type for ent.
-	if def.Fields[0].RefIDType != schema.FieldInt {
-		t.Errorf("RefIDType = %q, want %q", def.Fields[0].RefIDType, schema.FieldInt)
+func TestValidateReferences_StorageBlobSkipsExistence(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "models")
+	def := &schema.ModelDefinition{
+		Name:   "User",
+		Fields: []schema.Field{{Name: "avatar", Type: schema.FieldReferences, RefModel: "StorageBlob"}},
+	}
+	if err := ValidateReferences(def, dir); err != nil {
+		t.Fatalf("StorageBlob reference should not require an existing model: %v", err)
 	}
 }
 
 func TestValidateReferences_NoRefsNoError(t *testing.T) {
 	def := &schema.ModelDefinition{
-		Name: "User",
-		Fields: []schema.Field{
-			{Name: "name", Type: schema.FieldString},
-		},
+		Name:   "User",
+		Fields: []schema.Field{{Name: "name", Type: schema.FieldString}},
 	}
-
-	err := ValidateReferences(def, t.TempDir(), "ent")
-	if err != nil {
+	if err := ValidateReferences(def, filepath.Join(t.TempDir(), "models")); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }

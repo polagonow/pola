@@ -2,17 +2,13 @@ package repositories
 
 import (
 	"github.com/polagonow/pola/repository"
-)
 
-// SampleEntity represents the sample_entity entity for the repository layer.
-type SampleEntity struct {
-	ID   uint   `json:"id"`
-	Name string `json:"name" validate:"required"`
-}
+	"blog-e2e-react/db/models"
+)
 
 // SampleEntityRepository defines the contract for sample_entity persistence
 // operations. It embeds the framework's standard CRUD contract; add custom
 // query methods here.
 type SampleEntityRepository interface {
-	repository.Repository[SampleEntity, uint]
+	repository.Repository[models.SampleEntity, uint]
 }

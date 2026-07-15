@@ -3,13 +3,12 @@ package tasks
 import (
 	"net/http"
 
-	"beego-demo/repositories"
+	"beego-demo/db/models"
 	"beego-demo/services"
 
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/repository"
 	"github.com/polagonow/pola/request"
-	"github.com/polagonow/pola/validation"
 )
 
 // Route handles /tasks requests.
@@ -49,12 +48,9 @@ func (r *Route) GET(c core.Context) error {
 
 // POST /tasks
 func (r *Route) POST(c core.Context) error {
-	var entity repositories.Task
-	if err := c.ShouldBind(&entity); err != nil {
-		return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
-	}
-	if err := validation.Validate(&entity); err != nil {
-		return c.JSON(http.StatusUnprocessableEntity, core.M{"error": err.Error()})
+	var entity models.Task
+	if err := c.Bind(&entity); err != nil {
+		return err
 	}
 	if err := r.svc.Create(c.Ctx(), &entity); err != nil {
 		return c.JSON(http.StatusInternalServerError, core.M{"error": err.Error()})
@@ -68,12 +64,9 @@ func (r *Route) PUT(c core.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
 	}
-	var entity repositories.Task
-	if err := c.ShouldBind(&entity); err != nil {
-		return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
-	}
-	if err := validation.Validate(&entity); err != nil {
-		return c.JSON(http.StatusUnprocessableEntity, core.M{"error": err.Error()})
+	var entity models.Task
+	if err := c.Bind(&entity); err != nil {
+		return err
 	}
 	entity.ID = id
 	if err := r.svc.Update(c.Ctx(), &entity); err != nil {

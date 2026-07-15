@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"gorm-demo/repositories"
+	"gorm-demo/db/models"
 
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/repository"
@@ -18,32 +18,32 @@ import (
 // services.TaskServiceInterface. Each method is backed by a
 // *Fn field; unset fields panic on call so missing expectations fail loudly.
 type mockTaskService struct {
-	createFn func(ctx context.Context, e *repositories.Task) error
-	getFn    func(ctx context.Context, id uint) (*repositories.Task, error)
-	listFn   func(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.Task], error)
-	updateFn func(ctx context.Context, e *repositories.Task) error
+	createFn func(ctx context.Context, e *models.Task) error
+	getFn    func(ctx context.Context, id uint) (*models.Task, error)
+	listFn   func(ctx context.Context, params repository.ListParams) (*repository.ListResult[*models.Task], error)
+	updateFn func(ctx context.Context, e *models.Task) error
 	deleteFn func(ctx context.Context, id uint) error
 }
 
-func (m *mockTaskService) Create(ctx context.Context, e *repositories.Task) error {
+func (m *mockTaskService) Create(ctx context.Context, e *models.Task) error {
 	if m.createFn == nil {
 		panic("createFn not set")
 	}
 	return m.createFn(ctx, e)
 }
-func (m *mockTaskService) Get(ctx context.Context, id uint) (*repositories.Task, error) {
+func (m *mockTaskService) Get(ctx context.Context, id uint) (*models.Task, error) {
 	if m.getFn == nil {
 		panic("getFn not set")
 	}
 	return m.getFn(ctx, id)
 }
-func (m *mockTaskService) List(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.Task], error) {
+func (m *mockTaskService) List(ctx context.Context, params repository.ListParams) (*repository.ListResult[*models.Task], error) {
 	if m.listFn == nil {
 		panic("listFn not set")
 	}
 	return m.listFn(ctx, params)
 }
-func (m *mockTaskService) Update(ctx context.Context, e *repositories.Task) error {
+func (m *mockTaskService) Update(ctx context.Context, e *models.Task) error {
 	if m.updateFn == nil {
 		panic("updateFn not set")
 	}
@@ -67,8 +67,8 @@ func serve(method string, body io.Reader, h core.HandlerFunc) *httptest.Response
 
 func TestRoute_GET_List(t *testing.T) {
 	svc := &mockTaskService{
-		listFn: func(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.Task], error) {
-			return &repository.ListResult[*repositories.Task]{Page: params.Page, PerPage: params.PerPage}, nil
+		listFn: func(ctx context.Context, params repository.ListParams) (*repository.ListResult[*models.Task], error) {
+			return &repository.ListResult[*models.Task]{Page: params.Page, PerPage: params.PerPage}, nil
 		},
 	}
 	w := serve("GET", nil, NewRoute(svc).GET)

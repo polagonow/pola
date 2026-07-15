@@ -7,6 +7,7 @@ import (
 	"github.com/polagonow/pola/repository"
 	gormrepo "github.com/polagonow/pola/repository/gorm"
 
+	"blog-e2e-react/db/models"
 	"blog-e2e-react/repositories"
 )
 
@@ -14,7 +15,7 @@ import (
 // embedded generic implementation supplies Create/Get/List/Update/Delete;
 // add custom queries as methods on this struct using r.db.
 type articleRepository struct {
-	repository.Repository[repositories.Article, uint]
+	repository.Repository[models.Article, uint]
 	db *gorm.DB
 }
 
@@ -23,7 +24,7 @@ type articleRepository struct {
 func NewArticleRepository(r *core.Registry) repositories.ArticleRepository {
 	db := core.MustInvoke[*gorm.DB](r)
 	return &articleRepository{
-		Repository: gormrepo.New[repositories.Article, uint](db),
+		Repository: gormrepo.New[models.Article, uint](db),
 		db:         db,
 	}
 }

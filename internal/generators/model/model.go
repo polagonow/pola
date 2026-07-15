@@ -11,9 +11,8 @@ import (
 
 	survey "github.com/AlecAivazis/survey/v2"
 	"github.com/polagonow/pola/internal/generators"
-	"github.com/polagonow/pola/internal/generators/model/beego"
+	"github.com/polagonow/pola/internal/generators/model/canonical"
 	"github.com/polagonow/pola/internal/generators/model/ent"
-	"github.com/polagonow/pola/internal/generators/model/gorm"
 	"github.com/polagonow/pola/internal/generators/model/schema"
 	"github.com/polagonow/pola/internal/project"
 	"github.com/polagonow/pola/polafile"
@@ -24,10 +23,9 @@ import (
 type ModelGenerator struct{}
 
 func init() {
-	// Register ORM generators.
-	schema.RegisterORMGenerator(&beego.BeegoGenerator{})
+	// Ent is the only ORM that needs its own generated schema (its typed client
+	// is codegen'd); gorm and beego consume the neutral canonical struct directly.
 	schema.RegisterORMGenerator(&ent.EntGenerator{})
-	schema.RegisterORMGenerator(&gorm.GormGenerator{})
 
 	// Register this generator with the CLI generator registry.
 	generators.Register(&ModelGenerator{})
@@ -65,6 +63,7 @@ Field syntax: field:type{options}:modifier1:modifier2
   pola generate model User name:string avatar:references{StorageBlob}`,
 	}
 	cmd.Flags().Bool("skip-migration", false, "Skip auto-generating a migration after model creation")
+	cmd.Flags().Bool("soft-delete", false, "Add a soft-delete (deleted_at) column managed by the repository layer")
 	return cmd
 }
 
@@ -83,18 +82,13 @@ func (g *ModelGenerator) Artifacts(cmd *cobra.Command, args []string, projectDir
 	if pf == nil {
 		pf = &polafile.Polafile{}
 	}
-	orm := pf.DatabaseORM()
-	if orm == "" {
-		return nil, fmt.Errorf("ORM not configured in Polafile; cannot determine model paths")
-	}
 	outDir := filepath.Join(projectDir, pf.DatabaseModelsDir())
-	subDir := orm
-	if orm == "ent" {
-		subDir = "schema"
+	files := []string{filepath.Join(outDir, schema.SnakeCase(def.Name)+".go")}
+	if pf.DatabaseORM() == "ent" {
+		files = append(files, filepath.Join(outDir, "schema", schema.SnakeCase(def.Name)+".go"))
 	}
-	outFile := filepath.Join(outDir, subDir, schema.SnakeCase(def.Name)+".go")
 	fmt.Println("Note: Associated migration files were not removed. Use 'pola db rollback' and manually delete the migration file if needed.")
-	return []string{outFile}, nil
+	return files, nil
 }
 
 func (g *ModelGenerator) run(cmd *cobra.Command, args []string) error {
@@ -155,38 +149,42 @@ func (g *ModelGenerator) run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
+	// Timestamps are on by default; soft-delete is opt-in. Both are plain
+	// columns owned by the framework's repository adapters (no ORM tags).
+	ModelDefinition.HasTimestamps = true
+	if softDelete, _ := cmd.Flags().GetBool("soft-delete"); softDelete {
+		ModelDefinition.SoftDeletes = true
+	}
 
 	orm := pf.DatabaseORM()
 	outDir := filepath.Join(projectDir, pf.DatabaseModelsDir())
 
-	// Validate that referenced models exist and resolve FK types.
-	if err := ValidateReferences(ModelDefinition, outDir, orm); err != nil {
+	// Validate that referenced models exist and resolve FK types from the
+	// canonical models directory (the single source of truth).
+	if err := ValidateReferences(ModelDefinition, outDir); err != nil {
 		return err
 	}
 
-	gen, err := schema.GetORMGenerator(orm)
-	if err != nil {
-		return err
-	}
-
-	// Ent schemas are placed under "schema/" subdirectory, other ORMs use their name.
-	subDir := orm
-	if orm == "ent" {
-		subDir = "schema"
-	}
-	outFile := filepath.Join(outDir, subDir, schema.SnakeCase(ModelDefinition.Name)+".go")
-
+	// Always emit the one ORM-neutral canonical struct.
+	outFile := filepath.Join(outDir, schema.SnakeCase(ModelDefinition.Name)+".go")
 	if err := generators.CheckCollision(cmd, outFile); err != nil {
 		return err
 	}
-
-	if err := gen.Generate(ModelDefinition, outDir); err != nil {
+	if err := canonical.Generate(ModelDefinition, outDir); err != nil {
 		return fmt.Errorf("generate model: %w", err)
 	}
-
 	fmt.Printf("Created %s\n", outFile)
 
+	// Ent is the only ORM that requires its own generated schema + typed client;
+	// convert the neutral model to an ent schema and run ent codegen.
 	if orm == "ent" {
+		entGen, err := schema.GetORMGenerator("ent")
+		if err != nil {
+			return err
+		}
+		if err := entGen.Generate(ModelDefinition, outDir); err != nil {
+			return fmt.Errorf("generate ent schema: %w", err)
+		}
 		fmt.Println("Running ent codegen...")
 		if err := runEntCodegen(projectDir, pf.DatabaseModelsDir(), pf.DatabaseEntClientDir()); err != nil {
 			return fmt.Errorf("ent codegen: %w", err)

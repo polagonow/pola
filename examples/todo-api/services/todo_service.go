@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/polagonow/pola/core"
+	"todo-api/db/models"
 	"todo-api/repositories"
 )
 
@@ -11,10 +12,10 @@ import (
 // Routes and other call sites depend on this interface so tests can substitute
 // mocks. The concrete TodoService type below satisfies it.
 type TodoServiceInterface interface {
-	Create(ctx context.Context, entity *repositories.Todo) error
-	Get(ctx context.Context, id uint) (*repositories.Todo, error)
-	List(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.Todo], error)
-	Update(ctx context.Context, entity *repositories.Todo) error
+	Create(ctx context.Context, entity *models.Todo) error
+	Get(ctx context.Context, id uint) (*models.Todo, error)
+	List(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*models.Todo], error)
+	Update(ctx context.Context, entity *models.Todo) error
 	Delete(ctx context.Context, id uint) error
 }
 
@@ -30,23 +31,23 @@ func NewTodoService(r *core.Registry) *TodoService {
 }
 
 // Create creates a new todo.
-func (s *TodoService) Create(ctx context.Context, entity *repositories.Todo) error {
+func (s *TodoService) Create(ctx context.Context, entity *models.Todo) error {
 	// TODO: add business logic / validation
 	return s.repo.Create(ctx, entity)
 }
 
 // Get returns a todo by its ID.
-func (s *TodoService) Get(ctx context.Context, id uint) (*repositories.Todo, error) {
+func (s *TodoService) Get(ctx context.Context, id uint) (*models.Todo, error) {
 	return s.repo.Get(ctx, id)
 }
 
 // List returns a paginated list of todos.
-func (s *TodoService) List(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*repositories.Todo], error) {
+func (s *TodoService) List(ctx context.Context, params repositories.ListParams) (*repositories.ListResult[*models.Todo], error) {
 	return s.repo.List(ctx, params)
 }
 
 // Update updates an existing todo.
-func (s *TodoService) Update(ctx context.Context, entity *repositories.Todo) error {
+func (s *TodoService) Update(ctx context.Context, entity *models.Todo) error {
 	// TODO: add business logic / validation
 	return s.repo.Update(ctx, entity)
 }

@@ -13,15 +13,18 @@ import (
 	"ariga.io/atlas/sql/schema"
 	atlassqlite "ariga.io/atlas/sql/sqlite"
 	_ "[[ .DriverImport ]]"
-	usermodels "[[ .ModulePath ]]/[[ .ModelsDir ]]/gorm"
+	// Blank-import the neutral models package to keep it (and gorm/atlas) in the
+	// temp module's dependency graph. The gorm-tagged mirror structs used for the
+	// diff are defined locally in models_gen.go.
+	_ "[[ .ModulePath ]]/[[ .ModelsDir ]]"
 )
 
 func main() {
 	ctx := context.Background()
 
-	// Load DDL from GORM models.
+	// Load DDL from the synthesized gorm mirror structs (see models_gen.go).
 	stmts, err := gormschema.New("[[ .AtlasDialect ]]").Load(
-[[ range .Models ]]		&usermodels.[[ . ]]{},
+[[ range .Models ]]		&[[ . ]]{},
 [[ end ]]	)
 	if err != nil {
 		log.Fatalf("load gorm models: %v", err)

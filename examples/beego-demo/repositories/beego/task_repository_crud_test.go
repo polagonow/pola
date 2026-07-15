@@ -9,7 +9,7 @@ import (
 	_ "github.com/mattn/go-sqlite3"
 	"github.com/polagonow/pola/repository"
 
-	"beego-demo/repositories"
+	"beego-demo/db/models"
 )
 
 // TestMain wires beego's process-global database once. The repository
@@ -31,7 +31,7 @@ func TestTaskRepository_CRUD(t *testing.T) {
 	repo := NewTaskRepository(orm.NewOrm())
 	ctx := context.Background()
 
-	task := &repositories.Task{Title: "write docs"}
+	task := &models.Task{Title: "write docs"}
 	if err := repo.Create(ctx, task); err != nil {
 		t.Fatalf("Create: %v", err)
 	}

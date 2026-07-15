@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/polagonow/pola/core"
-	"mcp-hello/repositories"
+	"mcp-hello/db/models"
 	"mcp-hello/services"
 
 	"github.com/polagonow/pola/repository"
@@ -37,11 +37,11 @@ func NewGreetingAction(r *core.Registry) *GreetingAction {
 }
 
 // List returns a paginated list of Greeting entities. Becomes GreetingAction.list(page, perPage) in JavaScript.
-func (a *GreetingAction) List(page, perPage int) (*repository.ListResult[*repositories.Greeting], error) {
+func (a *GreetingAction) List(page, perPage int) (*repository.ListResult[*models.Greeting], error) {
 	return a.svc.List(context.TODO(), repository.ListParams{Page: page, PerPage: perPage})
 }
 
 // Get returns a single Greeting by ID. Becomes GreetingAction.Get(id) in JavaScript.
-func (a *GreetingAction) Get(id uint) (*repositories.Greeting, error) {
+func (a *GreetingAction) Get(id uint) (*models.Greeting, error) {
 	return a.svc.Get(context.TODO(), id)
 }

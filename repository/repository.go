@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 	"unicode"
 )
 
@@ -108,6 +109,120 @@ func MustIDFieldIndex[T any, ID comparable]() []int {
 		}
 	}
 	panic(fmt.Sprintf("repository: entity %s has no ID field of type %s", t.Name(), idT))
+}
+
+// LifecycleFields locates the framework-managed lifecycle columns of an entity
+// T — CreatedAt/UpdatedAt timestamps and the soft-delete column — so the generic
+// ORM adapters can stamp timestamps and soft-delete uniformly, with no ORM
+// struct tags on the canonical model. It is computed once at construction.
+type LifecycleFields struct {
+	createdAt []int // index of a CreatedAt time.Time field, nil if absent
+	updatedAt []int // index of an UpdatedAt time.Time field, nil if absent
+	deletedAt []int // index of the soft-delete field, nil when soft-delete is off
+	// DeletedAtColumn is the database column name of the soft-delete field.
+	DeletedAtColumn string
+}
+
+// SoftDeletes reports whether entity T opts into soft deletion.
+func (lf LifecycleFields) SoftDeletes() bool { return lf.deletedAt != nil }
+
+var timeType = reflect.TypeOf(time.Time{})
+
+// LifecycleFieldsOf inspects T for framework-managed lifecycle columns:
+// CreatedAt/UpdatedAt (time.Time by conventional field name) and the soft-delete
+// field (the field tagged pola:"soft_delete"). The model carries no ORM tags, so
+// these conventions — not the ORM — drive lifecycle behavior.
+func LifecycleFieldsOf[T any]() LifecycleFields {
+	t := reflect.TypeFor[T]()
+	for t.Kind() == reflect.Pointer {
+		t = t.Elem()
+	}
+	var lf LifecycleFields
+	if t.Kind() != reflect.Struct {
+		return lf
+	}
+	for i := 0; i < t.NumField(); i++ {
+		f := t.Field(i)
+		if !f.IsExported() {
+			continue
+		}
+		if polaHasFlag(f.Tag.Get("pola"), "soft_delete") {
+			lf.deletedAt = f.Index
+			lf.DeletedAtColumn = snakeCase(f.Name)
+			continue
+		}
+		if f.Type == timeType || (f.Type.Kind() == reflect.Pointer && f.Type.Elem() == timeType) {
+			switch f.Name {
+			case "CreatedAt":
+				lf.createdAt = f.Index
+			case "UpdatedAt":
+				lf.updatedAt = f.Index
+			}
+		}
+	}
+	return lf
+}
+
+// polaHasFlag reports whether a semicolon-separated pola tag contains flag.
+func polaHasFlag(tag, flag string) bool {
+	for _, tok := range strings.Split(tag, ";") {
+		if strings.TrimSpace(tok) == flag {
+			return true
+		}
+	}
+	return false
+}
+
+// StampCreate sets CreatedAt (only when zero) and UpdatedAt to now on the
+// dereferenced entity value v. Fields the entity lacks are skipped.
+func (lf LifecycleFields) StampCreate(v reflect.Value, now time.Time) {
+	setTime(v, lf.createdAt, now, true)
+	setTime(v, lf.updatedAt, now, false)
+}
+
+// StampUpdate sets UpdatedAt to now on the dereferenced entity value v.
+func (lf LifecycleFields) StampUpdate(v reflect.Value, now time.Time) {
+	setTime(v, lf.updatedAt, now, false)
+}
+
+// StampDelete sets the soft-delete column to now on the dereferenced entity
+// value v. No-op when soft-delete is off.
+func (lf LifecycleFields) StampDelete(v reflect.Value, now time.Time) {
+	setTime(v, lf.deletedAt, now, false)
+}
+
+// IsSoftDeleted reports whether v's soft-delete column is set (the row is
+// logically deleted). Always false when soft-delete is off.
+func (lf LifecycleFields) IsSoftDeleted(v reflect.Value) bool {
+	if lf.deletedAt == nil {
+		return false
+	}
+	f := v.FieldByIndex(lf.deletedAt)
+	if f.Kind() == reflect.Pointer {
+		return !f.IsNil()
+	}
+	return !f.IsZero()
+}
+
+// setTime writes now into the time.Time (or *time.Time) field at index. When
+// onlyIfZero is set, an already-populated value is left untouched.
+func setTime(v reflect.Value, index []int, now time.Time, onlyIfZero bool) {
+	if index == nil {
+		return
+	}
+	f := v.FieldByIndex(index)
+	if f.Kind() == reflect.Pointer {
+		if onlyIfZero && !f.IsNil() {
+			return
+		}
+		if f.IsNil() {
+			f.Set(reflect.New(f.Type().Elem()))
+		}
+		f = f.Elem()
+	} else if onlyIfZero && !f.IsZero() {
+		return
+	}
+	f.Set(reflect.ValueOf(now))
 }
 
 // snakeCase converts PascalCase to snake_case ("SampleEntity" ->

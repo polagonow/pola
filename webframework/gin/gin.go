@@ -102,11 +102,13 @@ func (g *ginContext) ShouldBindUri(v any) error    { return core.ShouldBindUri(g
 func (g *ginContext) ShouldBindHeader(v any) error { return core.ShouldBindHeader(g, v) }
 func (g *ginContext) ShouldBindQuery(v any) error  { return core.ShouldBindQuery(g, v) }
 func (g *ginContext) ShouldBindForm(v any) error   { return core.ShouldBindForm(g, v) }
-func (g *ginContext) Bind(v any) error             { return core.MustBind(g, g.ShouldBind(v)) }
-func (g *ginContext) BindUri(v any) error          { return core.MustBind(g, g.ShouldBindUri(v)) }
-func (g *ginContext) BindHeader(v any) error       { return core.MustBind(g, g.ShouldBindHeader(v)) }
-func (g *ginContext) BindQuery(v any) error        { return core.MustBind(g, g.ShouldBindQuery(v)) }
-func (g *ginContext) BindForm(v any) error         { return core.MustBind(g, g.ShouldBindForm(v)) }
+func (g *ginContext) Bind(v any) error             { return core.MustBindValidate(g, v, g.ShouldBind(v)) }
+func (g *ginContext) BindUri(v any) error          { return core.MustBindValidate(g, v, g.ShouldBindUri(v)) }
+func (g *ginContext) BindHeader(v any) error {
+	return core.MustBindValidate(g, v, g.ShouldBindHeader(v))
+}
+func (g *ginContext) BindQuery(v any) error        { return core.MustBindValidate(g, v, g.ShouldBindQuery(v)) }
+func (g *ginContext) BindForm(v any) error         { return core.MustBindValidate(g, v, g.ShouldBindForm(v)) }
 func (g *ginContext) FormValue(name string) string { return g.c.Request.FormValue(name) }
 func (g *ginContext) FormFile(name string) (*multipart.FileHeader, error) {
 	return g.c.FormFile(name)
