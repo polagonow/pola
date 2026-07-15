@@ -7,6 +7,7 @@ import (
 	"[[.PolaPackage]]/repository"
 	gormrepo "[[.PolaPackage]]/repository/gorm"
 
+	"[[.ModulePath]]/[[.ModelsDir]]"
 	"[[.ModulePath]]/repositories"
 [[- if eq .IDGoType "string"]]
 	"github.com/google/uuid"
@@ -14,10 +15,11 @@ import (
 )
 
 // [[.LowerName]]Repository is the GORM-backed [[.Name]]Repository. The
-// embedded generic implementation supplies Create/Get/List/Update/Delete;
-// add custom queries as methods on this struct using r.db.
+// embedded generic implementation supplies Create/Get/List/Update/Delete
+// (including framework-owned timestamps and soft-delete); add custom queries
+// as methods on this struct using r.db.
 type [[.LowerName]]Repository struct {
-	repository.Repository[ repositories.[[.Name]], [[.IDGoType]] ]
+	repository.Repository[ [[.ModelsPkg]].[[.Name]], [[.IDGoType]]]
 	db *gorm.DB
 }
 
@@ -27,9 +29,9 @@ func New[[.Name]]Repository(r *core.Registry) repositories.[[.Name]]Repository {
 	db := core.MustInvoke[*gorm.DB](r)
 	return &[[.LowerName]]Repository{
 [[- if eq .IDGoType "string"]]
-		Repository: gormrepo.New[repositories.[[.Name]], string](db, repository.WithNewID(uuid.NewString)),
+		Repository: gormrepo.New[ [[.ModelsPkg]].[[.Name]], string](db, repository.WithNewID(uuid.NewString)),
 [[- else]]
-		Repository: gormrepo.New[repositories.[[.Name]], [[.IDGoType]]](db),
+		Repository: gormrepo.New[ [[.ModelsPkg]].[[.Name]], [[.IDGoType]]](db),
 [[- end]]
 		db: db,
 	}

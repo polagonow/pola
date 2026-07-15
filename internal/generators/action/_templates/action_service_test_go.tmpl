@@ -8,7 +8,7 @@ import (
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/repository"
 
-	"[[ .ModulePath ]]/repositories"
+	"[[ .ModulePath ]]/[[ .ModelsDir ]]"
 	"[[ .ModulePath ]]/services"
 )
 
@@ -22,32 +22,32 @@ func newTest[[ .Name ]](svc services.[[ .ServiceName ]]ServiceInterface) *[[ .Na
 
 // mock[[ .ServiceName ]]Service satisfies services.[[ .ServiceName ]]ServiceInterface.
 type mock[[ .ServiceName ]]Service struct {
-	createFn func(ctx context.Context, e *repositories.[[ .ServiceName ]]) error
-	getFn    func(ctx context.Context, id [[ .IDGoType ]]) (*repositories.[[ .ServiceName ]], error)
-	listFn   func(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.[[ .ServiceName ]]], error)
-	updateFn func(ctx context.Context, e *repositories.[[ .ServiceName ]]) error
+	createFn func(ctx context.Context, e *[[ .ModelsPkg ]].[[ .ServiceName ]]) error
+	getFn    func(ctx context.Context, id [[ .IDGoType ]]) (*[[ .ModelsPkg ]].[[ .ServiceName ]], error)
+	listFn   func(ctx context.Context, params repository.ListParams) (*repository.ListResult[*[[ .ModelsPkg ]].[[ .ServiceName ]]], error)
+	updateFn func(ctx context.Context, e *[[ .ModelsPkg ]].[[ .ServiceName ]]) error
 	deleteFn func(ctx context.Context, id [[ .IDGoType ]]) error
 }
 
-func (m *mock[[ .ServiceName ]]Service) Create(ctx context.Context, e *repositories.[[ .ServiceName ]]) error {
+func (m *mock[[ .ServiceName ]]Service) Create(ctx context.Context, e *[[ .ModelsPkg ]].[[ .ServiceName ]]) error {
 	if m.createFn == nil {
 		panic("createFn not set")
 	}
 	return m.createFn(ctx, e)
 }
-func (m *mock[[ .ServiceName ]]Service) Get(ctx context.Context, id [[ .IDGoType ]]) (*repositories.[[ .ServiceName ]], error) {
+func (m *mock[[ .ServiceName ]]Service) Get(ctx context.Context, id [[ .IDGoType ]]) (*[[ .ModelsPkg ]].[[ .ServiceName ]], error) {
 	if m.getFn == nil {
 		panic("getFn not set")
 	}
 	return m.getFn(ctx, id)
 }
-func (m *mock[[ .ServiceName ]]Service) List(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.[[ .ServiceName ]]], error) {
+func (m *mock[[ .ServiceName ]]Service) List(ctx context.Context, params repository.ListParams) (*repository.ListResult[*[[ .ModelsPkg ]].[[ .ServiceName ]]], error) {
 	if m.listFn == nil {
 		panic("listFn not set")
 	}
 	return m.listFn(ctx, params)
 }
-func (m *mock[[ .ServiceName ]]Service) Update(ctx context.Context, e *repositories.[[ .ServiceName ]]) error {
+func (m *mock[[ .ServiceName ]]Service) Update(ctx context.Context, e *[[ .ModelsPkg ]].[[ .ServiceName ]]) error {
 	if m.updateFn == nil {
 		panic("updateFn not set")
 	}
@@ -61,9 +61,9 @@ func (m *mock[[ .ServiceName ]]Service) Delete(ctx context.Context, id [[ .IDGoT
 }
 
 func Test[[ .Name ]]_List(t *testing.T) {
-	want := &repository.ListResult[*repositories.[[ .ServiceName ]]]{Page: 2, PerPage: 25}
+	want := &repository.ListResult[*[[ .ModelsPkg ]].[[ .ServiceName ]]]{Page: 2, PerPage: 25}
 	svc := &mock[[ .ServiceName ]]Service{
-		listFn: func(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.[[ .ServiceName ]]], error) {
+		listFn: func(ctx context.Context, params repository.ListParams) (*repository.ListResult[*[[ .ModelsPkg ]].[[ .ServiceName ]]], error) {
 			if params.Page != 2 || params.PerPage != 25 {
 				t.Fatalf("params: got page=%d perPage=%d", params.Page, params.PerPage)
 			}
@@ -81,9 +81,9 @@ func Test[[ .Name ]]_List(t *testing.T) {
 }
 
 func Test[[ .Name ]]_Get(t *testing.T) {
-	want := &repositories.[[ .ServiceName ]]{}
+	want := &[[ .ModelsPkg ]].[[ .ServiceName ]]{}
 	svc := &mock[[ .ServiceName ]]Service{
-		getFn: func(ctx context.Context, id [[ .IDGoType ]]) (*repositories.[[ .ServiceName ]], error) {
+		getFn: func(ctx context.Context, id [[ .IDGoType ]]) (*[[ .ModelsPkg ]].[[ .ServiceName ]], error) {
 			return want, nil
 		},
 	}
@@ -104,7 +104,7 @@ func Test[[ .Name ]]_Get(t *testing.T) {
 func Test[[ .Name ]]_Get_PropagatesError(t *testing.T) {
 	wantErr := errors.New("not found")
 	svc := &mock[[ .ServiceName ]]Service{
-		getFn: func(ctx context.Context, id [[ .IDGoType ]]) (*repositories.[[ .ServiceName ]], error) {
+		getFn: func(ctx context.Context, id [[ .IDGoType ]]) (*[[ .ModelsPkg ]].[[ .ServiceName ]], error) {
 			return nil, wantErr
 		},
 	}

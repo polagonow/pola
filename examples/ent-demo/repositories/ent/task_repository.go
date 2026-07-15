@@ -6,6 +6,7 @@ import (
 	"github.com/polagonow/pola/repository"
 	entrepo "github.com/polagonow/pola/repository/ent"
 
+	"ent-demo/db/models"
 	"ent-demo/repositories"
 )
 
@@ -15,14 +16,14 @@ import (
 // writes through ent's Mutation interface; add custom queries as methods on
 // this struct using r.client.
 type taskRepository struct {
-	repository.Repository[repositories.Task, uint]
+	repository.Repository[models.Task, uint]
 	client *ent.Client
 }
 
 // NewTaskRepository creates a new Ent-backed TaskRepository.
 func NewTaskRepository(client *ent.Client) repositories.TaskRepository {
 	return &taskRepository{
-		Repository: entrepo.New[repositories.Task, uint](client),
+		Repository: entrepo.New[models.Task, uint](client),
 		client:     client,
 	}
 }

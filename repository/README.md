@@ -19,28 +19,34 @@ type Repository[T any, ID comparable] interface {
 
 `pola generate repository` used to emit ~73–128 lines of ORM code per entity
 that was ~95% identical between entities. Now the CRUD logic lives here once,
-and generated code shrinks to an entity struct, a named interface, and a
-~25-line implementation that embeds the generic:
+and generated code shrinks to a named interface plus a ~25-line implementation
+that embeds the generic. The entity type is the single, ORM-neutral canonical
+model in `db/models` (`models.User`) — the repository no longer defines its own
+entity struct:
 
 ```go
 // repositories/user_repository.go (generated)
 type UserRepository interface {
-    repository.Repository[User, uint] // add custom query methods here
+    repository.Repository[models.User, uint] // add custom query methods here
 }
 
 // repositories/gorm/user_repository.go (generated)
 type userRepository struct {
-    repository.Repository[repositories.User, uint]
+    repository.Repository[models.User, uint]
     db *gorm.DB // extension point for custom queries
 }
 
-func NewUserRepository(db *gorm.DB) repositories.UserRepository {
-    return &userRepository{Repository: gormrepo.New[repositories.User, uint](db), db: db}
+func NewUserRepository(r *core.Registry) repositories.UserRepository {
+    db := core.MustInvoke[*gorm.DB](r)
+    return &userRepository{Repository: gormrepo.New[models.User, uint](db), db: db}
 }
 ```
 
 The named interface stays mockable and extensible; custom methods go on the
-generated struct using the retained `db`/`ormer` field.
+generated struct using the retained `db`/`ormer` field. Because the model is
+ORM-neutral, GORM and Beego use `models.User` directly at runtime, while Ent's
+schema/client is generated from it; framework-owned timestamps and (opt-in)
+soft-delete are applied by these engines uniformly.
 
 ## Engines
 

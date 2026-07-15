@@ -64,6 +64,32 @@ func TestEntGenerator_WithIndexes(t *testing.T) {
 	mustContain(t, content, `index.Fields("name")`)
 }
 
+// seedAuthorSchema writes a minimal Author ent schema so addReverseEdge (which
+// patches the referenced model to add a reverse edge) has a file to patch.
+func seedAuthorSchema(t *testing.T, dir string) {
+	t.Helper()
+	schemaDir := filepath.Join(dir, "schema")
+	if err := os.MkdirAll(schemaDir, 0o755); err != nil {
+		t.Fatalf("mkdir schema: %v", err)
+	}
+	src := `package schema
+
+import (
+	"entgo.io/ent"
+	"entgo.io/ent/schema/field"
+)
+
+type Author struct{ ent.Schema }
+
+func (Author) Fields() []ent.Field {
+	return []ent.Field{field.String("name")}
+}
+`
+	if err := os.WriteFile(filepath.Join(schemaDir, "author.go"), []byte(src), 0o644); err != nil {
+		t.Fatalf("write author schema: %v", err)
+	}
+}
+
 func TestEntGenerator_WithReferences(t *testing.T) {
 	def := &schema.ModelDefinition{
 		Name: "Article",
@@ -74,6 +100,7 @@ func TestEntGenerator_WithReferences(t *testing.T) {
 	}
 
 	dir := t.TempDir()
+	seedAuthorSchema(t, dir)
 	gen := &EntGenerator{}
 	if err := gen.Generate(def, dir); err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -99,6 +126,7 @@ func TestEntGenerator_WithUUIDReferences(t *testing.T) {
 	}
 
 	dir := t.TempDir()
+	seedAuthorSchema(t, dir)
 	gen := &EntGenerator{}
 	if err := gen.Generate(def, dir); err != nil {
 		t.Fatalf("Generate: %v", err)

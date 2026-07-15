@@ -5,6 +5,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"gorm.io/driver/sqlite"
@@ -174,6 +175,77 @@ func TestStringIDInjection(t *testing.T) {
 	}
 	if res.Total != 1 {
 		t.Fatalf("Total = %d after hostile delete, want 1 (row must survive)", res.Total)
+	}
+}
+
+// SoftItem is a tag-free neutral model: no gorm tags anywhere. gorm treats ID
+// as the auto-increment PK by convention, and the framework (not gorm) owns the
+// timestamps and the pola:"soft_delete" column. This is the shape the canonical
+// emitter produces.
+type SoftItem struct {
+	ID        uint
+	Name      string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt *time.Time `pola:"soft_delete"`
+}
+
+func TestFrameworkOwnedLifecycle(t *testing.T) {
+	db := openDB(t, &SoftItem{})
+	repo := New[SoftItem, uint](db)
+	ctx := context.Background()
+
+	it := &SoftItem{Name: "a"}
+	if err := repo.Create(ctx, it); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if it.CreatedAt.IsZero() || it.UpdatedAt.IsZero() {
+		t.Fatalf("Create should stamp CreatedAt/UpdatedAt, got %+v", it)
+	}
+	created, firstUpdated := it.CreatedAt, it.UpdatedAt
+
+	// Update bumps UpdatedAt but preserves CreatedAt.
+	time.Sleep(5 * time.Millisecond)
+	it.Name = "b"
+	if err := repo.Update(ctx, it); err != nil {
+		t.Fatalf("Update: %v", err)
+	}
+	if !it.CreatedAt.Equal(created) {
+		t.Errorf("CreatedAt changed on update: %v != %v", it.CreatedAt, created)
+	}
+	if !it.UpdatedAt.After(firstUpdated) {
+		t.Errorf("UpdatedAt not bumped on update: %v not after %v", it.UpdatedAt, firstUpdated)
+	}
+
+	// Soft delete hides the row from Get/List but keeps it physically.
+	if err := repo.Delete(ctx, it.ID); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if _, err := repo.Get(ctx, it.ID); err == nil {
+		t.Fatal("expected Get to miss a soft-deleted row")
+	}
+	res, err := repo.List(ctx, repository.ListParams{})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if res.Total != 0 {
+		t.Errorf("List Total = %d, want 0 (soft-deleted row hidden)", res.Total)
+	}
+
+	// The physical row survives with deleted_at set (no gorm soft-delete magic).
+	var count int64
+	if err := db.Model(&SoftItem{}).Count(&count).Error; err != nil {
+		t.Fatalf("count raw: %v", err)
+	}
+	if count != 1 {
+		t.Errorf("physical row count = %d, want 1 (soft delete keeps the row)", count)
+	}
+	var raw SoftItem
+	if err := db.First(&raw, it.ID).Error; err != nil {
+		t.Fatalf("read raw row: %v", err)
+	}
+	if raw.DeletedAt == nil {
+		t.Error("deleted_at not set on soft-deleted row")
 	}
 }
 

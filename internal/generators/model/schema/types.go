@@ -112,16 +112,29 @@ func (f *Field) ReferencedModel() string {
 	return PascalCase(f.Name)
 }
 
-// ModelDefinition is the parsed model definition from CLI arguments.
+// ModelDefinition is the parsed model definition. It is produced both from CLI
+// arguments (ParseArgs) and by reading a canonical db/models struct back into
+// this form (ParseModelFile) — the two must round-trip to the same value.
 type ModelDefinition struct {
-	Name   string    // PascalCase model name, e.g. "Article"
-	IDType FieldType // empty = default auto-increment PK, FieldUUID = string UUID PK
-	Fields []Field
+	Name          string    // PascalCase model name, e.g. "Article"
+	IDType        FieldType // empty = default auto-increment PK, FieldUUID = string UUID PK
+	Fields        []Field
+	HasTimestamps bool // emit/according CreatedAt + UpdatedAt columns
+	SoftDeletes   bool // emit/according a nullable DeletedAt column + soft-delete behavior
 }
 
 // HasUUIDPrimaryKey returns true if the model uses a UUID primary key.
 func (m *ModelDefinition) HasUUIDPrimaryKey() bool {
 	return m.IDType == FieldUUID
+}
+
+// IDGoType returns the Go type of the model's primary key: "string" for UUID
+// keys, "uint" for the default auto-increment key.
+func (m *ModelDefinition) IDGoType() string {
+	if m.IDType == FieldUUID {
+		return "string"
+	}
+	return "uint"
 }
 
 // HasReferences returns true if the model has any non-polymorphic references fields.

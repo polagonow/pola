@@ -5,6 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -195,12 +196,18 @@ func (g *ActionGenerator) run(cmd *cobra.Command, args []string) error {
 			if idType == "" {
 				idType = "uint"
 			}
+			modelsDir := "db/models"
+			if pf != nil {
+				modelsDir = pf.DatabaseModelsDir()
+			}
 			if err := actionServiceTestTmpl.Execute(&testBuf, struct {
 				Name        string
 				ServiceName string
 				IDGoType    string
 				ModulePath  string
-			}{Name: name + "Action", ServiceName: serviceName, IDGoType: idType, ModulePath: modulePath}); err != nil {
+				ModelsDir   string
+				ModelsPkg   string
+			}{Name: name + "Action", ServiceName: serviceName, IDGoType: idType, ModulePath: modulePath, ModelsDir: modelsDir, ModelsPkg: path.Base(modelsDir)}); err != nil {
 				return fmt.Errorf("execute action service test template: %w", err)
 			}
 		} else {

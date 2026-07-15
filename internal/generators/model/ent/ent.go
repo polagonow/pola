@@ -87,9 +87,10 @@ func buildEntData(def *schema.ModelDefinition) entData {
 	for _, f := range def.Fields {
 		if f.Type == schema.FieldReferences {
 			// Add FK field(s) with type matching the referenced model's ID.
-			fkEntType := entTypeName(f.RefIDType)
-			if fkEntType == "" {
-				fkEntType = "Int" // ent default
+			// An empty RefIDType means the default auto-increment key → Int.
+			fkEntType := "Int"
+			if f.RefIDType != "" {
+				fkEntType = entTypeName(f.RefIDType)
 			}
 			data.Fields = append(data.Fields, entField{
 				EntField: entFieldCall(fkEntType, f.Name+"_id", f.Optional),
@@ -143,6 +144,20 @@ func buildEntData(def *schema.ModelDefinition) entData {
 				data.Indexes = append(data.Indexes, idx)
 			}
 		}
+	}
+
+	// Framework-owned lifecycle columns (see repository package). Optional so ent
+	// never requires them at build time; the generic ent adapter stamps them.
+	if def.HasTimestamps {
+		data.Fields = append(data.Fields,
+			entField{EntField: `field.Time("created_at").Optional()`},
+			entField{EntField: `field.Time("updated_at").Optional()`},
+		)
+	}
+	if def.SoftDeletes {
+		data.Fields = append(data.Fields,
+			entField{EntField: `field.Time("deleted_at").Optional().Nillable()`},
+		)
 	}
 
 	data.HasIndexes = len(data.Indexes) > 0

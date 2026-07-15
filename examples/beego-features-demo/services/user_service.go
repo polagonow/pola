@@ -6,6 +6,7 @@ import (
 
 	"github.com/polagonow/pola/auth/password"
 	"github.com/polagonow/pola/core"
+	"beego-features-demo/db/models"
 	"beego-features-demo/repositories"
 )
 
@@ -17,12 +18,12 @@ func NewUserService(r *core.Registry) *UserService {
 	return &UserService{repo: core.MustInvoke[repositories.UserRepository](r)}
 }
 
-func (s *UserService) Register(ctx context.Context, username, pass, displayName string) (*repositories.User, error) {
+func (s *UserService) Register(ctx context.Context, username, pass, displayName string) (*models.User, error) {
 	hash, err := password.Hash(pass)
 	if err != nil {
 		return nil, err
 	}
-	user := &repositories.User{
+	user := &models.User{
 		Username:     username,
 		PasswordHash: hash,
 		DisplayName:  displayName,
@@ -33,7 +34,7 @@ func (s *UserService) Register(ctx context.Context, username, pass, displayName 
 	return user, nil
 }
 
-func (s *UserService) Authenticate(ctx context.Context, username, pass string) (*repositories.User, error) {
+func (s *UserService) Authenticate(ctx context.Context, username, pass string) (*models.User, error) {
 	user, err := s.repo.GetByUsername(ctx, username)
 	if err != nil {
 		return nil, errors.New("invalid credentials")
@@ -45,6 +46,6 @@ func (s *UserService) Authenticate(ctx context.Context, username, pass string) (
 	return user, nil
 }
 
-func (s *UserService) GetByID(ctx context.Context, id uint) (*repositories.User, error) {
+func (s *UserService) GetByID(ctx context.Context, id uint) (*models.User, error) {
 	return s.repo.GetByID(ctx, id)
 }

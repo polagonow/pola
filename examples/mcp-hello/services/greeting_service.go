@@ -4,6 +4,7 @@ import (
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/service"
 
+	"mcp-hello/db/models"
 	"mcp-hello/repositories"
 )
 
@@ -11,14 +12,14 @@ import (
 // the framework's standard CRUD service; add custom business methods here.
 // Routes and other call sites depend on this interface.
 type GreetingServiceInterface interface {
-	service.Service[repositories.Greeting, uint]
+	service.Service[models.Greeting, uint]
 }
 
 // GreetingService handles business logic for greeting operations. The embedded
 // generic service delegates CRUD to the repository; override a method (e.g.
 // Create) on this struct to add validation or business rules, using s.repo.
 type GreetingService struct {
-	service.Service[repositories.Greeting, uint]
+	service.Service[models.Greeting, uint]
 	repo repositories.GreetingRepository
 }
 

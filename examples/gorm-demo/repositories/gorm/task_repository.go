@@ -6,6 +6,7 @@ import (
 	"github.com/polagonow/pola/repository"
 	gormrepo "github.com/polagonow/pola/repository/gorm"
 
+	"gorm-demo/db/models"
 	"gorm-demo/repositories"
 )
 
@@ -13,14 +14,14 @@ import (
 // embedded generic implementation supplies Create/Get/List/Update/Delete;
 // add custom queries as methods on this struct using r.db.
 type taskRepository struct {
-	repository.Repository[repositories.Task, uint]
+	repository.Repository[models.Task, uint]
 	db *gorm.DB
 }
 
 // NewTaskRepository creates a new GORM-backed TaskRepository.
 func NewTaskRepository(db *gorm.DB) repositories.TaskRepository {
 	return &taskRepository{
-		Repository: gormrepo.New[repositories.Task, uint](db),
+		Repository: gormrepo.New[models.Task, uint](db),
 		db:         db,
 	}
 }

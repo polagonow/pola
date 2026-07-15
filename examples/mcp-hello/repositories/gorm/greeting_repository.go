@@ -7,6 +7,7 @@ import (
 	"github.com/polagonow/pola/repository"
 	gormrepo "github.com/polagonow/pola/repository/gorm"
 
+	"mcp-hello/db/models"
 	"mcp-hello/repositories"
 )
 
@@ -14,7 +15,7 @@ import (
 // embedded generic implementation supplies Create/Get/List/Update/Delete;
 // add custom queries as methods on this struct using r.db.
 type greetingRepository struct {
-	repository.Repository[repositories.Greeting, uint]
+	repository.Repository[models.Greeting, uint]
 	db *gorm.DB
 }
 
@@ -23,7 +24,7 @@ type greetingRepository struct {
 func NewGreetingRepository(r *core.Registry) repositories.GreetingRepository {
 	db := core.MustInvoke[*gorm.DB](r)
 	return &greetingRepository{
-		Repository: gormrepo.New[repositories.Greeting, uint](db),
+		Repository: gormrepo.New[models.Greeting, uint](db),
 		db:         db,
 	}
 }

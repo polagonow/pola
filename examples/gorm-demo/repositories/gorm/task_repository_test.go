@@ -8,7 +8,7 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
-	"gorm-demo/repositories"
+	"gorm-demo/db/models"
 )
 
 // TestTaskRepository_CRUD is a wiring smoke test: it proves the entity
@@ -23,13 +23,13 @@ func TestTaskRepository_CRUD(t *testing.T) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&repositories.Task{}); err != nil {
+	if err := db.AutoMigrate(&models.Task{}); err != nil {
 		t.Fatalf("auto-migrate: %v", err)
 	}
 	repo := NewTaskRepository(db)
 	ctx := context.Background()
 
-	entity := &repositories.Task{}
+	entity := &models.Task{}
 	if err := repo.Create(ctx, entity); err != nil {
 		t.Fatalf("Create: %v", err)
 	}

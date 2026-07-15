@@ -12,13 +12,18 @@ import (
 	"ariga.io/atlas/sql/schema"
 	atlassqlite "ariga.io/atlas/sql/sqlite"
 	_ "[[ .DriverImport ]]"
-	usermodels "[[ .ModulePath ]]/[[ .ModelsDir ]]/beego"
+	// Blank-import the neutral models package to keep it (and beego/atlas) in the
+	// temp module's dependency graph. The beego-tagged mirror structs used for the
+	// diff are defined locally in models_gen.go.
+	_ "[[ .ModulePath ]]/[[ .ModelsDir ]]"
 	"github.com/beego/beego/v2/client/orm"
 )
 
 func init() {
-	// Register all discovered Beego models.
-[[ range .Models ]]	orm.RegisterModel(new(usermodels.[[ . ]]))
+	// Match the runtime adapter's acronym-aware naming so columns line up
+	// (ID → id), then register the synthesized mirror structs (see models_gen.go).
+	orm.SetNameStrategy("snakeStringWithAcronym")
+[[ range .Models ]]	orm.RegisterModel(new([[ . ]]))
 [[ end ]]}
 
 func main() {

@@ -17,19 +17,22 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+	"time"
 	"unicode"
 
 	entgo "entgo.io/ent"
+	entsql "entgo.io/ent/dialect/sql"
 
 	"github.com/polagonow/pola/repository"
 )
 
 type repo[T any, ID comparable] struct {
-	sub      reflect.Value // e.g. client.Task (*TaskClient)
-	settings repository.Settings[ID]
-	idIndex  []int        // T's ID field
-	entIDTyp reflect.Type // ent's ID type (int or string), from Get's 2nd param
-	fields   []fieldPlan  // exported non-ID fields of T -> mutation field names
+	sub       reflect.Value // e.g. client.Task (*TaskClient)
+	settings  repository.Settings[ID]
+	idIndex   []int        // T's ID field
+	entIDTyp  reflect.Type // ent's ID type (int or string), from Get's 2nd param
+	fields    []fieldPlan  // exported non-ID fields of T -> mutation field names
+	lifecycle repository.LifecycleFields
 }
 
 // fieldPlan maps one exported struct field of T to its ent schema field name.
@@ -66,12 +69,34 @@ func New[T any, ID comparable](client any, opts ...repository.Option[ID]) reposi
 		panic(fmt.Sprintf("repository/ent: unexpected %s.Get signature %s", t.Name(), get))
 	}
 	return &repo[T, ID]{
-		sub:      sub,
-		settings: repository.ApplySettings[T, ID](opts),
-		idIndex:  repository.MustIDFieldIndex[T, ID](),
-		entIDTyp: get.In(1),
-		fields:   buildFieldPlan(t),
+		sub:       sub,
+		settings:  repository.ApplySettings[T, ID](opts),
+		idIndex:   repository.MustIDFieldIndex[T, ID](),
+		entIDTyp:  get.In(1),
+		fields:    buildFieldPlan(t),
+		lifecycle: repository.LifecycleFieldsOf[T](),
 	}
+}
+
+// scopedQuery returns a fresh query with the soft-delete scope applied
+// (deleted_at IS NULL) when entity T opts into soft deletion.
+func (r *repo[T, ID]) scopedQuery() reflect.Value {
+	q := r.sub.MethodByName("Query").Call(nil)[0]
+	if r.lifecycle.SoftDeletes() {
+		q = whereField(q, entsql.FieldIsNull(r.lifecycle.DeletedAtColumn))
+	}
+	return q
+}
+
+// whereField applies a dialect/sql field predicate (a func(*sql.Selector)) to an
+// ent query builder via reflection, converting it to the query's generated
+// predicate.T type. This lets the framework filter without importing the app's
+// generated predicate package.
+func whereField(q reflect.Value, fn any) reflect.Value {
+	where := q.MethodByName("Where")
+	predType := where.Type().In(0).Elem() // predicate.T (named func(*sql.Selector))
+	pred := reflect.ValueOf(fn).Convert(predType)
+	return where.Call([]reflect.Value{pred})[0]
 }
 
 // buildFieldPlan maps T's exported non-ID fields to ent schema field names:
@@ -110,6 +135,7 @@ func (r *repo[T, ID]) Create(ctx context.Context, entity *T) error {
 	if r.settings.NewID != nil {
 		repository.EnsureID(entity, r.settings.NewID)
 	}
+	r.lifecycle.StampCreate(reflect.ValueOf(entity).Elem(), time.Now())
 	builder := r.sub.MethodByName("Create").Call(nil)[0]
 	// Honor a caller-supplied ID when the schema allows it (string-ID schemas
 	// generate a SetID; auto-increment int schemas do not).
@@ -131,8 +157,23 @@ func (r *repo[T, ID]) Create(ctx context.Context, entity *T) error {
 }
 
 func (r *repo[T, ID]) Get(ctx context.Context, id ID) (*T, error) {
+	entID := reflect.ValueOf(id).Convert(r.entIDTyp)
+
+	// When soft-delete is on, fetch through Query so a soft-deleted row is
+	// excluded (deleted_at IS NULL) and Only returns ent's NotFound.
+	if r.lifecycle.SoftDeletes() {
+		q := whereField(r.scopedQuery(), entsql.FieldEQ("id", entID.Interface()))
+		out := q.MethodByName("Only").Call([]reflect.Value{reflect.ValueOf(ctx)})
+		if err := asError(out[1]); err != nil {
+			return nil, fmt.Errorf("get %s by id: %w", r.settings.EntityName, err)
+		}
+		entity := new(T)
+		copyFields(out[0], reflect.ValueOf(entity).Elem())
+		return entity, nil
+	}
+
 	out := r.sub.MethodByName("Get").Call([]reflect.Value{
-		reflect.ValueOf(ctx), reflect.ValueOf(id).Convert(r.entIDTyp),
+		reflect.ValueOf(ctx), entID,
 	})
 	if err := asError(out[1]); err != nil {
 		return nil, fmt.Errorf("get %s by id: %w", r.settings.EntityName, err)
@@ -145,14 +186,14 @@ func (r *repo[T, ID]) Get(ctx context.Context, id ID) (*T, error) {
 func (r *repo[T, ID]) List(ctx context.Context, params repository.ListParams) (*repository.ListResult[*T], error) {
 	params = params.Normalize()
 
-	count := r.sub.MethodByName("Query").Call(nil)[0].MethodByName("Count").
+	count := r.scopedQuery().MethodByName("Count").
 		Call([]reflect.Value{reflect.ValueOf(ctx)})
 	if err := asError(count[1]); err != nil {
 		return nil, fmt.Errorf("count %s: %w", r.settings.EntityName, err)
 	}
 	total := int(count[0].Int())
 
-	q := r.sub.MethodByName("Query").Call(nil)[0]
+	q := r.scopedQuery()
 	q = q.MethodByName("Offset").Call([]reflect.Value{reflect.ValueOf(params.Offset())})[0]
 	q = q.MethodByName("Limit").Call([]reflect.Value{reflect.ValueOf(params.PerPage)})[0]
 	all := q.MethodByName("All").Call([]reflect.Value{reflect.ValueOf(ctx)})
@@ -170,6 +211,7 @@ func (r *repo[T, ID]) List(ctx context.Context, params repository.ListParams) (*
 }
 
 func (r *repo[T, ID]) Update(ctx context.Context, entity *T) error {
+	r.lifecycle.StampUpdate(reflect.ValueOf(entity).Elem(), time.Now())
 	idVal := reflect.ValueOf(entity).Elem().FieldByIndex(r.idIndex)
 	builder := r.sub.MethodByName("UpdateOneID").
 		Call([]reflect.Value{idVal.Convert(r.entIDTyp)})[0]
@@ -181,6 +223,22 @@ func (r *repo[T, ID]) Update(ctx context.Context, entity *T) error {
 }
 
 func (r *repo[T, ID]) Delete(ctx context.Context, id ID) error {
+	// Soft delete: stamp deleted_at instead of removing the row.
+	if r.lifecycle.SoftDeletes() {
+		builder := r.sub.MethodByName("UpdateOneID").
+			Call([]reflect.Value{reflect.ValueOf(id).Convert(r.entIDTyp)})[0]
+		mut, ok := builder.MethodByName("Mutation").Call(nil)[0].Interface().(entgo.Mutation)
+		if !ok {
+			return fmt.Errorf("delete %s: builder mutation does not implement ent.Mutation", r.settings.EntityName)
+		}
+		if err := mut.SetField(r.lifecycle.DeletedAtColumn, time.Now()); err != nil {
+			return fmt.Errorf("delete %s: %w", r.settings.EntityName, err)
+		}
+		if _, err := callSave(ctx, builder); err != nil {
+			return fmt.Errorf("delete %s: %w", r.settings.EntityName, err)
+		}
+		return nil
+	}
 	builder := r.sub.MethodByName("DeleteOneID").
 		Call([]reflect.Value{reflect.ValueOf(id).Convert(r.entIDTyp)})[0]
 	out := builder.MethodByName("Exec").Call([]reflect.Value{reflect.ValueOf(ctx)})
@@ -196,7 +254,20 @@ func (r *repo[T, ID]) applyMutation(builder reflect.Value, entity *T) error {
 	}
 	ev := reflect.ValueOf(entity).Elem()
 	for _, f := range r.fields {
-		if err := mut.SetField(f.name, normalize(ev.FieldByIndex(f.index))); err != nil {
+		// The soft-delete column is written only by Delete, never here.
+		if r.lifecycle.SoftDeletes() && f.name == r.lifecycle.DeletedAtColumn {
+			continue
+		}
+		v := ev.FieldByIndex(f.index)
+		// Optional/nullable fields are pointers: skip when nil (leave the column
+		// null), otherwise dereference to the value ent's SetField expects.
+		if v.Kind() == reflect.Pointer {
+			if v.IsNil() {
+				continue
+			}
+			v = v.Elem()
+		}
+		if err := mut.SetField(f.name, normalize(v)); err != nil {
 			return fmt.Errorf("set %s.%s: %w", r.settings.EntityName, f.name, err)
 		}
 	}

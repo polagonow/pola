@@ -15,6 +15,7 @@ import (
 	"reflect"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/beego/beego/v2/client/orm"
 
@@ -22,9 +23,10 @@ import (
 )
 
 type repo[T any, ID comparable] struct {
-	ormer    orm.Ormer
-	settings repository.Settings[ID]
-	idIndex  []int
+	ormer     orm.Ormer
+	settings  repository.Settings[ID]
+	idIndex   []int
+	lifecycle repository.LifecycleFields
 }
 
 // New returns a repository.Repository backed by o for entity T keyed by ID.
@@ -32,7 +34,33 @@ type repo[T any, ID comparable] struct {
 func New[T any, ID comparable](o orm.Ormer, opts ...repository.Option[ID]) repository.Repository[T, ID] {
 	idx := repository.MustIDFieldIndex[T, ID]()
 	ensureRegistered(new(T))
-	return &repo[T, ID]{ormer: o, settings: repository.ApplySettings[T, ID](opts), idIndex: idx}
+	return &repo[T, ID]{
+		ormer:     o,
+		settings:  repository.ApplySettings[T, ID](opts),
+		idIndex:   idx,
+		lifecycle: repository.LifecycleFieldsOf[T](),
+	}
+}
+
+// baseQuery returns a QuerySeter for T with the soft-delete scope applied
+// (deleted_at IS NULL) when T opts into soft deletion.
+func (r *repo[T, ID]) baseQuery() orm.QuerySeter {
+	qs := r.ormer.QueryTable(new(T))
+	if r.lifecycle.SoftDeletes() {
+		qs = qs.Filter(r.lifecycle.DeletedAtColumn+"__isnull", true)
+	}
+	return qs
+}
+
+// init selects beego's acronym-aware naming strategy. The canonical model
+// carries no beego column tags, and beego's default naming maps "ID" → "i_d"
+// and "AuthorID" → "author_i_d"; the acronym strategy maps them → "id" /
+// "author_id", matching the migration and the other ORMs. It is a process-global
+// setting and must be chosen before any RegisterModel, so it lives in init.
+func init() {
+	// Value of beego's models.SnakeAcronymNameStrategy (unexported); passed as a
+	// literal because client/orm does not re-export the constant.
+	orm.SetNameStrategy("snakeStringWithAcronym")
 }
 
 // registered tracks types this package has registered with beego, keyed by
@@ -71,6 +99,7 @@ func (r *repo[T, ID]) Create(ctx context.Context, entity *T) error {
 	if r.settings.NewID != nil {
 		repository.EnsureID(entity, r.settings.NewID)
 	}
+	r.lifecycle.StampCreate(reflect.ValueOf(entity).Elem(), time.Now())
 	_, err := r.ormer.InsertWithCtx(ctx, entity)
 	return err
 }
@@ -80,21 +109,23 @@ func (r *repo[T, ID]) Get(ctx context.Context, id ID) (*T, error) {
 	if err := r.ormer.ReadWithCtx(ctx, entity); err != nil {
 		return nil, fmt.Errorf("get %s by id: %w", r.settings.EntityName, err)
 	}
+	// The neutral model carries no beego soft-delete tag, so filter here.
+	if r.lifecycle.IsSoftDeleted(reflect.ValueOf(entity).Elem()) {
+		return nil, fmt.Errorf("get %s by id: %w", r.settings.EntityName, orm.ErrNoRows)
+	}
 	return entity, nil
 }
 
 func (r *repo[T, ID]) List(_ context.Context, params repository.ListParams) (*repository.ListResult[*T], error) {
 	params = params.Normalize()
 
-	qs := r.ormer.QueryTable(new(T))
-
-	total, err := qs.Count()
+	total, err := r.baseQuery().Count()
 	if err != nil {
 		return nil, fmt.Errorf("count %s: %w", r.settings.EntityName, err)
 	}
 
 	var items []*T
-	if _, err := qs.Limit(params.PerPage, params.Offset()).All(&items); err != nil {
+	if _, err := r.baseQuery().Limit(params.PerPage, params.Offset()).All(&items); err != nil {
 		return nil, fmt.Errorf("list %s: %w", r.settings.EntityName, err)
 	}
 
@@ -102,11 +133,19 @@ func (r *repo[T, ID]) List(_ context.Context, params repository.ListParams) (*re
 }
 
 func (r *repo[T, ID]) Update(ctx context.Context, entity *T) error {
+	r.lifecycle.StampUpdate(reflect.ValueOf(entity).Elem(), time.Now())
 	_, err := r.ormer.UpdateWithCtx(ctx, entity)
 	return err
 }
 
 func (r *repo[T, ID]) Delete(ctx context.Context, id ID) error {
+	// Soft delete: stamp the delete column on the row instead of removing it.
+	if r.lifecycle.SoftDeletes() {
+		entity := r.withID(id)
+		r.lifecycle.StampDelete(reflect.ValueOf(entity).Elem(), time.Now())
+		_, err := r.ormer.UpdateWithCtx(ctx, entity, r.lifecycle.DeletedAtColumn)
+		return err
+	}
 	_, err := r.ormer.DeleteWithCtx(ctx, r.withID(id))
 	return err
 }

@@ -4,6 +4,7 @@ import (
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/service"
 
+	"[[.ModulePath]]/[[.ModelsDir]]"
 	"[[.ModulePath]]/repositories"
 )
 
@@ -11,7 +12,7 @@ import (
 // It embeds the framework's standard CRUD service; add custom business methods
 // here. Routes and other call sites depend on this interface.
 type [[.Name]]ServiceInterface interface {
-	service.Service[repositories.[[.Name]], [[.IDGoType]]]
+	service.Service[ [[.ModelsPkg]].[[.Name]], [[.IDGoType]]]
 }
 
 // [[.Name]]Service handles business logic for [[.SnakeName]] operations. The
@@ -19,7 +20,7 @@ type [[.Name]]ServiceInterface interface {
 // (e.g. Create) on this struct to add validation or business rules, using
 // s.repo. Add custom queries as methods here too.
 type [[.Name]]Service struct {
-	service.Service[repositories.[[.Name]], [[.IDGoType]]]
+	service.Service[ [[.ModelsPkg]].[[.Name]], [[.IDGoType]]]
 	repo repositories.[[.Name]]Repository
 }
 

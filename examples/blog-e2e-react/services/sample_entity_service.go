@@ -4,6 +4,7 @@ import (
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/service"
 
+	"blog-e2e-react/db/models"
 	"blog-e2e-react/repositories"
 )
 
@@ -11,14 +12,14 @@ import (
 // the framework's standard CRUD service; add custom business methods here.
 // Routes and other call sites depend on this interface.
 type SampleEntityServiceInterface interface {
-	service.Service[repositories.SampleEntity, uint]
+	service.Service[models.SampleEntity, uint]
 }
 
 // SampleEntityService handles business logic for sample_entity operations. The embedded
 // generic service delegates CRUD to the repository; override a method (e.g.
 // Create) on this struct to add validation or business rules, using s.repo.
 type SampleEntityService struct {
-	service.Service[repositories.SampleEntity, uint]
+	service.Service[models.SampleEntity, uint]
 	repo repositories.SampleEntityRepository
 }
 

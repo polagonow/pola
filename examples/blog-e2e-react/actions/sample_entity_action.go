@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/polagonow/pola/core"
-	"blog-e2e-react/repositories"
+	"blog-e2e-react/db/models"
 	"blog-e2e-react/services"
 
 	"github.com/polagonow/pola/repository"
@@ -37,11 +37,11 @@ func NewSampleEntityAction(r *core.Registry) *SampleEntityAction {
 }
 
 // List returns a paginated list of SampleEntity entities. Becomes SampleEntityAction.list(page, perPage) in JavaScript.
-func (a *SampleEntityAction) List(page, perPage int) (*repository.ListResult[*repositories.SampleEntity], error) {
+func (a *SampleEntityAction) List(page, perPage int) (*repository.ListResult[*models.SampleEntity], error) {
 	return a.svc.List(context.TODO(), repository.ListParams{Page: page, PerPage: perPage})
 }
 
 // Get returns a single SampleEntity by ID. Becomes SampleEntityAction.Get(id) in JavaScript.
-func (a *SampleEntityAction) Get(id uint) (*repositories.SampleEntity, error) {
+func (a *SampleEntityAction) Get(id uint) (*models.SampleEntity, error) {
 	return a.svc.Get(context.TODO(), id)
 }

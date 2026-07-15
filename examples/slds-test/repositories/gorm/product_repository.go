@@ -7,6 +7,7 @@ import (
 	"github.com/polagonow/pola/repository"
 	gormrepo "github.com/polagonow/pola/repository/gorm"
 
+	"slds-test/db/models"
 	"slds-test/repositories"
 )
 
@@ -14,7 +15,7 @@ import (
 // embedded generic implementation supplies Create/Get/List/Update/Delete;
 // add custom queries as methods on this struct using r.db.
 type productRepository struct {
-	repository.Repository[repositories.Product, uint]
+	repository.Repository[models.Product, uint]
 	db *gorm.DB
 }
 
@@ -23,7 +24,7 @@ type productRepository struct {
 func NewProductRepository(r *core.Registry) repositories.ProductRepository {
 	db := core.MustInvoke[*gorm.DB](r)
 	return &productRepository{
-		Repository: gormrepo.New[repositories.Product, uint](db),
+		Repository: gormrepo.New[models.Product, uint](db),
 		db:         db,
 	}
 }

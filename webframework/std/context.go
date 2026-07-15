@@ -49,11 +49,13 @@ func (c *stdContext) ShouldBindHeader(v any) error { return core.ShouldBindHeade
 func (c *stdContext) ShouldBindQuery(v any) error  { return core.ShouldBindQuery(c, v) }
 func (c *stdContext) ShouldBindForm(v any) error   { return core.ShouldBindForm(c, v) }
 
-func (c *stdContext) Bind(v any) error       { return core.MustBind(c, c.ShouldBind(v)) }
-func (c *stdContext) BindUri(v any) error    { return core.MustBind(c, c.ShouldBindUri(v)) }
-func (c *stdContext) BindHeader(v any) error { return core.MustBind(c, c.ShouldBindHeader(v)) }
-func (c *stdContext) BindQuery(v any) error  { return core.MustBind(c, c.ShouldBindQuery(v)) }
-func (c *stdContext) BindForm(v any) error   { return core.MustBind(c, c.ShouldBindForm(v)) }
+func (c *stdContext) Bind(v any) error    { return core.MustBindValidate(c, v, c.ShouldBind(v)) }
+func (c *stdContext) BindUri(v any) error { return core.MustBindValidate(c, v, c.ShouldBindUri(v)) }
+func (c *stdContext) BindHeader(v any) error {
+	return core.MustBindValidate(c, v, c.ShouldBindHeader(v))
+}
+func (c *stdContext) BindQuery(v any) error { return core.MustBindValidate(c, v, c.ShouldBindQuery(v)) }
+func (c *stdContext) BindForm(v any) error  { return core.MustBindValidate(c, v, c.ShouldBindForm(v)) }
 
 func (c *stdContext) FormValue(name string) string { return c.r.FormValue(name) }
 

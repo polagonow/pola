@@ -5,6 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -108,6 +109,12 @@ func (g *ServiceGenerator) run(cmd *cobra.Command, args []string) error {
 	}
 
 	data := buildData(def, modulePath)
+	modelsDir := "db/models"
+	if pf != nil {
+		modelsDir = pf.DatabaseModelsDir()
+	}
+	data.ModelsDir = modelsDir
+	data.ModelsPkg = path.Base(modelsDir)
 
 	serviceDir := filepath.Join(projectDir, svcDir)
 	if err := os.MkdirAll(serviceDir, 0o755); err != nil {
@@ -139,18 +146,16 @@ type serviceData struct {
 	PluralSnake string
 	IDGoType    string
 	ModulePath  string
+	ModelsDir   string // canonical models dir (e.g. "db/models")
+	ModelsPkg   string // package name of the models dir (e.g. "models")
 }
 
 func buildData(def *schema.ModelDefinition, modulePath string) serviceData {
-	idGoType := "uint"
-	if def.HasUUIDPrimaryKey() {
-		idGoType = "string"
-	}
 	return serviceData{
 		Name:        def.Name,
 		SnakeName:   schema.SnakeCase(def.Name),
 		PluralSnake: schema.SnakeCase(schema.Pluralize(def.Name)),
-		IDGoType:    idGoType,
+		IDGoType:    def.IDGoType(),
 		ModulePath:  modulePath,
 	}
 }

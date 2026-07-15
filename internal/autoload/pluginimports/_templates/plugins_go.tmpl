@@ -17,6 +17,7 @@ import (
 	polaenv "{{.PolaPackage}}/env"
 {{- end}}
 	"{{.PolaPackage}}/core"
+	"{{.PolaPackage}}/validation"
 	webfw "{{.PolaPackage}}/webframework/{{.Framework}}"
 {{- if not .APIOnly}}
 	"{{.PolaPackage}}/engine/{{.Engine}}"
@@ -152,6 +153,7 @@ var PolaPlugins = []core.Plugin{
 {{- end}}
 	logging.Plugin(),
 	recovery.Plugin(),
+	validation.Plugin(),
 {{- if .SecurityHeaders}}
 	securityheaders.Plugin(),
 {{- end}}

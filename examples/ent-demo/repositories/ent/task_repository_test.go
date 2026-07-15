@@ -8,7 +8,7 @@ import (
 	"github.com/polagonow/pola/repository"
 
 	"ent-demo/db/client/ent"
-	"ent-demo/repositories"
+	"ent-demo/db/models"
 )
 
 // newTaskTestClient opens an in-memory SQLite-backed ent client and runs
@@ -37,7 +37,7 @@ func TestTaskRepository_CRUD(t *testing.T) {
 	repo := NewTaskRepository(newTaskTestClient(t))
 	ctx := context.Background()
 
-	entity := &repositories.Task{}
+	entity := &models.Task{}
 	if err := repo.Create(ctx, entity); err != nil {
 		t.Fatalf("Create: %v", err)
 	}

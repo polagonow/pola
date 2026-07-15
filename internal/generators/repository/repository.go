@@ -5,6 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -173,6 +174,8 @@ func (g *RepositoryGenerator) run(cmd *cobra.Command, args []string) error {
 	data.PolaPackage = pf.PolaPackage()
 	data.EntClientDir = pf.DatabaseEntClientDir()
 	data.ORM = orm
+	data.ModelsDir = pf.DatabaseModelsDir()
+	data.ModelsPkg = path.Base(data.ModelsDir)
 
 	// Ensure repository directory exists.
 	interfaceDir := filepath.Join(projectDir, repoDir)
@@ -247,108 +250,25 @@ type repoData struct {
 	EntClientDir string // directory for ent-generated client (e.g. "db/ent")
 	ORM          string // selected ORM ("gorm", "ent", "beego")
 	IDGoType     string // "uint" or "string"
-	Fields       []repoField
-	Imports      []string
 	ModulePath   string
+	ModelsDir    string // canonical models dir, relative to module root (e.g. "db/models")
+	ModelsPkg    string // package name of the models dir (e.g. "models")
 	PolaPackage  string
 }
 
-type repoField struct {
-	Name     string
-	JSONName string
-	GoType   string
-	ValidTag string
-}
-
+// buildData assembles template data for a repository. The entity type is the
+// canonical model in db/models (the single source of truth); this generator no
+// longer emits an entity struct of its own.
 func buildData(def *schema.ModelDefinition, modulePath string) repoData {
-	idGoType := "uint"
-	if def.HasUUIDPrimaryKey() {
-		idGoType = "string"
-	}
-
-	data := repoData{
+	return repoData{
 		Name:        def.Name,
 		LowerName:   strings.ToLower(def.Name[:1]) + def.Name[1:],
 		SnakeName:   schema.SnakeCase(def.Name),
 		PluralSnake: schema.SnakeCase(schema.Pluralize(def.Name)),
 		EntPackage:  strings.ToLower(def.Name),
-		IDGoType:    idGoType,
+		IDGoType:    def.IDGoType(),
 		ModulePath:  modulePath,
 	}
-
-	imports := map[string]bool{}
-
-	for _, f := range def.Fields {
-		if f.Type == schema.FieldReferences {
-			if f.RefModel == "StorageBlob" {
-				// Include blob FK field (e.g. AvatarID uint) so routes can set it.
-				data.Fields = append(data.Fields, repoField{
-					Name:     schema.PascalCase(f.Name) + "ID",
-					JSONName: schema.SnakeCase(f.Name) + "_id",
-					GoType:   "uint",
-					ValidTag: "omitempty",
-				})
-			}
-			continue
-		}
-		goType := schema.GoType(f.Type)
-		data.Fields = append(data.Fields, repoField{
-			Name:     schema.PascalCase(f.Name),
-			JSONName: schema.SnakeCase(f.Name),
-			GoType:   goType,
-			ValidTag: validTagForField(f),
-		})
-		switch f.Type {
-		case schema.FieldTime:
-			imports[`"time"`] = true
-		case schema.FieldUUID:
-			imports[`"github.com/google/uuid"`] = true
-		case schema.FieldJSON:
-			imports[`"encoding/json"`] = true
-		}
-	}
-
-	for imp := range imports {
-		data.Imports = append(data.Imports, imp)
-	}
-
-	return data
-}
-
-// validatorTag maps schema field types to go-playground/validator tag
-// fragments. Types without a built-in go-playground tag (e.g. Port) are omitted
-// and validated only by required/omitempty.
-var validatorTag = map[schema.FieldType]string{
-	schema.FieldUUID:         "uuid4",
-	schema.FieldEmail:        "email",
-	schema.FieldURL:          "url",
-	schema.FieldIP:           "ip",
-	schema.FieldIPv4:         "ipv4",
-	schema.FieldIPv6:         "ipv6",
-	schema.FieldMAC:          "mac",
-	schema.FieldAlpha:        "alpha",
-	schema.FieldNumeric:      "numeric",
-	schema.FieldAlphanumeric: "alphanum",
-	schema.FieldHexColor:     "hexcolor",
-	schema.FieldCreditCard:   "credit_card",
-	schema.FieldBase64:       "base64",
-	schema.FieldLatitude:     "latitude",
-	schema.FieldLongitude:    "longitude",
-	schema.FieldSemver:       "semver",
-}
-
-func validTagForField(f schema.Field) string {
-	if f.Type == schema.FieldBool {
-		return "-"
-	}
-	base := "required"
-	if f.Optional {
-		base = "omitempty"
-	}
-	if tag, ok := validatorTag[f.Type]; ok {
-		return base + "," + tag
-	}
-	return base
 }
 
 func writeTemplate(tmpl *template.Template, path string, data repoData) error {

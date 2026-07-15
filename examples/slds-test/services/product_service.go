@@ -4,6 +4,7 @@ import (
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/service"
 
+	"slds-test/db/models"
 	"slds-test/repositories"
 )
 
@@ -11,14 +12,14 @@ import (
 // the framework's standard CRUD service; add custom business methods here.
 // Routes and other call sites depend on this interface.
 type ProductServiceInterface interface {
-	service.Service[repositories.Product, uint]
+	service.Service[models.Product, uint]
 }
 
 // ProductService handles business logic for product operations. The embedded
 // generic service delegates CRUD to the repository; override a method (e.g.
 // Create) on this struct to add validation or business rules, using s.repo.
 type ProductService struct {
-	service.Service[repositories.Product, uint]
+	service.Service[models.Product, uint]
 	repo repositories.ProductRepository
 }
 

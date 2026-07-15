@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/beego/beego/v2/client/orm"
 	"github.com/google/uuid"
@@ -46,6 +47,19 @@ type BManual struct {
 }
 
 func (BManual) TableName() string { return "b_manuals" }
+
+// BNeutral is a fully ORM-tag-free model — the exact shape the canonical
+// emitter produces. beego auto-detects ID as the auto pk; the framework owns
+// the timestamps and the pola:"soft_delete" column.
+type BNeutral struct {
+	ID        uint
+	Name      string
+	CreatedAt time.Time
+	UpdatedAt time.Time
+	DeletedAt *time.Time `pola:"soft_delete"`
+}
+
+func (BNeutral) TableName() string { return "b_neutrals" }
 
 func TestMain(m *testing.M) {
 	if err := orm.RegisterDataBase("default", "sqlite3", "file:beegorepo?mode=memory&cache=shared"); err != nil {
@@ -155,6 +169,58 @@ func TestBeegoErrorLabel(t *testing.T) {
 	}
 	if !strings.HasPrefix(err.Error(), "get b_widget by id:") {
 		t.Errorf("error = %q, want prefix 'get b_widget by id:'", err)
+	}
+}
+
+// TestBeegoNeutralLifecycle proves a tag-free neutral model works with beego:
+// auto-pk detection on ID, framework-stamped timestamps, and framework-owned
+// soft delete (hidden from Get/List, row physically retained).
+func TestBeegoNeutralLifecycle(t *testing.T) {
+	// beego derives column nullability from the orm:"null" tag, not from the
+	// *time.Time pointer, so RunSyncdb would create deleted_at NOT NULL. In
+	// production the table comes from a migration whose beego mirror carries
+	// orm:"null"; here we create that realistic (nullable) schema explicitly.
+	if _, err := orm.NewOrm().Raw(`CREATE TABLE IF NOT EXISTS b_neutrals (` +
+		`id integer NOT NULL PRIMARY KEY AUTOINCREMENT, name text, ` +
+		`created_at datetime, updated_at datetime, deleted_at datetime)`).Exec(); err != nil {
+		t.Fatalf("create table: %v", err)
+	}
+
+	repo := New[BNeutral, uint](orm.NewOrm())
+	ctx := context.Background()
+
+	it := &BNeutral{Name: "a"}
+	if err := repo.Create(ctx, it); err != nil {
+		t.Fatalf("Create: %v", err)
+	}
+	if it.ID == 0 {
+		t.Fatal("expected auto-increment ID (beego auto-pk on untagged ID)")
+	}
+	if it.CreatedAt.IsZero() || it.UpdatedAt.IsZero() {
+		t.Fatalf("timestamps not stamped by framework: %+v", it)
+	}
+
+	if err := repo.Delete(ctx, it.ID); err != nil {
+		t.Fatalf("Delete: %v", err)
+	}
+	if _, err := repo.Get(ctx, it.ID); err == nil {
+		t.Fatal("expected Get to miss a soft-deleted row")
+	}
+	res, err := repo.List(ctx, repository.ListParams{})
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if res.Total != 0 {
+		t.Errorf("List Total = %d, want 0 (soft-deleted row hidden)", res.Total)
+	}
+
+	// The physical row remains with deleted_at set.
+	var count int64
+	if c, err := orm.NewOrm().QueryTable(new(BNeutral)).Count(); err == nil {
+		count = c
+	}
+	if count != 1 {
+		t.Errorf("physical row count = %d, want 1 (soft delete keeps the row)", count)
 	}
 }
 

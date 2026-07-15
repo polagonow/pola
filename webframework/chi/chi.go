@@ -112,11 +112,13 @@ func (c *chiContext) ShouldBindHeader(v any) error { return core.ShouldBindHeade
 func (c *chiContext) ShouldBindQuery(v any) error  { return core.ShouldBindQuery(c, v) }
 func (c *chiContext) ShouldBindForm(v any) error   { return core.ShouldBindForm(c, v) }
 
-func (c *chiContext) Bind(v any) error       { return core.MustBind(c, c.ShouldBind(v)) }
-func (c *chiContext) BindUri(v any) error    { return core.MustBind(c, c.ShouldBindUri(v)) }
-func (c *chiContext) BindHeader(v any) error { return core.MustBind(c, c.ShouldBindHeader(v)) }
-func (c *chiContext) BindQuery(v any) error  { return core.MustBind(c, c.ShouldBindQuery(v)) }
-func (c *chiContext) BindForm(v any) error   { return core.MustBind(c, c.ShouldBindForm(v)) }
+func (c *chiContext) Bind(v any) error    { return core.MustBindValidate(c, v, c.ShouldBind(v)) }
+func (c *chiContext) BindUri(v any) error { return core.MustBindValidate(c, v, c.ShouldBindUri(v)) }
+func (c *chiContext) BindHeader(v any) error {
+	return core.MustBindValidate(c, v, c.ShouldBindHeader(v))
+}
+func (c *chiContext) BindQuery(v any) error { return core.MustBindValidate(c, v, c.ShouldBindQuery(v)) }
+func (c *chiContext) BindForm(v any) error  { return core.MustBindValidate(c, v, c.ShouldBindForm(v)) }
 
 func (c *chiContext) FormValue(name string) string { return c.r.FormValue(name) }
 

@@ -8,6 +8,7 @@ import (
 	"gorm.io/gorm"
 
 	"github.com/polagonow/pola/core"
+	"todo-api/db/models"
 	"todo-api/repositories"
 )
 
@@ -19,7 +20,7 @@ func newTestRepo(t *testing.T) (repositories.TodoRepository, *gorm.DB) {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := db.AutoMigrate(&repositories.Todo{}); err != nil {
+	if err := db.AutoMigrate(&models.Todo{}); err != nil {
 		t.Fatalf("auto-migrate: %v", err)
 	}
 	r := core.NewRegistry()
@@ -34,7 +35,7 @@ func TestTodoRepository_CreateAndGet(t *testing.T) {
 	repo, _ := newTestRepo(t)
 	ctx := context.Background()
 
-	entity := &repositories.Todo{}
+	entity := &models.Todo{}
 	if err := repo.Create(ctx, entity); err != nil {
 		t.Fatalf("Create: %v", err)
 	}
@@ -59,7 +60,7 @@ func TestTodoRepository_List(t *testing.T) {
 	ctx := context.Background()
 
 	for i := 0; i < 3; i++ {
-		if err := repo.Create(ctx, &repositories.Todo{}); err != nil {
+		if err := repo.Create(ctx, &models.Todo{}); err != nil {
 			t.Fatalf("Create #%d: %v", i, err)
 		}
 	}
@@ -80,7 +81,7 @@ func TestTodoRepository_Delete(t *testing.T) {
 	repo, _ := newTestRepo(t)
 	ctx := context.Background()
 
-	entity := &repositories.Todo{}
+	entity := &models.Todo{}
 	if err := repo.Create(ctx, entity); err != nil {
 		t.Fatalf("Create: %v", err)
 	}

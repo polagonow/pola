@@ -10,7 +10,7 @@ import (
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/repository"
 
-	"mcp-hello/repositories"
+	"mcp-hello/db/models"
 	"mcp-hello/services"
 )
 
@@ -53,7 +53,7 @@ func (t *GreetingTool) Handle(ctx context.Context, req *sdk.CallToolRequest) (*s
 	}
 
 	if args.Create != "" {
-		g := &repositories.Greeting{Message: args.Create}
+		g := &models.Greeting{Message: args.Create}
 		if err := t.svc.Create(ctx, g); err != nil {
 			return nil, fmt.Errorf("create greeting: %w", err)
 		}
