@@ -28,6 +28,8 @@ var buildFlags struct {
 	securityHeaders bool
 	imageProcessing string
 	platforms       []string
+	embedMigrations bool
+	migrate         bool
 }
 
 var buildCmd = &cobra.Command{
@@ -63,6 +65,8 @@ func init() {
 	buildCmd.Flags().BoolVar(&buildFlags.securityHeaders, "security-headers", os.Getenv("POLA_SECURITY_HEADERS") != "false", "enable security headers")
 	buildCmd.Flags().StringVar(&buildFlags.imageProcessing, "image-processing", os.Getenv("POLA_IMAGE_PROCESSING"), "image processing adapter")
 	buildCmd.Flags().StringArrayVar(&buildFlags.platforms, "platform", nil, `target platform(s) as GOOS/GOARCH (e.g. linux/amd64); repeatable; use "all" for all supported`)
+	buildCmd.Flags().BoolVar(&buildFlags.embedMigrations, "embed-migrations", autoload.EnvOrBool("POLA_EMBED_MIGRATIONS", false), "embed db migrations and schema.hcl into the binary")
+	buildCmd.Flags().BoolVar(&buildFlags.migrate, "migrate", autoload.EnvOrBool("POLA_MIGRATE", false), "run embedded migrations on boot (implies --embed-migrations)")
 }
 
 func runBuild(cmd *cobra.Command, _ []string) error {
@@ -209,6 +213,10 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 	stage2Opts := baseOpts
 	stage2Opts.Dev = false
 	stage2Opts.Embed = true
+	// --migrate implies --embed-migrations: you can't run migrations that aren't
+	// baked into the binary.
+	stage2Opts.EmbedMigrations = buildFlags.embedMigrations || buildFlags.migrate
+	stage2Opts.Migrate = buildFlags.migrate
 	if hasCross {
 		stage2Opts.Engine = "goja"
 	}

@@ -15,6 +15,7 @@ A Go framework for **React Server Components (RSC)** — implements the Flight s
   - [`pola new`](#pola-new) — scaffold a new app
   - [`pola dev`](#pola-dev) — start the dev server
   - [`pola build`](#pola-build) — build a production binary
+    - [Embedding migrations & auto-migrating on boot](#embedding-migrations--auto-migrating-on-boot)
   - [`pola generate`](#pola-generate) — code generators
     - [`generate action`](#pola-generate-action)
     - [`generate js:bridge`](#pola-generate-jsbridge)
@@ -316,6 +317,8 @@ pola build [flags]
 | `--csrf` | `true` (`POLA_CSRF`) | Enable CSRF protection |
 | `--security-headers` | `true` (`POLA_SECURITY_HEADERS`) | Enable security headers |
 | `--image-processing` | — (`POLA_IMAGE_PROCESSING`) | Image processing adapter (`imaging`) |
+| `--embed-migrations` | `false` (`POLA_EMBED_MIGRATIONS`) | Embed `db/migrations` + `db/schema.hcl` into the binary |
+| `--migrate` | `false` (`POLA_MIGRATE`) | Run embedded migrations on boot (implies `--embed-migrations`) |
 
 **Examples**
 
@@ -325,7 +328,27 @@ pola build -o ./bin/myapp
 pola build --vm goja --renderer react
 CGO_ENABLED=0 pola build --vm goja            # fully static binary
 pola build --cgo 1 --vm v8go                  # build with V8
+pola build --migrate -o ./bin/myapp           # self-migrating binary
 ```
+
+#### Embedding migrations & auto-migrating on boot
+
+By default a built binary carries only your frontend assets — migrations still live on disk under `db/migrations` and are applied separately with `pola db migrate`. Two flags let the binary carry and run its own schema:
+
+- **`--embed-migrations`** bakes `db/migrations` (the `.sql` files + `atlas.sum`) and `db/schema.hcl` into the binary via `//go:embed`. The migrations travel with the binary but are **not** run automatically.
+- **`--migrate`** implies `--embed-migrations` and makes the binary **apply all pending migrations on startup**, before it begins serving. A failed migration aborts startup with a clear error (it is applied during `pola.Ready()`).
+
+```bash
+# Build a single self-contained binary that migrates its own database on boot.
+pola build --migrate -o ./bin/myapp
+
+# Deploy: point it at your database and run it — the schema is brought up to date first.
+DATABASE_URL="postgres://user:pass@db:5432/app?sslmode=disable" ./bin/myapp
+```
+
+The boot migration resolves its connection exactly like your ORM plugin does (same `POLA_DATABASE_*` / `DATABASE_*` variables and `Polafile.hcl` values), so both always target the same database. It uses the same Atlas revision ledger (`atlas_schema_revisions`) as `pola db migrate`, so re-runs are idempotent and `pola db status` stays accurate. Supported adapters: **sqlite, postgresql, mysql**.
+
+> `//go:embed` requires the migrations directory to be inside the module and to exist at build time. If `--embed-migrations`/`--migrate` is set but `db/migrations` has no `.sql` files, the build prints a warning and skips embedding (the binary won't auto-migrate).
 
 ---
 
@@ -671,7 +694,7 @@ pola generate zod Article title:string body:text
 
 Database management. Connection details come from `Polafile.hcl` (`pola.database`) merged with the `--env` block, or you can pass `--url` to override.
 
-> Currently only **SQLite** is supported by the migration runner. PostgreSQL/MySQL adapters are wired through `Polafile.hcl` for app runtime but `db migrate/rollback/...` will error if the adapter is not sqlite.
+> The migration runner supports **SQLite, PostgreSQL, and MySQL**. Migrations are applied with [Atlas](https://atlasgo.io) and tracked in an `atlas_schema_revisions` table so re-runs are idempotent. The same runner powers `pola build --migrate` (see [Embedding migrations & auto-migrating on boot](#embedding-migrations--auto-migrating-on-boot)), so a self-migrating binary and the CLI behave identically.
 
 #### `pola db migrate`
 
@@ -941,6 +964,8 @@ For any setting (e.g. `bundler`, `vm`, `port`), the CLI resolves in this order �
 | `POLA_ENV` | Environment label exposed to runtime | `development` (in `pola dev`) |
 | `POLA_BUILD_ONLY` | Set by `pola build` stage 1; tells runtime to bundle & exit | — |
 | `POLA_PUBLIC_DIR` | Output directory for bundle stage 1 | `./public` |
+| `POLA_EMBED_MIGRATIONS` | Default for `pola build --embed-migrations` | `false` |
+| `POLA_MIGRATE` | Default for `pola build --migrate` (embed + migrate on boot) | `false` |
 | `CGO_ENABLED` | Forwarded to `go build` | `1` |
 
 ---

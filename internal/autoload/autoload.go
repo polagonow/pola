@@ -51,6 +51,9 @@ type Discovery struct {
 	SvcDisco       *SvcDiscovery
 	TSOutPath      string
 	MCPDisco       *MCPDiscovery
+	// EmbeddedMigrations is set by the dbembed autoload when it generated the
+	// pola_migrate.go overlay, so pluginimports knows migratePlugin() exists.
+	EmbeddedMigrations bool
 }
 
 // MCPDiscovery holds the constructors discovered under mcp/tools, mcp/resources,
@@ -85,41 +88,44 @@ type Result struct {
 
 // PluginOpts holds parameters for plugin generation.
 type PluginOpts struct {
-	PolaPackage     string
-	Framework       string // web framework: "std", "gin", "echo", "chi"
-	Engine          string
-	Bundler         string
-	Renderer        string
-	Router          string
-	CSS             string
-	Cache           string
-	Database        string // ORM name: "ent", "gorm", "beego", or "" for none.
-	DatabaseAdapter string // "postgresql", "mysql", "sqlite"
-	DatabaseURL     string
-	DatabaseHost    string
-	DatabasePort    string
-	DatabaseUser    string
-	DatabasePass    string
-	DatabaseName    string
-	CSRF            bool
-	SecurityHeaders bool
-	Dev             bool
-	Embed           bool
-	AppDir          string // path to the web app directory (default: web)
-	ActionsDir      string // path to actions directory (default: ./actions)
-	TSOut           string // path to generated .d.ts file
-	StorageDriver   string // "fs", "rclone", or "" for none
-	StorageRoot     string // local dir for fs, "remote:path" for rclone
-	StorageConfig   string // optional rclone config path
-	MailerRenderer  string
-	MailerTransport string
-	MailerFrom      string
-	SMTPHost        string
-	SMTPPort        string
-	SMTPUsername    string
-	SMTPPassword    string
-	SMTPTLS         bool
-	ImageProcessing string
+	PolaPackage           string
+	Framework             string // web framework: "std", "gin", "echo", "chi"
+	Engine                string
+	Bundler               string
+	Renderer              string
+	Router                string
+	CSS                   string
+	Cache                 string
+	Database              string // ORM name: "ent", "gorm", "beego", or "" for none.
+	DatabaseAdapter       string // "postgresql", "mysql", "sqlite"
+	DatabaseMigrationsDir string // migrations directory (default "db/migrations")
+	DatabaseURL           string
+	DatabaseHost          string
+	DatabasePort          string
+	DatabaseUser          string
+	DatabasePass          string
+	DatabaseName          string
+	CSRF                  bool
+	SecurityHeaders       bool
+	Dev                   bool
+	Embed                 bool
+	EmbedMigrations       bool   // embed db/migrations + db/schema.hcl into the binary
+	Migrate               bool   // run embedded migrations on boot (implies EmbedMigrations)
+	AppDir                string // path to the web app directory (default: web)
+	ActionsDir            string // path to actions directory (default: ./actions)
+	TSOut                 string // path to generated .d.ts file
+	StorageDriver         string // "fs", "rclone", or "" for none
+	StorageRoot           string // local dir for fs, "remote:path" for rclone
+	StorageConfig         string // optional rclone config path
+	MailerRenderer        string
+	MailerTransport       string
+	MailerFrom            string
+	SMTPHost              string
+	SMTPPort              string
+	SMTPUsername          string
+	SMTPPassword          string
+	SMTPTLS               bool
+	ImageProcessing       string
 
 	HasMCP          bool
 	MCPTransport    string
@@ -246,6 +252,7 @@ func PopulateDatabaseOpts(opts *PluginOpts, pf *polafile.Polafile, env string) {
 	}
 	merged := pf.DatabaseForEnv(env)
 	opts.DatabaseAdapter = pf.DatabaseAdapter(env)
+	opts.DatabaseMigrationsDir = pf.DatabaseMigrationsDir()
 	opts.DatabaseURL = merged.URL
 	opts.DatabaseHost = merged.Host
 	opts.DatabasePort = merged.Port

@@ -1,9 +1,6 @@
 package cli
 
 import (
-	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,10 +10,12 @@ import (
 
 	"ariga.io/atlas/sql/migrate"
 	"ariga.io/atlas/sql/schema"
-	atlassqlite "ariga.io/atlas/sql/sqlite"
+	_ "github.com/go-sql-driver/mysql"
+	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
 
 	"github.com/polagonow/pola/database/dsn"
+	"github.com/polagonow/pola/database/migrator"
 	"github.com/polagonow/pola/internal/project"
 	"github.com/polagonow/pola/polafile"
 	"github.com/spf13/cobra"
@@ -62,7 +61,7 @@ func runDBMigrate(cmd *cobra.Command, _ []string) error {
 	}
 	ctx := cmd.Context()
 
-	drv, db, err := openDriver(cfg)
+	drv, db, err := migrator.OpenDriver(cfg.adapter, cfg.url)
 	if err != nil {
 		return err
 	}
@@ -73,8 +72,8 @@ func runDBMigrate(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("open migrations dir: %w", err)
 	}
 
-	rrw := newRevisionReadWriter(db, cfg.adapter)
-	if err := rrw.init(ctx); err != nil {
+	rrw := migrator.NewRevisionReadWriter(db, cfg.adapter)
+	if err := rrw.Init(ctx); err != nil {
 		return fmt.Errorf("init revision table: %w", err)
 	}
 
@@ -140,14 +139,14 @@ func runDBRollback(cmd *cobra.Command, _ []string) error {
 	}
 	ctx := cmd.Context()
 
-	_, db, err := openDriver(cfg)
+	_, db, err := migrator.OpenDriver(cfg.adapter, cfg.url)
 	if err != nil {
 		return err
 	}
 	defer db.Close()
 
-	rrw := newRevisionReadWriter(db, cfg.adapter)
-	if err := rrw.init(ctx); err != nil {
+	rrw := migrator.NewRevisionReadWriter(db, cfg.adapter)
+	if err := rrw.Init(ctx); err != nil {
 		return fmt.Errorf("init revision table: %w", err)
 	}
 
@@ -250,7 +249,7 @@ func runDBStatus(cmd *cobra.Command, _ []string) error {
 	}
 	ctx := cmd.Context()
 
-	drv, db, err := openDriver(cfg)
+	drv, db, err := migrator.OpenDriver(cfg.adapter, cfg.url)
 	if err != nil {
 		return err
 	}
@@ -261,8 +260,8 @@ func runDBStatus(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("open migrations dir: %w", err)
 	}
 
-	rrw := newRevisionReadWriter(db, cfg.adapter)
-	if err := rrw.init(ctx); err != nil {
+	rrw := migrator.NewRevisionReadWriter(db, cfg.adapter)
+	if err := rrw.Init(ctx); err != nil {
 		return fmt.Errorf("init revision table: %w", err)
 	}
 
@@ -333,7 +332,7 @@ func runDBReset(cmd *cobra.Command, _ []string) error {
 	}
 	ctx := cmd.Context()
 
-	drv, db, err := openDriver(cfg)
+	drv, db, err := migrator.OpenDriver(cfg.adapter, cfg.url)
 	if err != nil {
 		return err
 	}
@@ -362,12 +361,12 @@ func runDBReset(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("open migrations dir: %w", err)
 	}
 
-	rrw := newRevisionReadWriter(db, cfg.adapter)
+	rrw := migrator.NewRevisionReadWriter(db, cfg.adapter)
 	// Recreate the revision table.
 	if _, err := db.ExecContext(ctx, "DROP TABLE IF EXISTS atlas_schema_revisions"); err != nil {
 		return fmt.Errorf("drop revision table: %w", err)
 	}
-	if err := rrw.init(ctx); err != nil {
+	if err := rrw.Init(ctx); err != nil {
 		return fmt.Errorf("init revision table: %w", err)
 	}
 
@@ -412,7 +411,7 @@ func runDBSchemaLoad(cmd *cobra.Command, _ []string) error {
 	}
 	ctx := cmd.Context()
 
-	drv, db, err := openDriver(cfg)
+	drv, db, err := migrator.OpenDriver(cfg.adapter, cfg.url)
 	if err != nil {
 		return err
 	}
@@ -423,8 +422,8 @@ func runDBSchemaLoad(cmd *cobra.Command, _ []string) error {
 		return fmt.Errorf("open migrations dir: %w", err)
 	}
 
-	rrw := newRevisionReadWriter(db, cfg.adapter)
-	if err := rrw.init(ctx); err != nil {
+	rrw := migrator.NewRevisionReadWriter(db, cfg.adapter)
+	if err := rrw.Init(ctx); err != nil {
 		return fmt.Errorf("init revision table: %w", err)
 	}
 
@@ -514,109 +513,4 @@ func buildDSN(db polafile.Database) string {
 		Name:     db.Name,
 		Adapter:  db.Adapter,
 	})
-}
-
-// openDriver opens a database connection and returns an Atlas driver.
-// Currently supports sqlite. Postgres/MySQL can be added with their respective drivers.
-func openDriver(cfg *dbConfig) (migrate.Driver, *sql.DB, error) {
-	switch cfg.adapter {
-	case "sqlite":
-		dsn := cfg.url
-		// Strip sqlite:// prefix if present.
-		dsn = strings.TrimPrefix(dsn, "sqlite://")
-		dsn = strings.TrimPrefix(dsn, "sqlite:")
-		db, err := sql.Open("sqlite3", dsn)
-		if err != nil {
-			return nil, nil, fmt.Errorf("open sqlite: %w", err)
-		}
-		drv, err := atlassqlite.Open(db)
-		if err != nil {
-			db.Close()
-			return nil, nil, fmt.Errorf("open atlas sqlite driver: %w", err)
-		}
-		return drv, db, nil
-	default:
-		return nil, nil, fmt.Errorf("adapter %q not yet supported for pola db commands; currently only sqlite is supported", cfg.adapter)
-	}
-}
-
-// ---------- revision tracking ----------
-
-// sqlRevisionReadWriter is a SQL-based RevisionReadWriter that stores migration
-// history in an atlas_schema_revisions table.
-type sqlRevisionReadWriter struct {
-	db      *sql.DB
-	adapter string
-}
-
-func newRevisionReadWriter(db *sql.DB, adapter string) *sqlRevisionReadWriter {
-	return &sqlRevisionReadWriter{db: db, adapter: adapter}
-}
-
-func (rw *sqlRevisionReadWriter) init(ctx context.Context) error {
-	_, err := rw.db.ExecContext(ctx, `CREATE TABLE IF NOT EXISTS atlas_schema_revisions (
-		version TEXT PRIMARY KEY,
-		description TEXT NOT NULL DEFAULT '',
-		type INTEGER NOT NULL DEFAULT 0,
-		applied INTEGER NOT NULL DEFAULT 0,
-		total INTEGER NOT NULL DEFAULT 0,
-		executed_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		execution_time INTEGER NOT NULL DEFAULT 0,
-		error TEXT NOT NULL DEFAULT '',
-		error_stmt TEXT NOT NULL DEFAULT '',
-		hash TEXT NOT NULL DEFAULT '',
-		operator_version TEXT NOT NULL DEFAULT ''
-	)`)
-	return err
-}
-
-func (rw *sqlRevisionReadWriter) Ident() *migrate.TableIdent {
-	return &migrate.TableIdent{Name: "atlas_schema_revisions"}
-}
-
-func (rw *sqlRevisionReadWriter) ReadRevisions(ctx context.Context) ([]*migrate.Revision, error) {
-	rows, err := rw.db.QueryContext(ctx, `SELECT version, description, type, applied, total, executed_at, execution_time, error, error_stmt, hash, operator_version FROM atlas_schema_revisions ORDER BY version`)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var revs []*migrate.Revision
-	for rows.Next() {
-		var r migrate.Revision
-		var execTime int64
-		if err := rows.Scan(&r.Version, &r.Description, &r.Type, &r.Applied, &r.Total, &r.ExecutedAt, &execTime, &r.Error, &r.ErrorStmt, &r.Hash, &r.OperatorVersion); err != nil {
-			return nil, err
-		}
-		r.ExecutionTime = time.Duration(execTime)
-		revs = append(revs, &r)
-	}
-	return revs, rows.Err()
-}
-
-func (rw *sqlRevisionReadWriter) ReadRevision(ctx context.Context, version string) (*migrate.Revision, error) {
-	var r migrate.Revision
-	var execTime int64
-	err := rw.db.QueryRowContext(ctx, `SELECT version, description, type, applied, total, executed_at, execution_time, error, error_stmt, hash, operator_version FROM atlas_schema_revisions WHERE version = ?`, version).
-		Scan(&r.Version, &r.Description, &r.Type, &r.Applied, &r.Total, &r.ExecutedAt, &execTime, &r.Error, &r.ErrorStmt, &r.Hash, &r.OperatorVersion)
-	if errors.Is(err, sql.ErrNoRows) {
-		return nil, migrate.ErrRevisionNotExist
-	}
-	if err != nil {
-		return nil, err
-	}
-	r.ExecutionTime = time.Duration(execTime)
-	return &r, nil
-}
-
-func (rw *sqlRevisionReadWriter) WriteRevision(ctx context.Context, r *migrate.Revision) error {
-	_, err := rw.db.ExecContext(ctx, `INSERT OR REPLACE INTO atlas_schema_revisions (version, description, type, applied, total, executed_at, execution_time, error, error_stmt, hash, operator_version)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		r.Version, r.Description, r.Type, r.Applied, r.Total, r.ExecutedAt, int64(r.ExecutionTime), r.Error, r.ErrorStmt, r.Hash, r.OperatorVersion)
-	return err
-}
-
-func (rw *sqlRevisionReadWriter) DeleteRevision(ctx context.Context, version string) error {
-	_, err := rw.db.ExecContext(ctx, `DELETE FROM atlas_schema_revisions WHERE version = ?`, version)
-	return err
 }

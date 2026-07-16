@@ -219,6 +219,9 @@ var PolaPlugins = []core.Plugin{
 {{- end}}
 	),
 {{- end}}
+{{- if .Migrate}}
+	migratePlugin(),
+{{- end}}
 {{- if .HasStorage}}
 	storage.Plugin(
 {{- if eq .StorageDriver "rclone"}}
