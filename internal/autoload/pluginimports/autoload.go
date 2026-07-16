@@ -36,7 +36,12 @@ func (a *autoloadImpl) Contribute(ctx *autoload.Context) error {
 		routeImports[i] = rp.ImportPath
 	}
 
-	pluginsSrc, err := GenerateSource(ctx.Opts, ctx.Discovery.ActionsImport, routeImports, ctx.Discovery.RepoDisco, ctx.Discovery.EntClientDisco, ctx.Discovery.SvcDisco, ctx.Discovery.MCPDisco)
+	// Only reference migratePlugin() if the dbembed autoload actually generated
+	// the pola_migrate.go overlay (it skips when there are no migrations).
+	opts := ctx.Opts
+	opts.Migrate = opts.Migrate && ctx.Discovery.EmbeddedMigrations
+
+	pluginsSrc, err := GenerateSource(opts, ctx.Discovery.ActionsImport, routeImports, ctx.Discovery.RepoDisco, ctx.Discovery.EntClientDisco, ctx.Discovery.SvcDisco, ctx.Discovery.MCPDisco)
 	if err != nil {
 		return fmt.Errorf("generate plugins: %w", err)
 	}
@@ -95,6 +100,7 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		ImageProcessing string
 		Dev             bool
 		Embed           bool
+		Migrate         bool
 		HasRoutes       bool
 		ActionsImport   string
 		RouteImports    []string
@@ -161,6 +167,7 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		ImageProcessing: autoload.CondStr(hasImageProcessing, opts.ImageProcessing, ""),
 		Dev:             opts.Dev,
 		Embed:           opts.Embed,
+		Migrate:         opts.Migrate,
 		HasRoutes:       len(routeImports) > 0,
 		ActionsImport:   actionsImport,
 		RouteImports:    routeImports,
