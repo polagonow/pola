@@ -5,6 +5,7 @@ package all
 import (
 	_ "github.com/polagonow/pola/internal/autoload/actionbridge"
 	_ "github.com/polagonow/pola/internal/autoload/dbembed"
+	_ "github.com/polagonow/pola/internal/autoload/dbseed"
 	_ "github.com/polagonow/pola/internal/autoload/embed"
 	_ "github.com/polagonow/pola/internal/autoload/entclient"
 	_ "github.com/polagonow/pola/internal/autoload/mcp"

@@ -94,7 +94,7 @@ func mountApp(d mountDeps) http.Handler {
 
 	// renderRoute renders a resolved page route (or a 404 when route is nil).
 	renderRoute := func(w http.ResponseWriter, r *http.Request, route *core.Route, params map[string]any) {
-		w.Header().Set("Vary", "Content-Type")
+		w.Header().Set("Vary", "Accept, Content-Type")
 		ctx := r.Context()
 		if d.tracer != nil {
 			var span core.Span

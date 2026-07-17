@@ -40,7 +40,9 @@ export type CallServerCallback = <A, T>(id: string, args: A) => Promise<T>
 
 const ROW_ID = 0
 const ROW_TAG = 1
+const ROW_LENGTH = 2
 const ROW_CHUNK_BY_NEWLINE = 3
+const ROW_CHUNK_BY_LENGTH = 4
 
 type RowParserState = 0 | 1 | 2 | 3 | 4
 
@@ -920,10 +922,16 @@ export function processBinaryChunk(
       }
       case ROW_TAG: {
         const resolvedRowTag = chunk[i]
-        if (
-          resolvedRowTag === 84
-          || /* "T" */ (resolvedRowTag > 64 && resolvedRowTag < 91) /* "A"-"Z" */
-        ) {
+        if (resolvedRowTag === 84 /* "T" */) {
+          // Text rows are length-prefixed: `T<hexLength>,<payload>`. Read the
+          // length next, then consume exactly that many bytes — the payload
+          // has no trailing newline and may itself contain newlines (or none),
+          // so it can't be delimited by scanning for "\n".
+          rowTag = resolvedRowTag
+          rowState = ROW_LENGTH
+          i++
+        }
+        else if (resolvedRowTag > 64 && resolvedRowTag < 91 /* "A"-"Z" */) {
           rowTag = resolvedRowTag
           rowState = ROW_CHUNK_BY_NEWLINE
           i++
@@ -934,8 +942,25 @@ export function processBinaryChunk(
         }
         continue
       }
+      case ROW_LENGTH: {
+        const byte = chunk[i++]
+        if (byte === 44 /* "," */) {
+          rowState = ROW_CHUNK_BY_LENGTH
+        }
+        else {
+          rowLength = (rowLength << 4) | (byte > 96 ? byte - 87 : byte - 48)
+        }
+        continue
+      }
       case ROW_CHUNK_BY_NEWLINE: {
         lastIdx = chunk.indexOf(10 /* "\n" */, i)
+        break
+      }
+      case ROW_CHUNK_BY_LENGTH: {
+        lastIdx = i + rowLength
+        if (lastIdx > chunk.length) {
+          lastIdx = -1
+        }
         break
       }
     }
@@ -990,6 +1015,7 @@ export function processStringChunk(
   let rowState = streamState._rowState
   let rowID = streamState._rowID
   let rowTag = streamState._rowTag
+  let rowLength = streamState._rowLength
   const chunkLength = chunk.length
 
   while (i < chunkLength) {
@@ -1008,10 +1034,16 @@ export function processStringChunk(
       }
       case ROW_TAG: {
         const resolvedRowTag = chunk.charCodeAt(i)
-        if (
-          resolvedRowTag === 84
-          || /* "T" */ (resolvedRowTag > 64 && resolvedRowTag < 91) /* "A"-"Z" */
-        ) {
+        if (resolvedRowTag === 84 /* "T" */) {
+          // Length-prefixed text row (see processBinaryChunk). NOTE: the length
+          // is a UTF-8 byte count; for the string path we slice that many UTF-16
+          // code units, which is exact for ASCII payloads (the only case Pola's
+          // server outlines as text). The binary path handles multibyte exactly.
+          rowTag = resolvedRowTag
+          rowState = ROW_LENGTH
+          i++
+        }
+        else if (resolvedRowTag > 64 && resolvedRowTag < 91 /* "A"-"Z" */) {
           rowTag = resolvedRowTag
           rowState = ROW_CHUNK_BY_NEWLINE
           i++
@@ -1022,8 +1054,25 @@ export function processStringChunk(
         }
         continue
       }
+      case ROW_LENGTH: {
+        const byte = chunk.charCodeAt(i++)
+        if (byte === 44 /* "," */) {
+          rowState = ROW_CHUNK_BY_LENGTH
+        }
+        else {
+          rowLength = (rowLength << 4) | (byte > 96 ? byte - 87 : byte - 48)
+        }
+        continue
+      }
       case ROW_CHUNK_BY_NEWLINE: {
         lastIdx = chunk.indexOf('\n', i)
+        break
+      }
+      case ROW_CHUNK_BY_LENGTH: {
+        lastIdx = i + rowLength
+        if (lastIdx > chunk.length) {
+          lastIdx = -1
+        }
         break
       }
     }
@@ -1040,6 +1089,7 @@ export function processStringChunk(
       rowState = ROW_ID
       rowTag = 0
       rowID = 0
+      rowLength = 0
     }
     else {
       break
@@ -1049,6 +1099,7 @@ export function processStringChunk(
   streamState._rowState = rowState
   streamState._rowID = rowID
   streamState._rowTag = rowTag
+  streamState._rowLength = rowLength
 }
 
 export function close(response: Response): void {

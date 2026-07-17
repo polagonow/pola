@@ -1,8 +1,10 @@
 package cli
 
 import (
+	"cmp"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"text/tabwriter"
@@ -16,6 +18,7 @@ import (
 
 	"github.com/polagonow/pola/database/dsn"
 	"github.com/polagonow/pola/database/migrator"
+	"github.com/polagonow/pola/internal/autoload"
 	"github.com/polagonow/pola/internal/project"
 	"github.com/polagonow/pola/polafile"
 	"github.com/spf13/cobra"
@@ -33,6 +36,104 @@ func init() {
 	dbCmd.AddCommand(dbStatusCmd)
 	dbCmd.AddCommand(dbResetCmd)
 	dbCmd.AddCommand(dbSchemaLoadCmd)
+	dbCmd.AddCommand(dbSeedCmd)
+}
+
+// ---------- seed ----------
+
+var dbSeedCmd = &cobra.Command{
+	Use:   "seed",
+	Short: "Run database seeds (db/seeds)",
+	Long: `Build the app and run the seeders registered in db/seeds.
+
+Define db/seeds/seeds.go with:
+
+    func Seed(ctx context.Context, r *core.Registry) error
+
+(scaffold it via 'pola generate seed'). The seeder runs with the full DI
+registry, so it can resolve services and repositories via core.MustInvoke.`,
+	RunE:    runDBSeed,
+	Example: `  pola db seed`,
+}
+
+func runDBSeed(cmd *cobra.Command, _ []string) error {
+	projectDir, err := project.FindRoot()
+	if err != nil {
+		return err
+	}
+
+	var pf polafile.Polafile
+	pfPtr, err := polafile.Load(projectDir)
+	if err != nil {
+		return fmt.Errorf("load Polafile: %w", err)
+	}
+	pfPtr = polafile.ApplyEnvOverrides(pfPtr)
+	if pfPtr != nil {
+		pf = *pfPtr
+	}
+	isAPIOnly := pfPtr != nil && pfPtr.IsAPIOnly()
+
+	// Generate the plugin/route/seed overlay, exactly as the dev server does, so
+	// the app compiles with db/seeds wired in.
+	opts := seedPluginOpts(&pf, isAPIOnly)
+	overlayRes, err := autoload.Run(projectDir, opts, verbose)
+	if err != nil {
+		return err
+	}
+	defer cleanupOverlay(overlayRes)
+
+	goArgs := []string{"run"}
+	if overlayRes != nil && overlayRes.OverlayPath != "" {
+		goArgs = append(goArgs, "-overlay", overlayRes.OverlayPath)
+	}
+	goArgs = append(goArgs, ".")
+
+	run := exec.Command("go", goArgs...)
+	run.Dir = projectDir
+	run.Stdout = os.Stdout
+	run.Stderr = os.Stderr
+	// POLA_SEED_ONLY makes pola.Ready() run the seeders and exit instead of serving.
+	run.Env = append(os.Environ(),
+		"POLA_ENV=development",
+		"POLA_SEED_ONLY=true",
+		"GOFLAGS=-mod=mod",
+	)
+	return run.Run()
+}
+
+// seedPluginOpts builds the overlay PluginOpts from the Polafile (mirroring the
+// dev-server wiring) so `pola db seed` compiles the app with all plugins.
+func seedPluginOpts(pf *polafile.Polafile, isAPIOnly bool) autoload.PluginOpts {
+	opts := autoload.PluginOpts{
+		PolaPackage:     pf.PolaPackage(),
+		Framework:       cmp.Or(os.Getenv("POLA_WEB_FRAMEWORK"), pf.Framework, "std"),
+		Cache:           cmp.Or(os.Getenv("POLA_CACHE"), pf.CacheAdapter("default"), "memory"),
+		CSRF:            autoload.EnvOrBool("POLA_CSRF", pf.CSRFEnabled("default")),
+		SecurityHeaders: autoload.EnvOrBool("POLA_SECURITY_HEADERS", pf.SecurityHeadersEnabled("default")),
+		Dev:             true,
+		APIOnly:         isAPIOnly,
+	}
+	if !isAPIOnly {
+		opts.Engine = cmp.Or(os.Getenv("POLA_VM"), nameOnly(pf.Engine), "goja")
+		opts.Bundler = cmp.Or(os.Getenv("POLA_BUNDLER"), nameOnly(pf.Bundler), "esbuild")
+		opts.Renderer = cmp.Or(os.Getenv("POLA_RENDERER"), nameOnly(pf.Renderer), "react")
+		opts.Router = cmp.Or(os.Getenv("POLA_ROUTER"), nameOnly(pf.Router), "nextjs")
+		opts.CSS = cmp.Or(os.Getenv("POLA_CSS"), nameOnly(pf.CSS), "tailwind")
+		opts.AppDir = pf.AppDir()
+	}
+	defaultEnv := "development"
+	autoload.PopulateDatabaseOpts(&opts, pf, defaultEnv)
+	autoload.PopulateStorageOpts(&opts, pf, defaultEnv)
+	autoload.ApplyMailerOpts(&opts, pf, defaultEnv)
+	autoload.PopulateMCPOpts(&opts, pf, defaultEnv)
+	autoload.PopulateSessionOpts(&opts, pf, defaultEnv)
+	autoload.PopulateJWTOpts(&opts, pf, defaultEnv)
+	autoload.PopulateProtectOpts(&opts, pf, defaultEnv)
+	autoload.PopulateCSRFOpts(&opts, pf, defaultEnv)
+	autoload.PopulateRateLimitOpts(&opts, pf, defaultEnv)
+	autoload.PopulateFlashOpts(&opts, pf, defaultEnv)
+	autoload.PopulateI18nOpts(&opts, pf, defaultEnv)
+	return opts
 }
 
 // ---------- migrate ----------

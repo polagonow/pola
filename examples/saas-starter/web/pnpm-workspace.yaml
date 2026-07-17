@@ -1,0 +1,2 @@
+patchedDependencies:
+  lucide-react@0.488.0: patches/lucide-react@0.488.0.patch

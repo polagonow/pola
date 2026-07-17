@@ -131,7 +131,12 @@ func (r *Renderer) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 		Injectors:      injectors,
 	}
 
-	isFlight := req.Header.Get("Content-Type") == ContentType
+	// A flight (RSC) request is identified by the RSC content type. Browsers do
+	// not reliably send a Content-Type header on a bodyless GET, so also honor
+	// the Accept header (which fetch always sends) — otherwise the client's
+	// flight re-fetch receives the HTML page and fails to parse it.
+	isFlight := req.Header.Get("Content-Type") == ContentType ||
+		req.Header.Get("Accept") == ContentType
 
 	if isFlight {
 		r.serveFlight(ctx, w, req, renderReq, status, &deps)

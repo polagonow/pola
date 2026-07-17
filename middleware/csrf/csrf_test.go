@@ -86,6 +86,48 @@ func TestCSRF_POST_WithToken_Succeeds(t *testing.T) {
 	}
 }
 
+func TestCSRF_Exempt_POST_Bypasses(t *testing.T) {
+	mw := csrf.New(csrf.WithSecure(false), csrf.WithExempt("/api/stripe/webhook"))
+	handler := mw.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	// An exempt POST with no CSRF token must succeed (bypasses protection).
+	req := httptest.NewRequest(http.MethodPost, "/api/stripe/webhook", strings.NewReader("{}"))
+	req.Header.Set("Content-Type", "application/json")
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusOK {
+		t.Fatalf("expected 200 for exempt path, got %d", rr.Code)
+	}
+
+	// A non-exempt POST without a token is still rejected.
+	req2 := httptest.NewRequest(http.MethodPost, "/submit", strings.NewReader("data=test"))
+	req2.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	rr2 := httptest.NewRecorder()
+	handler.ServeHTTP(rr2, req2)
+	if rr2.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 for protected path, got %d", rr2.Code)
+	}
+}
+
+func TestCSRF_Exempt_Wildcard(t *testing.T) {
+	mw := csrf.New(csrf.WithSecure(false), csrf.WithExempt("/api/webhooks/*"))
+	handler := mw.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	for _, path := range []string{"/api/webhooks", "/api/webhooks/stripe", "/api/webhooks/github/push"} {
+		req := httptest.NewRequest(http.MethodPost, path, strings.NewReader("{}"))
+		rr := httptest.NewRecorder()
+		handler.ServeHTTP(rr, req)
+		if rr.Code != http.StatusOK {
+			t.Fatalf("expected 200 for wildcard-exempt %q, got %d", path, rr.Code)
+		}
+	}
+}
+
 func TestCSRF_CustomCookieName(t *testing.T) {
 	mw := csrf.New(csrf.WithSecure(false), csrf.WithCookieName("my_csrf"))
 	handler := mw.Wrap(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

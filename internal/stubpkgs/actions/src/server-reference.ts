@@ -11,6 +11,19 @@ export interface ServerActionResponse<T = unknown> {
   redirect?: string | null;
 }
 
+// withCsrf adds the X-CSRF-Token header (read from the <meta name="csrf-token">
+// tag the renderer injects) when CSRF protection is active. It's a no-op when
+// CSRF is disabled or no token is present.
+function withCsrf(headers: Record<string, string>): Record<string, string> {
+  if (typeof document !== "undefined") {
+    const token = document
+      .querySelector('meta[name="csrf-token"]')
+      ?.getAttribute("content");
+    if (token) headers["X-CSRF-Token"] = token;
+  }
+  return headers;
+}
+
 export function createServerReference(
   actionId: string,
   moduleId: string,
@@ -25,7 +38,7 @@ export function createServerReference(
 
     const resp = await fetch("/_pola/action", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: withCsrf({ "Content-Type": "application/json" }),
       body: JSON.stringify({ id: moduleId, export_name: exportName, args: serialized }),
     });
 

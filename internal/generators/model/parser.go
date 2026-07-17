@@ -91,11 +91,15 @@ func parseField(spec string) (schema.Field, error) {
 		typeStr = typeStr[:i] + typeStr[j+1:]
 	}
 
-	// Check for optional marker.
+	// Check for optional ("?") / required ("!") markers.
 	optional := false
+	required := false
 	if strings.HasSuffix(typeStr, "?") {
 		optional = true
 		typeStr = strings.TrimSuffix(typeStr, "?")
+	} else if strings.HasSuffix(typeStr, "!") {
+		required = true
+		typeStr = strings.TrimSuffix(typeStr, "!")
 	}
 
 	ft := schema.FieldType(typeStr)
@@ -132,22 +136,31 @@ func parseField(spec string) (schema.Field, error) {
 	}
 
 	// Parse modifiers.
-	var index, unique bool
+	var index, unique, hidden bool
 	for _, mod := range parts[2:] {
 		switch mod {
 		case "index":
 			index = true
 		case "uniq":
 			unique = true
+		case "hidden":
+			hidden = true
+		case "required":
+			required = true
 		default:
-			return schema.Field{}, fmt.Errorf("unknown modifier %q; valid modifiers: index, uniq", mod)
+			return schema.Field{}, fmt.Errorf("unknown modifier %q; valid modifiers: index, uniq, hidden, required", mod)
 		}
+	}
+	if required && optional {
+		return schema.Field{}, fmt.Errorf("field cannot be both optional (?) and required (! / :required)")
 	}
 
 	return schema.Field{
 		Name:        name,
 		Type:        ft,
 		Optional:    optional,
+		Required:    required,
+		Hidden:      hidden,
 		Index:       index,
 		Unique:      unique,
 		Polymorphic: polymorphic,

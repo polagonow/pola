@@ -123,7 +123,10 @@ func Build(ctx context.Context, builder *core.AppBuilder) (*core.App, error) {
 
 // buildWithRegistry is the core pipeline implementation.
 func buildWithRegistry(cfg *core.Config, registry *core.Registry) (*core.App, error) {
-	if cfg.APIOnly {
+	// Seeding (`pola db seed`, POLA_SEED_ONLY) only needs the DB + DI wiring, not
+	// the frontend. Skip the (slow) renderer/bundler pipeline via the API-only
+	// path so seeds run fast.
+	if cfg.APIOnly || os.Getenv("POLA_SEED_ONLY") == "true" {
 		return buildAPIOnly(cfg, registry)
 	}
 

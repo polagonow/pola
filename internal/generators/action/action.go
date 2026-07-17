@@ -28,6 +28,9 @@ var (
 	actionServiceTmpl = template.Must(
 		template.New("action_service_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/action_service_go.tmpl"),
 	)
+	actionServiceBlankTmpl = template.Must(
+		template.New("action_service_blank_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/action_service_blank_go.tmpl"),
+	)
 	actionTestTmpl = template.Must(
 		template.New("action_test_go.tmpl").Delims("[[", "]]").ParseFS(templates, "_templates/action_test_go.tmpl"),
 	)
@@ -85,6 +88,7 @@ Use --service=Name to wire the action to a generated service.`,
   pola generate action Products --service=Product`,
 	}
 	cmd.Flags().String("service", "", "wire action methods to the named service")
+	cmd.Flags().Bool("blank", false, "generate an empty action (no CRUD stubs); with --service the service is still injected")
 	cmd.Flags().String("id-type", "uint", "Go type for the entity ID (uint or string)")
 	cmd.Flags().MarkHidden("id-type")
 	return cmd
@@ -137,9 +141,11 @@ func (g *ActionGenerator) run(cmd *cobra.Command, args []string) error {
 	}
 
 	serviceName, _ := cmd.Flags().GetString("service")
+	blank, _ := cmd.Flags().GetBool("blank")
 
 	var buf strings.Builder
-	if serviceName != "" {
+	switch {
+	case serviceName != "":
 		if serviceName[0] >= 'a' && serviceName[0] <= 'z' {
 			serviceName = string(serviceName[0]-32) + serviceName[1:]
 		}
@@ -154,20 +160,39 @@ func (g *ActionGenerator) run(cmd *cobra.Command, args []string) error {
 			idType = "uint"
 		}
 
-		if err := actionServiceTmpl.Execute(&buf, struct {
-			Name        string
-			ServiceName string
-			IDGoType    string
-			ModulePath  string
-		}{
-			Name:        name + "Action",
-			ServiceName: serviceName,
-			IDGoType:    idType,
-			ModulePath:  modulePath,
-		}); err != nil {
-			return fmt.Errorf("execute action service template: %w", err)
+		if blank {
+			// Service injected, but no CRUD stubs — for custom (non-entity) actions.
+			if err := actionServiceBlankTmpl.Execute(&buf, struct {
+				Name        string
+				ServiceName string
+				ModulePath  string
+			}{Name: name + "Action", ServiceName: serviceName, ModulePath: modulePath}); err != nil {
+				return fmt.Errorf("execute action service blank template: %w", err)
+			}
+		} else {
+			modelsDir := "db/models"
+			if pf, _ := polafile.Load(projectDir); pf != nil {
+				modelsDir = pf.DatabaseModelsDir()
+			}
+			if err := actionServiceTmpl.Execute(&buf, struct {
+				Name         string
+				ServiceName  string
+				IDGoType     string
+				ModulePath   string
+				ModelsImport string
+				ModelsPkg    string
+			}{
+				Name:         name + "Action",
+				ServiceName:  serviceName,
+				IDGoType:     idType,
+				ModulePath:   modulePath,
+				ModelsImport: modulePath + "/" + modelsDir,
+				ModelsPkg:    path.Base(modelsDir),
+			}); err != nil {
+				return fmt.Errorf("execute action service template: %w", err)
+			}
 		}
-	} else {
+	default:
 		if err := actionTmpl.Execute(&buf, struct{ Name string }{Name: name + "Action"}); err != nil {
 			return fmt.Errorf("execute action template: %w", err)
 		}
@@ -180,7 +205,7 @@ func (g *ActionGenerator) run(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Created %s\n", filePath)
 
 	pf, _ := polafile.Load(projectDir)
-	if generators.ShouldGenerateTests(cmd, pf.GenerateTests()) {
+	if !blank && generators.ShouldGenerateTests(cmd, pf.GenerateTests()) {
 		testFilename := schema.SnakeCase(name) + "_action_test.go"
 		testPath := filepath.Join(actionsDir, testFilename)
 		if err := generators.CheckCollision(cmd, testPath); err != nil {

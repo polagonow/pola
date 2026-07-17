@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/AlecAivazis/survey/v2"
+	"golang.org/x/term"
+
 	"github.com/polagonow/pola/internal/autoload"
 	"github.com/polagonow/pola/internal/autoload/pluginimports"
 	"github.com/polagonow/pola/internal/generators"
@@ -64,6 +66,8 @@ var newFlags struct {
 	csrf            bool
 	securityHeaders bool
 	apiOnly         bool
+	yes             bool
+	name            string
 }
 
 var newCmd = &cobra.Command{
@@ -103,6 +107,17 @@ func init() {
 	newCmd.Flags().StringVar(&newFlags.testFramework, "test-framework", "vitest", "TS test framework (vitest, jest, none)")
 	newCmd.Flags().BoolVar(&newFlags.skipTests, "skip-tests", false, "skip generating test files and test infrastructure")
 	newCmd.Flags().BoolVar(&newFlags.apiOnly, "api-only", false, "create an API-only application (no frontend/web directory)")
+	newCmd.Flags().BoolVarP(&newFlags.yes, "yes", "y", false, "non-interactive: never prompt; use flags/defaults (auto-enabled when stdin is not a TTY)")
+	newCmd.Flags().StringVar(&newFlags.name, "name", "", "app name or Go module path (alternative to the positional argument)")
+}
+
+// interactiveNew reports whether `pola new` may prompt: false when --yes is set
+// or stdin is not a terminal (CI, pipes, agents), true otherwise.
+func interactiveNew() bool {
+	if newFlags.yes {
+		return false
+	}
+	return term.IsTerminal(int(os.Stdin.Fd()))
 }
 
 func runNew(cmd *cobra.Command, args []string) error {
@@ -110,14 +125,24 @@ func runNew(cmd *cobra.Command, args []string) error {
 	if len(args) == 1 {
 		defaultInput = args[0]
 	}
-
-	var rawInput string
-	prompt := &survey.Input{
-		Message: "App name (or Go module path, e.g. github.com/owner/repo):",
-		Default: defaultInput,
+	if newFlags.name != "" {
+		defaultInput = newFlags.name
 	}
-	if err := survey.AskOne(prompt, &rawInput, survey.WithValidator(survey.Required)); err != nil {
-		return fmt.Errorf("prompt: %w", err)
+
+	interactive := interactiveNew()
+
+	rawInput := defaultInput
+	if interactive {
+		prompt := &survey.Input{
+			Message: "App name (or Go module path, e.g. github.com/owner/repo):",
+			Default: defaultInput,
+		}
+		if err := survey.AskOne(prompt, &rawInput, survey.WithValidator(survey.Required)); err != nil {
+			return fmt.Errorf("prompt: %w", err)
+		}
+	}
+	if strings.TrimSpace(rawInput) == "" {
+		return fmt.Errorf("app name is required: pass it as an argument or via --name (non-interactive mode)")
 	}
 
 	appName, parsedModule, err := parseAppNameAndModule(rawInput)
@@ -133,7 +158,7 @@ func runNew(cmd *cobra.Command, args []string) error {
 		}
 	}
 
-	if !cmd.Flags().Lookup("ui").Changed {
+	if interactive && !cmd.Flags().Lookup("ui").Changed {
 		uiPrompt := &survey.Select{
 			Message: "UI component library:",
 			Options: []string{"none", "shadcn", "mui", "antd", "carbon", "patternfly", "fluentui", "slds", "ads"},
@@ -209,8 +234,8 @@ func runNew(cmd *cobra.Command, args []string) error {
 		}
 
 		// If the UI didn't dictate a CSS choice and the user didn't pass --css,
-		// ask. Default is "none" so bare React stays Tailwind-free.
-		if !cmd.Flags().Lookup("css").Changed &&
+		// ask (interactive only). Default is "none" so bare React stays Tailwind-free.
+		if interactive && !cmd.Flags().Lookup("css").Changed &&
 			!app.UIRequiresTailwind(newFlags.renderer, newFlags.ui) &&
 			!app.UIRequiresSass(newFlags.renderer, newFlags.ui) {
 			cssPrompt := &survey.Select{

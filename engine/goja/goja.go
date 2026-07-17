@@ -45,9 +45,38 @@ func NewEngine() *Engine { return &Engine{} }
 func New(bundleSource string) (*Engine, error) {
 	prog, err := gojalib.Compile("bundle.js", bundleSource, false)
 	if err != nil {
-		return nil, fmt.Errorf("goja: compile: %w", err)
+		return nil, fmt.Errorf("goja: compile: %w", diagnoseCompile(err))
 	}
 	return &Engine{prog: prog}, nil
+}
+
+// diagnoseCompile augments a bundle-compile error with actionable guidance when
+// it looks like a JavaScript regular expression that goja's RE2 engine cannot
+// parse. RE2 rejects lookbehind, named-group backreferences, and some character
+// classes that browsers/V8 accept — these usually come from a bundled npm
+// dependency (e.g. an icon or date library) rather than the app's own code.
+func diagnoseCompile(err error) error {
+	if err == nil {
+		return nil
+	}
+	low := strings.ToLower(err.Error())
+	regexLike := strings.Contains(low, "regexp") ||
+		strings.Contains(low, "regular expression") ||
+		strings.Contains(low, "character class") ||
+		strings.Contains(low, "invalid escape") ||
+		strings.Contains(low, "invalid perl syntax") ||
+		strings.Contains(low, "invalid or unsupported perl syntax")
+	if !regexLike {
+		return err
+	}
+	return fmt.Errorf("%w\n\n"+
+		"  ↑ This looks like a JavaScript regular expression the goja (RE2) engine cannot\n"+
+		"  compile. RE2 does not support lookbehind, named-group backreferences, or some\n"+
+		"  character classes that browsers accept — it is usually from a bundled npm\n"+
+		"  dependency, not your own code. Fixes:\n"+
+		"    • Use a full-JS-regex engine:  pola dev --vm quickjs   (or --vm v8)\n"+
+		"                                   pola build --vm quickjs\n"+
+		"    • Or patch the dependency's regex to an RE2-compatible form.", err)
 }
 
 // WithBundle compiles the given server bundle source and returns a new Engine
@@ -490,7 +519,7 @@ type VMPool struct {
 func NewVMPool(bundleSource string, logger core.Logger) (*VMPool, error) {
 	prog, err := gojalib.Compile("bundle.js", bundleSource, false)
 	if err != nil {
-		return nil, fmt.Errorf("goja: pool compile: %w", err)
+		return nil, fmt.Errorf("goja: pool compile: %w", diagnoseCompile(err))
 	}
 	p, err := vmpool.New(
 		vmpool.Config{MinSize: 1, MaxSize: 64},

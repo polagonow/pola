@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/polagonow/pola/core"
-	"[[ .ModulePath ]]/repositories"
+	"[[ .ModelsImport ]]"
 	"[[ .ModulePath ]]/services"
 
 	"github.com/polagonow/pola/repository"
@@ -36,11 +36,11 @@ func New[[ .Name ]](r *core.Registry) *[[ .Name ]] {
 }
 
 // List returns a paginated list of [[ .ServiceName ]] entities. Becomes [[ .Name ]].list(page, perPage) in JavaScript.
-func (a *[[ .Name ]]) List(page, perPage int) (*repository.ListResult[*repositories.[[ .ServiceName ]]], error) {
+func (a *[[ .Name ]]) List(page, perPage int) (*repository.ListResult[*[[ .ModelsPkg ]].[[ .ServiceName ]]], error) {
 	return a.svc.List(context.TODO(), repository.ListParams{Page: page, PerPage: perPage})
 }
 
 // Get returns a single [[ .ServiceName ]] by ID. Becomes [[ .Name ]].Get(id) in JavaScript.
-func (a *[[ .Name ]]) Get(id [[ .IDGoType ]]) (*repositories.[[ .ServiceName ]], error) {
+func (a *[[ .Name ]]) Get(id [[ .IDGoType ]]) (*[[ .ModelsPkg ]].[[ .ServiceName ]], error) {
 	return a.svc.Get(context.TODO(), id)
 }

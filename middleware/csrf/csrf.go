@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"net/http"
+	"strings"
 
 	gorillacsrf "github.com/gorilla/csrf"
 
@@ -18,6 +19,7 @@ type config struct {
 	authKey    []byte
 	secure     bool
 	cookieName string
+	exempt     []string
 }
 
 // WithAuthKey sets the 32-byte authentication key used for CSRF tokens.
@@ -37,9 +39,47 @@ func WithCookieName(name string) Option {
 	return func(c *config) { c.cookieName = name }
 }
 
+// WithExempt registers request paths that bypass CSRF protection entirely.
+// This is required for endpoints that cannot present a CSRF token, such as
+// third-party webhooks (e.g. Stripe's "/api/stripe/webhook"), which authenticate
+// requests via their own signature instead.
+//
+// A pattern matches when the request path equals it exactly, or — when the
+// pattern ends with "/*" — when the request path is under that prefix. For
+// example "/api/webhooks/*" exempts "/api/webhooks/stripe" and everything below
+// it. Patterns accumulate across calls.
+func WithExempt(paths ...string) Option {
+	return func(c *config) { c.exempt = append(c.exempt, paths...) }
+}
+
 type mw struct {
 	protect   func(http.Handler) http.Handler
 	plaintext bool // true when Secure=false (dev over HTTP)
+	exempt    []string
+}
+
+// isExempt reports whether path matches any configured exemption pattern.
+func (m *mw) isExempt(path string) bool {
+	for _, p := range m.exempt {
+		if p == "" {
+			continue
+		}
+		if strings.HasSuffix(p, "/*") {
+			prefix := strings.TrimSuffix(p, "*") // keep trailing slash
+			if strings.HasPrefix(path, prefix) {
+				return true
+			}
+			// Also treat "/api/foo/*" as matching the bare "/api/foo".
+			if path == strings.TrimSuffix(prefix, "/") {
+				return true
+			}
+			continue
+		}
+		if path == p {
+			return true
+		}
+	}
+	return false
 }
 
 // New creates a CSRF protection middleware.
@@ -66,7 +106,7 @@ func New(opts ...Option) core.Middleware {
 		gorillacsrf.SameSite(gorillacsrf.SameSiteLaxMode),
 	)
 
-	return &mw{protect: protect, plaintext: !cfg.secure}
+	return &mw{protect: protect, plaintext: !cfg.secure, exempt: cfg.exempt}
 }
 
 func (m *mw) Name() string { return "csrf" }
@@ -84,13 +124,25 @@ func (m *mw) Wrap(next http.Handler) http.Handler {
 		ctx := context.WithValue(r.Context(), core.CSRFTokenContextKey, token)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
-	protected := m.protect(tokenInjector)
+	var protected http.Handler = m.protect(tokenInjector)
 	if m.plaintext {
 		// In dev mode (HTTP), tell gorilla/csrf to use http:// scheme for
 		// origin checking instead of defaulting to https://.
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			protected.ServeHTTP(w, gorillacsrf.PlaintextHTTPRequest(r))
+		inner := protected
+		protected = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			inner.ServeHTTP(w, gorillacsrf.PlaintextHTTPRequest(r))
 		})
 	}
-	return protected
+	if len(m.exempt) == 0 {
+		return protected
+	}
+	// Exempt paths bypass gorilla/csrf entirely (no token required). They still
+	// pass through next so downstream handlers run normally.
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if m.isExempt(r.URL.Path) {
+			next.ServeHTTP(w, r)
+			return
+		}
+		protected.ServeHTTP(w, r)
+	})
 }
