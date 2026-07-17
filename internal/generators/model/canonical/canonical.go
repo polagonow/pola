@@ -131,6 +131,9 @@ func scalarField(f schema.Field, goType string) string {
 		pola = append(pola, "null")
 	}
 	json := schema.SnakeCase(f.Name)
+	if f.Hidden {
+		json = "-" // never serialized to the client (e.g. password hashes)
+	}
 	return fmt.Sprintf("%s %s `pola:%q json:%q validate:%q`",
 		schema.PascalCase(f.Name), goType, strings.Join(pola, ";"), json, validTag(f))
 }
@@ -191,9 +194,12 @@ func validTag(f schema.Field) string {
 	if f.Type == schema.FieldBool {
 		return "-"
 	}
-	base := "required"
-	if f.Optional {
-		base = "omitempty"
+	// "required" is opt-in (! suffix or :required). Otherwise the field is
+	// validated only "if present" (omitempty), so empty values pass — matching
+	// how real schemas have many optional columns.
+	base := "omitempty"
+	if f.Required {
+		base = "required"
 	}
 	if tag, ok := validatorTag[f.Type]; ok {
 		return base + "," + tag

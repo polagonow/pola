@@ -1,0 +1,33 @@
+package actions
+
+import (
+	"github.com/polagonow/pola/core"
+	"[[ .ModulePath ]]/services"
+)
+
+// [[ .Name ]] exposes functions to JavaScript via the Pola bridge.
+//
+//   - Each exported method becomes a callable function in JS
+//     (camelCased: DoThing → [[ .Name ]].doThing()).
+//   - An optional first parameter `ctx context.Context` receives the request
+//     context (so you can read the session, request info, etc.).
+//   - Return (T, error) or just error.
+//
+// Usage in React:
+//
+//	import { [[ .Name ]] } from "@pola/actions"
+//	await [[ .Name ]].doThing(...)
+//
+// Run "pola generate" to regenerate the bridge after editing this file.
+type [[ .Name ]] struct {
+	svc services.[[ .ServiceName ]]ServiceInterface
+}
+
+// New[[ .Name ]] creates a [[ .Name ]], resolving its dependencies from the DI registry.
+func New[[ .Name ]](r *core.Registry) *[[ .Name ]] {
+	return &[[ .Name ]]{svc: core.MustInvoke[services.[[ .ServiceName ]]ServiceInterface](r)}
+}
+
+// TODO: add your action methods, e.g.:
+//
+//	func (a *[[ .Name ]]) DoThing(ctx context.Context, arg string) (Result, error) { ... }

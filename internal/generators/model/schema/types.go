@@ -94,6 +94,8 @@ type Field struct {
 	Name        string
 	Type        FieldType
 	Optional    bool      // trailing "?" on type, e.g. age:int?
+	Required    bool      // trailing "!" on type or :required modifier → validate:"required"
+	Hidden      bool      // :hidden modifier → json:"-" (never serialized to the client)
 	Index       bool      // :index modifier
 	Unique      bool      // :uniq modifier
 	Polymorphic bool      // {polymorphic} option (only valid on references)

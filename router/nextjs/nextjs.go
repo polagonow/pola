@@ -476,11 +476,30 @@ func stripBrackets(s string) string {
 	return s
 }
 
+// titleCase converts a path segment to PascalCase, collapsing hyphens and
+// underscores so "sign-in" → "SignIn". It MUST match the renderer's titleCase
+// (renderer/react/entry.go) so the page-alias the router requests at runtime
+// equals the key the renderer registers pages under; otherwise hyphenated
+// routes fail with "unknown page".
 func titleCase(s string) string {
 	if len(s) == 0 {
 		return ""
 	}
-	return strings.ToUpper(s[:1]) + s[1:]
+	var b strings.Builder
+	upper := true
+	for _, r := range s {
+		if r == '-' || r == '_' {
+			upper = true
+			continue
+		}
+		if upper {
+			b.WriteString(strings.ToUpper(string(r)))
+			upper = false
+		} else {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
 }
 
 func isTSFile(name string) bool {

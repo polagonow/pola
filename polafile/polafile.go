@@ -89,6 +89,8 @@ type Polafile struct {
 	MCP             *MCP             `hcl:"mcp,block"`
 	Testing         *Testing         `hcl:"testing,block"`
 	Session         *Session         `hcl:"session,block"`
+	JWT             *JWT             `hcl:"jwt,block"`
+	Protect         *Protect         `hcl:"protect,block"`
 	RateLimit       *RateLimit       `hcl:"rate_limit,block"`
 	Flash           *Flash           `hcl:"flash,block"`
 	I18n            *I18n            `hcl:"i18n,block"`
@@ -151,7 +153,17 @@ type CSRFEnvironment struct {
 // CSRF holds CSRF protection configuration with optional per-environment overrides.
 type CSRF struct {
 	Enabled *bool             `hcl:"enabled,optional" env:"POLA_CSRF_ENABLED"`
+	Exempt  []string          `hcl:"exempt,optional"`
 	Envs    []CSRFEnvironment `hcl:"env,block"`
+}
+
+// CSRFExempt returns the request paths that bypass CSRF protection (e.g.
+// third-party webhook endpoints that authenticate via their own signature).
+func (pf *Polafile) CSRFExempt() []string {
+	if pf.CSRF == nil {
+		return nil
+	}
+	return pf.CSRF.Exempt
 }
 
 // CSRFEnabled returns whether CSRF is enabled for the given environment.
@@ -850,6 +862,103 @@ type Session struct {
 	DB       string               `hcl:"db,optional" env:"POLA_SESSION_DB"`
 	DSN      string               `hcl:"dsn,optional" env:"POLA_SESSION_DSN"`
 	Envs     []SessionEnvironment `hcl:"env,block"`
+}
+
+// JWT holds JWT-cookie session configuration. When present, the framework wires
+// the middleware/jwt plugin, which signs a JWT into a cookie (HS256, keyed off
+// the secret_env environment variable) — the pola-native equivalent of a
+// stateless JWT session.
+type JWT struct {
+	Enabled   *bool  `hcl:"enabled,optional" env:"POLA_JWT_ENABLED"`
+	Cookie    string `hcl:"cookie,optional" env:"POLA_JWT_COOKIE"`
+	Expiry    string `hcl:"expiry,optional" env:"POLA_JWT_EXPIRY"`
+	SecretEnv string `hcl:"secret_env,optional"`
+}
+
+// JWTEnabled reports whether the JWT plugin is enabled. A present jwt {} block
+// defaults to enabled unless explicitly disabled.
+func (pf *Polafile) JWTEnabled(env string) bool {
+	if pf.JWT == nil {
+		return false
+	}
+	return pf.JWT.Enabled == nil || *pf.JWT.Enabled
+}
+
+// JWTCookie returns the JWT session cookie name, defaulting to "session".
+func (pf *Polafile) JWTCookie() string {
+	if pf.JWT == nil || pf.JWT.Cookie == "" {
+		return "session"
+	}
+	return pf.JWT.Cookie
+}
+
+// JWTExpiry returns the token lifetime as a Go duration literal, default "24h".
+func (pf *Polafile) JWTExpiry() string {
+	if pf.JWT == nil || pf.JWT.Expiry == "" {
+		return "24h"
+	}
+	return pf.JWT.Expiry
+}
+
+// JWTSecretEnv returns the env var name holding the signing secret, default
+// "AUTH_SECRET".
+func (pf *Polafile) JWTSecretEnv() string {
+	if pf.JWT == nil || pf.JWT.SecretEnv == "" {
+		return "AUTH_SECRET"
+	}
+	return pf.JWT.SecretEnv
+}
+
+// Protect holds declarative route-protection config. When present, the framework
+// wires the middleware/requireauth plugin, which redirects unauthenticated
+// visitors away from the listed path prefixes (JWT-session verified).
+type Protect struct {
+	Enabled   *bool    `hcl:"enabled,optional" env:"POLA_PROTECT_ENABLED"`
+	Paths     []string `hcl:"paths,optional"`
+	Redirect  string   `hcl:"redirect,optional"`
+	Cookie    string   `hcl:"cookie,optional"`
+	SecretEnv string   `hcl:"secret_env,optional"`
+}
+
+// ProtectEnabled reports whether route protection is enabled. A present protect {}
+// block with a non-empty paths list defaults to enabled unless explicitly disabled.
+func (pf *Polafile) ProtectEnabled(env string) bool {
+	if pf.Protect == nil || len(pf.Protect.Paths) == 0 {
+		return false
+	}
+	return pf.Protect.Enabled == nil || *pf.Protect.Enabled
+}
+
+// ProtectPaths returns the protected path prefixes.
+func (pf *Polafile) ProtectPaths() []string {
+	if pf.Protect == nil {
+		return nil
+	}
+	return pf.Protect.Paths
+}
+
+// ProtectRedirect returns the unauthenticated-redirect target, default "/sign-in".
+func (pf *Polafile) ProtectRedirect() string {
+	if pf.Protect == nil || pf.Protect.Redirect == "" {
+		return "/sign-in"
+	}
+	return pf.Protect.Redirect
+}
+
+// ProtectCookie returns the session cookie name to verify, default "session".
+func (pf *Polafile) ProtectCookie() string {
+	if pf.Protect == nil || pf.Protect.Cookie == "" {
+		return "session"
+	}
+	return pf.Protect.Cookie
+}
+
+// ProtectSecretEnv returns the env var holding the signing secret, default "AUTH_SECRET".
+func (pf *Polafile) ProtectSecretEnv() string {
+	if pf.Protect == nil || pf.Protect.SecretEnv == "" {
+		return "AUTH_SECRET"
+	}
+	return pf.Protect.SecretEnv
 }
 
 // SessionEnabled returns whether sessions are enabled for the given environment.

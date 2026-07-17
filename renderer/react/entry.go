@@ -505,6 +505,19 @@ function __elementToHTML__(el: any): string {
   if (typeof el === 'string' || typeof el === 'number') return String(el);
   if (Array.isArray(el)) return el.map(__elementToHTML__).join('');
   if (typeof el === 'object' && el.type == null && el.props == null) return '';
+  // forwardRef / memo components (e.g. lucide-react icons) are objects carrying
+  // a render fn (forwardRef) or an inner type (memo), not plain functions — so
+  // without this they'd fall through to the "special types" branch below and
+  // vanish from the shell. memo(forwardRef(...)) resolves via the recursion.
+  if (el.type != null && typeof el.type === 'object') {
+    const t: any = el.type;
+    if (t.$$typeof === Symbol.for('react.forward_ref') && typeof t.render === 'function') {
+      try { return __elementToHTML__(t.render(el.props || {}, null)); } catch { return ''; }
+    }
+    if (t.$$typeof === Symbol.for('react.memo') && t.type != null) {
+      try { return __elementToHTML__({ type: t.type, props: el.props || {} }); } catch { return ''; }
+    }
+  }
   if (typeof el.type === 'function') {
     try { return __elementToHTML__(el.type(el.props || {})); } catch { return ''; }
   }

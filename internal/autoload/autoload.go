@@ -106,6 +106,7 @@ type PluginOpts struct {
 	DatabasePass          string
 	DatabaseName          string
 	CSRF                  bool
+	CSRFExempt            []string // request paths that bypass CSRF protection
 	SecurityHeaders       bool
 	Dev                   bool
 	Embed                 bool
@@ -141,6 +142,15 @@ type PluginOpts struct {
 	SessionPassword string
 	SessionDB       string
 	SessionDSN      string
+	JWT             bool
+	JWTCookie       string // JWT session cookie name (default "session")
+	JWTExpiry       string // Go duration literal for token lifetime (default "24h")
+	JWTSecretEnv    string // env var holding the signing secret (default "AUTH_SECRET")
+	Protect          bool
+	ProtectPaths     []string // protected path prefixes
+	ProtectRedirect  string   // unauthenticated redirect target
+	ProtectCookie    string   // session cookie name to verify
+	ProtectSecretEnv string   // env var holding the signing secret
 	RateLimit       bool
 	RateLimitRPS    float64
 	RateLimitBurst  int
@@ -309,6 +319,40 @@ func PopulateSessionOpts(opts *PluginOpts, pf *polafile.Polafile, env string) {
 	opts.SessionPassword = pf.SessionPassword(env)
 	opts.SessionDB = pf.SessionDB(env)
 	opts.SessionDSN = pf.SessionDSN(env)
+}
+
+// PopulateCSRFOpts fills CSRF exemption paths in PluginOpts from the Polafile.
+func PopulateCSRFOpts(opts *PluginOpts, pf *polafile.Polafile, env string) {
+	if pf == nil {
+		return
+	}
+	opts.CSRFExempt = pf.CSRFExempt()
+}
+
+// PopulateJWTOpts fills JWT-related fields in PluginOpts from the Polafile.
+func PopulateJWTOpts(opts *PluginOpts, pf *polafile.Polafile, env string) {
+	if pf == nil || pf.JWT == nil {
+		return
+	}
+	if !pf.JWTEnabled(env) {
+		return
+	}
+	opts.JWT = true
+	opts.JWTCookie = pf.JWTCookie()
+	opts.JWTExpiry = pf.JWTExpiry()
+	opts.JWTSecretEnv = pf.JWTSecretEnv()
+}
+
+// PopulateProtectOpts fills route-protection fields in PluginOpts from the Polafile.
+func PopulateProtectOpts(opts *PluginOpts, pf *polafile.Polafile, env string) {
+	if pf == nil || !pf.ProtectEnabled(env) {
+		return
+	}
+	opts.Protect = true
+	opts.ProtectPaths = pf.ProtectPaths()
+	opts.ProtectRedirect = pf.ProtectRedirect()
+	opts.ProtectCookie = pf.ProtectCookie()
+	opts.ProtectSecretEnv = pf.ProtectSecretEnv()
 }
 
 // PopulateRateLimitOpts fills rate-limit-related fields in PluginOpts from the Polafile.

@@ -174,11 +174,17 @@ func (g *MailerGenerator) run(cmd *cobra.Command, args []string) error {
 		}
 	}
 
+	polaPackage := polafile.DefaultPackage
+	if pf != nil {
+		polaPackage = pf.PolaPackage()
+	}
+
 	data := mailerData{
-		Name:       name,
-		SnakeName:  snakeName,
-		ModulePath: modulePath,
-		Actions:    actionData,
+		Name:        name,
+		SnakeName:   snakeName,
+		ModulePath:  modulePath,
+		PolaPackage: polaPackage,
+		Actions:     actionData,
 	}
 
 	// 1. Generate Go mailer file.
@@ -200,6 +206,18 @@ func (g *MailerGenerator) run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("write %s: %w", goFilePath, err)
 	}
 	fmt.Printf("Created %s\n", goFilePath)
+
+	// Ensure a mailer {} block exists so the framework wires the renderer +
+	// transport (and provides mailer.Base). Without it the generated mailer is a
+	// dead scaffold that fails DI. Default to the "log" transport for dev. Done
+	// here (right after the Go file) so it runs even if later template steps fail.
+	if mpf, _ := polafile.Load(projectDir); mpf != nil && mpf.Mailer == nil {
+		mpf.Mailer = &polafile.Mailer{Renderer: rendererType, Transport: "log", From: "noreply@example.com"}
+		if err := polafile.Save(projectDir, mpf); err != nil {
+			return fmt.Errorf("add mailer block to Polafile: %w", err)
+		}
+		fmt.Printf("Added mailer {} block to Polafile.hcl (transport=log, renderer=%s).\n", rendererType)
+	}
 
 	if generators.ShouldGenerateTests(cmd, pf.GenerateTests()) {
 		testPath := filepath.Join(mailersDir, snakeName+"_mailer_test.go")
@@ -354,10 +372,11 @@ func scaffoldTmplLayouts(cmd *cobra.Command, projectDir, appDir string, buf *str
 }
 
 type mailerData struct {
-	Name       string
-	SnakeName  string
-	ModulePath string
-	Actions    []actionInfo
+	Name        string
+	SnakeName   string
+	ModulePath  string
+	PolaPackage string
+	Actions     []actionInfo
 }
 
 type actionInfo struct {

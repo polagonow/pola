@@ -27,6 +27,9 @@ type Env struct {
 
 	PublicDir string `env:"POLA_PUBLIC_DIR"   envDefault:""`
 	BuildOnly bool   `env:"POLA_BUILD_ONLY"  envDefault:"false"`
+	// SeedOnly makes pola.Ready() run registered database seeders and then exit,
+	// without starting the HTTP server. Set by `pola db seed`.
+	SeedOnly bool `env:"POLA_SEED_ONLY" envDefault:"false"`
 
 	Port string `env:"PORT" envDefault:"3000"`
 

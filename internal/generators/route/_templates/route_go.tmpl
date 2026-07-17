@@ -4,6 +4,10 @@ import "github.com/polagonow/pola/core"
 
 // Route handles [[ .RoutePath ]] requests.
 type Route struct{}
+[[ if .ExplicitPath ]]
+// Path pins the exact URL this route serves.
+func (r *Route) Path() string { return "[[ .ExplicitPath ]]" }
+[[ end ]]
 [[ range .Methods ]]
 // [[ . ]] [[ $.RoutePath ]]
 func (r *Route) [[ . ]](c core.Context) error {

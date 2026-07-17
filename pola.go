@@ -23,6 +23,7 @@ import (
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/core/env"
 	"github.com/polagonow/pola/internal"
+	"github.com/polagonow/pola/seed"
 )
 
 // defaultApp holds the lazily-built default application instance.
@@ -92,6 +93,20 @@ func Ready(opts ...core.Option) error {
 	defaultApp.once.Do(buildDefault)
 	if defaultApp.err != nil {
 		return defaultApp.err
+	}
+	if defaultApp.env != nil && defaultApp.env.SeedOnly {
+		// `pola db seed`: run registered seeders with the full DI registry, then
+		// exit without serving.
+		if !seed.HasSeeds() {
+			fmt.Println("No seeds registered (define db/seeds with func Seed(ctx, *core.Registry) error).")
+			os.Exit(0)
+		}
+		if err := seed.Run(context.Background(), defaultApp.app.Registry()); err != nil {
+			fmt.Println("Seeding failed:", err)
+			os.Exit(1)
+		}
+		fmt.Println("Seeding complete.")
+		os.Exit(0)
 	}
 	if defaultApp.env != nil && defaultApp.env.BuildOnly {
 		fmt.Println("Build-only mode: assets bundled, exiting.")

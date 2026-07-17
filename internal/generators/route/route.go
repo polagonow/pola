@@ -78,13 +78,15 @@ Methods can be passed as separate arguments or comma-separated.
 If no methods are provided, defaults to GET.
 
 Use --service=Name to wire the route to a generated service via DI.`,
-		Args: cobra.MinimumNArgs(1),
+		Args: cobra.ArbitraryArgs,
 		RunE: g.run,
 		Example: `  pola generate route Posts
   pola generate route Posts GET,POST
   pola generate route Posts/Comments GET POST DELETE
-  pola generate route Posts GET,POST,DELETE --service=Post`,
+  pola generate route Posts GET,POST,DELETE --service=Post
+  pola generate route --path /api/user GET   # exact path, no pluralization`,
 	}
+	cmd.Flags().String("path", "", "exact URL path to serve (e.g. /api/user); pins a Path() override and skips pluralization")
 	cmd.Flags().String("service", "", "wire route handlers to the named service via DI")
 	cmd.Flags().Bool("func", false, "generate a function-based route (package-level verb functions) instead of a struct")
 	cmd.Flags().String("id-type", "uint", "Go type for the entity ID (uint or string)")
@@ -96,41 +98,72 @@ Use --service=Name to wire the route to a generated service via DI.`,
 	return cmd
 }
 
-func routePaths(name, projectDir string, generateTests bool) []string {
-	segments := strings.Split(name, "/")
-	for i, s := range segments {
-		segments[i] = schema.Pluralize(strings.ToLower(s))
-	}
-	targetDir := filepath.Join(append([]string{projectDir, "routes"}, segments...)...)
-	paths := []string{filepath.Join(targetDir, "route.go")}
-	if generateTests {
-		paths = append(paths, filepath.Join(targetDir, "route_test.go"))
-	}
-	return paths
-}
-
 func (g *RouteGenerator) Artifacts(cmd *cobra.Command, args []string, projectDir string) ([]string, error) {
-	if len(args) < 1 {
-		return nil, fmt.Errorf("route name is required")
+	pathFlag, _ := cmd.Flags().GetString("path")
+	var segments []string
+	if pathFlag != "" {
+		for _, s := range strings.Split(strings.Trim(pathFlag, "/"), "/") {
+			if s != "" {
+				segments = append(segments, strings.ToLower(s))
+			}
+		}
+	} else {
+		if len(args) < 1 {
+			return nil, fmt.Errorf("route name is required (or --path)")
+		}
+		for _, s := range strings.Split(args[0], "/") {
+			segments = append(segments, schema.Pluralize(strings.ToLower(s)))
+		}
 	}
 	pf, _ := polafile.Load(projectDir)
 	genTests := generators.ShouldGenerateTests(cmd, pf.GenerateTests())
-	return routePaths(args[0], projectDir, genTests), nil
+	targetDir := filepath.Join(append([]string{projectDir, "routes"}, segments...)...)
+	paths := []string{filepath.Join(targetDir, "route.go")}
+	if genTests {
+		paths = append(paths, filepath.Join(targetDir, "route_test.go"))
+	}
+	return paths, nil
 }
 
 func (g *RouteGenerator) run(cmd *cobra.Command, args []string) error {
-	name := args[0]
+	serviceName, _ := cmd.Flags().GetString("service")
+	funcMode, _ := cmd.Flags().GetBool("func")
+	pathFlag, _ := cmd.Flags().GetString("path")
 
-	// Split on "/" for nested routes: Posts/Comments → ["posts", "comments"].
-	// Each segment is pluralized: Product → products, Category → categories.
-	segments := strings.Split(name, "/")
-	for i, s := range segments {
-		segments[i] = schema.Pluralize(strings.ToLower(s))
+	var segments []string
+	var routePath, explicitPath string
+	var methodArgs []string
+
+	if pathFlag != "" {
+		// --path pins the exact served URL (via a Path() override) and derives
+		// the on-disk directory verbatim — no pluralization.
+		if funcMode {
+			return fmt.Errorf("--path requires a struct route; not compatible with --func")
+		}
+		clean := "/" + strings.Trim(pathFlag, "/")
+		if clean == "/" {
+			return fmt.Errorf("--path must contain at least one segment, e.g. /api/user")
+		}
+		explicitPath = clean
+		routePath = clean
+		for _, s := range strings.Split(strings.Trim(clean, "/"), "/") {
+			segments = append(segments, strings.ToLower(s))
+		}
+		methodArgs = args
+	} else {
+		// Name form: Posts/Comments → ["posts", "comments"], each pluralized.
+		if len(args) < 1 {
+			return fmt.Errorf("route name is required (or pass --path /your/url)")
+		}
+		for _, s := range strings.Split(args[0], "/") {
+			segments = append(segments, schema.Pluralize(strings.ToLower(s)))
+		}
+		routePath = "/" + strings.Join(segments, "/")
+		methodArgs = args[1:]
 	}
 	pkgName := segments[len(segments)-1]
 
-	// Parse and validate HTTP methods from positional args.
-	methods, err := parseActions(args[1:])
+	methods, err := parseActions(methodArgs)
 	if err != nil {
 		return err
 	}
@@ -150,10 +183,6 @@ func (g *RouteGenerator) run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	routePath := "/" + strings.Join(segments, "/")
-
-	serviceName, _ := cmd.Flags().GetString("service")
-	funcMode, _ := cmd.Flags().GetBool("func")
 	if funcMode && serviceName != "" {
 		return fmt.Errorf("--func cannot be combined with --service (function routes have no constructor for DI)")
 	}
@@ -190,38 +219,42 @@ func (g *RouteGenerator) run(cmd *cobra.Command, args []string) error {
 				}
 			}
 			if err := routeServiceUploadTmpl.Execute(&buf, struct {
-				Package     string
-				RoutePath   string
-				Methods     []string
-				ServiceName string
-				IDGoType    string
-				ModulePath  string
-				FileFields  []fileField
+				Package      string
+				RoutePath    string
+				ExplicitPath string
+				Methods      []string
+				ServiceName  string
+				IDGoType     string
+				ModulePath   string
+				FileFields   []fileField
 			}{
-				Package:     pkgName,
-				RoutePath:   routePath,
-				Methods:     methods,
-				ServiceName: serviceName,
-				IDGoType:    idType,
-				ModulePath:  modulePath,
-				FileFields:  fields,
+				Package:      pkgName,
+				RoutePath:    routePath,
+				ExplicitPath: explicitPath,
+				Methods:      methods,
+				ServiceName:  serviceName,
+				IDGoType:     idType,
+				ModulePath:   modulePath,
+				FileFields:   fields,
 			}); err != nil {
 				return fmt.Errorf("execute route service upload template: %w", err)
 			}
 		} else if err := routeServiceTmpl.Execute(&buf, struct {
-			Package     string
-			RoutePath   string
-			Methods     []string
-			ServiceName string
-			IDGoType    string
-			ModulePath  string
+			Package      string
+			RoutePath    string
+			ExplicitPath string
+			Methods      []string
+			ServiceName  string
+			IDGoType     string
+			ModulePath   string
 		}{
-			Package:     pkgName,
-			RoutePath:   routePath,
-			Methods:     methods,
-			ServiceName: serviceName,
-			IDGoType:    idType,
-			ModulePath:  modulePath,
+			Package:      pkgName,
+			RoutePath:    routePath,
+			ExplicitPath: explicitPath,
+			Methods:      methods,
+			ServiceName:  serviceName,
+			IDGoType:     idType,
+			ModulePath:   modulePath,
 		}); err != nil {
 			return fmt.Errorf("execute route service template: %w", err)
 		}
@@ -231,13 +264,15 @@ func (g *RouteGenerator) run(cmd *cobra.Command, args []string) error {
 			tmpl = routeFuncTmpl
 		}
 		if err := tmpl.Execute(&buf, struct {
-			Package   string
-			RoutePath string
-			Methods   []string
+			Package      string
+			RoutePath    string
+			ExplicitPath string
+			Methods      []string
 		}{
-			Package:   pkgName,
-			RoutePath: routePath,
-			Methods:   methods,
+			Package:      pkgName,
+			RoutePath:    routePath,
+			ExplicitPath: explicitPath,
+			Methods:      methods,
 		}); err != nil {
 			return fmt.Errorf("execute route template: %w", err)
 		}

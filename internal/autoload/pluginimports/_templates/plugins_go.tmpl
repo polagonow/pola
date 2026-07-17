@@ -13,7 +13,7 @@ import (
 	_ "github.com/joho/godotenv/autoload"
 
 	"{{.PolaPackage}}"
-{{- if or .Database .RateLimit .Session .HasMailer .HasMCP .HasStorage .I18n}}
+{{- if or .Database .RateLimit .Session .JWT .Protect .HasMailer .HasMCP .HasStorage .I18n}}
 	polaenv "{{.PolaPackage}}/env"
 {{- end}}
 	"{{.PolaPackage}}/core"
@@ -28,6 +28,7 @@ import (
 {{- end}}
 	"{{.PolaPackage}}/middleware/logging"
 	"{{.PolaPackage}}/middleware/recovery"
+	"{{.PolaPackage}}/request"
 {{- if .SecurityHeaders}}
 	"{{.PolaPackage}}/middleware/securityheaders"
 {{- end}}
@@ -42,6 +43,12 @@ import (
 {{- if eq .SessionStore "xorm"}}
 	sessionxorm "{{.PolaPackage}}/session/xorm"
 {{- end}}
+{{- end}}
+{{- if .JWT}}
+	"{{.PolaPackage}}/middleware/jwt"
+{{- end}}
+{{- if .Protect}}
+	"{{.PolaPackage}}/middleware/requireauth"
 {{- end}}
 {{- if .Flash}}
 	middlewareflash "{{.PolaPackage}}/middleware/flash"
@@ -153,12 +160,13 @@ var PolaPlugins = []core.Plugin{
 {{- end}}
 	logging.Plugin(),
 	recovery.Plugin(),
+	request.Plugin(),
 	validation.Plugin(),
 {{- if .SecurityHeaders}}
 	securityheaders.Plugin(),
 {{- end}}
 {{- if .CSRF}}
-	csrf.Plugin({{- if .Dev}}csrf.WithSecure(false){{- end}}),
+	csrf.Plugin({{if .Dev}}csrf.WithSecure(false),{{end}}{{range .CSRFExempt}}csrf.WithExempt({{printf "%q" .}}),{{end}}),
 {{- end}}
 {{- if .RateLimit}}
 	ratelimit.Plugin(ratelimit.WithRequestsPerSecond(polaenv.Float64("POLA_RATE_LIMIT_RPS", {{printf "%g" .RateLimitRPS}})), ratelimit.WithBurst(polaenv.Int("POLA_RATE_LIMIT_BURST", {{.RateLimitBurst}}))),
@@ -171,6 +179,12 @@ var PolaPlugins = []core.Plugin{
 {{- else}}
 	session.Plugin({{- if .Dev}}session.WithSecure(false){{- end}}),
 {{- end}}
+{{- end}}
+{{- if .JWT}}
+	jwt.Plugin(jwt.WithSecret([]byte(polaenv.String("{{.JWTSecretEnv}}", ""))), jwt.WithCookieName(polaenv.String("POLA_JWT_COOKIE", "{{.JWTCookie}}")), jwt.WithExpiryString(polaenv.String("POLA_JWT_EXPIRY", "{{.JWTExpiry}}")){{- if .Dev}}, jwt.WithSecure(false){{- end}}),
+{{- end}}
+{{- if .Protect}}
+	requireauth.Plugin(requireauth.WithSecret([]byte(polaenv.String("{{.ProtectSecretEnv}}", ""))), requireauth.WithCookieName(polaenv.String("POLA_PROTECT_COOKIE", "{{.ProtectCookie}}")), requireauth.WithRedirect(polaenv.String("POLA_PROTECT_REDIRECT", "{{.ProtectRedirect}}")){{range .ProtectPaths}}, requireauth.WithProtect({{printf "%q" .}}){{end}}),
 {{- end}}
 {{- if .Flash}}
 	middlewareflash.Plugin(),

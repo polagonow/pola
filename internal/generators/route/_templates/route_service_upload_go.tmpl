@@ -22,6 +22,10 @@ type Route struct {
 }
 
 // NewRoute creates a Route, resolving its dependencies from the DI registry.
+[[ if .ExplicitPath ]]
+// Path pins the exact URL this route serves.
+func (r *Route) Path() string { return "[[ .ExplicitPath ]]" }
+[[ end ]]
 func NewRoute(r *core.Registry) *Route {
 	return &Route{
 		svc:   core.MustInvoke[services.[[ .ServiceName ]]ServiceInterface](r),

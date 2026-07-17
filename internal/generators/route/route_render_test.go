@@ -26,9 +26,10 @@ func render(t *testing.T, tmpl *template.Template, data any) string {
 
 func TestRouteTemplatesRender(t *testing.T) {
 	type basic struct {
-		Package   string
-		RoutePath string
-		Methods   []string
+		Package      string
+		RoutePath    string
+		ExplicitPath string
+		Methods      []string
 	}
 	type withFunc struct {
 		Package   string
@@ -37,26 +38,30 @@ func TestRouteTemplatesRender(t *testing.T) {
 		Func      bool
 	}
 	type svc struct {
-		Package     string
-		RoutePath   string
-		Methods     []string
-		ServiceName string
-		IDGoType    string
-		ModulePath  string
+		Package      string
+		RoutePath    string
+		ExplicitPath string
+		Methods      []string
+		ServiceName  string
+		IDGoType     string
+		ModulePath   string
 	}
 	type upload struct {
-		Package     string
-		RoutePath   string
-		Methods     []string
-		ServiceName string
-		IDGoType    string
-		ModulePath  string
-		FileFields  []fileField
+		Package      string
+		RoutePath    string
+		ExplicitPath string
+		Methods      []string
+		ServiceName  string
+		IDGoType     string
+		ModulePath   string
+		FileFields   []fileField
 	}
 
 	b := basic{Package: "posts", RoutePath: "/posts", Methods: allMethods}
 	render(t, routeTmpl, b)
 	render(t, routeFuncTmpl, b)
+	// Exercise the --path branch (emits a Path() override).
+	render(t, routeTmpl, basic{Package: "user", RoutePath: "/api/user", ExplicitPath: "/api/user", Methods: allMethods})
 	render(t, routeTestTmpl, withFunc{Package: "posts", RoutePath: "/posts", Methods: allMethods, Func: false})
 	render(t, routeTestTmpl, withFunc{Package: "posts", RoutePath: "/posts", Methods: allMethods, Func: true})
 

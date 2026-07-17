@@ -1,0 +1,31 @@
+# Go
+bin/
+*.exe
+
+# Env & local database
+.env
+.env.local
+*.db
+*.db-journal
+
+# Node
+node_modules/
+
+# Pola build artifacts
+public/assets/
+public/prebuild-meta.json
+public/_server.js
+
+# Pola generated (injected via overlay, not committed)
+pola_plugins.go
+pola_embed.go
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db

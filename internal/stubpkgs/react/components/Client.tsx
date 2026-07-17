@@ -14,9 +14,14 @@ async function callServer(id: string, args: unknown[]): Promise<unknown> {
   const sep = id.lastIndexOf(":");
   const moduleId = sep >= 0 ? id.slice(0, sep) : id;
   const exportName = sep >= 0 ? id.slice(sep + 1) : id;
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (typeof document !== "undefined") {
+    const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute("content");
+    if (csrf) headers["X-CSRF-Token"] = csrf;
+  }
   const resp = await fetch("/_pola/action", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers,
     body: JSON.stringify({ id: moduleId, export_name: exportName, args }),
   });
   const data = await resp.json();
@@ -33,7 +38,9 @@ const flightOptions = { callServer };
 function fetchFlight(url: string, signal?: AbortSignal): Promise<React.ReactNode> {
   const resp = fetch(url, {
     method: "GET",
-    headers: { "Content-Type": FLIGHT_CONTENT_TYPE },
+    // Accept is the reliable signal (browsers omit Content-Type on bodyless
+    // GETs); the server treats either header as an RSC/flight request.
+    headers: { Accept: FLIGHT_CONTENT_TYPE, "Content-Type": FLIGHT_CONTENT_TYPE },
     signal,
     cache: "no-store",
   });

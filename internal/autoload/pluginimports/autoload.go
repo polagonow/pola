@@ -96,6 +96,7 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		DatabasePass    string
 		DatabaseName    string
 		CSRF            bool
+		CSRFExempt      []string
 		SecurityHeaders bool
 		ImageProcessing string
 		Dev             bool
@@ -139,6 +140,15 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		SessionPassword string
 		SessionDB       string
 		SessionDSN      string
+		JWT             bool
+		JWTCookie       string
+		JWTExpiry       string
+		JWTSecretEnv    string
+		Protect          bool
+		ProtectPaths     []string
+		ProtectRedirect  string
+		ProtectCookie    string
+		ProtectSecretEnv string
 		Flash           bool
 		I18n           bool
 		I18nLocale     string
@@ -163,6 +173,7 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		DatabasePass:    opts.DatabasePass,
 		DatabaseName:    opts.DatabaseName,
 		CSRF:            hasCSRF,
+		CSRFExempt:      opts.CSRFExempt,
 		SecurityHeaders: hasSecurityHeaders,
 		ImageProcessing: autoload.CondStr(hasImageProcessing, opts.ImageProcessing, ""),
 		Dev:             opts.Dev,
@@ -206,6 +217,15 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		SessionPassword: opts.SessionPassword,
 		SessionDB:       opts.SessionDB,
 		SessionDSN:      opts.SessionDSN,
+		JWT:             opts.JWT,
+		JWTCookie:       cmp.Or(opts.JWTCookie, "session"),
+		JWTExpiry:       cmp.Or(opts.JWTExpiry, "24h"),
+		JWTSecretEnv:    cmp.Or(opts.JWTSecretEnv, "AUTH_SECRET"),
+		Protect:          opts.Protect,
+		ProtectPaths:     opts.ProtectPaths,
+		ProtectRedirect:  cmp.Or(opts.ProtectRedirect, "/sign-in"),
+		ProtectCookie:    cmp.Or(opts.ProtectCookie, "session"),
+		ProtectSecretEnv: cmp.Or(opts.ProtectSecretEnv, "AUTH_SECRET"),
 		Flash:           hasFlash,
 		I18n:           hasI18n,
 		I18nLocale:     cmp.Or(opts.I18nLocale, "en"),
