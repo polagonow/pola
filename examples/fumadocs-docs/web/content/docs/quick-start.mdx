@@ -1,0 +1,87 @@
+---
+title: Quick Start
+description: Create, run, and build your first Pola application.
+---
+
+# Quick Start
+
+## Prerequisites
+
+- **Go 1.24+**
+- A JS package manager — **pnpm** (recommended), npm, or yarn — used to install
+  the React/UI dependencies your app declares.
+
+> [!NOTE]
+> Node.js/pnpm are only used to _install_ frontend packages and during the build.
+> The app that runs in production is a single Go binary with no Node.js.
+
+## Create an app
+
+```bash
+pola new my-app --css tailwind
+cd my-app
+```
+
+`pola new` scaffolds a Go entry point, a `web/` React app, and a `Polafile.hcl`
+config file; runs `go mod tidy`; installs frontend dependencies; and stubs the
+`@pola/actions` and `@pola/react` packages into `node_modules`.
+
+A fresh project looks like this:
+
+```text
+my-app/
+├── main.go            # entry point: pola.Ready() + ListenAndServe
+├── Polafile.hcl       # framework configuration
+├── go.mod
+├── actions/           # Go structs exposed to React (@pola/actions)
+├── routes/            # Go HTTP route handlers (JSON APIs)
+└── web/
+    ├── app/           # file-based routes (page.tsx, layout.tsx, ...)
+    ├── components/
+    ├── package.json
+    └── app/globals.css
+```
+
+## Run in development
+
+```bash
+pola dev            # http://localhost:3000  (use --port to change)
+```
+
+The dev server hot-reloads on Go, template, and config changes, rebuilds JS/CSS
+with esbuild, and serves the app.
+
+## Build for production
+
+```bash
+pola build                 # → ./bin/my-app  (single binary, no Node.js)
+./bin/my-app
+```
+
+To bake migrations into the binary and run them automatically on boot:
+
+```bash
+pola build --migrate
+```
+
+## Add a resource
+
+Rails-style scaffolding generates a model, repository, service, action, route,
+Zod schema, and CRUD pages in one command:
+
+```bash
+pola generate scaffold Post title:string:index body:text published:bool
+pola generate migration CreatePosts   # usually auto-run by the scaffold
+pola db migrate
+```
+
+> [!TIP]
+> Every generator has an inverse — `pola destroy scaffold Post` removes what it
+> created.
+
+## Next steps
+
+<Cards>
+<Card title="Architecture" href="/docs/architecture">Understand the RSC-in-Go model and request lifecycle.</Card>
+<Card title="CLI Reference" href="/docs/cli">The full command surface, with every flag.</Card>
+</Cards>

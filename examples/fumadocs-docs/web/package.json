@@ -1,0 +1,20 @@
+{
+  "name": "fumadocs-docs",
+  "private": true,
+  "scripts": {
+  },
+  "dependencies": {
+    "fumadocs-core": "16.11.5",
+    "fumadocs-ui": "16.11.5",
+    "lucide-react": "^0.548.0",
+    "react": "19.2.4",
+    "react-dom": "19.2.4",
+    "react-server-dom-webpack": "19.3.0-canary-5e9eedb5-20260312"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "tailwindcss": "^4.2.2",
+    "@tailwindcss/cli": "^4.2.2"
+  }
+}

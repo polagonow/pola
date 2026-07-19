@@ -1,0 +1,65 @@
+---
+title: Deployment
+description: Build a single static binary and ship it — no Node.js, no node_modules.
+---
+
+# Deployment
+
+Pola apps deploy as **one static binary**. There is no Node.js and no
+`node_modules` at runtime — the JS engine, your compiled server bundle, client
+assets, and (optionally) migrations are all embedded.
+
+## Build
+
+```bash
+pola build                     # → ./bin/<app>, host platform
+pola build -o ./bin/app
+pola build --platform linux/amd64
+pola build --migrate           # embed + auto-run migrations on boot
+```
+
+`pola build` bundles assets first (esbuild + CSS), then compiles a Go binary with
+those assets embedded and stripped (`-ldflags "-s -w"`).
+
+## Cross-compile
+
+```bash
+pola build --platform linux/amd64 -o ./dist/app
+pola build --platform all -o ./dist/app     # every supported target
+```
+
+Cross-compiled targets automatically use the pure-Go `goja` engine and
+`CGO_ENABLED=0`, so no C toolchain is required.
+
+## Run
+
+Copy the binary to your server and run it:
+
+```bash
+./app
+```
+
+Configure at runtime with environment variables:
+
+```bash
+PORT=8080 \
+POLA_ENV=production \
+POLA_DATABASE_URL="postgres://user:pass@host:5432/db?sslmode=disable" \
+AUTH_SECRET="<32-byte-hex>" \
+./app
+```
+
+> [!TIP]
+> Because the whole app is one binary, a container image can be `FROM scratch`
+> (or a tiny base) with just the executable copied in.
+
+## Migrations in production
+
+With `pola build --migrate`, embedded migrations run automatically on startup, so
+a deploy is just "ship the new binary and restart." Prefer to run them yourself?
+Use `pola db migrate` against the production database instead.
+
+> [!NOTE]
+> A production `database { env "production" { … } }` block lets you use SQLite in
+> development and PostgreSQL in production without code changes. See
+> [Configuration](/docs/configuration).

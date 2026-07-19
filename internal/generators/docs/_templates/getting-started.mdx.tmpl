@@ -1,0 +1,42 @@
+---
+title: Getting Started
+description: Write your first documentation page.
+---
+
+# Getting Started
+
+Create `.mdx` files under `content/docs` and they become pages.
+
+## Markdown features
+
+Standard Markdown and GFM work out of the box:
+
+- Lists, **bold**, _italic_, and `inline code`
+- Tables and task lists
+- Syntax-highlighted code blocks
+- Headings become the table of contents
+
+```ts
+export function hello(name: string): string {
+  return `Hello, ${name}!`;
+}
+```
+
+| Feature | Supported |
+|---------|-----------|
+| GFM     | yes       |
+| TOC     | yes       |
+
+## Blocks
+
+Use GitHub-style callouts:
+
+> [!TIP]
+> Callouts are written as `> [!NOTE]`, `> [!TIP]`, `> [!WARNING]`, etc.
+
+And card grids:
+
+<Cards>
+<Card title="Pola" href="https://github.com">The Go framework powering this site.</Card>
+<Card title="Fumadocs" href="https://fumadocs.dev">The docs UI, rendered with no Node.js.</Card>
+</Cards>

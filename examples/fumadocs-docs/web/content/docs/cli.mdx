@@ -1,0 +1,149 @@
+---
+title: CLI Reference
+description: Every pola command — new, dev, build, generate, db, and destroy — with flags and examples.
+---
+
+# CLI Reference
+
+`pola` creates, develops, and builds Pola apps. Global flags (`-v/--verbose`,
+`--cwd <dir>`, `--version`) work on every command. Top-level commands: `new`,
+`dev` (alias `serve`), `build`, `generate` (aliases `gen`, `g`), `db`, and
+`destroy` (aliases `d`, `del`).
+
+> [!TIP]
+> Run `pola <command> --help` to see the complete, up-to-date flag list for any
+> command.
+
+## pola new
+
+Scaffold a new application (Go entry point, `web/` React app, `Polafile.hcl`),
+run `go mod tidy`, install frontend deps, and stub `@pola/*` packages.
+
+```bash
+pola new my-app --css tailwind
+pola new github.com/acme/admin          # module path → dir "admin"
+pola new my-api --api-only              # no web/ frontend
+pola new my-app --ui=shadcn --css=tailwind
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--renderer` | `react` | View renderer |
+| `--bundler` | `esbuild` | JS bundler |
+| `--router` | `nextjs` | Router style |
+| `--framework` | `std` | HTTP framework: `std`, `gin`, `echo`, `chi` |
+| `--css` | `none` | `tailwind`, `sass`, `none` |
+| `--vm` | `goja` | JS engine |
+| `--ui` | `none` | `shadcn`, `mui`, `antd`, `carbon`, `patternfly`, `fluentui`, `slds`, `ads` |
+| `--pm` | auto | `npm`, `pnpm`, `yarn` |
+| `--module` | auto | Go module path |
+| `--csrf` / `--security-headers` | `true` | Enable protections |
+| `--test-framework` | `vitest` | `vitest`, `jest`, `none` |
+| `--api-only` | `false` | API-only (no frontend) |
+| `-y, --yes` | `false` | Non-interactive |
+
+## pola dev (alias: serve)
+
+Run in development with hot reload. Flag precedence: **flag > env var > Polafile >
+default**.
+
+```bash
+pola dev
+pola dev --port 8080
+POLA_WEB_FRAMEWORK=gin pola dev
+```
+
+| Flag | Default (env → fallback) | Description |
+|------|--------------------------|-------------|
+| `-p, --port` | `$PORT` → `3000` | Server port |
+| `--renderer` / `--bundler` / `--router` | `$POLA_*` → defaults | Stack overrides |
+| `--framework` | `$POLA_WEB_FRAMEWORK` → `std` | HTTP framework |
+| `--css` | `$POLA_CSS` → `tailwind` | CSS processor |
+| `--vm` | `$POLA_VM` → `goja` | JS engine |
+| `--app-path` | `$POLA_WEBAPP_PATH` → `./web` | Web app directory |
+
+## pola build
+
+Build a single production binary with assets embedded.
+
+```bash
+pola build                        # → ./bin/<app>
+pola build -o ./bin/myapp
+pola build --platform linux/amd64
+pola build --platform all -o ./dist/myapp
+pola build --migrate              # embed + auto-run migrations on boot
+```
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `-o, --output` | `./bin/<app>` | Output binary path |
+| `--platform` | host | `GOOS/GOARCH` target(s); repeatable; `all` for every target |
+| `--embed-migrations` | `false` | Embed migrations + `schema.hcl` |
+| `--migrate` | `false` | Run embedded migrations on boot (implies embed) |
+| `--cgo` | `$CGO_ENABLED` → `1` | CGO for the host compile |
+
+## pola generate (gen, g)
+
+With no subcommand, regenerates the `@pola/actions` bridge + TypeScript
+declarations. Subcommands scaffold resources. Persistent flags: `--force`,
+`--skip-collision-check`, `--skip-tests`.
+
+Field syntax for resource generators is `field:type{options}:modifier` — e.g.
+`title:string{255}:index`, `email:string:uniq`, `avatar:references{StorageBlob}`.
+
+| Subcommand | What it generates |
+|------------|-------------------|
+| `scaffold [Name] [fields]` | Model + repository + service + action + route + zod + pages (all wired) |
+| `model [Name] [fields]` | ORM-neutral model in `db/models/` (+ migration) |
+| `repository [Name] [fields]` | Repository interface + ORM impl |
+| `service [Name] [fields]` | Business-logic service |
+| `action [Name]` | Action struct for the `@pola/actions` bridge |
+| `route [Name] [methods]` | Go HTTP route handler |
+| `page [Name] [fields]` | CRUD pages (list/show/create/edit) |
+| `zod [Name] [fields]` | TypeScript Zod schema |
+| `migration [name]` | Auto-diffed SQL migration |
+| `seed` | `db/seeds/seeds.go` |
+| `mailer [Name] [actions]` | Mailer struct + email templates |
+| `storage` | Storage model/repo/route (`fs` or `rclone`) |
+| `mcp init\|tool\|resource\|prompt` | Model Context Protocol artifacts |
+| `js:bridge` | TypeScript declarations for `@pola/actions` |
+| `docs` | A Fumadocs documentation section (this site) |
+
+```bash
+pola generate scaffold Post title:string:index body:text
+pola generate route Posts/Comments GET POST DELETE
+pola generate route --path /api/user GET
+pola generate storage --driver rclone --root myremote:bucket/path
+pola generate mcp tool Users
+pola generate docs
+```
+
+## pola db
+
+Database management. Shared flags: `--url`, `--env` (default `development`).
+
+```bash
+pola db migrate                 # apply pending migrations
+pola db migrate --version 20240101120000
+pola db rollback --step 2       # revert
+pola db status                  # applied vs pending
+pola db reset                   # drop all + re-migrate
+pola db schema:load             # replay migrations on a fresh DB
+pola db seed                    # run db/seeds
+```
+
+## pola destroy (d, del)
+
+Reverse a generator — remove the files it created.
+
+```bash
+pola destroy action Blog
+pola destroy scaffold Product --dry-run
+pola destroy route Posts --force
+```
+
+| Flag | Description |
+|------|-------------|
+| `--force` | Skip confirmation |
+| `--dry-run` | Print files without deleting |
+| `--skip-tests` | Keep test files |

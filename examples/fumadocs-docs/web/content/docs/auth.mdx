@@ -1,0 +1,71 @@
+---
+title: Auth & Middleware
+description: JWT sessions, password hashing, authorization, and the built-in middleware stack.
+---
+
+# Auth & Middleware
+
+## Authentication
+
+Pola ships auth utilities under `auth/`:
+
+- **`auth/jwt`** — sign/verify JWTs.
+- **`auth/password`** — hash and verify passwords.
+- **`auth/authz`** — authorization helpers.
+
+JWT-cookie sessions are configured declaratively in `Polafile.hcl`:
+
+```hcl
+jwt {
+  cookie     = "session"
+  expiry     = "24h"
+  secret_env = "AUTH_SECRET"   # signing key read from this env var
+}
+```
+
+This wires the JWT session middleware (HS256, keyed off `AUTH_SECRET`), storing
+the token in the `session` cookie.
+
+## Middleware
+
+Middleware is composed from plugins and works unchanged across every HTTP
+framework (`std`, `gin`, `echo`, `chi`). Built-in middleware includes:
+
+| Plugin | Purpose |
+|--------|---------|
+| `jwt` | JWT-cookie sessions |
+| `csrf` | CSRF protection (with path exemptions) |
+| `recovery` | Panic recovery |
+| `logging` | Structured request logging |
+| `compression` | gzip/deflate responses |
+| `securityheaders` | CSP and other security headers |
+| `requireauth` | Per-route auth requirements |
+| `ratelimit` | Rate limiting by IP/user |
+| `session` | Redis/Memcached session store |
+| `flash` | Flash messages |
+| `locale` | Internationalization |
+
+Enable/adjust several from the Polafile:
+
+```hcl
+csrf {
+  exempt = ["/api/stripe/webhook"]   # bypass CSRF for signed webhooks
+}
+
+security_headers {}
+```
+
+Register a custom middleware plugin in your app's `plugins.go`:
+
+```go
+func init() {
+    pola.Use(core.PluginFunc{
+        PluginName: "auth-guard",
+        Fn: func(reg *core.Registry) { reg.AddMiddleware(authGuard{}) },
+    })
+}
+```
+
+> [!TIP]
+> The `examples/saas-starter` app demonstrates JWT sessions, CSRF exemptions, and
+> a full auth flow end to end.

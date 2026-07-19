@@ -1,0 +1,81 @@
+---
+title: Architecture
+description: How Pola runs React Server Components inside a Go process with no Node.js.
+---
+
+# Architecture
+
+Pola is a Go framework that runs **React Server Components (RSC)** inside an
+embedded JavaScript engine. There is no Node.js process — the JS runtime is a
+library compiled into your Go binary.
+
+## Request lifecycle
+
+```text
+Browser  ── GET /posts ──▶  Go net/http (or gin/echo/chi)
+                              │  router matches the route, builds props
+                              ▼
+                          VM pool  ── acquire a JS runtime, inject request ctx
+                              │
+                              ▼
+                          renderToReadableStream(Page, props, clientManifest)
+                              │  server components run; client components → refs
+                              ▼
+                          RSC Flight stream (text/x-component, chunked)
+                              │
+                              ▼
+Browser  ◀── hydrate ──  parse Flight, render + hydrate the React tree
+```
+
+1. A request hits Go's HTTP server.
+2. The router resolves the route and builds `{ params, searchParams }`.
+3. A JS runtime is acquired from a pool; per-request context and the Go bridge
+   are injected.
+4. The server bundle's render entry runs `renderToReadableStream`, producing an
+   RSC **Flight** stream that is written to the response as it resolves.
+5. The browser parses the Flight stream and hydrates interactive
+   (`"use client"`) components.
+
+## Server vs. client components
+
+Like Next.js's App Router, components are **server-first**:
+
+- **Server Components** (the default) run in the JS engine on the server. They can
+  be `async`, read data, and call Go through [Server Actions](/docs/server-actions).
+  They never ship to the browser.
+- **Client Components** — files starting with `"use client"` — are emitted as
+  references in the Flight stream and hydrated in the browser. Use them for state,
+  effects, and event handlers.
+
+> [!NOTE]
+> Because interactive UI runs in the browser and only server components run in the
+> engine, most heavy client libraries never touch the server VM at all.
+
+## The JavaScript engine
+
+The renderer runs inside a pooled JS engine, selectable per project:
+
+- **goja** (default) — a pure-Go ES2020 engine. No CGO, so `CGO_ENABLED=0` static
+  builds and painless cross-compilation just work.
+- **v8go** — Google's V8 via CGO; fastest for CPU-heavy rendering.
+- **quickjs** variants and **sobek** — additional pure-Go / CGO options.
+
+See [The Stack](/docs/stack) for the full list and how to choose.
+
+## Streaming & Suspense
+
+The renderer reports `streaming` and `rsc` capabilities: Suspense boundaries
+resolve concurrently and stream to the client as they complete, using Go's
+`http.Flusher`. Responses use the `text/x-component` content type.
+
+## Single-binary builds
+
+`pola build` runs a two-stage build:
+
+1. **Bundle** — esbuild produces a server bundle (react-server conditions) and a
+   hashed client bundle + manifest; Tailwind/Sass compile the CSS.
+2. **Compile** — a Go binary is built with the assets embedded (`-ldflags "-s -w"`),
+   optionally embedding migrations and `schema.hcl` too.
+
+The result is one executable — copy it to a server and run it. Cross-compiled
+targets automatically use the pure-Go `goja` engine and `CGO_ENABLED=0`.

@@ -1,0 +1,7 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/neutral.css";
+@import "fumadocs-ui/css/preset.css";
+
+/* Scan the app's own components for utility classes (fumadocs-ui's own classes
+   come from the generated @source directives inside preset.css). */
+@source "../**/*.{ts,tsx}";
