@@ -21,12 +21,10 @@ var (
 
 // highlightShiki tokenises code with chroma and renders shiki-compatible markup:
 // `.line`-wrapped spans carrying --shiki-light / --shiki-dark CSS variables. It
-// returns the inner HTML for a <code class="shiki"> plus the light/dark
-// background colours (for --shiki-light-bg / --shiki-dark-bg on the container).
-func highlightShiki(code, lang string) (inner, lightBg, darkBg string) {
-	lightBg = bgColour(shikiLight)
-	darkBg = bgColour(shikiDark)
-
+// returns the inner HTML for a <code class="shiki">. The container background is
+// left to fumadocs-ui's CodeBlock (bg-fd-card), matching fumadocs' default look;
+// only the token colours come from these palettes.
+func highlightShiki(code, lang string) string {
 	lexer := lexers.Get(lang)
 	if lexer == nil {
 		lexer = lexers.Fallback
@@ -35,7 +33,7 @@ func highlightShiki(code, lang string) (inner, lightBg, darkBg string) {
 
 	it, err := lexer.Tokenise(nil, code)
 	if err != nil {
-		return `<span class="line">` + html.EscapeString(code) + `</span>`, lightBg, darkBg
+		return `<span class="line">` + html.EscapeString(code) + `</span>`
 	}
 
 	var b strings.Builder
@@ -66,7 +64,7 @@ func highlightShiki(code, lang string) (inner, lightBg, darkBg string) {
 			b.WriteByte('\n')
 		}
 	}
-	return b.String(), lightBg, darkBg
+	return b.String()
 }
 
 func colourOf(s *chroma.Style, t chroma.TokenType) string {
@@ -75,16 +73,6 @@ func colourOf(s *chroma.Style, t chroma.TokenType) string {
 	}
 	if e := s.Get(t); e.Colour.IsSet() {
 		return e.Colour.String()
-	}
-	return ""
-}
-
-func bgColour(s *chroma.Style) string {
-	if s == nil {
-		return ""
-	}
-	if e := s.Get(chroma.Background); e.Background.IsSet() {
-		return e.Background.String()
 	}
 	return ""
 }

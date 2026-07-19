@@ -153,8 +153,6 @@ type segment struct {
 	calloutType string     // segCallout
 	cards       []cardData // segCards
 	codeInner   string     // segCode: <code> inner HTML (shiki spans)
-	codeLightBg string     // segCode: --shiki-light-bg
-	codeDarkBg  string     // segCode: --shiki-dark-bg
 }
 
 // buildSegments walks the document's top-level blocks, grouping ordinary prose
@@ -194,8 +192,8 @@ func buildSegments(doc ast.Node, source []byte, md goldmark.Markdown) ([]segment
 		// Fenced code block → fumadocs CodeBlock with shiki-compatible markup.
 		if fc, ok := n.(*ast.FencedCodeBlock); ok {
 			flush()
-			inner, lbg, dbg := highlightShiki(fencedCodeText(fc, source), string(fc.Language(source)))
-			segs = append(segs, segment{kind: segCode, codeInner: inner, codeLightBg: lbg, codeDarkBg: dbg})
+			inner := highlightShiki(fencedCodeText(fc, source), string(fc.Language(source)))
+			segs = append(segs, segment{kind: segCode, codeInner: inner})
 			continue
 		}
 		// Ordinary block → render to HTML and accumulate.
@@ -385,12 +383,13 @@ func segmentExpr(i int, s segment) (string, error) {
 		if err != nil {
 			return "", err
 		}
-		// fumadocs-ui CodeBlock (figure + border + copy button + --shiki-*-bg
-		// background) wrapping fumadocs Pre and a shiki <code>; token colours come
-		// from fumadocs' own shiki.css via the --shiki-light/--shiki-dark vars.
+		// fumadocs-ui CodeBlock (figure + border + copy button + bg-fd-card
+		// background, matching fumadocs' default) wrapping fumadocs Pre and a shiki
+		// <code>; token colours come from fumadocs' own shiki.css via the
+		// --shiki-light/--shiki-dark vars on each span.
 		return fmt.Sprintf(
-			`createElement(CodeBlock, { key: %d, keepBackground: true, style: { "--shiki-light-bg": %q, "--shiki-dark-bg": %q } }, createElement(Pre, null, createElement("code", { className: "shiki", dangerouslySetInnerHTML: { __html: %s } })))`,
-			i, s.codeLightBg, s.codeDarkBg, innerJSON), nil
+			`createElement(CodeBlock, { key: %d }, createElement(Pre, null, createElement("code", { className: "shiki", dangerouslySetInnerHTML: { __html: %s } })))`,
+			i, innerJSON), nil
 	}
 	return "null", nil
 }
