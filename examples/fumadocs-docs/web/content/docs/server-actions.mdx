@@ -1,0 +1,79 @@
+---
+title: Server Actions
+description: Call Go directly from React through the typed @pola/actions bridge.
+---
+
+# Server Actions
+
+Pola bridges Go and React so you can call Go functions from components **without
+writing an API**. Exported methods on Go structs in `actions/` become typed async
+functions on the `@pola/actions` module.
+
+## Define an action in Go
+
+```go
+// actions/blog_action.go
+package actions
+
+import "context"
+
+type Blog struct {
+    posts repositories.PostRepository // injected from the DI registry
+}
+
+func NewBlog(r *core.Registry) *Blog {
+    return &Blog{posts: core.MustInvoke[repositories.PostRepository](r)}
+}
+
+func (b *Blog) ListPosts(ctx context.Context) ([]models.Post, error) {
+    return b.posts.All(ctx)
+}
+
+func (b *Blog) CreatePost(ctx context.Context, title, body string) (*models.Post, error) {
+    return b.posts.Create(ctx, &models.Post{Title: title, Body: body})
+}
+```
+
+## Call it from a server component
+
+```tsx
+// web/app/page.tsx  (Server Component)
+import { Blog } from "@pola/actions";
+
+export default async function HomePage() {
+  const posts = await Blog.listPosts();  // executes Go during render
+  return <PostList posts={posts} />;
+}
+```
+
+Method names are camelCased (`ListPosts` → `listPosts`). Types flow through: the
+CLI generates TypeScript declarations for the bridge, so `posts` is fully typed.
+
+> [!NOTE]
+> Generate the bridge types with `pola generate js:bridge`. `pola new` and
+> `pola dev` also run it for you.
+
+## `"use server"` actions from client components
+
+Client components can invoke server logic via `"use server"` functions, which
+Pola compiles into references that POST to the framework's action endpoint and
+run back in the engine — no handler code required.
+
+```tsx
+"use client";
+import { Blog } from "@pola/actions";
+
+export function NewPostButton() {
+  async function create() {
+    await Blog.createPost("Hello", "World");
+  }
+  return <button onClick={create}>Create</button>;
+}
+```
+
+## Scaffold actions
+
+```bash
+pola generate action Blog                 # empty action struct
+pola generate action Products --service=Product   # wired to a service
+```

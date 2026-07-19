@@ -1,0 +1,78 @@
+---
+title: Configuration
+description: The Polafile.hcl file — every option that locks your framework choices.
+---
+
+# Configuration
+
+`Polafile.hcl` locks a project's framework choices and configures subsystems. The
+CLI reads it to wire plugins; `pola dev`/`build` let flags and `POLA_*` env vars
+override individual fields.
+
+## A complete example
+
+```hcl
+pola {
+  package         = "my-app"
+  version         = "dev"
+  renderer        = "react"       # view renderer
+  engine          = "goja"        # JS engine (goja | v8 | quickjs | sobek)
+  bundler         = "esbuild"     # JS bundler
+  router          = "nextjs"      # routing style
+  framework       = "std"         # HTTP framework (std | gin | echo | chi)
+  css             = "tailwind"    # tailwind | sass | none
+  ui              = "none"        # shadcn | mui | antd | ... | none
+  package_manager = "pnpm"
+
+  app          = "web"            # frontend directory
+  actions      = "actions"        # @pola/actions source dir
+  routes       = "routes"
+  repositories = "repositories"
+  services     = "services"
+
+  csrf { exempt = ["/api/stripe/webhook"] }
+  security_headers {}
+  cache { adapter = "memory" }    # memory | redis
+
+  jwt {
+    cookie     = "session"
+    expiry     = "24h"
+    secret_env = "AUTH_SECRET"
+  }
+
+  database {
+    orm     = "gorm"              # gorm | ent | beego | xorm
+    adapter = "sqlite"            # sqlite | postgresql | mysql
+    models  = "db/models"
+    migrations {
+      directory = "db/migrations"
+      format    = "sql"
+    }
+    env "production" { adapter = "postgresql" }
+  }
+
+  testing {
+    generate_tests = true
+    framework      = "vitest"
+  }
+}
+```
+
+## Blocks
+
+| Block | Purpose |
+|-------|---------|
+| `csrf` | CSRF protection; `exempt` paths, `enabled` toggle |
+| `security_headers` | Security headers (CSP, etc.) |
+| `cache` | `adapter = "memory" \| "redis"` |
+| `jwt` | JWT-cookie sessions (`cookie`, `expiry`, `secret_env`) |
+| `database` | ORM, adapter, model/migration dirs, and `env "…"` overrides |
+| `storage` | File storage backend (`fs` / `rclone`) |
+| `mailer` | Email transport + templates |
+| `image_processing` | On-the-fly image optimizer |
+| `mcp` | Model Context Protocol server (`transport`, `mount`) |
+| `testing` | `generate_tests`, `framework` |
+
+> [!NOTE]
+> Per-environment overrides use `env "<name>" { … }` inside a block (commonly
+> `database`), so development can use SQLite while production uses PostgreSQL.

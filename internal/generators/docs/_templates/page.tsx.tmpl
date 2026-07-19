@@ -1,0 +1,50 @@
+// A single optional catch-all route serves every docs page: the slug selects the
+// page from the fumadocs source, `page.data.body` is the Go-compiled MDX Server
+// Component, and DocsPage/DocsBody (client) provide the chrome.
+import { source } from "@/lib/source";
+import {
+  DocsPage,
+  DocsBody,
+  DocsTitle,
+  DocsDescription,
+} from "fumadocs-ui/layouts/docs/page";
+
+// Pola may deliver a catch-all param as an array or a "a/b" string; normalise.
+function toSlug(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw as string[];
+  if (typeof raw === "string" && raw.length > 0)
+    return raw.split("/").filter(Boolean);
+  return [];
+}
+
+export default function Page({ params }: { params: { slug?: string[] } }) {
+  const page = source.getPage(toSlug(params?.slug));
+  if (!page) {
+    return (
+      <DocsBody>
+        <h1>Not found</h1>
+        <p>No documentation page matches this URL.</p>
+      </DocsBody>
+    );
+  }
+  const MDX = page.data.body;
+  return (
+    <DocsPage toc={page.data.toc}>
+      <DocsTitle>{page.data.title}</DocsTitle>
+      {page.data.description ? (
+        <DocsDescription>{page.data.description}</DocsDescription>
+      ) : null}
+      <DocsBody>
+        <MDX />
+      </DocsBody>
+    </DocsPage>
+  );
+}
+
+export function generateMetadata({ params }: { params: { slug?: string[] } }) {
+  const page = source.getPage(toSlug(params?.slug));
+  return {
+    title: page?.data.title ?? "Docs",
+    description: page?.data.description,
+  };
+}

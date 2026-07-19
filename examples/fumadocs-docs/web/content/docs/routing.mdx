@@ -1,0 +1,79 @@
+---
+title: Routing
+description: Next.js-style file-based routing — pages, layouts, dynamic and catch-all segments, and metadata.
+---
+
+# Routing
+
+Pola uses **Next.js App Router** file conventions. Files under `web/app/` map to
+URLs; special filenames provide layouts and error/loading boundaries.
+
+## Pages & special files
+
+| File | Purpose |
+|------|---------|
+| `app/page.tsx` | The page for a route segment (`/`). |
+| `app/posts/page.tsx` | `/posts`. |
+| `layout.tsx` | Wraps a segment and everything below it. |
+| `loading.tsx` | Suspense fallback while a segment loads. |
+| `error.tsx` | Error boundary (a client component). |
+| `not-found.tsx` | Per-segment 404. |
+| `global-error.tsx` / `global-not-found.tsx` | Top-level error / 404. |
+
+## Dynamic segments
+
+| Pattern | Matches | `params` |
+|---------|---------|----------|
+| `app/posts/[slug]/page.tsx` | `/posts/hello` | `{ slug: "hello" }` |
+| `app/shop/[...path]/page.tsx` | `/shop/a/b` | catch-all |
+| `app/docs/[[...slug]]/page.tsx` | `/docs` and `/docs/a/b` | optional catch-all |
+| `app/(marketing)/page.tsx` | route **group** (no URL segment) | — |
+
+Params and search params are passed to the page as props:
+
+```tsx
+// web/app/posts/[slug]/page.tsx
+export default function Post({ params }: { params: { slug: string } }) {
+  return <article>Post: {params.slug}</article>;
+}
+```
+
+## Metadata
+
+Export `metadata` or an async `generateMetadata` — merged from the root layout
+down through the page:
+
+```tsx
+export const metadata = { title: "Posts", description: "All posts" };
+
+// or, dynamically:
+export function generateMetadata({ params }: { params: { slug: string } }) {
+  return { title: `Post ${params.slug}` };
+}
+```
+
+## API routes (Go)
+
+Non-page HTTP endpoints are **Go**, discovered from the `routes/` directory. A
+route is a struct (with DI) or package-level verb functions:
+
+```go
+// routes/apis/users/route.go
+package users
+
+type Route struct{ users repositories.UserRepository }
+
+func NewRoute(r *core.Registry) *Route {
+    return &Route{users: core.MustInvoke[repositories.UserRepository](r)}
+}
+
+func (r *Route) Path() string { return "/api/user" }
+
+func (r *Route) GET(c core.Context) error {
+    return c.JSON(200, /* ... */ nil)
+}
+```
+
+> [!NOTE]
+> For a `GET` that matches a page, the page wins; API routes handle other methods
+> and non-page paths. Scaffold one with `pola generate route`.

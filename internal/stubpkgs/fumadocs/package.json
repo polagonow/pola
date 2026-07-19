@@ -1,0 +1,14 @@
+{
+  "name": "@pola/fumadocs",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./provider": "./provider.tsx"
+  },
+  "peerDependencies": {
+    "react": "*",
+    "fumadocs-core": "*",
+    "fumadocs-ui": "*"
+  }
+}

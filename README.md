@@ -30,6 +30,7 @@ A Go framework for **React Server Components (RSC)** — implements the Flight s
     - [`generate service`](#pola-generate-service)
     - [`generate storage`](#pola-generate-storage)
     - [`generate zod`](#pola-generate-zod)
+    - [`generate docs`](#pola-generate-docs) — Fumadocs documentation site
   - [`pola db`](#pola-db) — database management
     - [`db migrate`](#pola-db-migrate)
     - [`db rollback`](#pola-db-rollback)
@@ -46,6 +47,7 @@ A Go framework for **React Server Components (RSC)** — implements the Flight s
 - [Selecting a JS VM](#selecting-a-js-vm)
 - [Image processing](#image-processing)
 - [MCP (AI-native)](#mcp-ai-native)
+- [Documentation sites](#documentation-sites)
 - [Field syntax for generators](#field-syntax-for-generators)
 - [Architecture decisions](#architecture-decisions)
 - [Dependencies](#dependencies)
@@ -688,6 +690,20 @@ pola generate zod Product name:string price:float description:text
 pola generate zod Article title:string body:text
 ```
 
+#### `pola generate docs`
+
+Add a [Fumadocs](https://fumadocs.dev) documentation section to an existing app. Content is authored as Markdown/MDX under `content/docs` and compiled to React by Pola's **Go-native MDX pipeline** — no `fumadocs-mdx` and no Node.js — while the `/docs` routes use the real `fumadocs-core` + `fumadocs-ui` packages via React Server Components. Requires the React renderer.
+
+It generates `content/docs/*.mdx` + `meta.json`, `lib/source.ts`, `app/docs/layout.tsx`, and `app/docs/[[...slug]]/page.tsx`; adds the fumadocs-ui theme + preset to `globals.css`; and installs `fumadocs-core`, `fumadocs-ui`, and `lucide-react`. Markdown, GFM, syntax highlighting, and fumadocs blocks (`> [!NOTE]` callouts and `<Cards>`) are supported.
+
+**Usage**
+
+```
+pola generate docs
+```
+
+See the [`examples/fumadocs-docs`](examples/fumadocs-docs) app for a complete, ready-to-run documentation site built this way.
+
 ---
 
 ### `pola db`
@@ -1328,6 +1344,21 @@ A working end-to-end example lives at [`examples/mcp-hello`](examples/mcp-hello)
 | `http` | Default. Streamable HTTP per the modern MCP spec. Plays nicely alongside the web server on the same port. |
 | `sse` | Legacy Server-Sent Events transport, for older clients. |
 | `stdio` | The plugin starts an stdio goroutine instead of registering an HTTP middleware. Useful for CLI integrations where the Pola binary is launched as a subprocess by an MCP host. |
+
+---
+
+## Documentation sites
+
+Pola can serve a full documentation site using [Fumadocs](https://fumadocs.dev) — the real `fumadocs-core` and `fumadocs-ui` packages — with **no Node.js**. Fumadocs' Node-based content tool (`fumadocs-mdx`) is replaced by a Go-native MDX pipeline (built on `goldmark` + `chroma`), so your `.mdx` content compiles as part of the normal single-binary build and renders through React Server Components in the same JS engine as the rest of your app.
+
+Scaffold it into any React app:
+
+```bash
+pola generate docs      # → content/docs, /docs routes, deps, and the Tailwind preset
+pola dev                # open http://localhost:3000/docs
+```
+
+Markdown and GFM, syntax highlighting, a table of contents, `> [!NOTE]` callouts, and `<Cards>` are all supported. A complete, ready-to-run site lives at [`examples/fumadocs-docs`](examples/fumadocs-docs) — it's what powers Pola's own documentation.
 
 ---
 

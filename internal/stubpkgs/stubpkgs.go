@@ -1,5 +1,6 @@
-// Package stubpkgs embeds the @pola/actions, @pola/core, and @pola/react source
-// files and stubs them into a project's node_modules/@pola/ directory (Prisma-style).
+// Package stubpkgs embeds the @pola/actions, @pola/core, @pola/react, and
+// @pola/fumadocs source files and stubs them into a project's node_modules/@pola/
+// directory (Prisma-style).
 package stubpkgs
 
 import (
@@ -10,12 +11,12 @@ import (
 	"path/filepath"
 )
 
-//go:embed all:actions all:core all:react
+//go:embed all:actions all:core all:react all:fumadocs
 var packages embed.FS
 
-// StubToNodeModules writes @pola/actions, @pola/core, and @pola/react into
-// <projectDir>/node_modules/@pola/. Existing generated.d.ts files are
-// preserved so that codegen output is not overwritten.
+// StubToNodeModules writes @pola/actions, @pola/core, @pola/react, and
+// @pola/fumadocs into <projectDir>/node_modules/@pola/. Existing generated.d.ts
+// files are preserved so that codegen output is not overwritten.
 func StubToNodeModules(projectDir string) error {
 	nmDir := filepath.Join(projectDir, "node_modules", "@pola")
 

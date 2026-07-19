@@ -1,0 +1,19 @@
+{
+  "title": "Documentation",
+  "pages": [
+    "index",
+    "quick-start",
+    "---Concepts---",
+    "architecture",
+    "routing",
+    "server-actions",
+    "data-layer",
+    "migrations",
+    "auth",
+    "---Reference---",
+    "cli",
+    "configuration",
+    "stack",
+    "deployment"
+  ]
+}

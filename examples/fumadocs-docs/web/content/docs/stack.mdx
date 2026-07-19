@@ -1,0 +1,67 @@
+---
+title: The Stack
+description: Every pluggable layer — engines, bundlers, routers, HTTP frameworks, ORMs, cache, and storage.
+---
+
+# The Stack
+
+Almost every layer of Pola is a swappable plugin, chosen in `Polafile.hcl` (or via
+a `pola new` flag / `POLA_*` env var).
+
+## JavaScript engines
+
+The renderer runs inside a pooled JS engine (`engine` field / `--vm`):
+
+| Engine | Notes |
+|--------|-------|
+| `goja` | **Default.** Pure Go, ES2020, no CGO — static builds & cross-compilation just work. |
+| `v8` (v8go) | Google's V8 via CGO; fastest for CPU-heavy rendering. |
+| `quickjs` | QuickJS variants (WASM/pure-Go and CGO bindings). |
+| `sobek` | A pure-Go engine (goja fork). |
+
+> [!NOTE]
+> `pola build` for a cross-compilation target forces the pure-Go `goja` engine and
+> `CGO_ENABLED=0`, so you can build a Linux binary from a Mac with no toolchain.
+
+## Bundler, renderer, router
+
+| Layer | Options | Default |
+|-------|---------|---------|
+| Bundler | `esbuild` | `esbuild` |
+| Renderer | `react` | `react` |
+| Router | `nextjs` | `nextjs` |
+
+## HTTP framework
+
+Handlers are written against a framework-neutral `core.Context`, so switching
+frameworks needs **no route changes**:
+
+| `framework` | Backend |
+|-------------|---------|
+| `std` | `net/http` (default) |
+| `gin` | gin-gonic |
+| `echo` | labstack/echo |
+| `chi` | go-chi |
+
+## Data & infrastructure
+
+| Layer | Options |
+|-------|---------|
+| ORM | `gorm`, `ent`, `beego`, `xorm` |
+| Database | SQLite, PostgreSQL, MySQL |
+| Cache | `memory`, `redis` |
+| Storage | `fs` (filesystem), `rclone` (70+ cloud providers) |
+| CSS | `tailwind`, `sass`, `none` |
+| UI kit | `shadcn`, `mui`, `antd`, `carbon`, `patternfly`, `fluentui`, `slds`, `ads` |
+
+Select them in `Polafile.hcl`:
+
+```hcl
+pola {
+  engine    = "v8"
+  framework = "gin"
+  css       = "tailwind"
+  database { orm = "ent"  adapter = "postgresql" }
+  cache     { adapter = "redis" }
+}
+```

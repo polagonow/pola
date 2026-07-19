@@ -27,6 +27,8 @@ func (p *pluginProvider) ServerActionStub() func(absPath, moduleID string, expor
 func (p *pluginProvider) ClientPlugins(appDir string) []any {
 	return []any{
 		newPolaWorkspacePlugin(appDir),
+		newMDXLoaderPlugin(),
+		newFumadocsSourcePlugin(appDir),
 		newAutoDedupePlugin(appDir),
 	}
 }
@@ -34,12 +36,16 @@ func (p *pluginProvider) ClientPlugins(appDir string) []any {
 func (p *pluginProvider) ServerPlugins(appDir string) []any {
 	return []any{
 		newPolaWorkspacePlugin(appDir),
+		newMDXLoaderPlugin(),
+		newFumadocsSourcePlugin(appDir),
 	}
 }
 
 func (p *pluginProvider) ProbePlugins(appDir string) []any {
 	return []any{
 		newPolaWorkspacePlugin(appDir),
+		newMDXLoaderPlugin(),
+		newFumadocsSourcePlugin(appDir),
 		newUseClientProbePlugin(),
 	}
 }
@@ -60,7 +66,7 @@ func newPolaWorkspacePlugin(absAppDir string) api.Plugin {
 	return api.Plugin{
 		Name: "pola-workspace",
 		Setup: func(build api.PluginBuild) {
-			build.OnResolve(api.OnResolveOptions{Filter: `^@pola/(react|actions)(/.*)?$`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
+			build.OnResolve(api.OnResolveOptions{Filter: `^@pola/(react|actions|fumadocs)(/.*)?$`}, func(args api.OnResolveArgs) (api.OnResolveResult, error) {
 				pkgRoot := findPolaPkgRoot(absAppDir)
 				if pkgRoot == "" {
 					return api.OnResolveResult{}, nil
@@ -98,6 +104,17 @@ func newPolaWorkspacePlugin(absAppDir string) api.Plugin {
 						return api.OnResolveResult{Path: filepath.Join(pkgRoot, "actions", "src", "server-reference.ts")}, nil
 					case "/redirect":
 						return api.OnResolveResult{Path: filepath.Join(pkgRoot, "actions", "src", "redirect.ts")}, nil
+					default:
+						return api.OnResolveResult{}, nil
+					}
+				}
+				if strings.HasPrefix(path, "@pola/fumadocs") {
+					sub := strings.TrimPrefix(path, "@pola/fumadocs")
+					switch sub {
+					case "/provider":
+						return api.OnResolveResult{Path: filepath.Join(pkgRoot, "fumadocs", "provider.tsx")}, nil
+					case "/blocks":
+						return api.OnResolveResult{Path: filepath.Join(pkgRoot, "fumadocs", "blocks.tsx")}, nil
 					default:
 						return api.OnResolveResult{}, nil
 					}

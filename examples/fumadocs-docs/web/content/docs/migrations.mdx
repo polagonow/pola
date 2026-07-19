@@ -1,0 +1,56 @@
+---
+title: Migrations
+description: Atlas-powered, auto-diffed database migrations that can be embedded and auto-run on boot.
+---
+
+# Migrations
+
+Pola manages schema changes with [Atlas](https://atlasgo.io). It diffs your ORM
+models against the migrations directory and generates versioned SQL for you.
+
+## Generate
+
+```bash
+pola generate model User name:string email:string:uniq
+pola generate migration CreateUsers        # auto-diffs models → SQL
+```
+
+`pola generate model` usually generates the migration for you automatically; use
+`pola generate migration` to capture later changes.
+
+## Apply, inspect, roll back
+
+```bash
+pola db migrate                 # apply all pending migrations
+pola db status                  # applied vs. pending, in a table
+pola db rollback --step 1       # revert (needs `-- atlas:down` blocks)
+pola db reset                   # drop everything and re-run from scratch
+pola db schema:load             # replay all migrations on a fresh DB
+```
+
+Each `pola db` command reads the connection from `Polafile.hcl` for the chosen
+`--env`, or takes an explicit `--url`.
+
+## Embed & auto-migrate
+
+Bake migrations into the binary and run them on startup — ideal for
+single-binary deploys:
+
+```bash
+pola build --embed-migrations   # embed migrations + schema.hcl
+pola build --migrate            # embed AND auto-run on boot
+```
+
+> [!NOTE]
+> Databases are configured in the `database { }` block of `Polafile.hcl`, with a
+> per-environment override (e.g. SQLite for development, PostgreSQL for
+> production). See [Configuration](/docs/configuration).
+
+## Seeds
+
+Scaffold and run database seeders:
+
+```bash
+pola generate seed              # db/seeds/seeds.go
+pola db seed
+```
