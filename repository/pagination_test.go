@@ -16,7 +16,9 @@ func TestListParams_Normalize(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			got := c.in.Normalize()
-			if got != c.want {
+			// ListParams carries slice fields (Filters/Sorts/Fields) so it is no
+			// longer comparable with ==; Normalize only touches Page/PerPage.
+			if got.Page != c.want.Page || got.PerPage != c.want.PerPage {
 				t.Fatalf("got %+v want %+v", got, c.want)
 			}
 		})

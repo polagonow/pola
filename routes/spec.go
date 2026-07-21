@@ -16,6 +16,12 @@ type RouteSpec struct {
 	Method  string
 	Pattern string
 	Handler core.HandlerFunc
+	// Middleware are per-route wrappers declared via the Middlewarer interface,
+	// composed around Handler at registration (index 0 outermost).
+	Middleware []core.RouteMiddleware
+	// Meta is arbitrary route metadata declared via the Metaer interface, for
+	// tooling (e.g. OpenAPI) and meta-aware middleware. Nil when none is set.
+	Meta map[string]any
 }
 
 // RouteSpecs is a named slice so it can be stored in / resolved from the DI
@@ -72,7 +78,7 @@ func Discover(registry *core.Registry) (RouteSpecs, error) {
 		if err != nil {
 			return nil, err
 		}
-		specs = append(specs, splitActions(base, actions)...)
+		specs = append(specs, splitActions(base, actions, routeMiddleware(h), routeMeta(h))...)
 	}
 
 	// Function-based routes.
@@ -82,7 +88,7 @@ func Discover(registry *core.Registry) (RouteSpecs, error) {
 		if err != nil {
 			return nil, err
 		}
-		specs = append(specs, splitActions(base, []discoveredAction{{Method: fr.method, Handler: h}})...)
+		specs = append(specs, splitActions(base, []discoveredAction{{Method: fr.method, Handler: h}}, nil, nil)...)
 	}
 
 	return specs, nil
@@ -108,15 +114,23 @@ func basePatternFor(h any, registeredPkgs map[string]bool) (string, error) {
 }
 
 // splitActions expands discovered actions into specs, mounting member methods
-// (PUT/PATCH/DELETE) on base + "/:id" and the rest on the base pattern.
-func splitActions(base string, actions []discoveredAction) RouteSpecs {
+// (PUT/PATCH/DELETE) on base + "/:id" and the rest on the base pattern. The
+// route's per-route middleware and metadata (mws, meta) are attached to every
+// action's spec.
+func splitActions(base string, actions []discoveredAction, mws []core.RouteMiddleware, meta map[string]any) RouteSpecs {
 	specs := make(RouteSpecs, 0, len(actions))
 	for _, a := range actions {
 		pattern := base
 		if memberMethods[a.Method] {
 			pattern = strings.TrimSuffix(base, "/") + "/:id"
 		}
-		specs = append(specs, RouteSpec{Method: a.Method, Pattern: pattern, Handler: a.Handler})
+		specs = append(specs, RouteSpec{
+			Method:     a.Method,
+			Pattern:    pattern,
+			Handler:    a.Handler,
+			Middleware: mws,
+			Meta:       meta,
+		})
 	}
 	return specs
 }

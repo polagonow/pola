@@ -162,7 +162,7 @@ func TestStringIDInjection(t *testing.T) {
 	// non-existent key.
 	if _, err := repo.Get(ctx, "x' OR '1'='1"); err == nil {
 		t.Fatal("expected not-found for hostile id, got a row (injection!)")
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+	} else if !errors.Is(err, repository.ErrNotFound) {
 		t.Fatalf("expected record-not-found, got: %v", err)
 	}
 
@@ -260,7 +260,7 @@ func TestErrorLabels(t *testing.T) {
 	if !strings.HasPrefix(err.Error(), "get test_widget by id:") {
 		t.Errorf("error = %q, want prefix 'get test_widget by id:'", err)
 	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		t.Errorf("expected wrapped gorm.ErrRecordNotFound, got %v", err)
+	if !errors.Is(err, repository.ErrNotFound) {
+		t.Errorf("expected wrapped repository.ErrNotFound, got %v", err)
 	}
 }

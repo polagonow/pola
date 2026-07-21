@@ -18,6 +18,7 @@ A Go framework for **React Server Components (RSC)** — implements the Flight s
     - [Embedding migrations & auto-migrating on boot](#embedding-migrations--auto-migrating-on-boot)
   - [`pola generate`](#pola-generate) — code generators
     - [`generate action`](#pola-generate-action)
+    - [`generate dto`](#pola-generate-dto)
     - [`generate js:bridge`](#pola-generate-jsbridge)
     - [`generate mailer`](#pola-generate-mailer)
     - [`generate mcp`](#pola-generate-mcp)
@@ -400,6 +401,37 @@ pola generate action Products
 pola generate action Products --service=Product
 ```
 
+#### `pola generate dto`
+
+Generate a Go file in `dto/` with three data-transfer types for a resource: a
+response DTO, a `CreateX` request DTO, and an `UpdateX` **partial-update** DTO
+whose fields are wrapped in `dto.Optional[T]` so a PATCH touches only the fields
+the client actually sent. Field definitions use the same syntax as the model
+generator.
+
+```bash
+pola generate dto Product name:string price:float description:text
+```
+
+Produces `dto/product.go`:
+
+```go
+type Product struct {
+    ID    uint    `json:"id"`
+    Name  string  `json:"name"`
+    Price float64 `json:"price"`
+}
+
+type UpdateProduct struct {
+    Name  poladto.Optional[string]  `json:"name,omitzero"`
+    Price poladto.Optional[float64] `json:"price,omitzero"`
+}
+```
+
+Map an `UpdateProduct` onto a fetched model with `dto.Copy(model, upd)` (only
+present fields are written) and convert a model to a response DTO with
+`dto.MustConvert[dto.Product](model)`.
+
 #### `pola generate js:bridge`
 
 Parse Go action structs and write TypeScript declarations so client-side code gets typed `di` imports. No flags. Equivalent to the implicit codegen step run on `pola new` and `pola dev`.
@@ -582,7 +614,7 @@ pola generate route Posts GET,POST,DELETE --service=Post
 
 #### `pola generate scaffold`
 
-Generate a full resource: model, repository, service, action, route, Zod schema, and CRUD pages.
+Generate a full resource: model, repository, service, **DTOs** (`dto/<name>.go` with response + Create + partial-update `Optional` DTOs), action, route, Zod schema, and CRUD pages.
 
 **Usage**
 
@@ -599,6 +631,7 @@ pola generate scaffold <Name> [field:type ...] [flags]
 | `--skip-model` | `false` | Skip model generation |
 | `--skip-repository` | `false` | Skip repository generation |
 | `--skip-service` | `false` | Skip service generation |
+| `--skip-dto` | `false` | Skip DTO generation |
 | `--skip-action` | `false` | Skip action generation |
 | `--skip-route` | `false` | Skip route generation |
 | `--skip-zod` | `false` | Skip Zod schema generation |

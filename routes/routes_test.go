@@ -57,7 +57,7 @@ func specsFor(t *testing.T, h any, registered map[string]bool) RouteSpecs {
 	if err != nil {
 		t.Fatalf("discoverActions: %v", err)
 	}
-	return splitActions(base, actions)
+	return splitActions(base, actions, nil, nil)
 }
 
 // ── Tests ────────────────────────────────────────────────────────────────────
@@ -85,7 +85,7 @@ func TestStructRoute(t *testing.T) {
 
 func TestContextHandlerSignature(t *testing.T) {
 	// Force a member route for DELETE via a custom path so /:id is appended.
-	specs := splitActions("/widgets", mustActions(t, &ctxRoute{}))
+	specs := splitActions("/widgets", mustActions(t, &ctxRoute{}), nil, nil)
 	h := mount(specs)
 
 	if w := do(h, "GET", "/widgets"); w.Body.String() != "ctx-ok" {
@@ -97,7 +97,7 @@ func TestContextHandlerSignature(t *testing.T) {
 }
 
 func TestMemberCollectionSplit(t *testing.T) {
-	specs := splitActions("/users", mustActions(t, &ctxRoute{}))
+	specs := splitActions("/users", mustActions(t, &ctxRoute{}), nil, nil)
 	byMethod := map[string]string{}
 	for _, s := range specs {
 		byMethod[s.Method] = s.Pattern

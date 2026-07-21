@@ -95,6 +95,7 @@ func newContext(w http.ResponseWriter, r *http.Request) *chiContext {
 func (c *chiContext) Request() *http.Request      { return c.r }
 func (c *chiContext) Writer() http.ResponseWriter { return c.w }
 func (c *chiContext) Ctx() context.Context        { return c.r.Context() }
+func (c *chiContext) SetContext(ctx context.Context) { c.r = c.r.WithContext(ctx) }
 func (c *chiContext) Status() int                 { return c.w.code }
 func (c *chiContext) Param(name string) string    { return chi.URLParam(c.r, name) }
 func (c *chiContext) Query(name string) string    { return c.r.URL.Query().Get(name) }

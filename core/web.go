@@ -23,6 +23,11 @@ type Context interface {
 	Writer() http.ResponseWriter
 	// Ctx is shorthand for Request().Context().
 	Ctx() context.Context
+	// SetContext replaces the request-scoped context, so middleware can attach
+	// request-scoped values (e.g. an authenticated user) that later handlers
+	// read via Ctx(). Adapters implement it by swapping the underlying
+	// *http.Request's context.
+	SetContext(ctx context.Context)
 
 	// Param returns a path parameter by name (e.g. "id" for /users/:id).
 	Param(name string) string
@@ -94,6 +99,14 @@ type Context interface {
 // lets adapters centralize error handling: if the handler has not already
 // written a response, the adapter translates the error into a 500.
 type HandlerFunc func(Context) error
+
+// RouteMiddleware wraps a HandlerFunc with per-route behavior (auth, rate
+// limiting, logging). Unlike engine-wide [Middleware] — which wraps http.Handler
+// before routing — a RouteMiddleware runs after the route is matched, so it can
+// be attached to specific routes and can short-circuit by returning without
+// calling next. Routes declare theirs via the routes package's Middlewarer
+// interface; the pipeline composes them around the handler at registration.
+type RouteMiddleware func(next HandlerFunc) HandlerFunc
 
 // WebFramework is the pluggable HTTP engine. Exactly one implementation is
 // registered in the DI container (selected via Polafile `framework`,

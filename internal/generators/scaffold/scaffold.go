@@ -1,6 +1,7 @@
 // Package scaffold implements the scaffold generator for the Pola CLI.
-// It composes the model, action, and route generators to create a full
-// resource in one command, similar to Rails' scaffold generator.
+// It composes the model, repository, service, dto, action, and route generators
+// (plus zod and page in full-stack projects) to create a full resource in one
+// command, similar to Rails' scaffold generator.
 package scaffold
 
 import (
@@ -30,11 +31,13 @@ func (g *ScaffoldGenerator) AfterHooks() []generators.Hook { return nil }
 func (g *ScaffoldGenerator) Command() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "scaffold [Name] [field:type ...]",
-		Short: "Generate model, action, and route for a resource",
-		Long: `Generate a complete resource scaffold including model, action, and route.
+		Short: "Generate a full resource (model, repository, service, DTOs, action, route)",
+		Long: `Generate a complete resource scaffold: model, repository, service, DTOs,
+action, and route (plus a Zod schema and pages in full-stack projects).
 Pass field definitions just like the model generator.
 
-Use --skip-model, --skip-action, or --skip-route to omit specific parts.`,
+Use --skip-model, --skip-repository, --skip-service, --skip-dto, --skip-action,
+--skip-route, --skip-zod, or --skip-views to omit specific parts.`,
 		Args:    cobra.MinimumNArgs(1),
 		RunE:    g.run,
 		Aliases: []string{"s"},
@@ -45,6 +48,7 @@ Use --skip-model, --skip-action, or --skip-route to omit specific parts.`,
 	cmd.Flags().Bool("skip-model", false, "skip model generation")
 	cmd.Flags().Bool("skip-repository", false, "skip repository generation")
 	cmd.Flags().Bool("skip-service", false, "skip service generation")
+	cmd.Flags().Bool("skip-dto", false, "skip DTO generation")
 	cmd.Flags().Bool("skip-action", false, "skip action generation")
 	cmd.Flags().Bool("skip-route", false, "skip route generation")
 	cmd.Flags().Bool("skip-zod", false, "skip Zod schema generation")
@@ -104,6 +108,11 @@ func (g *ScaffoldGenerator) Artifacts(cmd *cobra.Command, args []string, project
 	if !skipService {
 		if err := collect("service", args); err != nil {
 			return nil, fmt.Errorf("service artifacts: %w", err)
+		}
+	}
+	if skipDTO, _ := cmd.Flags().GetBool("skip-dto"); !skipDTO {
+		if err := collect("dto", args); err != nil {
+			return nil, fmt.Errorf("dto artifacts: %w", err)
 		}
 	}
 	if !skipAction {
@@ -171,6 +180,13 @@ func (g *ScaffoldGenerator) run(cmd *cobra.Command, args []string) error {
 		fmt.Printf("Generating service %s...\n", name)
 		if err := generators.Run("service", cmd, args); err != nil {
 			return fmt.Errorf("service: %w", err)
+		}
+	}
+
+	if skipDTO, _ := cmd.Flags().GetBool("skip-dto"); !skipDTO {
+		fmt.Printf("Generating DTOs %s...\n", name)
+		if err := generators.Run("dto", cmd, args); err != nil {
+			return fmt.Errorf("dto: %w", err)
 		}
 	}
 

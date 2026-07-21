@@ -45,6 +45,9 @@ func TestRouteTemplatesRender(t *testing.T) {
 		ServiceName  string
 		IDGoType     string
 		ModulePath   string
+		ModelsDir    string
+		ModelsPkg    string
+		DtoDir       string
 	}
 	type upload struct {
 		Package      string
@@ -66,7 +69,7 @@ func TestRouteTemplatesRender(t *testing.T) {
 	render(t, routeTestTmpl, withFunc{Package: "posts", RoutePath: "/posts", Methods: allMethods, Func: true})
 
 	for _, idType := range []string{"uint", "string"} {
-		s := svc{Package: "posts", RoutePath: "/posts", Methods: allMethods, ServiceName: "Post", IDGoType: idType, ModulePath: "example.com/app"}
+		s := svc{Package: "posts", RoutePath: "/posts", Methods: allMethods, ServiceName: "Post", IDGoType: idType, ModulePath: "example.com/app", ModelsDir: "db/models", ModelsPkg: "models", DtoDir: "dto"}
 		render(t, routeServiceTmpl, s)
 		render(t, routeServiceTestTmpl, s)
 		render(t, routeServiceUploadTmpl, upload{

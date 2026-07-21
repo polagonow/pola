@@ -304,6 +304,38 @@ func (*Route) Path() string { return "/api/v2/custom-endpoint" }
 
 The path must start with `/`.
 
+## Per-Route Middleware & Metadata
+
+A route struct can attach middleware and metadata to every action it declares,
+by implementing two optional interfaces. Unlike engine-wide middleware (which run
+before routing), per-route middleware run **after** the route is matched — so
+they apply only to that route and can short-circuit (e.g. an auth 401).
+
+```go
+type AdminRoutes struct {
+    authenticator auth.Authenticator[User] // injected via the DI constructor
+}
+
+// Middleware wraps every action on this route (index 0 outermost).
+func (r *AdminRoutes) Middleware() []core.RouteMiddleware {
+    return []core.RouteMiddleware{auth.RouteMiddleware(r.authenticator)}
+}
+
+// Meta rides on each RouteSpec for tooling (e.g. OpenAPI) and meta-aware code.
+func (r *AdminRoutes) Meta() map[string]any {
+    return map[string]any{"auth": true}
+}
+
+func (r *AdminRoutes) GET(c core.Context) error {
+    u, _ := auth.UserFromContext[User](c.Ctx()) // injected by the middleware
+    return c.JSON(http.StatusOK, u)
+}
+```
+
+`core.RouteMiddleware` is `func(next core.HandlerFunc) core.HandlerFunc`, so it
+works at the `core.Context` layer and can use `c.SetContext(...)` to pass
+request-scoped values (like the authenticated user) down to the handler.
+
 ## Dependency Injection
 
 Struct-based routes receive the DI registry through a `NewRoute(r *core.Registry)`

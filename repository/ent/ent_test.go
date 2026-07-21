@@ -190,9 +190,8 @@ func TestErrorLabels(t *testing.T) {
 	if !strings.HasPrefix(err.Error(), "get widget by id:") {
 		t.Errorf("error = %q, want prefix 'get widget by id:'", err)
 	}
-	var nf *entfix.NotFoundError
-	if !errors.As(err, &nf) {
-		t.Errorf("expected wrapped *ent.NotFoundError, got %v", err)
+	if !errors.Is(err, repository.ErrNotFound) {
+		t.Errorf("expected wrapped repository.ErrNotFound, got %v", err)
 	}
 }
 
