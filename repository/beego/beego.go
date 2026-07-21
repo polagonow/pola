@@ -11,11 +11,11 @@ package beego
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/beego/beego/v2/client/orm"
 
@@ -99,7 +99,7 @@ func (r *repo[T, ID]) Create(ctx context.Context, entity *T) error {
 	if r.settings.NewID != nil {
 		repository.EnsureID(entity, r.settings.NewID)
 	}
-	r.lifecycle.StampCreate(reflect.ValueOf(entity).Elem(), time.Now())
+	r.lifecycle.StampCreate(reflect.ValueOf(entity).Elem(), r.settings.Clock())
 	_, err := r.ormer.InsertWithCtx(ctx, entity)
 	return err
 }
@@ -107,11 +107,14 @@ func (r *repo[T, ID]) Create(ctx context.Context, entity *T) error {
 func (r *repo[T, ID]) Get(ctx context.Context, id ID) (*T, error) {
 	entity := r.withID(id)
 	if err := r.ormer.ReadWithCtx(ctx, entity); err != nil {
+		if errors.Is(err, orm.ErrNoRows) {
+			return nil, fmt.Errorf("get %s by id: %w", r.settings.EntityName, repository.ErrNotFound)
+		}
 		return nil, fmt.Errorf("get %s by id: %w", r.settings.EntityName, err)
 	}
 	// The neutral model carries no beego soft-delete tag, so filter here.
 	if r.lifecycle.IsSoftDeleted(reflect.ValueOf(entity).Elem()) {
-		return nil, fmt.Errorf("get %s by id: %w", r.settings.EntityName, orm.ErrNoRows)
+		return nil, fmt.Errorf("get %s by id: %w", r.settings.EntityName, repository.ErrNotFound)
 	}
 	return entity, nil
 }
@@ -133,7 +136,7 @@ func (r *repo[T, ID]) List(_ context.Context, params repository.ListParams) (*re
 }
 
 func (r *repo[T, ID]) Update(ctx context.Context, entity *T) error {
-	r.lifecycle.StampUpdate(reflect.ValueOf(entity).Elem(), time.Now())
+	r.lifecycle.StampUpdate(reflect.ValueOf(entity).Elem(), r.settings.Clock())
 	_, err := r.ormer.UpdateWithCtx(ctx, entity)
 	return err
 }
@@ -142,7 +145,7 @@ func (r *repo[T, ID]) Delete(ctx context.Context, id ID) error {
 	// Soft delete: stamp the delete column on the row instead of removing it.
 	if r.lifecycle.SoftDeletes() {
 		entity := r.withID(id)
-		r.lifecycle.StampDelete(reflect.ValueOf(entity).Elem(), time.Now())
+		r.lifecycle.StampDelete(reflect.ValueOf(entity).Elem(), r.settings.Clock())
 		_, err := r.ormer.UpdateWithCtx(ctx, entity, r.lifecycle.DeletedAtColumn)
 		return err
 	}

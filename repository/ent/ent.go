@@ -14,10 +14,10 @@ package ent
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
-	"time"
 	"unicode"
 
 	entgo "entgo.io/ent"
@@ -135,7 +135,7 @@ func (r *repo[T, ID]) Create(ctx context.Context, entity *T) error {
 	if r.settings.NewID != nil {
 		repository.EnsureID(entity, r.settings.NewID)
 	}
-	r.lifecycle.StampCreate(reflect.ValueOf(entity).Elem(), time.Now())
+	r.lifecycle.StampCreate(reflect.ValueOf(entity).Elem(), r.settings.Clock())
 	builder := r.sub.MethodByName("Create").Call(nil)[0]
 	// Honor a caller-supplied ID when the schema allows it (string-ID schemas
 	// generate a SetID; auto-increment int schemas do not).
@@ -165,7 +165,7 @@ func (r *repo[T, ID]) Get(ctx context.Context, id ID) (*T, error) {
 		q := whereField(r.scopedQuery(), entsql.FieldEQ("id", entID.Interface()))
 		out := q.MethodByName("Only").Call([]reflect.Value{reflect.ValueOf(ctx)})
 		if err := asError(out[1]); err != nil {
-			return nil, fmt.Errorf("get %s by id: %w", r.settings.EntityName, err)
+			return nil, fmt.Errorf("get %s by id: %w", r.settings.EntityName, mapNotFound(err))
 		}
 		entity := new(T)
 		copyFields(out[0], reflect.ValueOf(entity).Elem())
@@ -176,7 +176,7 @@ func (r *repo[T, ID]) Get(ctx context.Context, id ID) (*T, error) {
 		reflect.ValueOf(ctx), entID,
 	})
 	if err := asError(out[1]); err != nil {
-		return nil, fmt.Errorf("get %s by id: %w", r.settings.EntityName, err)
+		return nil, fmt.Errorf("get %s by id: %w", r.settings.EntityName, mapNotFound(err))
 	}
 	entity := new(T)
 	copyFields(out[0], reflect.ValueOf(entity).Elem())
@@ -211,7 +211,7 @@ func (r *repo[T, ID]) List(ctx context.Context, params repository.ListParams) (*
 }
 
 func (r *repo[T, ID]) Update(ctx context.Context, entity *T) error {
-	r.lifecycle.StampUpdate(reflect.ValueOf(entity).Elem(), time.Now())
+	r.lifecycle.StampUpdate(reflect.ValueOf(entity).Elem(), r.settings.Clock())
 	idVal := reflect.ValueOf(entity).Elem().FieldByIndex(r.idIndex)
 	builder := r.sub.MethodByName("UpdateOneID").
 		Call([]reflect.Value{idVal.Convert(r.entIDTyp)})[0]
@@ -231,7 +231,7 @@ func (r *repo[T, ID]) Delete(ctx context.Context, id ID) error {
 		if !ok {
 			return fmt.Errorf("delete %s: builder mutation does not implement ent.Mutation", r.settings.EntityName)
 		}
-		if err := mut.SetField(r.lifecycle.DeletedAtColumn, time.Now()); err != nil {
+		if err := mut.SetField(r.lifecycle.DeletedAtColumn, r.settings.Clock()); err != nil {
 			return fmt.Errorf("delete %s: %w", r.settings.EntityName, err)
 		}
 		if _, err := callSave(ctx, builder); err != nil {
@@ -322,6 +322,24 @@ func asError(v reflect.Value) error {
 		return nil
 	}
 	return v.Interface().(error)
+}
+
+// mapNotFound converts ent's generated *NotFoundError to the ORM-neutral
+// repository.ErrNotFound, leaving other errors unchanged. The framework cannot
+// import the app's ent package to call its IsNotFound, so it matches the
+// concrete type name ent gives its not-found error ("NotFoundError") in every
+// generated package.
+func mapNotFound(err error) error {
+	for e := err; e != nil; e = errors.Unwrap(e) {
+		t := reflect.TypeOf(e)
+		if t != nil && t.Kind() == reflect.Pointer {
+			t = t.Elem()
+		}
+		if t != nil && t.Name() == "NotFoundError" {
+			return repository.ErrNotFound
+		}
+	}
+	return err
 }
 
 // snakeCase converts PascalCase to snake_case ("AvatarID" -> "avatar_id"),

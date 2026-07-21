@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"[[ .ModulePath ]]/repositories"
+	"[[ .ModulePath ]]/[[ .ModelsDir ]]"
 	"[[ .ModulePath ]]/services"
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/repository"
@@ -26,32 +26,32 @@ func newTestRoute(svc services.[[ .ServiceName ]]ServiceInterface) *Route {
 // services.[[ .ServiceName ]]ServiceInterface. Each method is backed by a
 // *Fn field; unset fields panic on call so missing expectations fail loudly.
 type mock[[ .ServiceName ]]Service struct {
-	createFn func(ctx context.Context, e *repositories.[[ .ServiceName ]]) error
-	getFn    func(ctx context.Context, id [[ .IDGoType ]]) (*repositories.[[ .ServiceName ]], error)
-	listFn   func(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.[[ .ServiceName ]]], error)
-	updateFn func(ctx context.Context, e *repositories.[[ .ServiceName ]]) error
+	createFn func(ctx context.Context, e *[[ .ModelsPkg ]].[[ .ServiceName ]]) error
+	getFn    func(ctx context.Context, id [[ .IDGoType ]]) (*[[ .ModelsPkg ]].[[ .ServiceName ]], error)
+	listFn   func(ctx context.Context, params repository.ListParams) (*repository.ListResult[*[[ .ModelsPkg ]].[[ .ServiceName ]]], error)
+	updateFn func(ctx context.Context, e *[[ .ModelsPkg ]].[[ .ServiceName ]]) error
 	deleteFn func(ctx context.Context, id [[ .IDGoType ]]) error
 }
 
-func (m *mock[[ .ServiceName ]]Service) Create(ctx context.Context, e *repositories.[[ .ServiceName ]]) error {
+func (m *mock[[ .ServiceName ]]Service) Create(ctx context.Context, e *[[ .ModelsPkg ]].[[ .ServiceName ]]) error {
 	if m.createFn == nil {
 		panic("createFn not set")
 	}
 	return m.createFn(ctx, e)
 }
-func (m *mock[[ .ServiceName ]]Service) Get(ctx context.Context, id [[ .IDGoType ]]) (*repositories.[[ .ServiceName ]], error) {
+func (m *mock[[ .ServiceName ]]Service) Get(ctx context.Context, id [[ .IDGoType ]]) (*[[ .ModelsPkg ]].[[ .ServiceName ]], error) {
 	if m.getFn == nil {
 		panic("getFn not set")
 	}
 	return m.getFn(ctx, id)
 }
-func (m *mock[[ .ServiceName ]]Service) List(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.[[ .ServiceName ]]], error) {
+func (m *mock[[ .ServiceName ]]Service) List(ctx context.Context, params repository.ListParams) (*repository.ListResult[*[[ .ModelsPkg ]].[[ .ServiceName ]]], error) {
 	if m.listFn == nil {
 		panic("listFn not set")
 	}
 	return m.listFn(ctx, params)
 }
-func (m *mock[[ .ServiceName ]]Service) Update(ctx context.Context, e *repositories.[[ .ServiceName ]]) error {
+func (m *mock[[ .ServiceName ]]Service) Update(ctx context.Context, e *[[ .ModelsPkg ]].[[ .ServiceName ]]) error {
 	if m.updateFn == nil {
 		panic("updateFn not set")
 	}
@@ -77,8 +77,8 @@ func serve(method string, body io.Reader, h core.HandlerFunc) *httptest.Response
 [[ if eq . "GET" -]]
 func TestRoute_GET_List(t *testing.T) {
 	svc := &mock[[ $.ServiceName ]]Service{
-		listFn: func(ctx context.Context, params repository.ListParams) (*repository.ListResult[*repositories.[[ $.ServiceName ]]], error) {
-			return &repository.ListResult[*repositories.[[ $.ServiceName ]]]{Page: params.Page, PerPage: params.PerPage}, nil
+		listFn: func(ctx context.Context, params repository.ListParams) (*repository.ListResult[*[[ $.ModelsPkg ]].[[ $.ServiceName ]]], error) {
+			return &repository.ListResult[*[[ $.ModelsPkg ]].[[ $.ServiceName ]]]{Page: params.Page, PerPage: params.PerPage}, nil
 		},
 	}
 	w := serve("GET", nil, newTestRoute(svc).GET)

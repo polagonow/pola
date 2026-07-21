@@ -3,14 +3,20 @@ package [[ .Package ]]
 import (
 	"net/http"
 
-	"[[ .ModulePath ]]/repositories"
+	dto "[[ .ModulePath ]]/[[ .DtoDir ]]"
+[[- if .HasPost ]]
+	"[[ .ModulePath ]]/[[ .ModelsDir ]]"
+[[- end ]]
 	"[[ .ModulePath ]]/services"
 	"github.com/polagonow/pola/core"
+	poladto "github.com/polagonow/pola/dto"
 	"github.com/polagonow/pola/repository"
 	"github.com/polagonow/pola/request"
 )
 
-// Route handles [[ .RoutePath ]] requests.
+// Route handles [[ .RoutePath ]] requests. Handlers speak DTOs at the boundary:
+// requests bind Create/Update DTOs mapped onto the model, and responses convert
+// the model to a response DTO (so internal-only columns never leak).
 type Route struct {
 	svc services.[[ .ServiceName ]]ServiceInterface
 }
@@ -38,9 +44,12 @@ func (r *Route) GET(c core.Context) error {
 		entity, err := r.svc.Get(c.Ctx(), n)
 [[ end -]]
 		if err != nil {
-			return c.JSON(http.StatusNotFound, core.M{"error": err.Error()})
+			if repository.IsNotFound(err) {
+				return c.JSON(http.StatusNotFound, core.M{"error": err.Error()})
+			}
+			return c.JSON(http.StatusInternalServerError, core.M{"error": err.Error()})
 		}
-		return c.JSON(http.StatusOK, entity)
+		return c.JSON(http.StatusOK, poladto.MustConvert[dto.[[ $.ServiceName ]]](entity))
 	}
 
 	params := repository.ListParams{
@@ -51,67 +60,41 @@ func (r *Route) GET(c core.Context) error {
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, core.M{"error": err.Error()})
 	}
-	return c.JSON(http.StatusOK, result)
+	items := make([]dto.[[ $.ServiceName ]], len(result.Items))
+	for i, it := range result.Items {
+		items[i] = poladto.MustConvert[dto.[[ $.ServiceName ]]](it)
+	}
+	return c.JSON(http.StatusOK, core.M{
+		"items":       items,
+		"total":       result.Total,
+		"page":        result.Page,
+		"per_page":    result.PerPage,
+		"total_pages": result.TotalPages,
+	})
 }
 [[ else if eq . "POST" -]]
 // POST [[ $.RoutePath ]]
 func (r *Route) POST(c core.Context) error {
-	var entity repositories.[[ $.ServiceName ]]
-	if err := c.Bind(&entity); err != nil {
+	var in dto.Create[[ $.ServiceName ]]
+	if err := c.Bind(&in); err != nil {
 		return err
 	}
+	var entity [[ $.ModelsPkg ]].[[ $.ServiceName ]]
+	poladto.Copy(&entity, in)
 	if err := r.svc.Create(c.Ctx(), &entity); err != nil {
 		return c.JSON(http.StatusInternalServerError, core.M{"error": err.Error()})
 	}
-	return c.JSON(http.StatusCreated, entity)
+	return c.JSON(http.StatusCreated, poladto.MustConvert[dto.[[ $.ServiceName ]]](&entity))
 }
 [[ else if eq . "PUT" -]]
 // PUT [[ $.RoutePath ]]
 func (r *Route) PUT(c core.Context) error {
-[[ if eq $.IDGoType "string" -]]
-	id := request.PathParam(c, "id")
-	if id == "" {
-		return c.JSON(http.StatusBadRequest, core.M{"error": "missing id"})
-	}
-[[ else -]]
-	id, err := request.PathParamUint(c, "id")
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
-	}
-[[ end -]]
-	var entity repositories.[[ $.ServiceName ]]
-	if err := c.Bind(&entity); err != nil {
-		return err
-	}
-	entity.ID = id
-	if err := r.svc.Update(c.Ctx(), &entity); err != nil {
-		return c.JSON(http.StatusInternalServerError, core.M{"error": err.Error()})
-	}
-	return c.JSON(http.StatusOK, entity)
+[[ template "updateBody" $ ]]
 }
 [[ else if eq . "PATCH" -]]
 // PATCH [[ $.RoutePath ]]
 func (r *Route) PATCH(c core.Context) error {
-[[ if eq $.IDGoType "string" -]]
-	id := request.PathParam(c, "id")
-	if id == "" {
-		return c.JSON(http.StatusBadRequest, core.M{"error": "missing id"})
-	}
-[[ else -]]
-	id, err := request.PathParamUint(c, "id")
-	if err != nil {
-		return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
-	}
-[[ end -]]
-	var entity repositories.[[ $.ServiceName ]]
-	if err := c.Bind(&entity); err != nil {
-		return err
-	}
-	entity.ID = id
-	if err := r.svc.Update(c.Ctx(), &entity); err != nil {
-		return c.JSON(http.StatusInternalServerError, core.M{"error": err.Error()})
-	}
-	return c.JSON(http.StatusOK, entity)
+[[ template "updateBody" $ ]]
 }
 [[ else if eq . "DELETE" -]]
 // DELETE [[ $.RoutePath ]]
@@ -121,14 +104,16 @@ func (r *Route) DELETE(c core.Context) error {
 	if id == "" {
 		return c.JSON(http.StatusBadRequest, core.M{"error": "missing id"})
 	}
-	if err := r.svc.Delete(c.Ctx(), id); err != nil {
 [[ else -]]
 	id, err := request.PathParamUint(c, "id")
 	if err != nil {
 		return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
 	}
-	if err := r.svc.Delete(c.Ctx(), id); err != nil {
 [[ end -]]
+	if err := r.svc.Delete(c.Ctx(), id); err != nil {
+		if repository.IsNotFound(err) {
+			return c.JSON(http.StatusNotFound, core.M{"error": err.Error()})
+		}
 		return c.JSON(http.StatusInternalServerError, core.M{"error": err.Error()})
 	}
 	return c.NoContent(http.StatusNoContent)
@@ -141,3 +126,34 @@ func (r *Route) [[ . ]](c core.Context) error {
 }
 [[ end -]]
 [[ end -]]
+
+[[- define "updateBody" -]]
+[[ if eq .IDGoType "string" -]]
+	id := request.PathParam(c, "id")
+	if id == "" {
+		return c.JSON(http.StatusBadRequest, core.M{"error": "missing id"})
+	}
+[[ else -]]
+	id, err := request.PathParamUint(c, "id")
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
+	}
+[[ end -]]
+	entity, err := r.svc.Get(c.Ctx(), id)
+	if err != nil {
+		if repository.IsNotFound(err) {
+			return c.JSON(http.StatusNotFound, core.M{"error": err.Error()})
+		}
+		return c.JSON(http.StatusInternalServerError, core.M{"error": err.Error()})
+	}
+
+	var in dto.Update[[ .ServiceName ]]
+	if err := c.Bind(&in); err != nil {
+		return err
+	}
+	poladto.Copy(entity, in)
+	if err := r.svc.Update(c.Ctx(), entity); err != nil {
+		return c.JSON(http.StatusInternalServerError, core.M{"error": err.Error()})
+	}
+	return c.JSON(http.StatusOK, poladto.MustConvert[dto.[[ .ServiceName ]]](entity))
+[[- end -]]

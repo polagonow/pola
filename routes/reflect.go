@@ -21,6 +21,38 @@ type Memberer interface {
 	Member() bool
 }
 
+// Middlewarer is optionally implemented by route structs to attach per-route
+// middleware to every action on the route. The middleware run after the route
+// is matched, wrapping the handler in the returned order (index 0 outermost),
+// and may short-circuit (e.g. an auth check answering 401).
+type Middlewarer interface {
+	Middleware() []core.RouteMiddleware
+}
+
+// Metaer is optionally implemented by route structs to attach arbitrary metadata
+// to every action on the route (e.g. an auth flag or a rate-limit tier). The
+// metadata rides on the discovered RouteSpec for tooling such as OpenAPI
+// generation and meta-aware middleware.
+type Metaer interface {
+	Meta() map[string]any
+}
+
+// routeMiddleware returns the per-route middleware declared by h, or nil.
+func routeMiddleware(h any) []core.RouteMiddleware {
+	if m, ok := h.(Middlewarer); ok {
+		return m.Middleware()
+	}
+	return nil
+}
+
+// routeMeta returns the metadata declared by h, or nil.
+func routeMeta(h any) map[string]any {
+	if m, ok := h.(Metaer); ok {
+		return m.Meta()
+	}
+	return nil
+}
+
 // httpMethods lists the HTTP methods discovered on route structs / packages.
 var httpMethods = []string{"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS", "CONNECT", "TRACE"}
 

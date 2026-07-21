@@ -93,6 +93,7 @@ type ginContext struct{ c *gin.Context }
 func (g *ginContext) Request() *http.Request       { return g.c.Request }
 func (g *ginContext) Writer() http.ResponseWriter  { return g.c.Writer }
 func (g *ginContext) Ctx() context.Context         { return g.c.Request.Context() }
+func (g *ginContext) SetContext(ctx context.Context) { g.c.Request = g.c.Request.WithContext(ctx) }
 func (g *ginContext) Status() int                  { return g.c.Writer.Status() }
 func (g *ginContext) Param(name string) string     { return g.c.Param(name) }
 func (g *ginContext) Query(name string) string     { return g.c.Query(name) }

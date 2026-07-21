@@ -30,6 +30,7 @@ func newContext(w http.ResponseWriter, r *http.Request) *stdContext {
 func (c *stdContext) Request() *http.Request      { return c.r }
 func (c *stdContext) Writer() http.ResponseWriter { return c.w }
 func (c *stdContext) Ctx() context.Context        { return c.r.Context() }
+func (c *stdContext) SetContext(ctx context.Context) { c.r = c.r.WithContext(ctx) }
 func (c *stdContext) Status() int                 { return c.w.code }
 
 func (c *stdContext) Param(name string) string { return core.Param(c.r, name) }

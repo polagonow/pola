@@ -125,7 +125,10 @@ func (f *Framework) serve(w http.ResponseWriter, r *http.Request) {
 		}
 		c := newContext(w, r)
 		if err := h(c); err != nil && !c.w.wrote {
-			_ = c.JSON(http.StatusInternalServerError, core.M{"error": err.Error()})
+			// A handler that returns core.WithStatus(...) (or any error carrying
+			// a StatusCoder — e.g. a 404 for a not-found) maps to that status;
+			// everything else is a 500.
+			_ = c.JSON(core.StatusOf(err), core.M{"error": err.Error()})
 		}
 		return
 	}

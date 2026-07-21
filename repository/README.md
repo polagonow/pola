@@ -73,16 +73,65 @@ gormrepo.New[Session, string](db, repository.WithNewID(uuid.NewString))
 
 // Override the snake_cased entity name used in wrapped errors.
 gormrepo.New[User, uint](db, repository.WithEntityName[uint]("member"))
+
+// Hide sensitive columns from query-driven filtering/sorting/selection.
+gormrepo.New[User, uint](db, repository.WithBlacklist[uint]("password_hash"))
+
+// Freeze time for deterministic lifecycle timestamps in tests.
+gormrepo.New[User, uint](db, repository.WithClock[uint](func() time.Time { return fixed }))
 ```
+
+`WithClock` drives `CreatedAt`/`UpdatedAt`/`DeletedAt` stamping (default
+`time.Now`); the gorm engine also applies it as gorm's `NowFunc`, so gorm's own
+convention-based timestamping stays on the same clock.
 
 Entities must have an exported `ID` field whose type matches the `ID` type
 parameter; constructors fail fast (panic) on mis-declared entities.
 
-## Pagination
+## Pagination & query-driven listing
 
 `ListParams`, `ListResult[T]` and `DefaultPerPage` live here; generated
 projects alias them (`type ListParams = repository.ListParams`) so services,
 routes and hand-written code share one definition with the framework.
+
+Beyond `Page`/`PerPage`, `ListParams` carries optional `Filters`, `Sorts` and
+`Fields`, so a list endpoint gets filtering, sorting and field-selection with no
+hand-written query code. Build them from a query string with `ParseListQuery`
+(transport-agnostic — pass `request.URL.Query()`):
+
+```
+?page=2&per_page=20
+&filter=name||$cont||jack        (repeatable; ANDed)
+&filter=age||$between||18,30
+&filter=role||$in||admin,staff
+&sort=created_at,desc            (repeatable; applied in order)
+&fields=id,name,email
+```
+
+Operators: `$eq $ne $gt $lt $gte $lte $cont $starts $ends $in $notin $between
+$isnull $notnull`.
+
+```go
+func (r *userRepository) Search(ctx context.Context, q url.Values) (*repository.ListResult[*models.User], error) {
+    return r.List(ctx, repository.ParseListQuery(q))
+}
+```
+
+**Safety.** The gorm engine resolves an **allowlist** of the entity's real
+columns from GORM's own schema (so `UserID` → `user_id` matches exactly) and
+silently drops any filter/sort/field naming an unknown or `WithBlacklist`-ed
+column — a query string can never reach a column that isn't a column. Operands
+are always bound as parameters, and `$cont`/`$starts`/`$ends` escape `%`/`_`
+(via `sqlutil.EscapeLike`) so a literal `%` matches literally instead of
+everything. Currently implemented by `repository/gorm`; beego/ent ignore the
+extra fields (plain pagination) until they gain equivalents.
+
+## Transactions
+
+Multi-repository business operations run atomically via `repository/uow`'s
+`TxManager` (context-propagated; see that package's README). The gorm engine
+routes every query through `gorm.DB(ctx, r.db)`, so repositories enlist in an
+ambient transaction automatically with no code change.
 
 ## Conformance
 
@@ -90,6 +139,16 @@ routes and hand-written code share one definition with the framework.
 round-trips, pagination math, params normalization, error labels — mirroring
 `webframework/conformance_test.go`.
 
-Known residual difference: the wrapped driver error for a missing row is
-`gorm.ErrRecordNotFound` vs beego's `orm.ErrNoRows`. A cross-ORM
-`repository.ErrNotFound` is a planned follow-up.
+## Not-found errors
+
+`Get` maps every engine's driver-specific miss (`gorm.ErrRecordNotFound`,
+beego's `orm.ErrNoRows`, ent's `*NotFoundError`) onto the ORM-neutral
+`repository.ErrNotFound`, so callers branch on it without importing an ORM:
+
+```go
+u, err := repo.Get(ctx, id)
+if repository.IsNotFound(err) { /* → 404 */ }
+```
+
+The wrapped message ("record not found") is unchanged for gorm; the conformance
+suite asserts `errors.Is(err, repository.ErrNotFound)` across all three engines.

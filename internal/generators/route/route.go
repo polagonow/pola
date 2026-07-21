@@ -5,6 +5,7 @@ import (
 	"embed"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"text/template"
@@ -62,8 +63,8 @@ func init() {
 	generators.Register(&RouteGenerator{})
 }
 
-func (g *RouteGenerator) Name() string                  { return "route" }
-func (g *RouteGenerator) Description() string           { return "Scaffold a new route handler" }
+func (g *RouteGenerator) Name() string        { return "route" }
+func (g *RouteGenerator) Description() string { return "Scaffold a new route handler" }
 func (g *RouteGenerator) AfterHooks() []generators.Hook {
 	return []generators.Hook{generators.CmdHook("gofmt", "-w", ".")}
 }
@@ -199,6 +200,15 @@ func (g *RouteGenerator) run(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("read module path: %w", err)
 		}
 
+		// Locate the canonical models package (the entity type lives there) and
+		// the generated dto package, so the handler can map DTOs ↔ models.
+		pf, _ := polafile.Load(projectDir)
+		if pf == nil {
+			pf = &polafile.Polafile{}
+		}
+		modelsDir := pf.DatabaseModelsDir()
+		modelsPkg := path.Base(modelsDir)
+
 		idType, _ := cmd.Flags().GetString("id-type")
 		if idType == "" {
 			idType = "uint"
@@ -247,6 +257,10 @@ func (g *RouteGenerator) run(cmd *cobra.Command, args []string) error {
 			ServiceName  string
 			IDGoType     string
 			ModulePath   string
+			ModelsDir    string
+			ModelsPkg    string
+			DtoDir       string
+			HasPost      bool
 		}{
 			Package:      pkgName,
 			RoutePath:    routePath,
@@ -255,6 +269,10 @@ func (g *RouteGenerator) run(cmd *cobra.Command, args []string) error {
 			ServiceName:  serviceName,
 			IDGoType:     idType,
 			ModulePath:   modulePath,
+			ModelsDir:    modelsDir,
+			ModelsPkg:    modelsPkg,
+			DtoDir:       "dto",
+			HasPost:      containsMethod(methods, "POST"),
 		}); err != nil {
 			return fmt.Errorf("execute route service template: %w", err)
 		}
@@ -307,6 +325,12 @@ func (g *RouteGenerator) run(cmd *cobra.Command, args []string) error {
 			if err != nil {
 				return fmt.Errorf("read module path: %w", err)
 			}
+			pf, _ := polafile.Load(projectDir)
+			if pf == nil {
+				pf = &polafile.Polafile{}
+			}
+			modelsDir := pf.DatabaseModelsDir()
+			modelsPkg := path.Base(modelsDir)
 			idType, _ := cmd.Flags().GetString("id-type")
 			if idType == "" {
 				idType = "uint"
@@ -330,7 +354,9 @@ func (g *RouteGenerator) run(cmd *cobra.Command, args []string) error {
 					ServiceName string
 					IDGoType    string
 					ModulePath  string
-				}{Package: pkgName, RoutePath: routePath, Methods: methods, ServiceName: serviceName, IDGoType: idType, ModulePath: modulePath}); err != nil {
+					ModelsDir   string
+					ModelsPkg   string
+				}{Package: pkgName, RoutePath: routePath, Methods: methods, ServiceName: serviceName, IDGoType: idType, ModulePath: modulePath, ModelsDir: modelsDir, ModelsPkg: modelsPkg}); err != nil {
 					return fmt.Errorf("execute route service test template: %w", err)
 				}
 			}
@@ -342,6 +368,16 @@ func (g *RouteGenerator) run(cmd *cobra.Command, args []string) error {
 	}
 
 	return generators.RunAfterHooks(g, projectDir)
+}
+
+// containsMethod reports whether methods includes the given HTTP method.
+func containsMethod(methods []string, method string) bool {
+	for _, m := range methods {
+		if m == method {
+			return true
+		}
+	}
+	return false
 }
 
 // parseActions validates HTTP methods from positional arguments.

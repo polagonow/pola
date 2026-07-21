@@ -126,6 +126,16 @@ func mountApp(d mountDeps) http.Handler {
 		method, pattern := spec.Method, spec.Pattern
 		h := spec.Handler
 
+		// Per-route middleware (auth, etc.). Composed innermost so it runs when
+		// the API handler runs — after page-precedence/metrics wrappers decide to
+		// invoke it — and short-circuits (e.g. a 401) are recorded by metrics.
+		// Index 0 is outermost within the route's own chain.
+		for i := len(spec.Middleware) - 1; i >= 0; i-- {
+			if mw := spec.Middleware[i]; mw != nil {
+				h = mw(h)
+			}
+		}
+
 		// SSR cache invalidation after a successful mutation.
 		if d.cache != nil && isMutationMethod(method) {
 			inner := h

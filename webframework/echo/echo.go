@@ -93,6 +93,7 @@ type echoContext struct{ c echo.Context }
 func (e *echoContext) Request() *http.Request       { return e.c.Request() }
 func (e *echoContext) Writer() http.ResponseWriter  { return e.c.Response() }
 func (e *echoContext) Ctx() context.Context         { return e.c.Request().Context() }
+func (e *echoContext) SetContext(ctx context.Context) { e.c.SetRequest(e.c.Request().WithContext(ctx)) }
 func (e *echoContext) Status() int                  { return e.c.Response().Status }
 func (e *echoContext) Param(name string) string     { return e.c.Param(name) }
 func (e *echoContext) Query(name string) string     { return e.c.QueryParam(name) }

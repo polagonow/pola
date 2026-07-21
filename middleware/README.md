@@ -12,6 +12,8 @@ Middleware is applied in order via `Registry.Middleware`.
 | `middleware/logging` | Structured request logging via `core.Logger` |
 | `middleware/recovery` | Panic recovery with error logging |
 | `middleware/compression` | Gzip/deflate response compression |
+| `middleware/cors` | Cross-Origin Resource Sharing, incl. preflight (OPTIONS) handling |
+| `middleware/health` | Liveness (`/healthz`) + readiness (`/readyz`, runs registered checks → 200/503) |
 
 ## Usage
 

@@ -1,9 +1,21 @@
 package repository
 
-// ListParams holds pagination parameters.
+// ListParams holds pagination parameters plus optional query-driven filtering,
+// sorting and field selection. The three query fields are additive and
+// backward-compatible: a zero-value ListParams (or one built only with
+// Page/PerPage) behaves exactly as plain pagination. Adapters that understand
+// them (currently gorm) apply Filters/Sorts/Fields against an allowlist of the
+// entity's columns; adapters that don't simply ignore them.
 type ListParams struct {
 	Page    int `json:"page"`
 	PerPage int `json:"per_page"`
+
+	// Filters are WHERE conditions, ANDed together.
+	Filters []Filter `json:"filters,omitempty"`
+	// Sorts are ORDER BY clauses, applied in order.
+	Sorts []Sort `json:"sorts,omitempty"`
+	// Fields is an optional SELECT allowlist (empty means all columns).
+	Fields []string `json:"fields,omitempty"`
 }
 
 // DefaultPerPage is the default number of items per page.

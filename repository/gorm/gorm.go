@@ -5,9 +5,9 @@ package gorm
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
-	"time"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -19,6 +19,11 @@ type repo[T any, ID comparable] struct {
 	db        *gorm.DB
 	settings  repository.Settings[ID]
 	lifecycle repository.LifecycleFields
+	// columns is the allowlist of filterable/sortable/selectable columns of T
+	// (snake_case → field type), computed once at construction. Query params
+	// naming anything outside this set — or inside the blacklist — are ignored.
+	columns   map[string]reflect.Type
+	blacklist map[string]bool
 }
 
 // New returns a repository.Repository backed by db for entity T keyed by ID.
@@ -31,22 +36,34 @@ func New[T any, ID comparable](db *gorm.DB, opts ...repository.Option[ID]) repos
 		// Fail fast on entities without a usable ID field.
 		repository.MustIDFieldIndex[T, ID]()
 	}
-	return &repo[T, ID]{db: db, settings: s, lifecycle: repository.LifecycleFieldsOf[T]()}
+	blacklist := make(map[string]bool, len(s.Blacklist))
+	for _, c := range s.Blacklist {
+		blacklist[c] = true
+	}
+	return &repo[T, ID]{
+		db:        db,
+		settings:  s,
+		lifecycle: repository.LifecycleFieldsOf[T](),
+		columns:   filterableColumns[T](db),
+		blacklist: blacklist,
+	}
 }
 
 func (r *repo[T, ID]) Create(ctx context.Context, entity *T) error {
 	if r.settings.NewID != nil {
 		repository.EnsureID(entity, r.settings.NewID)
 	}
-	r.lifecycle.StampCreate(reflect.ValueOf(entity).Elem(), time.Now())
-	return r.db.WithContext(ctx).Create(entity).Error
+	r.lifecycle.StampCreate(reflect.ValueOf(entity).Elem(), r.settings.Clock())
+	// NowFunc keeps gorm's own convention-based CreatedAt/UpdatedAt auto-stamping
+	// on the same clock as pola's, so an injected clock is authoritative.
+	return DB(ctx, r.db).WithContext(ctx).Session(&gorm.Session{NowFunc: r.settings.Clock}).Create(entity).Error
 }
 
 // query applies the soft-delete scope (deleted_at IS NULL) when entity T opts
 // into soft deletion, so soft-deleted rows are invisible to reads. The model
 // carries no gorm.DeletedAt, so this scope — not gorm — enforces it.
 func (r *repo[T, ID]) query(ctx context.Context) *gorm.DB {
-	q := r.db.WithContext(ctx)
+	q := DB(ctx, r.db).WithContext(ctx)
 	if r.lifecycle.SoftDeletes() {
 		q = q.Where(r.lifecycle.DeletedAtColumn + " IS NULL")
 	}
@@ -64,6 +81,9 @@ func (r *repo[T, ID]) byID(ctx context.Context, id ID) *gorm.DB {
 func (r *repo[T, ID]) Get(ctx context.Context, id ID) (*T, error) {
 	var entity T
 	if err := r.byID(ctx, id).First(&entity).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, fmt.Errorf("get %s by id: %w", r.settings.EntityName, repository.ErrNotFound)
+		}
 		return nil, fmt.Errorf("get %s by id: %w", r.settings.EntityName, err)
 	}
 	return &entity, nil
@@ -71,14 +91,21 @@ func (r *repo[T, ID]) Get(ctx context.Context, id ID) (*T, error) {
 
 func (r *repo[T, ID]) List(ctx context.Context, params repository.ListParams) (*repository.ListResult[*T], error) {
 	params = params.Normalize()
+	filters := r.filterScope(params)
 
 	var total int64
-	if err := r.query(ctx).Model(new(T)).Count(&total).Error; err != nil {
+	if err := r.query(ctx).Model(new(T)).Scopes(filters).Count(&total).Error; err != nil {
 		return nil, fmt.Errorf("count %s: %w", r.settings.EntityName, err)
 	}
 
+	q := r.query(ctx).Scopes(filters)
+	if cols := r.selectColumns(params); len(cols) > 0 {
+		q = q.Select(cols)
+	}
+	q = r.orderScope(q, params)
+
 	var items []*T
-	if err := r.query(ctx).Offset(params.Offset()).Limit(params.PerPage).Find(&items).Error; err != nil {
+	if err := q.Offset(params.Offset()).Limit(params.PerPage).Find(&items).Error; err != nil {
 		return nil, fmt.Errorf("list %s: %w", r.settings.EntityName, err)
 	}
 
@@ -86,13 +113,13 @@ func (r *repo[T, ID]) List(ctx context.Context, params repository.ListParams) (*
 }
 
 func (r *repo[T, ID]) Update(ctx context.Context, entity *T) error {
-	r.lifecycle.StampUpdate(reflect.ValueOf(entity).Elem(), time.Now())
-	return r.db.WithContext(ctx).Save(entity).Error
+	r.lifecycle.StampUpdate(reflect.ValueOf(entity).Elem(), r.settings.Clock())
+	return DB(ctx, r.db).WithContext(ctx).Session(&gorm.Session{NowFunc: r.settings.Clock}).Save(entity).Error
 }
 
 func (r *repo[T, ID]) Delete(ctx context.Context, id ID) error {
 	if r.lifecycle.SoftDeletes() {
-		res := r.byID(ctx, id).Model(new(T)).Update(r.lifecycle.DeletedAtColumn, time.Now())
+		res := r.byID(ctx, id).Model(new(T)).Update(r.lifecycle.DeletedAtColumn, r.settings.Clock())
 		if res.Error != nil {
 			return fmt.Errorf("delete %s: %w", r.settings.EntityName, res.Error)
 		}

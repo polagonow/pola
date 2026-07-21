@@ -36,6 +36,15 @@ type Settings[ID comparable] struct {
 	// entities whose ID field holds the zero value. The generator wires this
 	// with uuid.NewString for string-keyed entities.
 	NewID func() ID
+	// Blacklist names columns (snake_case) that query-driven filtering,
+	// sorting and field selection must never touch, even though they exist on
+	// the entity — e.g. "password_hash". Adapters drop any Filter/Sort/Fields
+	// entry naming a blacklisted column.
+	Blacklist []string
+	// Clock supplies the current time for lifecycle stamping
+	// (CreatedAt/UpdatedAt/DeletedAt). Defaults to time.Now; override it in
+	// tests (WithClock) for deterministic timestamps.
+	Clock func() time.Time
 }
 
 // Option configures a generic repository implementation.
@@ -56,6 +65,19 @@ func WithEntityName[ID comparable](name string) Option[ID] {
 	return func(s *Settings[ID]) { s.EntityName = name }
 }
 
+// WithBlacklist hides columns from query-driven filtering/sorting/selection.
+// ID does not appear in the arguments, so it needs explicit instantiation:
+// WithBlacklist[uint]("password_hash", "internal_notes").
+func WithBlacklist[ID comparable](cols ...string) Option[ID] {
+	return func(s *Settings[ID]) { s.Blacklist = append(s.Blacklist, cols...) }
+}
+
+// WithClock overrides the time source used for lifecycle stamping, so tests can
+// freeze time: WithClock[uint](func() time.Time { return fixed }).
+func WithClock[ID comparable](now func() time.Time) Option[ID] {
+	return func(s *Settings[ID]) { s.Clock = now }
+}
+
 // ApplySettings folds opts over zero Settings and derives EntityName from T
 // when unset. Intended for use by implementation sub-packages.
 func ApplySettings[T any, ID comparable](opts []Option[ID]) Settings[ID] {
@@ -65,6 +87,9 @@ func ApplySettings[T any, ID comparable](opts []Option[ID]) Settings[ID] {
 	}
 	if s.EntityName == "" {
 		s.EntityName = EntityNameOf[T]()
+	}
+	if s.Clock == nil {
+		s.Clock = time.Now
 	}
 	return s
 }

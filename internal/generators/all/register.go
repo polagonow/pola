@@ -5,6 +5,7 @@ package all
 import (
 	_ "github.com/polagonow/pola/internal/generators/action"
 	_ "github.com/polagonow/pola/internal/generators/docs"
+	_ "github.com/polagonow/pola/internal/generators/dto"
 	_ "github.com/polagonow/pola/internal/generators/jsbridge"
 	_ "github.com/polagonow/pola/internal/generators/mailer"
 	_ "github.com/polagonow/pola/internal/generators/mcp"

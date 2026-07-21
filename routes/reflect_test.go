@@ -49,7 +49,7 @@ func TestDiscoverActions_InvokesHandler(t *testing.T) {
 		t.Fatalf("discoverActions: %v", err)
 	}
 
-	h := mount(splitActions("/t", discovered))
+	h := mount(splitActions("/t", discovered, nil, nil))
 	do(h, "GET", "/t")
 	if !route.getCalled {
 		t.Error("GET handler did not invoke the method")

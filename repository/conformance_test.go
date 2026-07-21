@@ -2,6 +2,7 @@ package repository_test
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -154,12 +155,15 @@ func TestConformance(t *testing.T) {
 				if err == nil {
 					t.Fatal("expected error for missing row")
 				}
-				// All adapters share the wrapped-message format; the wrapped
-				// driver error differs (gorm.ErrRecordNotFound vs orm.ErrNoRows
-				// vs *ent.NotFoundError) until a cross-ORM repository.ErrNotFound
-				// exists.
+				// Every adapter shares the wrapped-message format and maps its
+				// driver's not-found error (gorm.ErrRecordNotFound,
+				// orm.ErrNoRows, *ent.NotFoundError) onto the ORM-neutral
+				// repository.ErrNotFound.
 				if !strings.HasPrefix(err.Error(), "get widget by id:") {
 					t.Errorf("error = %q, want prefix 'get widget by id:'", err)
+				}
+				if !errors.Is(err, repository.ErrNotFound) {
+					t.Errorf("error = %v, want errors.Is(..., repository.ErrNotFound)", err)
 				}
 			})
 		})
