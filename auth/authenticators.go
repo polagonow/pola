@@ -40,7 +40,7 @@ func (a *JWTAuthenticator[T]) Authenticate(r *http.Request) (*T, error) {
 		return nil, ErrInvalidCredentials
 	}
 	u, err := a.Users.FindByUsername(r.Context(), subject)
-	if err != nil {
+	if err != nil || u == nil {
 		return nil, ErrInvalidCredentials
 	}
 	return u, nil
@@ -58,6 +58,12 @@ type BasicAuthenticator[T any] struct {
 
 var _ Authenticator[struct{}] = (*BasicAuthenticator[struct{}])(nil)
 
+// dummyHash is a valid bcrypt hash (of an unknown password) compared against on
+// the unknown-user path so that request cost is the same whether or not the
+// username exists. Without it, an unknown user would return before any bcrypt
+// work runs, leaking username existence through response timing.
+const dummyHash = "$2a$10$uXwVFAVMrwCbHYqwSgrWGuOhfmPnhimK3RvlBXik6Dj1VqKaVXhRe"
+
 // Authenticate reads the request's Basic credentials, loads the user and
 // verifies the password. It returns [ErrInvalidCredentials] both for an unknown
 // user and a wrong password, so the response can't be used to probe which
@@ -68,7 +74,11 @@ func (a *BasicAuthenticator[T]) Authenticate(r *http.Request) (*T, error) {
 		return nil, ErrNoCredentials
 	}
 	u, err := a.Users.FindByUsername(r.Context(), username)
-	if err != nil {
+	if err != nil || u == nil {
+		// Compare against a fixed dummy hash so an unknown (or nil) user costs
+		// the same bcrypt work as a real one, keeping the response time from
+		// revealing which usernames exist.
+		_, _ = password.Verify(pass, dummyHash)
 		return nil, ErrInvalidCredentials
 	}
 	valid, err := password.Verify(pass, a.Password(u))

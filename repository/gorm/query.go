@@ -83,10 +83,19 @@ func applyFilter(db *gorm.DB, f repository.Filter, typ reflect.Type) *gorm.DB {
 	case repository.OpEnds:
 		return db.Where(col+" LIKE ? ESCAPE '\\'", "%"+sqlutil.EscapeLike(arg0(f)))
 	case repository.OpIn:
+		if len(f.Args) == 0 {
+			return db // no operands: skip rather than emit an invalid IN ()
+		}
 		return db.Where(col+" IN ?", coerceAll(typ, f.Args))
 	case repository.OpNotIn:
+		if len(f.Args) == 0 {
+			return db
+		}
 		return db.Where(col+" NOT IN ?", coerceAll(typ, f.Args))
 	case repository.OpBetween:
+		if len(f.Args) < 2 {
+			return db // $between needs two operands; skip a malformed filter
+		}
 		return db.Where(col+" BETWEEN ? AND ?", repository.Coerce(typ, f.Args[0]), repository.Coerce(typ, f.Args[1]))
 	case repository.OpIsNull:
 		return db.Where(col + " IS NULL")

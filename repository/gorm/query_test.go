@@ -54,6 +54,28 @@ func TestFilterEq(t *testing.T) {
 	}
 }
 
+func TestFilterMalformedArgsDoNotPanic(t *testing.T) {
+	repo := seedProducts(t)
+	// A Filter can be constructed directly (bypassing ParseListQuery's arity
+	// validation), so the adapter must not index missing operands. These would
+	// otherwise panic ($between) or emit invalid SQL ($in).
+	cases := map[string]repository.Filter{
+		"between one arg": {Field: "price", Operator: repository.OpBetween, Args: []string{"5"}},
+		"between no args": {Field: "price", Operator: repository.OpBetween},
+		"in no args":      {Field: "tag", Operator: repository.OpIn},
+		"notin no args":   {Field: "tag", Operator: repository.OpNotIn},
+	}
+	for name, f := range cases {
+		t.Run(name, func(t *testing.T) {
+			res := list(t, repo, repository.ListParams{Filters: []repository.Filter{f}})
+			// Malformed filter is skipped, so every seeded row is returned.
+			if res.Total != 4 {
+				t.Errorf("malformed filter should be dropped; total = %d, want 4", res.Total)
+			}
+		})
+	}
+}
+
 func TestFilterContAndLikeEscaping(t *testing.T) {
 	repo := seedProducts(t)
 

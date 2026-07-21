@@ -48,6 +48,7 @@ func TestRouteTemplatesRender(t *testing.T) {
 		ModelsDir    string
 		ModelsPkg    string
 		DtoDir       string
+		HasPost      bool
 	}
 	type upload struct {
 		Package      string
@@ -69,7 +70,7 @@ func TestRouteTemplatesRender(t *testing.T) {
 	render(t, routeTestTmpl, withFunc{Package: "posts", RoutePath: "/posts", Methods: allMethods, Func: true})
 
 	for _, idType := range []string{"uint", "string"} {
-		s := svc{Package: "posts", RoutePath: "/posts", Methods: allMethods, ServiceName: "Post", IDGoType: idType, ModulePath: "example.com/app", ModelsDir: "db/models", ModelsPkg: "models", DtoDir: "dto"}
+		s := svc{Package: "posts", RoutePath: "/posts", Methods: allMethods, ServiceName: "Post", IDGoType: idType, ModulePath: "example.com/app", ModelsDir: "db/models", ModelsPkg: "models", DtoDir: "dto", HasPost: true}
 		render(t, routeServiceTmpl, s)
 		render(t, routeServiceTestTmpl, s)
 		render(t, routeServiceUploadTmpl, upload{
@@ -78,5 +79,13 @@ func TestRouteTemplatesRender(t *testing.T) {
 			FileFields: []fileField{{Name: "avatar", PascalName: "Avatar"}},
 		})
 		render(t, routeServiceUploadTestTmpl, s)
+	}
+
+	// A GET-only service route must not import the models package, which is
+	// referenced only by the POST handler; otherwise the generated file fails
+	// to compile with "imported and not used".
+	getOnly := svc{Package: "posts", RoutePath: "/posts", Methods: []string{"GET"}, ServiceName: "Post", IDGoType: "uint", ModulePath: "example.com/app", ModelsDir: "db/models", ModelsPkg: "models", DtoDir: "dto", HasPost: false}
+	if out := render(t, routeServiceTmpl, getOnly); strings.Contains(out, "example.com/app/db/models") {
+		t.Errorf("GET-only service route should not import the models package:\n%s", out)
 	}
 }

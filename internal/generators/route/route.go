@@ -63,8 +63,8 @@ func init() {
 	generators.Register(&RouteGenerator{})
 }
 
-func (g *RouteGenerator) Name() string                  { return "route" }
-func (g *RouteGenerator) Description() string           { return "Scaffold a new route handler" }
+func (g *RouteGenerator) Name() string        { return "route" }
+func (g *RouteGenerator) Description() string { return "Scaffold a new route handler" }
 func (g *RouteGenerator) AfterHooks() []generators.Hook {
 	return []generators.Hook{generators.CmdHook("gofmt", "-w", ".")}
 }
@@ -260,6 +260,7 @@ func (g *RouteGenerator) run(cmd *cobra.Command, args []string) error {
 			ModelsDir    string
 			ModelsPkg    string
 			DtoDir       string
+			HasPost      bool
 		}{
 			Package:      pkgName,
 			RoutePath:    routePath,
@@ -271,6 +272,7 @@ func (g *RouteGenerator) run(cmd *cobra.Command, args []string) error {
 			ModelsDir:    modelsDir,
 			ModelsPkg:    modelsPkg,
 			DtoDir:       "dto",
+			HasPost:      containsMethod(methods, "POST"),
 		}); err != nil {
 			return fmt.Errorf("execute route service template: %w", err)
 		}
@@ -366,6 +368,16 @@ func (g *RouteGenerator) run(cmd *cobra.Command, args []string) error {
 	}
 
 	return generators.RunAfterHooks(g, projectDir)
+}
+
+// containsMethod reports whether methods includes the given HTTP method.
+func containsMethod(methods []string, method string) bool {
+	for _, m := range methods {
+		if m == method {
+			return true
+		}
+	}
+	return false
 }
 
 // parseActions validates HTTP methods from positional arguments.

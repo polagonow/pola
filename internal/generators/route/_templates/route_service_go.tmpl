@@ -4,7 +4,9 @@ import (
 	"net/http"
 
 	dto "[[ .ModulePath ]]/[[ .DtoDir ]]"
+[[- if .HasPost ]]
 	"[[ .ModulePath ]]/[[ .ModelsDir ]]"
+[[- end ]]
 	"[[ .ModulePath ]]/services"
 	"github.com/polagonow/pola/core"
 	poladto "github.com/polagonow/pola/dto"

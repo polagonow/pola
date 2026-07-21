@@ -142,3 +142,24 @@ func TestBasicAuthenticator(t *testing.T) {
 		t.Errorf("unknown user err = %v, want ErrInvalidCredentials (no existence leak)", err)
 	}
 }
+
+// nilUsers reports "not found" as (nil, nil), a common Go convention. The
+// authenticators must reject that without dereferencing the nil user.
+type nilUsers struct{}
+
+func (nilUsers) FindByUsername(context.Context, string) (*user, error) { return nil, nil }
+
+func TestAuthenticatorsHandleNilUser(t *testing.T) {
+	basic := &BasicAuthenticator[user]{Users: nilUsers{}, Password: func(u *user) string { return u.Hash }}
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.SetBasicAuth("ada", "hunter2")
+	if _, err := basic.Authenticate(req); !errors.Is(err, ErrInvalidCredentials) {
+		t.Errorf("basic nil user err = %v, want ErrInvalidCredentials", err)
+	}
+
+	jwt := &JWTAuthenticator[user]{Users: nilUsers{}, Secret: secret}
+	tok, _ := IssueToken("ada", secret, time.Hour, nil)
+	if u, err := jwt.Authenticate(bearerReq(tok)); u != nil || !errors.Is(err, ErrInvalidCredentials) {
+		t.Errorf("jwt nil user = (%v,%v), want (nil, ErrInvalidCredentials)", u, err)
+	}
+}
