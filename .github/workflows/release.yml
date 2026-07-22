@@ -30,7 +30,7 @@ jobs:
         run: go run mage.go dist:release
 
       - name: Smoke-test host binary
-        run: ./build/linux-x64/pola --version
+        run: ./build/pola-linux-amd64 --version
 
       - name: Generate checksums
         run: |
