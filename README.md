@@ -1,5 +1,9 @@
 # Pola
 
+[![CI](https://github.com/polagonow/pola/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/polagonow/pola/actions/workflows/ci.yml)
+[![E2E](https://github.com/polagonow/pola/actions/workflows/e2e.yml/badge.svg?branch=main)](https://github.com/polagonow/pola/actions/workflows/e2e.yml)
+[![Trivy vulnerability scanner](https://github.com/polagonow/pola/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/polagonow/pola/actions/workflows/security.yml)
+
 A Go framework for **React Server Components (RSC)** — implements the Flight streaming protocol, Next.js-style file conventions, and a pluggable multi-VM architecture. No Node.js. No CGO by default. A single Go binary serves everything.
 
 ---

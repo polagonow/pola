@@ -4,8 +4,12 @@
 package main
 
 import (
+	"archive/tar"
+	"archive/zip"
 	"cmp"
+	"compress/gzip"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -115,15 +119,20 @@ var crossTargets = []crossTarget{
 	{goos: "windows", goarch: "amd64"},
 }
 
-// label is the build/ subdirectory name in npm platform-arch form,
-// e.g. "darwin-arm64" or "win32-x64".
-func (t crossTarget) label() string {
-	osName := map[string]string{"darwin": "darwin", "linux": "linux", "windows": "win32"}[t.goos]
-	archName := map[string]string{"arm64": "arm64", "amd64": "x64"}[t.goarch]
-	return fmt.Sprintf("%s-%s", osName, archName)
+// name is the flat release binary name in the standard Go convention,
+// e.g. "pola-darwin-arm64" or "pola-windows-amd64.exe" — the same
+// <base>-<GOOS>-<GOARCH> shape the CLI's own `pola build --platforms` emits
+// (see internal/cli/platform.go) and that kubectl/minikube-style releases use.
+func (t crossTarget) name() string {
+	n := fmt.Sprintf("pola-%s-%s", t.goos, t.goarch)
+	if t.goos == "windows" {
+		n += ".exe"
+	}
+	return n
 }
 
-// binName is the output binary name (.exe on Windows).
+// binName is the binary name packaged inside release archives (.exe on
+// Windows); archives carry the plain name so extraction yields `pola`.
 func (t crossTarget) binName() string {
 	if t.goos == "windows" {
 		return "pola.exe"
@@ -141,10 +150,10 @@ func crossTags() string {
 	return strings.Join(tags, " ")
 }
 
-// buildTarget cross-compiles one platform into build/<label>/pola[.exe].
+// buildTarget cross-compiles one platform into build/pola-<GOOS>-<GOARCH>[.exe].
 func buildTarget(t crossTarget) error {
-	out := filepath.Join("build", t.label(), t.binName())
-	fmt.Printf("→ building %s\n", t.label())
+	out := filepath.Join("build", t.name())
+	fmt.Printf("→ building %s\n", t.name())
 	env := map[string]string{
 		"CGO_ENABLED": "0",
 		"GOOS":        t.goos,
@@ -164,7 +173,7 @@ func buildMany(goos ...string) error {
 			continue
 		}
 		if err := buildTarget(t); err != nil {
-			return fmt.Errorf("build %s: %w", t.label(), err)
+			return fmt.Errorf("build %s: %w", t.name(), err)
 		}
 	}
 	return nil
@@ -186,7 +195,9 @@ func (Dist) Darwin() error { return buildMany("darwin") }
 func (Dist) Windows() error { return buildMany("windows") }
 
 // Release builds every platform and packages each binary into build/dist/ —
-// a .tar.gz for Unix targets and a .zip for Windows (requires the `zip` tool).
+// pola-<version>-<GOOS>-<GOARCH>.tar.gz for Unix targets and .zip for
+// Windows, each containing a plain pola[.exe]. Packaging is pure Go, so no
+// external tar/zip tools are needed.
 func (Dist) Release() error {
 	if err := buildMany(); err != nil {
 		return err
@@ -197,21 +208,89 @@ func (Dist) Release() error {
 	}
 	version := gitVersion()
 	for _, t := range crossTargets {
-		dir := filepath.Join("build", t.label())
-		base := fmt.Sprintf("pola-%s-%s", version, t.label())
+		bin := filepath.Join("build", t.name())
+		base := fmt.Sprintf("pola-%s-%s-%s", version, t.goos, t.goarch)
+		var archive string
+		var err error
 		if t.goos == "windows" {
-			archive := filepath.Join(dist, base+".zip")
-			fmt.Printf("→ packaging %s\n", filepath.Base(archive))
-			// -j stores just the binary name (no directory prefix).
-			if err := sh.Run("zip", "-j", archive, filepath.Join(dir, t.binName())); err != nil {
-				return err
-			}
+			archive = filepath.Join(dist, base+".zip")
+			err = zipBinary(archive, bin, t.binName())
 		} else {
-			archive := filepath.Join(dist, base+".tar.gz")
-			fmt.Printf("→ packaging %s\n", filepath.Base(archive))
-			if err := sh.Run("tar", "-czf", archive, "-C", dir, t.binName()); err != nil {
-				return err
-			}
+			archive = filepath.Join(dist, base+".tar.gz")
+			err = tarGzBinary(archive, bin, t.binName())
+		}
+		if err != nil {
+			return fmt.Errorf("package %s: %w", filepath.Base(archive), err)
+		}
+		fmt.Printf("→ packaged %s\n", filepath.Base(archive))
+	}
+	return nil
+}
+
+// tarGzBinary writes a .tar.gz archive containing src as name (mode 0755).
+func tarGzBinary(archive, src, name string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	info, err := in.Stat()
+	if err != nil {
+		return err
+	}
+	out, err := os.Create(archive)
+	if err != nil {
+		return err
+	}
+	gw := gzip.NewWriter(out)
+	tw := tar.NewWriter(gw)
+	hdr := &tar.Header{Name: name, Mode: 0o755, Size: info.Size(), ModTime: info.ModTime()}
+	if err := tw.WriteHeader(hdr); err != nil {
+		out.Close() //nolint:errcheck
+		return err
+	}
+	if _, err := io.Copy(tw, in); err != nil {
+		out.Close() //nolint:errcheck
+		return err
+	}
+	for _, c := range []io.Closer{tw, gw, out} {
+		if err := c.Close(); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// zipBinary writes a .zip archive containing src as name (mode 0755).
+func zipBinary(archive, src, name string) error {
+	in, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer in.Close()
+	info, err := in.Stat()
+	if err != nil {
+		return err
+	}
+	out, err := os.Create(archive)
+	if err != nil {
+		return err
+	}
+	zw := zip.NewWriter(out)
+	hdr := &zip.FileHeader{Name: name, Method: zip.Deflate, Modified: info.ModTime()}
+	hdr.SetMode(0o755)
+	w, err := zw.CreateHeader(hdr)
+	if err != nil {
+		out.Close() //nolint:errcheck
+		return err
+	}
+	if _, err := io.Copy(w, in); err != nil {
+		out.Close() //nolint:errcheck
+		return err
+	}
+	for _, c := range []io.Closer{zw, out} {
+		if err := c.Close(); err != nil {
+			return err
 		}
 	}
 	return nil

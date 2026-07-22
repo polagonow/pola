@@ -1,0 +1,72 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # .golangci.yml is v2-format config; action v8 installs the v2 series.
+      # The repo carries pre-existing lint findings, so PRs gate only on
+      # issues introduced by the diff; push builds skip this step.
+      - name: golangci-lint (new issues only)
+        if: github.event_name == 'pull_request'
+        uses: golangci/golangci-lint-action@v8
+        with:
+          version: latest
+          only-new-issues: true
+
+      - name: go vet (with build tags)
+        run: go run mage.go vet
+
+      - name: go.mod verify + tidy drift check
+        run: |
+          go run mage.go verify
+          go run mage.go tidy
+
+  test:
+    name: Unit tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      # test/e2e bundles examples/blog-e2e-react/web, which needs its JS
+      # dependencies present (the @pola/* packages are stubbed by the tests).
+      - name: Install e2e fixture JS dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: examples/blog-e2e-react/web
+
+      - name: Run unit tests (race)
+        run: go run mage.go test

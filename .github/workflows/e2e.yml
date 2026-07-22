@@ -1,0 +1,42 @@
+name: E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  e2e:
+    name: E2E tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      # test/e2e bundles examples/blog-e2e-react/web, which needs its JS
+      # dependencies present (the @pola/* packages are stubbed by the tests).
+      - name: Install e2e fixture JS dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: examples/blog-e2e-react/web
+
+      - name: Run E2E tests
+        run: go run mage.go testE2E
