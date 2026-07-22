@@ -23,7 +23,7 @@ func TestBuild_Postgres(t *testing.T) {
 		Name:     "appdb",
 	}
 	got := Build(c)
-	want := "postgres://admin:secret@db.example.com:5433/appdb?sslmode=disable"
+	want := "postgres://admin:secret@db.example.com:5433/appdb?sslmode=prefer"
 	if got != want {
 		t.Errorf("postgres DSN:\n got  %q\n want %q", got, want)
 	}
@@ -32,7 +32,7 @@ func TestBuild_Postgres(t *testing.T) {
 func TestBuild_PostgresDefaults(t *testing.T) {
 	c := Config{Adapter: "postgres"}
 	got := Build(c)
-	want := "postgres://postgres@localhost:5432/postgres?sslmode=disable"
+	want := "postgres://postgres@localhost:5432/postgres?sslmode=prefer"
 	if got != want {
 		t.Errorf("postgres defaults:\n got  %q\n want %q", got, want)
 	}
@@ -48,7 +48,7 @@ func TestBuild_MySQL(t *testing.T) {
 		Name:     "appdb",
 	}
 	got := Build(c)
-	want := "admin:secret@tcp(db.example.com:3307)/appdb?parseTime=True"
+	want := "admin:secret@tcp(db.example.com:3307)/appdb?parseTime=True&tls=preferred"
 	if got != want {
 		t.Errorf("mysql DSN:\n got  %q\n want %q", got, want)
 	}
@@ -57,7 +57,7 @@ func TestBuild_MySQL(t *testing.T) {
 func TestBuild_MySQLDefaults(t *testing.T) {
 	c := Config{Adapter: "mysql"}
 	got := Build(c)
-	want := "root@tcp(127.0.0.1:3306)/mysql?parseTime=True"
+	want := "root@tcp(127.0.0.1:3306)/mysql?parseTime=True&tls=preferred"
 	if got != want {
 		t.Errorf("mysql defaults:\n got  %q\n want %q", got, want)
 	}

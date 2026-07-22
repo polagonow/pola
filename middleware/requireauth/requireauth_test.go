@@ -42,7 +42,8 @@ func TestUnprotectedPath_PassesThrough(t *testing.T) {
 }
 
 func TestAuthenticated_ProtectedPasses(t *testing.T) {
-	secret := []byte("s3cr3t")
+	// >=32-byte secret: auth/jwt now rejects weaker HS256 secrets.
+	secret := []byte("s3cr3t-000000000000000000000000000000")
 	mw := requireauth.New(
 		requireauth.WithSecret(secret),
 		requireauth.WithProtect("/dashboard"),

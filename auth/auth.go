@@ -139,6 +139,10 @@ func defaultUnauthorized(w http.ResponseWriter, _ *http.Request, _ error) {
 // IssueToken signs a JWT whose "sub" claim identifies the user, for use in a
 // login handler after credentials have been verified. extra adds custom claims.
 // The returned token validates against [JWTAuthenticator] using the same secret.
+//
+// It returns an error when secret is shorter than 32 bytes or expiry is not
+// strictly positive (see auth/jwt.Sign) — pola never issues weakly-signed or
+// non-expiring tokens.
 func IssueToken(subject string, secret []byte, expiry time.Duration, extra map[string]any) (string, error) {
 	claims := map[string]any{"sub": subject}
 	for k, v := range extra {

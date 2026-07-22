@@ -68,7 +68,10 @@ type presenceField interface {
 //   - a plain field is written only when it is non-zero (so a partially-filled
 //     create DTO doesn't clobber model defaults);
 //   - fields with no name match on the model, or with incompatible types, are
-//     skipped.
+//     skipped;
+//   - a destination (model) field tagged `dto:"-"` or `dto:"readonly"` is never
+//     written, so sensitive columns like ID, Role, or IsAdmin can be shielded
+//     from mass-assignment regardless of what a client-supplied DTO carries.
 //
 // This mirrors Goyave's typeutil.Copy but without the copier dependency. Fetch
 // the current model first, Copy the update DTO onto it, then save — that read-
@@ -111,6 +114,11 @@ func Copy[M any, D any](dst *M, src D) *M {
 			payload = fv.Interface()
 		}
 
+		// Honor a `dto:"-"` / `dto:"readonly"` tag on the DESTINATION field to
+		// shield sensitive columns (e.g. ID, Role, IsAdmin) from mass-assignment.
+		if df, ok := dv.Type().FieldByName(sf.Name); ok && isReadonly(df) {
+			continue
+		}
 		target := dv.FieldByName(sf.Name)
 		if !target.IsValid() || !target.CanSet() {
 			continue
@@ -118,6 +126,16 @@ func Copy[M any, D any](dst *M, src D) *M {
 		assign(target, payload)
 	}
 	return dst
+}
+
+// isReadonly reports whether a destination field is marked non-writable via its
+// struct tag — `dto:"-"` or `dto:"readonly"` — so [Copy] leaves it untouched.
+func isReadonly(f reflect.StructField) bool {
+	tag, ok := f.Tag.Lookup("dto")
+	if !ok {
+		return false
+	}
+	return tag == "-" || tag == "readonly"
 }
 
 // assign stores payload into target, converting between compatible types

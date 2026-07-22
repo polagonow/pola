@@ -47,8 +47,13 @@ func QueryParam(c core.Context, name string) string {
 	return c.Query(name)
 }
 
+// maxQueryParamInt caps the value returned by QueryParamInt, clamping absurdly
+// large (or overflowing) query values down to a sane bound.
+const maxQueryParamInt = 1000
+
 // QueryParamInt reads an integer query parameter, returning fallback when the
-// value is missing, non-numeric, or less than 1.
+// value is missing, non-numeric, or less than 1. Values above maxQueryParamInt
+// are clamped down to maxQueryParamInt to bound pagination-style limits.
 func QueryParamInt(c core.Context, name string, fallback int) int {
 	v := c.Query(name)
 	if v == "" {
@@ -57,6 +62,9 @@ func QueryParamInt(c core.Context, name string, fallback int) int {
 	n, err := strconv.Atoi(v)
 	if err != nil || n < 1 {
 		return fallback
+	}
+	if n > maxQueryParamInt {
+		return maxQueryParamInt
 	}
 	return n
 }

@@ -93,12 +93,17 @@ func (s *Sass) resolvedBin(inputPath string) (string, []string) {
 	if _, err := exec.LookPath("sass"); err == nil {
 		return "sass", nil
 	}
-	// Walk up from inputPath looking for node_modules/.bin/sass.
+	// Walk up from inputPath looking for node_modules/.bin/sass, but never above
+	// the project root (the dir holding go.mod/package.json). This prevents
+	// executing a binary from an untrusted ancestor tree (build-time RCE).
 	dir := filepath.Dir(inputPath)
 	for {
 		candidate := filepath.Join(dir, "node_modules", ".bin", "sass")
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate, nil
+		}
+		if isProjectRoot(dir) {
+			break
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
@@ -106,7 +111,20 @@ func (s *Sass) resolvedBin(inputPath string) (string, []string) {
 		}
 		dir = parent
 	}
+	// Fall back to npx, which resolves the tool from PATH (relies on a trusted PATH).
 	return "npx", []string{"sass"}
+}
+
+// isProjectRoot reports whether dir is a project root — i.e. contains a go.mod
+// or package.json. The node_modules discovery walk stops here so it never
+// inspects or executes binaries from ancestor directories outside the project.
+func isProjectRoot(dir string) bool {
+	for _, marker := range []string{"go.mod", "package.json"} {
+		if _, err := os.Stat(filepath.Join(dir, marker)); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 // nodeModulesRoot walks up from the CSS/SCSS file's directory to find the

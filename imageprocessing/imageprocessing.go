@@ -48,6 +48,36 @@ type ServiceConfig struct {
 	MaxWidth   int
 	MaxHeight  int
 	Format     string
+	// AllowedHosts, when non-empty, restricts outbound image fetches to the
+	// listed hostnames (case-insensitive, exact match). When empty (the
+	// default), any public host is permitted subject to the private-range
+	// blocking below. Production deployments SHOULD set an allowlist to
+	// eliminate SSRF exposure entirely — see WithAllowedHosts.
+	AllowedHosts []string
+}
+
+// Option configures a Service. Options are applied after ServiceConfig and
+// override any equivalent config field.
+type Option func(*Service)
+
+// WithAllowedHosts restricts outbound image fetches to the given hostnames
+// (case-insensitive, exact match on the URL host). When set, requests to any
+// other host — public or private — are rejected before dialing.
+//
+// This is the strongest available SSRF mitigation and production deployments
+// SHOULD configure it. When unset, the service falls back to blocking only the
+// private/reserved IP ranges, which still allows fetches to arbitrary public
+// hosts.
+func WithAllowedHosts(hosts []string) Option {
+	return func(s *Service) {
+		s.allowedHosts = make(map[string]struct{}, len(hosts))
+		for _, h := range hosts {
+			h = strings.ToLower(strings.TrimSpace(h))
+			if h != "" {
+				s.allowedHosts[h] = struct{}{}
+			}
+		}
+	}
 }
 
 // DefaultConfig returns configuration from environment variables with defaults.
@@ -65,24 +95,36 @@ const maxBodySize = 10 << 20 // 10 MB
 // Service is the image processing service that implements both core.Middleware
 // and core.RuntimeInjector.
 type Service struct {
-	processor  ImageProcessor
-	pathPrefix string
-	maxWidth   int
-	maxHeight  int
-	format     string
-	httpClient *http.Client
+	processor    ImageProcessor
+	pathPrefix   string
+	maxWidth     int
+	maxHeight    int
+	format       string
+	httpClient   *http.Client
+	allowedHosts map[string]struct{} // nil/empty means no allowlist (any public host)
 }
 
-// New creates a Service from the given processor and config.
-func New(processor ImageProcessor, cfg ServiceConfig) *Service {
-	return &Service{
+// New creates a Service from the given processor and config. Additional
+// Options (e.g. WithAllowedHosts) may be supplied and are applied after the
+// config; the variadic parameter keeps existing two-argument callers working.
+func New(processor ImageProcessor, cfg ServiceConfig, opts ...Option) *Service {
+	s := &Service{
 		processor:  processor,
 		pathPrefix: cfg.PathPrefix,
 		maxWidth:   cfg.MaxWidth,
 		maxHeight:  cfg.MaxHeight,
 		format:     cfg.Format,
-		httpClient: newSafeHTTPClient(),
 	}
+	if len(cfg.AllowedHosts) > 0 {
+		WithAllowedHosts(cfg.AllowedHosts)(s)
+	}
+	for _, opt := range opts {
+		opt(s)
+	}
+	// Build the safe client after options so redirect checks can consult the
+	// configured host allowlist.
+	s.httpClient = newSafeHTTPClient(s.allowedHosts)
+	return s
 }
 
 // --- core.Middleware ---
@@ -249,8 +291,21 @@ func (s *Service) fetchURL(rawURL string) ([]byte, error) {
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
 		return nil, fmt.Errorf("unsupported scheme %q, only http and https are allowed", parsed.Scheme)
 	}
-	if host := parsed.Hostname(); host == "localhost" {
+	host := parsed.Hostname()
+	if host == "localhost" {
 		return nil, fmt.Errorf("requests to localhost are not allowed")
+	}
+	// Restrict destination ports to 80 and 443 only. An empty port means the
+	// scheme default (80 for http, 443 for https), which is allowed.
+	if port := parsed.Port(); port != "" && port != "80" && port != "443" {
+		return nil, fmt.Errorf("port %q is not allowed, only 80 and 443 are permitted", port)
+	}
+	// Optional host allowlist: when configured, only listed hosts may be
+	// fetched. This is enforced here (pre-dial) and again in CheckRedirect.
+	if len(s.allowedHosts) > 0 {
+		if _, ok := s.allowedHosts[strings.ToLower(host)]; !ok {
+			return nil, fmt.Errorf("host %q is not in the allowed hosts list", host)
+		}
 	}
 
 	resp, err := s.httpClient.Get(rawURL)
@@ -277,7 +332,7 @@ func (s *Service) fetchURL(rawURL string) ([]byte, error) {
 // newSafeHTTPClient returns an http.Client that validates resolved IPs at
 // connection time (preventing DNS rebinding) and validates redirect targets
 // (preventing SSRF via redirects).
-func newSafeHTTPClient() *http.Client {
+func newSafeHTTPClient(allowedHosts map[string]struct{}) *http.Client {
 	dialer := &net.Dialer{Timeout: 10 * time.Second}
 	transport := &http.Transport{
 		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
@@ -285,6 +340,8 @@ func newSafeHTTPClient() *http.Client {
 			if err != nil {
 				return nil, err
 			}
+			// Re-resolve at dial time to prevent DNS rebinding, then validate
+			// every resolved address.
 			addrs, err := net.DefaultResolver.LookupHost(ctx, host)
 			if err != nil {
 				return nil, err
@@ -306,33 +363,82 @@ func newSafeHTTPClient() *http.Client {
 			if len(via) >= 10 {
 				return fmt.Errorf("too many redirects")
 			}
+			if req.URL.Scheme != "http" && req.URL.Scheme != "https" {
+				return fmt.Errorf("unsupported redirect scheme %q", req.URL.Scheme)
+			}
 			host := req.URL.Hostname()
 			if host == "localhost" {
 				return fmt.Errorf("requests to localhost are not allowed")
 			}
+			if port := req.URL.Port(); port != "" && port != "80" && port != "443" {
+				return fmt.Errorf("redirect to port %q is not allowed", port)
+			}
 			if ip := net.ParseIP(host); ip != nil && isPrivateIP(ip) {
 				return fmt.Errorf("requests to private addresses are not allowed")
+			}
+			// Enforce the host allowlist on redirect targets as well, so a
+			// redirect cannot escape the configured allowlist.
+			if len(allowedHosts) > 0 {
+				if _, ok := allowedHosts[strings.ToLower(host)]; !ok {
+					return fmt.Errorf("redirect host %q is not in the allowed hosts list", host)
+				}
 			}
 			return nil
 		},
 	}
 }
 
+// blockedCIDRStrings enumerates the IP ranges that must never be reached by an
+// outbound image fetch. Parsed once at package init into blockedCIDRs.
+var blockedCIDRStrings = []string{
+	// IPv4 private / special-use ranges.
+	"10.0.0.0/8",      // RFC1918 private
+	"172.16.0.0/12",   // RFC1918 private
+	"192.168.0.0/16",  // RFC1918 private
+	"169.254.0.0/16",  // link-local
+	"127.0.0.0/8",     // loopback
+	"0.0.0.0/8",       // "this host" / unspecified
+	"100.64.0.0/10",   // CGNAT (RFC6598)
+	"192.0.0.0/24",    // IETF protocol assignments (RFC6890)
+	"192.0.2.0/24",    // TEST-NET-1 (RFC5737)
+	"198.51.100.0/24", // TEST-NET-2 (RFC5737)
+	"203.0.113.0/24",  // TEST-NET-3 (RFC5737)
+	"198.18.0.0/15",   // benchmarking (RFC2544)
+	"240.0.0.0/4",     // reserved / Class E (includes 255.255.255.255)
+	// IPv6 ranges.
+	"::1/128",      // loopback
+	"::/128",       // unspecified
+	"64:ff9b::/96", // NAT64 well-known prefix (RFC6052)
+	"fc00::/7",     // unique-local
+	"fe80::/10",    // link-local
+	"ff00::/8",     // multicast
+}
+
+// blockedCIDRs is the parsed form of blockedCIDRStrings, built once at init.
+var blockedCIDRs = func() []*net.IPNet {
+	nets := make([]*net.IPNet, 0, len(blockedCIDRStrings))
+	for _, cidr := range blockedCIDRStrings {
+		if _, network, err := net.ParseCIDR(cidr); err == nil {
+			nets = append(nets, network)
+		}
+	}
+	return nets
+}()
+
 func isPrivateIP(ip net.IP) bool {
-	if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+	if ip == nil {
 		return true
 	}
-	privateRanges := []string{
-		"10.0.0.0/8",
-		"172.16.0.0/12",
-		"192.168.0.0/16",
-		"169.254.0.0/16",
-		"::1/128",
-		"fc00::/7",
-		"fe80::/10",
+	// Unwrap IPv4-mapped IPv6 addresses (e.g. ::ffff:169.254.169.254) so the
+	// IPv4 range checks below apply to them.
+	if v4 := ip.To4(); v4 != nil {
+		ip = v4
 	}
-	for _, cidr := range privateRanges {
-		_, network, _ := net.ParseCIDR(cidr)
+	if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() ||
+		ip.IsInterfaceLocalMulticast() || ip.IsMulticast() || ip.IsUnspecified() {
+		return true
+	}
+	for _, network := range blockedCIDRs {
 		if network.Contains(ip) {
 			return true
 		}

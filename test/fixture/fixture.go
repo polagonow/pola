@@ -288,9 +288,12 @@ func sharedFunctions() map[string]func(args []any) (any, error) {
 			"tech": []any{"Go", "React"}, "stars": 21, "status": "beta"},
 	}
 
+	// Keys are namespaced by struct ("Blog.getPosts") to match the DI bridge
+	// convention emitted by the actionbridge codegen (see internal/actionbridge
+	// _templates/go_bridge.tmpl and stubpkgs/actions/src/bridge.ts).
 	return map[string]func(args []any) (any, error){
-		"getPosts": func(_ []any) (any, error) { return posts, nil },
-		"getPost": func(args []any) (any, error) {
+		"Blog.getPosts": func(_ []any) (any, error) { return posts, nil },
+		"Blog.getPost": func(args []any) (any, error) {
 			slug := ""
 			if len(args) > 0 {
 				slug = fmt.Sprintf("%v", args[0])
@@ -302,8 +305,8 @@ func sharedFunctions() map[string]func(args []any) (any, error) {
 			}
 			return nil, fmt.Errorf("post %q not found", slug)
 		},
-		"getProjects": func(_ []any) (any, error) { return projects, nil },
-		"getProject": func(args []any) (any, error) {
+		"Blog.getProjects": func(_ []any) (any, error) { return projects, nil },
+		"Blog.getProject": func(args []any) (any, error) {
 			id := ""
 			if len(args) > 0 {
 				id = fmt.Sprintf("%v", args[0])
@@ -315,7 +318,7 @@ func sharedFunctions() map[string]func(args []any) (any, error) {
 			}
 			return nil, fmt.Errorf("project %q not found", id)
 		},
-		"getRevisions": func(args []any) (any, error) {
+		"Blog.getRevisions": func(args []any) (any, error) {
 			slug := ""
 			if len(args) > 0 {
 				slug = fmt.Sprintf("%v", args[0])
@@ -325,7 +328,7 @@ func sharedFunctions() map[string]func(args []any) (any, error) {
 			}
 			return nil, fmt.Errorf("no revisions for post %q", slug)
 		},
-		"getRevision": func(args []any) (any, error) {
+		"Blog.getRevision": func(args []any) (any, error) {
 			slug, rev := "", ""
 			if len(args) > 0 {
 				slug = fmt.Sprintf("%v", args[0])
@@ -340,14 +343,14 @@ func sharedFunctions() map[string]func(args []any) (any, error) {
 			}
 			return nil, fmt.Errorf("revision %q not found for post %q", rev, slug)
 		},
-		"getProfile": func(_ []any) (any, error) {
+		"Blog.getProfile": func(_ []any) (any, error) {
 			return map[string]any{
 				"id": "1", "name": "Jane Doe", "email": "jane@example.com",
 				"role": "Senior Engineer", "bio": "Building dev tools.",
 				"github": "janedoe", "website": "https://janedoe.dev",
 			}, nil
 		},
-		"triggerError": func(args []any) (any, error) {
+		"Blog.triggerError": func(args []any) (any, error) {
 			msg := "Forced error for testing"
 			if len(args) > 0 {
 				if s := fmt.Sprintf("%v", args[0]); s != "" {

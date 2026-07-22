@@ -3,12 +3,42 @@ package storage_blobs
 import (
 	"io"
 	"net/http"
+	"net/url"
+	"path/filepath"
 	"strconv"
+	"strings"
 
 	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/storage"
 	"[[ .Module ]]/repositories"
 )
+
+// inlineContentTypes is the allowlist of types safe to render inline in the
+// browser. Anything else is served as an attachment so a user-uploaded blob
+// (e.g. HTML/SVG) cannot execute as stored XSS in the app's origin.
+var inlineContentTypes = map[string]bool{
+	"image/png":       true,
+	"image/jpeg":      true,
+	"image/gif":       true,
+	"image/webp":      true,
+	"application/pdf": true,
+}
+
+// sanitizeFilename reduces a stored filename to a safe base name with quotes and
+// control characters stripped, suitable for use in a Content-Disposition header.
+func sanitizeFilename(name string) string {
+	name = filepath.Base(name)
+	name = strings.Map(func(r rune) rune {
+		if r < 0x20 || r == 0x7f || r == '"' || r == '\\' {
+			return -1
+		}
+		return r
+	}, name)
+	if name == "." || name == "/" || name == "" {
+		return "download"
+	}
+	return name
+}
 
 // Route serves StorageBlob files by ID.
 type Route struct {
@@ -48,12 +78,23 @@ func (r *Route) GET(c core.Context) error {
 	defer rc.Close()
 
 	w := c.Writer()
+	// Never let the browser sniff a content type away from what we declare.
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	if blob.ContentType != "" {
 		w.Header().Set("Content-Type", blob.ContentType)
 	}
-	if blob.Filename != "" {
-		w.Header().Set("Content-Disposition", "inline; filename=\""+blob.Filename+"\"")
+
+	// Only render an allowlisted set of types inline; everything else (including
+	// user-controlled HTML/SVG) is forced to download to avoid stored XSS.
+	disposition := "attachment"
+	if inlineContentTypes[blob.ContentType] {
+		disposition = "inline"
 	}
+	name := sanitizeFilename(blob.Filename)
+	// Use RFC 5987 filename* with a URL-escaped value so the (attacker-influenced)
+	// filename cannot break out of the header.
+	w.Header().Set("Content-Disposition", disposition+"; filename*=UTF-8''"+url.PathEscape(name))
+
 	w.WriteHeader(http.StatusOK)
 	_, err = io.Copy(w, rc)
 	return err

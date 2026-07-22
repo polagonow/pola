@@ -74,7 +74,9 @@ func TestCSRF_POST_WithToken_Succeeds(t *testing.T) {
 	postReq := httptest.NewRequest(http.MethodPost, "http://localhost/submit", strings.NewReader("data=test"))
 	postReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 	postReq.Header.Set("X-CSRF-Token", token)
-	postReq.Header.Set("Origin", "https://localhost")
+	// The middleware runs in plaintext (WithSecure(false)) mode, so gorilla/csrf
+	// treats the request as http://; the Origin must match that scheme.
+	postReq.Header.Set("Origin", "http://localhost")
 	for _, c := range cookies {
 		postReq.AddCookie(c)
 	}

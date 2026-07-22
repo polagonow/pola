@@ -20,6 +20,10 @@ import (
 // defaultMaxMemory bounds in-memory multipart parsing (matches net/http).
 const defaultMaxMemory = 32 << 20
 
+// defaultMaxBindBytes caps the JSON request body size accepted by ShouldBind,
+// guarding against unbounded-body DoS.
+const defaultMaxBindBytes = 10 << 20 // 10 MB
+
 // Framework is the chi-backed core.WebFramework.
 type Framework struct {
 	router chi.Router
@@ -102,7 +106,10 @@ func (c *chiContext) Query(name string) string    { return c.r.URL.Query().Get(n
 func (c *chiContext) Header(name string) string   { return c.r.Header.Get(name) }
 
 func (c *chiContext) ShouldBind(v any) error {
-	if err := json.NewDecoder(c.r.Body).Decode(v); err != nil {
+	c.r.Body = http.MaxBytesReader(c.w, c.r.Body, defaultMaxBindBytes)
+	dec := json.NewDecoder(c.r.Body)
+	dec.DisallowUnknownFields()
+	if err := dec.Decode(v); err != nil {
 		return fmt.Errorf("invalid JSON: %w", err)
 	}
 	return nil

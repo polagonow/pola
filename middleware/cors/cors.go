@@ -110,6 +110,14 @@ func New(opts ...Option) core.Middleware {
 			m.allowAllOrigins = true
 		}
 	}
+	// Reflecting any origin back with credentials allowed is a credential-theft
+	// vulnerability: a wildcard origin must never be combined with credentials.
+	// This is a developer misconfiguration, so refuse it at construction time
+	// (matching csrf/securityheaders, which also panic on unsafe setup).
+	if m.allowAllOrigins && cfg.AllowCredentials {
+		panic("cors: AllowCredentials cannot be combined with a wildcard (\"*\") origin; " +
+			"pin explicit origins via WithAllowedOrigins")
+	}
 	for _, h := range cfg.AllowedHeaders {
 		if h == "*" {
 			m.allowAllHeaders = true
