@@ -25,7 +25,8 @@ func (s memUsers) FindByUsername(_ context.Context, name string) (*user, error) 
 	return nil, errors.New("not found")
 }
 
-var secret = []byte("test-secret")
+// 32+ bytes: auth/jwt now rejects HS256 secrets weaker than 32 bytes.
+var secret = []byte("test-secret-000000000000000000000000")
 
 func newUsers(t *testing.T) memUsers {
 	t.Helper()

@@ -16,6 +16,14 @@ type Config struct {
 	Password string
 	Name     string // Database name.
 	Adapter  string // "postgresql", "mysql", "sqlite".
+	// SSLMode controls transport security for constructed DSNs. For Postgres it
+	// maps to the "sslmode" query parameter (e.g. "prefer", "require", "verify-full",
+	// "disable"); when empty it defaults to "prefer" so connections are encrypted
+	// when the server offers it rather than silently plaintext. For MySQL it maps
+	// to the "tls" query parameter (e.g. "preferred", "true", "skip-verify",
+	// "false"); when empty it defaults to "preferred". Ignored on the full-URL
+	// passthrough path.
+	SSLMode string
 }
 
 // FromEnv reads database configuration from DATABASE_* environment variables.
@@ -28,6 +36,7 @@ func FromEnv() Config {
 		Password: os.Getenv("DATABASE_PASSWORD"),
 		Name:     os.Getenv("DATABASE_NAME"),
 		Adapter:  os.Getenv("DATABASE_ADAPTER"),
+		SSLMode:  os.Getenv("DATABASE_SSLMODE"),
 	}
 }
 
@@ -54,6 +63,9 @@ func (c Config) WithEnvFallback() Config {
 	}
 	if c.Adapter == "" {
 		c.Adapter = env.Adapter
+	}
+	if c.SSLMode == "" {
+		c.SSLMode = env.SSLMode
 	}
 	return c
 }
@@ -94,8 +106,10 @@ func buildPostgres(c Config) string {
 	} else {
 		u.User = url.User(user)
 	}
+	// Default to "prefer" (encrypt when the server offers it) rather than the
+	// insecure "disable", which would send credentials and data in plaintext.
 	q := u.Query()
-	q.Set("sslmode", "disable")
+	q.Set("sslmode", cmp(c.SSLMode, "prefer"))
 	u.RawQuery = q.Encode()
 	return u.String()
 }
@@ -106,12 +120,18 @@ func buildMySQL(c Config) string {
 	user := cmp(c.User, "root")
 	name := cmp(c.Name, "mysql")
 
-	// user:pass@tcp(host:port)/dbname?parseTime=True
+	// user:pass@tcp(host:port)/dbname?parseTime=True&tls=preferred
 	auth := user
 	if c.Password != "" {
 		auth = user + ":" + c.Password
 	}
-	return fmt.Sprintf("%s@tcp(%s:%s)/%s?parseTime=True", auth, host, port, name)
+	// Thread a "tls" parameter so transport is encrypted when the server offers
+	// it, defaulting to "preferred" rather than an implicit plaintext connection.
+	tls := cmp(c.SSLMode, "preferred")
+	q := url.Values{}
+	q.Set("parseTime", "True")
+	q.Set("tls", tls)
+	return fmt.Sprintf("%s@tcp(%s:%s)/%s?%s", auth, host, port, name, q.Encode())
 }
 
 func buildSQLite(c Config) string {

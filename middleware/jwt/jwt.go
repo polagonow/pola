@@ -17,18 +17,24 @@ import (
 	"github.com/polagonow/pola/core"
 )
 
+// defaultMaxLifetime caps how long a session may be extended by sliding refresh,
+// measured from the original "iat". Once exceeded, refresh stops re-issuing so a
+// stolen or forgotten session can't live forever.
+const defaultMaxLifetime = 7 * 24 * time.Hour
+
 // Option configures the JWT middleware.
 type Option func(*config)
 
 type config struct {
-	secret     []byte
-	cookieName string
-	expiry     time.Duration
-	secure     bool
-	httpOnly   bool
-	path       string
-	sameSite   http.SameSite
-	refresh    bool
+	secret      []byte
+	cookieName  string
+	expiry      time.Duration
+	secure      bool
+	httpOnly    bool
+	path        string
+	sameSite    http.SameSite
+	refresh     bool
+	maxLifetime time.Duration
 }
 
 // WithSecret sets the HS256 signing secret (typically derived from AUTH_SECRET).
@@ -55,8 +61,52 @@ func WithExpiryString(s string) Option {
 func WithSecure(secure bool) Option { return func(c *config) { c.secure = secure } }
 
 // WithRefresh controls sliding expiration: when true (default), a valid session
-// is re-issued with a fresh expiry on each response.
+// is re-issued with a fresh expiry on each response — but never beyond the
+// absolute max lifetime (see [WithMaxLifetime]).
 func WithRefresh(refresh bool) Option { return func(c *config) { c.refresh = refresh } }
+
+// WithMaxLifetime caps the total age a session may reach via sliding refresh,
+// measured from the original "iat". Once a session is older than this, refresh
+// stops extending it (the session expires at its current exp). Default 7 days.
+// A non-positive value is ignored, leaving the default.
+func WithMaxLifetime(d time.Duration) Option {
+	return func(c *config) {
+		if d > 0 {
+			c.maxLifetime = d
+		}
+	}
+}
+
+// iat0Claim carries the original (first) issued-at as a Unix timestamp. Unlike
+// the standard "iat" — which Sign rewrites to now on every refresh — this claim
+// is preserved across sliding refreshes so the absolute max lifetime is anchored
+// to when the session was first established.
+const iat0Claim = "iat0"
+
+// originalIssuedAt returns the session's original issued-at (Unix seconds). It
+// prefers iat0Claim; for sessions predating it, it falls back to the standard
+// "iat" (both may be decoded as float64 by encoding/json).
+func originalIssuedAt(claims map[string]any) int64 {
+	if v, ok := asUnix(claims[iat0Claim]); ok {
+		return v
+	}
+	if v, ok := asUnix(claims["iat"]); ok {
+		return v
+	}
+	return time.Now().Unix()
+}
+
+func asUnix(v any) (int64, bool) {
+	switch n := v.(type) {
+	case float64:
+		return int64(n), true
+	case int64:
+		return n, true
+	case int:
+		return int64(n), true
+	}
+	return 0, false
+}
 
 type ctxKeyType struct{}
 
@@ -78,18 +128,20 @@ type mw struct {
 // New creates the JWT session middleware.
 func New(opts ...Option) core.Middleware {
 	cfg := config{
-		cookieName: "session",
-		expiry:     24 * time.Hour,
-		secure:     true,
-		httpOnly:   true,
-		path:       "/",
-		sameSite:   http.SameSiteLaxMode,
-		refresh:    true,
+		cookieName:  "session",
+		expiry:      24 * time.Hour,
+		secure:      true,
+		httpOnly:    true,
+		path:        "/",
+		sameSite:    http.SameSiteLaxMode,
+		refresh:     true,
+		maxLifetime: defaultMaxLifetime,
 	}
 	for _, o := range opts {
 		o(&cfg)
 	}
-	if len(cfg.secret) == 0 {
+	switch {
+	case len(cfg.secret) == 0:
 		// Without a configured secret, sign with an ephemeral key so dev still
 		// works — but warn loudly: sessions won't survive a restart AND any code
 		// that verifies the cookie with a different secret (e.g. route
@@ -98,8 +150,13 @@ func New(opts ...Option) core.Middleware {
 			"pola/jwt: WARNING no signing secret set (AUTH_SECRET is empty). "+
 				"Using a random ephemeral key — sessions will not persist across restarts "+
 				"and route protection will reject all sessions. Set AUTH_SECRET.")
-		cfg.secret = make([]byte, 32)
+		cfg.secret = make([]byte, authjwt.MinSecretLen)
 		_, _ = rand.Read(cfg.secret)
+	case len(cfg.secret) < authjwt.MinSecretLen:
+		// A too-short secret is worse than none: it would silently sign and
+		// verify weak tokens. Refuse to start rather than degrade security.
+		panic(fmt.Sprintf("pola/jwt: signing secret must be at least %d bytes (got %d); "+
+			"set AUTH_SECRET to a strong value", authjwt.MinSecretLen, len(cfg.secret)))
 	}
 	return &mw{cfg: cfg}
 }
@@ -139,11 +196,25 @@ func (sw *saveWriter) save() {
 	case sw.cd.clear:
 		sw.setCookie("", -1)
 	case sw.cd.set:
-		if tok, err := authjwt.Sign(sw.cd.pending, sw.cfg.secret, sw.cfg.expiry); err == nil {
+		// A freshly established session anchors its absolute lifetime at now:
+		// stamp the original issued-at so later refreshes can enforce the cap.
+		pending := make(map[string]any, len(sw.cd.pending)+1)
+		for k, v := range sw.cd.pending {
+			pending[k] = v
+		}
+		pending[iat0Claim] = time.Now().Unix()
+		if tok, err := authjwt.Sign(pending, sw.cfg.secret, sw.cfg.expiry); err == nil {
 			sw.setCookie(tok, int(sw.cfg.expiry.Seconds()))
 		}
 	case sw.cfg.refresh && sw.cd.claims != nil:
-		// Sliding expiration: re-issue the existing session with a fresh exp.
+		// Sliding expiration: re-issue the existing session with a fresh exp,
+		// preserving the original issued-at (iat0Claim) so the session can't be
+		// extended indefinitely. Stop refreshing once the absolute max lifetime
+		// is exceeded — the session then expires at its existing exp.
+		iat0 := originalIssuedAt(sw.cd.claims)
+		if sw.cfg.maxLifetime > 0 && time.Since(time.Unix(iat0, 0)) > sw.cfg.maxLifetime {
+			return
+		}
 		refreshed := make(map[string]any, len(sw.cd.claims))
 		for k, v := range sw.cd.claims {
 			if k == "iat" || k == "exp" {
@@ -151,6 +222,7 @@ func (sw *saveWriter) save() {
 			}
 			refreshed[k] = v
 		}
+		refreshed[iat0Claim] = iat0
 		if tok, err := authjwt.Sign(refreshed, sw.cfg.secret, sw.cfg.expiry); err == nil {
 			sw.setCookie(tok, int(sw.cfg.expiry.Seconds()))
 		}
@@ -197,6 +269,16 @@ func Get(ctx context.Context) map[string]any {
 	}
 	if cd.claims == nil {
 		return map[string]any{}
+	}
+	if _, ok := cd.claims[iat0Claim]; ok {
+		// Hide the internal absolute-lifetime anchor from callers.
+		out := make(map[string]any, len(cd.claims)-1)
+		for k, v := range cd.claims {
+			if k != iat0Claim {
+				out[k] = v
+			}
+		}
+		return out
 	}
 	return cd.claims
 }

@@ -13,7 +13,8 @@ func secretMW() interface {
 	Name() string
 	Wrap(http.Handler) http.Handler
 } {
-	return mwjwt.New(mwjwt.WithSecret([]byte("test-secret")), mwjwt.WithSecure(false))
+	// >=32-byte secret: New now panics on weaker HS256 secrets.
+	return mwjwt.New(mwjwt.WithSecret([]byte("test-secret-0000000000000000000000000")), mwjwt.WithSecure(false))
 }
 
 func TestName(t *testing.T) {

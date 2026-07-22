@@ -10,6 +10,11 @@ import (
 	"github.com/polagonow/pola/test/fixture"
 )
 
+// assetsDir is where the bundler writes compiled client assets: the framework's
+// default public dir ("./public"), resolved relative to the test's working
+// directory (the test/e2e package dir) — not the fixture app's own public dir.
+const assetsDir = "public/assets/"
+
 // RunClientBundleTests verifies that the client-side JS bundle is built, served,
 // and free of bundler internals that should not be exposed to the browser.
 func RunClientBundleTests(t *testing.T) {
@@ -31,7 +36,7 @@ func RunClientBundleTests(t *testing.T) {
 		fixture.ForEachReactApp(t, func(t *testing.T, f fixture.AppFixture) {
 			app := f.GetApp(t)
 			rel := strings.TrimPrefix(app.Artifacts().Output.ClientEntryURL, reserved.Assets+"/")
-			path := fixture.AppDir + "/public/assets/" + rel
+			path := assetsDir + rel
 			info, err := os.Stat(path)
 			if err != nil {
 				t.Fatalf("client bundle file not found at %q: %v", path, err)
@@ -46,7 +51,7 @@ func RunClientBundleTests(t *testing.T) {
 		fixture.ForEachReactApp(t, func(t *testing.T, f fixture.AppFixture) {
 			app := f.GetApp(t)
 			rel := strings.TrimPrefix(app.Artifacts().Output.ClientEntryURL, reserved.Assets+"/")
-			data, err := os.ReadFile(fixture.AppDir + "/public/assets/" + rel)
+			data, err := os.ReadFile(assetsDir + rel)
 			if err != nil {
 				t.Fatalf("read client bundle: %v", err)
 			}

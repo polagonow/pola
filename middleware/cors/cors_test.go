@@ -97,7 +97,10 @@ func TestDisallowedOrigin(t *testing.T) {
 
 func TestCredentialsReflectsOrigin(t *testing.T) {
 	var reached bool
-	h := New(WithAllowCredentials()).Wrap(okNext(&reached)) // wildcard origins + credentials
+	h := New(
+		WithAllowedOrigins("https://foo.example"),
+		WithAllowCredentials(),
+	).Wrap(okNext(&reached))
 
 	req := httptest.NewRequest(http.MethodGet, "/api/x", nil)
 	req.Header.Set("Origin", "https://foo.example")
@@ -110,4 +113,15 @@ func TestCredentialsReflectsOrigin(t *testing.T) {
 	if got := rec.Header().Get("Access-Control-Allow-Credentials"); got != "true" {
 		t.Errorf("Allow-Credentials = %q, want true", got)
 	}
+}
+
+// TestWildcardCredentialsPanics verifies that combining a wildcard origin with
+// credentials is refused at construction time (a credential-theft footgun).
+func TestWildcardCredentialsPanics(t *testing.T) {
+	defer func() {
+		if recover() == nil {
+			t.Error("New with wildcard origins + credentials should panic")
+		}
+	}()
+	New(WithAllowCredentials()) // wildcard origins (default) + credentials
 }

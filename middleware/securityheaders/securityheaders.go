@@ -11,20 +11,36 @@ import (
 	"github.com/polagonow/pola/core"
 )
 
+// defaultHSTS is a conservative production HSTS policy: one year, subdomains
+// included. It is intentionally omitted in dev mode and on plain-HTTP requests.
+const defaultHSTS = "max-age=31536000; includeSubDomains"
+
 // Option configures the security headers middleware.
 type Option func(*mw)
 
 // WithDev relaxes Content-Security-Policy to allow inline scripts,
-// which is required for hot-reload in development mode.
+// which is required for hot-reload in development mode. It also disables HSTS,
+// since dev typically runs over plain HTTP.
 func WithDev() Option {
 	return func(m *mw) { m.dev = true }
 }
 
-type mw struct{ dev bool }
+// WithHSTS sets the Strict-Transport-Security header value (e.g.
+// "max-age=31536000; includeSubDomains; preload"). Pass an empty string to
+// disable HSTS entirely. HSTS is only emitted on requests served over HTTPS and
+// never in dev mode, so it will not break local plain-HTTP development.
+func WithHSTS(value string) Option {
+	return func(m *mw) { m.hsts = value }
+}
+
+type mw struct {
+	dev  bool
+	hsts string
+}
 
 // New creates a security headers middleware.
 func New(opts ...Option) core.Middleware {
-	m := &mw{}
+	m := &mw{hsts: defaultHSTS}
 	for _, o := range opts {
 		o(m)
 	}
@@ -40,6 +56,10 @@ func (m *mw) Wrap(next http.Handler) http.Handler {
 		ctx := context.WithValue(r.Context(), core.NonceContextKey, nonce)
 		r = r.WithContext(ctx)
 
+		// style-src keeps 'unsafe-inline': many templates/components emit inline
+		// style="" attributes, and nonce-ing every one would break rendering.
+		// This is a known, minor CSP weakness (it permits inline CSS, not JS);
+		// tighten it via a future WithStyleSrc option if your app allows it.
 		csp := fmt.Sprintf("default-src 'self'; script-src 'self' 'nonce-%s'; style-src 'self' 'unsafe-inline'", nonce)
 		if m.dev {
 			csp = fmt.Sprintf("default-src 'self'; script-src 'self' 'unsafe-inline' 'nonce-%s'; style-src 'self' 'unsafe-inline'", nonce)
@@ -52,8 +72,23 @@ func (m *mw) Wrap(next http.Handler) http.Handler {
 		h.Set("Referrer-Policy", "strict-origin-when-cross-origin")
 		h.Set("Content-Security-Policy", csp)
 		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=()")
+		// HSTS only makes sense over HTTPS; setting it on plain-HTTP dev could
+		// wedge a browser onto https://localhost. Emit it only for secure
+		// requests and never in dev mode.
+		if m.hsts != "" && !m.dev && isHTTPS(r) {
+			h.Set("Strict-Transport-Security", m.hsts)
+		}
 		next.ServeHTTP(w, r)
 	})
+}
+
+// isHTTPS reports whether the request was served over TLS, honoring the
+// X-Forwarded-Proto header set by TLS-terminating proxies/load balancers.
+func isHTTPS(r *http.Request) bool {
+	if r.TLS != nil {
+		return true
+	}
+	return r.Header.Get("X-Forwarded-Proto") == "https"
 }
 
 // generateNonce returns a cryptographically random base64-encoded nonce.

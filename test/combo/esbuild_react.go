@@ -17,6 +17,7 @@ import (
 	"github.com/polagonow/pola/bundler/esbuild"
 	"github.com/polagonow/pola/cache/memory"
 	"github.com/polagonow/pola/core"
+	"github.com/polagonow/pola/css/tailwind"
 	"github.com/polagonow/pola/engine/goja"
 	"github.com/polagonow/pola/engine/polyfill"
 	"github.com/polagonow/pola/fs/osfs"
@@ -34,6 +35,7 @@ var testPlugins = []core.Plugin{
 	goja.Plugin(),
 	esbuild.Plugin(),
 	reactesbuild.Plugin(),
+	tailwind.Plugin(),
 	nextjs.Plugin(),
 	osfs.Plugin(),
 	slog.Plugin(),

@@ -154,7 +154,14 @@ func BuildApp(ctx context.Context, builder *core.AppBuilder) (*core.App, error) 
 // stops. Returns nil on clean shutdown.
 func ListenAndServe() error {
 	addr := Addr()
-	srv := &http.Server{Addr: addr}
+	srv := &http.Server{
+		Addr:              addr,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+	}
 
 	shutdownTimeout := 30 * time.Second
 	if v := os.Getenv("POLA_SHUTDOWN_TIMEOUT"); v != "" {

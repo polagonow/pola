@@ -15,6 +15,11 @@ import (
 // (matches net/http's own default).
 const defaultMaxMemory = 32 << 20
 
+// defaultMaxUploadBytes caps the total form/multipart request body size accepted
+// by ShouldBindForm, guarding against unbounded-body DoS. It is larger than the
+// JSON bind limit since form posts may carry file uploads.
+const defaultMaxUploadBytes = 32 << 20 // 32 MB
+
 // MustBind completes a "must"-style bind. Given the error returned by a
 // ShouldBind* call, it writes a 400 JSON error response when err is non-nil
 // (mirroring gin's Bind* abort) and returns err unchanged; on a nil error it is
@@ -101,6 +106,10 @@ func ShouldBindQuery(c Context, v any) error {
 // ShouldBindQuery for those.
 func ShouldBindForm(c Context, v any) error {
 	r := c.Request()
+	// Cap the total body size before parsing to guard against unbounded-body
+	// DoS. No ResponseWriter is in scope here, so pass nil; MaxBytesReader still
+	// enforces the limit.
+	r.Body = http.MaxBytesReader(nil, r.Body, defaultMaxUploadBytes)
 	// ParseMultipartForm calls ParseForm internally (populating r.PostForm for
 	// urlencoded bodies) and only returns ErrNotMultipart for non-multipart
 	// requests, which we ignore.

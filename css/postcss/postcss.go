@@ -79,12 +79,17 @@ func (p *PostCSS) resolvedBin(inputPath string) (string, []string) {
 	if _, err := exec.LookPath("postcss"); err == nil {
 		return "postcss", nil
 	}
-	// Walk up from inputPath looking for node_modules/.bin/postcss.
+	// Walk up from inputPath looking for node_modules/.bin/postcss, but never
+	// above the project root (the dir holding go.mod/package.json). This prevents
+	// executing a binary from an untrusted ancestor tree (build-time RCE).
 	dir := filepath.Dir(inputPath)
-	for range 10 {
+	for {
 		candidate := filepath.Join(dir, "node_modules", ".bin", "postcss")
 		if _, err := os.Stat(candidate); err == nil {
 			return candidate, nil
+		}
+		if isProjectRoot(dir) {
+			break
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {
@@ -92,5 +97,18 @@ func (p *PostCSS) resolvedBin(inputPath string) (string, []string) {
 		}
 		dir = parent
 	}
+	// Fall back to npx, which resolves the tool from PATH (relies on a trusted PATH).
 	return "npx", []string{"postcss"}
+}
+
+// isProjectRoot reports whether dir is a project root — i.e. contains a go.mod
+// or package.json. The node_modules discovery walk stops here so it never
+// inspects or executes binaries from ancestor directories outside the project.
+func isProjectRoot(dir string) bool {
+	for _, marker := range []string{"go.mod", "package.json"} {
+		if _, err := os.Stat(filepath.Join(dir, marker)); err == nil {
+			return true
+		}
+	}
+	return false
 }
