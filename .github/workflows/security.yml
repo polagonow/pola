@@ -28,7 +28,7 @@ jobs:
       # Full repo scan (dependencies, secrets, IaC misconfigs) reported to the
       # GitHub Security tab. Never fails the build — the gate step below does.
       - name: Trivy repository scan (SARIF)
-        uses: aquasecurity/trivy-action@0.32.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
@@ -48,7 +48,7 @@ jobs:
       # dependencies. Secrets/misconfig findings stay report-only in the
       # Security tab (examples/ contains intentional dev fixtures).
       - name: Trivy vulnerability gate (CRITICAL/HIGH)
-        uses: aquasecurity/trivy-action@0.32.0
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: fs
           scan-ref: .
