@@ -25,12 +25,41 @@ jobs:
           go-version-file: go.mod
 
       # Cross-compiles darwin/linux/windows × amd64/arm64 (CGO-free, pure-Go
-      # goja VM) and packages each into build/dist/ as .tar.gz / .zip.
-      - name: Build and package all platforms
-        run: go run mage.go dist:release
+      # goja VM) into build/.
+      - name: Build all platforms
+        run: go run mage.go dist:all
 
       - name: Smoke-test host binary
         run: ./build/pola-linux-amd64 --version
+
+      # Signs and notarizes the macOS binaries with quill (works from Linux —
+      # no macOS runner or Keychain needed) so Gatekeeper doesn't flag browser
+      # downloads. Runs only when Apple credentials are configured as secrets;
+      # without them the release ships unsigned, and install.sh / xattr remain
+      # the documented workarounds. Required secrets (base64 contents or raw):
+      #   QUILL_SIGN_P12       Developer ID Application cert (.p12, base64)
+      #   QUILL_SIGN_PASSWORD  p12 password
+      #   QUILL_NOTARY_KEY     App Store Connect API private key (.p8, base64)
+      #   QUILL_NOTARY_KEY_ID  API key ID
+      #   QUILL_NOTARY_ISSUER  API issuer ID
+      - name: Sign and notarize macOS binaries
+        if: ${{ secrets.QUILL_SIGN_P12 != '' }}
+        env:
+          QUILL_SIGN_P12: ${{ secrets.QUILL_SIGN_P12 }}
+          QUILL_SIGN_PASSWORD: ${{ secrets.QUILL_SIGN_PASSWORD }}
+          QUILL_NOTARY_KEY: ${{ secrets.QUILL_NOTARY_KEY }}
+          QUILL_NOTARY_KEY_ID: ${{ secrets.QUILL_NOTARY_KEY_ID }}
+          QUILL_NOTARY_ISSUER: ${{ secrets.QUILL_NOTARY_ISSUER }}
+        run: |
+          curl -sSfL https://get.anchore.io/quill | sh -s -- -b "$RUNNER_TEMP/bin" v0.7.1
+          "$RUNNER_TEMP/bin/quill" sign-and-notarize build/pola-darwin-arm64
+          "$RUNNER_TEMP/bin/quill" sign-and-notarize build/pola-darwin-amd64
+
+      # Packages the (possibly signed) binaries into build/dist/ as
+      # .tar.gz / .zip. Notarization tickets can't be stapled to bare CLI
+      # binaries, so Gatekeeper verifies them online on first run.
+      - name: Package all platforms
+        run: go run mage.go dist:package
 
       - name: Generate checksums
         run: |

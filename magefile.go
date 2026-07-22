@@ -202,6 +202,14 @@ func (Dist) Release() error {
 	if err := buildMany(); err != nil {
 		return err
 	}
+	return Dist{}.Package()
+}
+
+// Package archives the already-built binaries in build/ into build/dist/
+// without rebuilding. Split from Release so CI can sign/notarize the macOS
+// binaries (quill) between the build and packaging steps — rebuilding after
+// signing would clobber the signatures.
+func (Dist) Package() error {
 	dist := filepath.Join("build", "dist")
 	if err := os.MkdirAll(dist, 0o755); err != nil {
 		return err

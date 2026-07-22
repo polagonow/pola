@@ -119,6 +119,26 @@ Browser _client.js
 
 ## Installation
 
+### Install script (recommended)
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/polagonow/pola/main/install.sh | sh
+```
+
+Detects your OS/architecture, downloads the latest [release](https://github.com/polagonow/pola/releases), verifies its SHA-256 checksum, and installs to `/usr/local/bin` (or `~/.local/bin` if not writable). Pin a version with `POLA_VERSION=v0.1.0` or change the destination with `POLA_INSTALL=~/bin`.
+
+### Prebuilt binaries
+
+Download the archive for your platform from the [releases page](https://github.com/polagonow/pola/releases), extract it, and put `pola` on your `PATH`.
+
+> **macOS note:** if you download with a browser, Gatekeeper quarantines the file and shows *"Apple could not verify 'pola' is free of malware."* Clear it with:
+>
+> ```bash
+> xattr -d com.apple.quarantine ./pola
+> ```
+>
+> Downloads via `curl`/`wget` (including the install script above) are not quarantined and run without the warning.
+
 ### Build the CLI from source
 
 ```bash
