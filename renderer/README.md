@@ -32,4 +32,4 @@ POLA_RENDERER=react mage build    # via Magefile env var
 
 ## Adding a new renderer
 
-See `.agents/skills/add-renderer/SKILL.md`.
+See `.claude/skills/add-renderer/SKILL.md`.

@@ -30,4 +30,4 @@ POLA_BUNDLER=esbuild mage build   # via Magefile env var
 
 ## Adding a new bundler
 
-See `.agents/skills/add-bundler/SKILL.md`.
+See `.claude/skills/add-bundler/SKILL.md`.

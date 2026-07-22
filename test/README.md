@@ -32,7 +32,7 @@ go test -tags "goja esbuild react nextjs" -v -run TestHTMLShell ./test/e2e/...
 
 ## Adding a new test suite
 
-See `.agents/skills/add-e2e-test/SKILL.md`.
+See `.claude/skills/add-e2e-test/SKILL.md`.
 
 ## HTTP helpers (`test/fixture`)
 

@@ -38,4 +38,4 @@ POLA_VM=goja mage build           # via Magefile env var
 
 ## Adding a new engine
 
-See `.agents/skills/add-vm/SKILL.md`.
+See `.claude/skills/add-vm/SKILL.md`.
