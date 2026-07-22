@@ -125,8 +125,8 @@ type vmRuntimeLayout struct {
 // event loop goroutine.
 func drainNativeJobs(vm *mquickjs.VM) {
 	vmPtr := unsafe.Pointer(vm)
-	runtimePtr := *(*uintptr)(unsafe.Add(vmPtr, 48))     // runtime field at offset 48
-	rt := (*vmRuntimeLayout)(unsafe.Pointer(runtimePtr)) //nolint:govet
+	runtimePtr := *(*unsafe.Pointer)(unsafe.Add(vmPtr, 48)) // runtime field at offset 48
+	rt := (*vmRuntimeLayout)(runtimePtr)
 	for lib.XJS_ExecutePendingJob(rt.tls, rt.cRuntime, 0) > 0 {
 	}
 }

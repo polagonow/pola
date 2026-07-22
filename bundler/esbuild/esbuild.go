@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 
 	"github.com/evanw/esbuild/pkg/api"
 
@@ -603,6 +604,9 @@ func probeServerEntry(req core.BundleInput, absDir string) probeResult {
 		return probeResult{}
 	}
 	absAppDir, _ := filepath.Abs(req.AppDir)
+	// esbuild invokes plugin callbacks from multiple goroutines; resultMu
+	// guards every append into result.
+	var resultMu sync.Mutex
 	var result probeResult
 
 	// The renderer-provided probe plugins handle framework-specific detection
@@ -619,7 +623,9 @@ func probeServerEntry(req core.BundleInput, absDir string) probeResult {
 				// 'use server' modules: record and stub so the probe graph
 				// resolves (their exports are extracted in a dedicated pass).
 				if serveraction.HasUseServerDirective(contents) {
+					resultMu.Lock()
 					result.serverActionFiles = append(result.serverActionFiles, args.Path)
+					resultMu.Unlock()
 					empty := ""
 					return api.OnLoadResult{Contents: &empty, Loader: api.LoaderJS}, nil
 				}
@@ -627,7 +633,9 @@ func probeServerEntry(req core.BundleInput, absDir string) probeResult {
 				if !strings.HasPrefix(trimmed, `"use client"`) && !strings.HasPrefix(trimmed, `'use client'`) {
 					return api.OnLoadResult{}, nil
 				}
+				resultMu.Lock()
 				result.clientFiles = append(result.clientFiles, args.Path)
+				resultMu.Unlock()
 				empty := ""
 				return api.OnLoadResult{Contents: &empty, Loader: api.LoaderJS}, nil
 			})
@@ -644,7 +652,9 @@ func probeServerEntry(req core.BundleInput, absDir string) probeResult {
 					resolved = filepath.Join(args.ResolveDir, args.Path)
 				}
 				resolved = filepath.Clean(resolved)
+				resultMu.Lock()
 				result.cssFiles = append(result.cssFiles, resolved)
+				resultMu.Unlock()
 				return api.OnResolveResult{
 					Path:      args.Path,
 					Namespace: "css-stub",

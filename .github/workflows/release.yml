@@ -1,0 +1,48 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and release binaries
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # Full history + tags so `git describe` stamps the exact release
+          # version into the binaries via -ldflags (see magefile.go).
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      # Cross-compiles darwin/linux/windows × amd64/arm64 (CGO-free, pure-Go
+      # goja VM) and packages each into build/dist/ as .tar.gz / .zip.
+      - name: Build and package all platforms
+        run: go run mage.go dist:release
+
+      - name: Smoke-test host binary
+        run: ./build/linux-x64/pola --version
+
+      - name: Generate checksums
+        run: |
+          cd build/dist
+          sha256sum *.tar.gz *.zip > checksums.txt
+          cat checksums.txt
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/dist/*.tar.gz
+            build/dist/*.zip
+            build/dist/checksums.txt
+          generate_release_notes: true
