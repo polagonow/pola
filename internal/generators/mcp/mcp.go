@@ -48,10 +48,6 @@ var (
 // via init() into the global generator registry.
 type Generator struct{}
 
-func init() {
-	generators.Register(&Generator{})
-}
-
 func (g *Generator) Name() string { return "mcp" }
 
 func (g *Generator) Description() string {

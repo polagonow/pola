@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"os"
 
+	autoloadall "github.com/polagonow/pola/internal/autoload/all"
 	"github.com/polagonow/pola/internal/errs"
+	generatorsall "github.com/polagonow/pola/internal/generators/all"
 	"github.com/spf13/cobra"
 )
 
@@ -24,7 +26,7 @@ var rootCmd = &cobra.Command{
 	},
 	SilenceUsage:  true,
 	SilenceErrors: true,
-	Version:      version,
+	Version:       version,
 	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
 		if cwd == "" {
 			return nil
@@ -56,6 +58,9 @@ func init() {
 // Execute runs the root command. Errors are formatted with structured
 // indentation (root cause first) and printed to stderr.
 func Execute() error {
+	generatorsall.Register()
+	autoloadall.Register()
+	addGeneratorCommands()
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, errs.Format(err))
 		return err

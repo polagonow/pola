@@ -42,10 +42,6 @@ var (
 // ActionGenerator scaffolds new action structs in the actions/ directory.
 type ActionGenerator struct{}
 
-func init() {
-	generators.Register(&ActionGenerator{})
-}
-
 func (g *ActionGenerator) Name() string        { return "action" }
 func (g *ActionGenerator) Description() string { return "Scaffold a new action struct" }
 func (g *ActionGenerator) AfterHooks() []generators.Hook {

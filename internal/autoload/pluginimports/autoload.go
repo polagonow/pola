@@ -23,11 +23,10 @@ var pluginsTmpl = template.Must(
 
 type autoloadImpl struct{}
 
-func init() {
-	autoload.Register(&autoloadImpl{})
-}
+// New returns this autoload stage for explicit registration in autoload/all.
+func New() autoload.Autoload { return &autoloadImpl{} }
 
-func (a *autoloadImpl) Name() string { return "pluginimports" }
+func (a *autoloadImpl) Name() string  { return "pluginimports" }
 func (a *autoloadImpl) Priority() int { return 900 }
 
 func (a *autoloadImpl) Contribute(ctx *autoload.Context) error {
@@ -77,50 +76,63 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 	hasFlash := opts.Flash
 	hasI18n := opts.I18n
 
+	// The adapter sub-package exposes a typed constructor (no init() registries);
+	// gorm dialects and ent/beego drivers have different shapes.
+	databaseAdapterOption := ""
+	if hasDatabase && opts.DatabaseAdapter != "" {
+		switch opts.Database {
+		case "gorm":
+			databaseAdapterOption = fmt.Sprintf("database%s.WithDialect(databaseadapter.Dialect())", opts.Database)
+		default: // ent, beego
+			databaseAdapterOption = fmt.Sprintf("database%s.WithDriver(databaseadapter.Driver())", opts.Database)
+		}
+	}
+
 	var buf strings.Builder
 	err := pluginsTmpl.Execute(&buf, struct {
-		PolaPackage     string
-		Framework       string
-		Engine          string
-		Bundler         string
-		Renderer        string
-		Router          string
-		CSS             string
-		Cache           string
-		Database        string
-		DatabaseAdapter string
-		DatabaseURL     string
-		DatabaseHost    string
-		DatabasePort    string
-		DatabaseUser    string
-		DatabasePass    string
-		DatabaseName    string
-		CSRF            bool
-		CSRFExempt      []string
-		SecurityHeaders bool
-		ImageProcessing string
-		Dev             bool
-		Embed           bool
-		Migrate         bool
-		HasRoutes       bool
-		ActionsImport   string
-		RouteImports    []string
-		RepoPlugins     *autoload.RepoDiscovery
-		EntClient       *autoload.EntClientDiscovery
-		ServicePlugins  *autoload.SvcDiscovery
-		HasStorage      bool
-		StorageDriver   string // "fs" or "rclone"
-		StorageRoot     string // local dir for fs, "remote:path" for rclone
-		StorageConfig   string // optional rclone config path
-		HasMailer       bool
-		MailerRenderer  string
-		MailerTransport string
-		MailerFrom      string
-		SMTPHost        string
-		SMTPPort        string
-		SMTPUsername    string
-		SMTPPassword    string
-		SMTPTLS         bool
+		PolaPackage           string
+		Framework             string
+		Engine                string
+		Bundler               string
+		Renderer              string
+		Router                string
+		CSS                   string
+		Cache                 string
+		Database              string
+		DatabaseAdapter       string
+		DatabaseAdapterOption string
+		DatabaseURL           string
+		DatabaseHost          string
+		DatabasePort          string
+		DatabaseUser          string
+		DatabasePass          string
+		DatabaseName          string
+		CSRF                  bool
+		CSRFExempt            []string
+		SecurityHeaders       bool
+		ImageProcessing       string
+		Dev                   bool
+		Embed                 bool
+		Migrate               bool
+		HasRoutes             bool
+		ActionsImport         string
+		RouteImports          []string
+		RepoPlugins           *autoload.RepoDiscovery
+		EntClient             *autoload.EntClientDiscovery
+		ServicePlugins        *autoload.SvcDiscovery
+		HasStorage            bool
+		StorageDriver         string // "fs" or "rclone"
+		StorageRoot           string // local dir for fs, "remote:path" for rclone
+		StorageConfig         string // optional rclone config path
+		HasMailer             bool
+		MailerRenderer        string
+		MailerTransport       string
+		MailerFrom            string
+		SMTPHost              string
+		SMTPPort              string
+		SMTPUsername          string
+		SMTPPassword          string
+		SMTPTLS               bool
 
 		HasMCP          bool
 		MCPTransport    string
@@ -130,74 +142,75 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		MCPInstructions string
 		MCPDisco        *autoload.MCPDiscovery
 
-		RateLimit      bool
-		RateLimitRPS   float64
-		RateLimitBurst int
-		Session         bool
-		SessionStore    string
-		SessionHost     string
-		SessionPort     string
-		SessionPassword string
-		SessionDB       string
-		SessionDSN      string
-		JWT             bool
-		JWTCookie       string
-		JWTExpiry       string
-		JWTSecretEnv    string
+		RateLimit        bool
+		RateLimitRPS     float64
+		RateLimitBurst   int
+		Session          bool
+		SessionStore     string
+		SessionHost      string
+		SessionPort      string
+		SessionPassword  string
+		SessionDB        string
+		SessionDSN       string
+		JWT              bool
+		JWTCookie        string
+		JWTExpiry        string
+		JWTSecretEnv     string
 		Protect          bool
 		ProtectPaths     []string
 		ProtectRedirect  string
 		ProtectCookie    string
 		ProtectSecretEnv string
-		Flash           bool
-		I18n           bool
-		I18nLocale     string
-		I18nDirectory  string
+		Flash            bool
+		I18n             bool
+		I18nLocale       string
+		I18nDirectory    string
 
 		APIOnly bool
 	}{
-		PolaPackage:     opts.PolaPackage,
-		Framework:       cmp.Or(opts.Framework, "std"),
-		Engine:          opts.Engine,
-		Bundler:         opts.Bundler,
-		Renderer:        opts.Renderer,
-		Router:          opts.Router,
-		CSS:             autoload.CondStr(hasCSS, opts.CSS, ""),
-		Cache:           autoload.CondStr(hasCache, opts.Cache, ""),
-		Database:        autoload.CondStr(hasDatabase, opts.Database, ""),
-		DatabaseAdapter: opts.DatabaseAdapter,
-		DatabaseURL:     opts.DatabaseURL,
-		DatabaseHost:    opts.DatabaseHost,
-		DatabasePort:    opts.DatabasePort,
-		DatabaseUser:    opts.DatabaseUser,
-		DatabasePass:    opts.DatabasePass,
-		DatabaseName:    opts.DatabaseName,
-		CSRF:            hasCSRF,
-		CSRFExempt:      opts.CSRFExempt,
-		SecurityHeaders: hasSecurityHeaders,
-		ImageProcessing: autoload.CondStr(hasImageProcessing, opts.ImageProcessing, ""),
-		Dev:             opts.Dev,
-		Embed:           opts.Embed,
-		Migrate:         opts.Migrate,
-		HasRoutes:       len(routeImports) > 0,
-		ActionsImport:   actionsImport,
-		RouteImports:    routeImports,
-		RepoPlugins:     repoDisco,
-		EntClient:       entClientDisco,
-		ServicePlugins:  svcDisco,
-		HasStorage:      hasStorage,
-		StorageDriver:   opts.StorageDriver,
-		StorageRoot:     opts.StorageRoot,
-		StorageConfig:   opts.StorageConfig,
-		HasMailer:       hasMailer,
-		MailerRenderer:  cmp.Or(opts.MailerRenderer, "react"),
-		MailerTransport: cmp.Or(opts.MailerTransport, "log"),
-		MailerFrom:      opts.MailerFrom,
-		SMTPHost:        opts.SMTPHost,
-		SMTPPort:        opts.SMTPPort,
-		SMTPUsername:    opts.SMTPUsername,
-		SMTPPassword:    opts.SMTPPassword,
-		SMTPTLS:         opts.SMTPTLS,
+		PolaPackage:           opts.PolaPackage,
+		Framework:             cmp.Or(opts.Framework, "std"),
+		Engine:                opts.Engine,
+		Bundler:               opts.Bundler,
+		Renderer:              opts.Renderer,
+		Router:                opts.Router,
+		CSS:                   autoload.CondStr(hasCSS, opts.CSS, ""),
+		Cache:                 autoload.CondStr(hasCache, opts.Cache, ""),
+		Database:              autoload.CondStr(hasDatabase, opts.Database, ""),
+		DatabaseAdapter:       opts.DatabaseAdapter,
+		DatabaseAdapterOption: databaseAdapterOption,
+		DatabaseURL:           opts.DatabaseURL,
+		DatabaseHost:          opts.DatabaseHost,
+		DatabasePort:          opts.DatabasePort,
+		DatabaseUser:          opts.DatabaseUser,
+		DatabasePass:          opts.DatabasePass,
+		DatabaseName:          opts.DatabaseName,
+		CSRF:                  hasCSRF,
+		CSRFExempt:            opts.CSRFExempt,
+		SecurityHeaders:       hasSecurityHeaders,
+		ImageProcessing:       autoload.CondStr(hasImageProcessing, opts.ImageProcessing, ""),
+		Dev:                   opts.Dev,
+		Embed:                 opts.Embed,
+		Migrate:               opts.Migrate,
+		HasRoutes:             len(routeImports) > 0,
+		ActionsImport:         actionsImport,
+		RouteImports:          routeImports,
+		RepoPlugins:           repoDisco,
+		EntClient:             entClientDisco,
+		ServicePlugins:        svcDisco,
+		HasStorage:            hasStorage,
+		StorageDriver:         opts.StorageDriver,
+		StorageRoot:           opts.StorageRoot,
+		StorageConfig:         opts.StorageConfig,
+		HasMailer:             hasMailer,
+		MailerRenderer:        cmp.Or(opts.MailerRenderer, "react"),
+		MailerTransport:       cmp.Or(opts.MailerTransport, "log"),
+		MailerFrom:            opts.MailerFrom,
+		SMTPHost:              opts.SMTPHost,
+		SMTPPort:              opts.SMTPPort,
+		SMTPUsername:          opts.SMTPUsername,
+		SMTPPassword:          opts.SMTPPassword,
+		SMTPTLS:               opts.SMTPTLS,
 
 		HasMCP:          opts.HasMCP,
 		MCPTransport:    cmp.Or(opts.MCPTransport, "http"),
@@ -207,29 +220,29 @@ func GenerateSource(opts autoload.PluginOpts, actionsImport string, routeImports
 		MCPInstructions: opts.MCPInstructions,
 		MCPDisco:        mcpDisco,
 
-		RateLimit:      hasRateLimit,
-		RateLimitRPS:   opts.RateLimitRPS,
-		RateLimitBurst: opts.RateLimitBurst,
-		Session:         hasSession,
-		SessionStore:    cmp.Or(opts.SessionStore, "cookie"),
-		SessionHost:     opts.SessionHost,
-		SessionPort:     opts.SessionPort,
-		SessionPassword: opts.SessionPassword,
-		SessionDB:       opts.SessionDB,
-		SessionDSN:      opts.SessionDSN,
-		JWT:             opts.JWT,
-		JWTCookie:       cmp.Or(opts.JWTCookie, "session"),
-		JWTExpiry:       cmp.Or(opts.JWTExpiry, "24h"),
-		JWTSecretEnv:    cmp.Or(opts.JWTSecretEnv, "AUTH_SECRET"),
+		RateLimit:        hasRateLimit,
+		RateLimitRPS:     opts.RateLimitRPS,
+		RateLimitBurst:   opts.RateLimitBurst,
+		Session:          hasSession,
+		SessionStore:     cmp.Or(opts.SessionStore, "cookie"),
+		SessionHost:      opts.SessionHost,
+		SessionPort:      opts.SessionPort,
+		SessionPassword:  opts.SessionPassword,
+		SessionDB:        opts.SessionDB,
+		SessionDSN:       opts.SessionDSN,
+		JWT:              opts.JWT,
+		JWTCookie:        cmp.Or(opts.JWTCookie, "session"),
+		JWTExpiry:        cmp.Or(opts.JWTExpiry, "24h"),
+		JWTSecretEnv:     cmp.Or(opts.JWTSecretEnv, "AUTH_SECRET"),
 		Protect:          opts.Protect,
 		ProtectPaths:     opts.ProtectPaths,
 		ProtectRedirect:  cmp.Or(opts.ProtectRedirect, "/sign-in"),
 		ProtectCookie:    cmp.Or(opts.ProtectCookie, "session"),
 		ProtectSecretEnv: cmp.Or(opts.ProtectSecretEnv, "AUTH_SECRET"),
-		Flash:           hasFlash,
-		I18n:           hasI18n,
-		I18nLocale:     cmp.Or(opts.I18nLocale, "en"),
-		I18nDirectory:  cmp.Or(opts.I18nDirectory, "locales"),
+		Flash:            hasFlash,
+		I18n:             hasI18n,
+		I18nLocale:       cmp.Or(opts.I18nLocale, "en"),
+		I18nDirectory:    cmp.Or(opts.I18nDirectory, "locales"),
 
 		APIOnly: opts.APIOnly,
 	})

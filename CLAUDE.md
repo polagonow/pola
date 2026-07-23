@@ -64,8 +64,10 @@ relevant, or invoke one explicitly with `/skill-name`.
 - Pluggable components (engines, bundlers, renderers, caches, middleware, …) register
   via a `Plugin() core.Plugin` function in their package (`core.PluginFunc` +
   `core.ProvideValue`/`AddMiddleware`) — no init() registries or build tags on
-  implementation files (database dialects are the init()-based exception). See the
-  matching `add-*` skill before touching those layers.
+  implementation files. Database dialect packages export typed constructors
+  (`Dialect()`/`Driver()`) passed to the base plugin via `WithDialect`/`WithDriver`;
+  CLI generators and autoload stages are registered explicitly in their `all`
+  sub-packages. See the matching `add-*` skill before touching those layers.
 - Package-level READMEs (`engine/`, `bundler/`, `renderer/`, `test/`) document each
   subsystem and point to the relevant skill.
 - Run `mage check` before committing; git hooks are managed by lefthook

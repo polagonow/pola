@@ -1,4 +1,4 @@
-// Package mysql registers the MySQL GORM dialector.
+// Package mysql provides the MySQL GORM dialect.
 package mysql
 
 import (
@@ -7,6 +7,7 @@ import (
 	databasegorm "github.com/polagonow/pola/database/gorm"
 )
 
-func init() {
-	databasegorm.RegisterDialector("mysql", mysql.Open)
+// Dialect returns the MySQL dialect for databasegorm.WithDialect.
+func Dialect() databasegorm.Dialect {
+	return databasegorm.Dialect{Name: "mysql", Open: mysql.Open}
 }

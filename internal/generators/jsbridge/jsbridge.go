@@ -17,20 +17,19 @@ import (
 // JSBridgeGenerator generates TypeScript bridge code from Go actions.
 type JSBridgeGenerator struct{}
 
-func init() {
-	generators.Register(&JSBridgeGenerator{})
-}
+// Name returns the generator's CLI name.
+func (g *JSBridgeGenerator) Name() string { return "js:bridge" }
 
-func (g *JSBridgeGenerator) Name() string        { return "js:bridge" }
-func (g *JSBridgeGenerator) Description() string { return "Generate TypeScript bridge from actions/" }
+// Description returns the one-line help shown in `pola generate`.
+func (g *JSBridgeGenerator) Description() string           { return "Generate TypeScript bridge from actions/" }
 func (g *JSBridgeGenerator) AfterHooks() []generators.Hook { return nil }
 
 func (g *JSBridgeGenerator) Command() *cobra.Command {
 	return &cobra.Command{
-		Use:   "js:bridge",
-		Short: "Generate TypeScript bridge from actions/",
-		Long:  "Parse Go action structs and generate TypeScript declarations for client-side usage.",
-		RunE:  g.run,
+		Use:     "js:bridge",
+		Short:   "Generate TypeScript bridge from actions/",
+		Long:    "Parse Go action structs and generate TypeScript declarations for client-side usage.",
+		RunE:    g.run,
 		Example: `  pola generate js:bridge`,
 	}
 }

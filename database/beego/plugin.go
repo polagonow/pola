@@ -11,12 +11,12 @@ import (
 	"github.com/polagonow/pola/database/dsn"
 )
 
-// drivers is the adapter registry. Adapter sub-packages register themselves via init().
-var drivers = map[string]string{}
-
-// RegisterDriver registers a Beego ORM driver name for the given adapter.
-func RegisterDriver(adapter, driverName string) {
-	drivers[adapter] = driverName
+// Driver describes a Beego ORM driver for one adapter.
+// Adapter sub-packages export a Driver() constructor, e.g.
+// database/beego/postgresql.Driver().
+type Driver struct {
+	Name       string // adapter name, e.g. "postgresql"
+	DriverName string // database/sql driver name, e.g. "postgres"
 }
 
 // Option configures the Beego database plugin.
@@ -24,6 +24,25 @@ type Option func(*config)
 
 type config struct {
 	dsn.Config
+	drivers []Driver
+}
+
+// WithDriver makes a driver selectable by the configured adapter name.
+// May be passed multiple times (e.g. sqlite for dev, postgresql for prod,
+// selected at runtime via WithAdapter / POLA_DATABASE_ADAPTER).
+func WithDriver(d Driver) Option { return func(c *config) { c.drivers = append(c.drivers, d) } }
+
+func (c *config) driverFor(adapter string) (Driver, error) {
+	if adapter == "" && len(c.drivers) == 1 {
+		return c.drivers[0], nil
+	}
+	for _, d := range c.drivers {
+		if d.Name == adapter {
+			return d, nil
+		}
+	}
+	return Driver{}, fmt.Errorf(
+		"beego: no driver provided for adapter %q (pass databasebeego.WithDriver(<adapter>.Driver()))", adapter)
 }
 
 // WithURL sets the full connection string.
@@ -69,12 +88,12 @@ func (p *beegoPlugin) Register(r *core.Registry) {
 	core.Provide[orm.Ormer](r, func() (orm.Ormer, error) {
 		c := p.cfg.Config.WithEnvFallback()
 		connStr := dsn.Build(c)
-		driverName, ok := drivers[c.Adapter]
-		if !ok {
-			return nil, fmt.Errorf("beego: no driver registered for adapter %q (import the adapter sub-package)", c.Adapter)
+		driver, err := p.cfg.driverFor(c.Adapter)
+		if err != nil {
+			return nil, err
 		}
 
-		if err := orm.RegisterDataBase("default", driverName, connStr); err != nil {
+		if err := orm.RegisterDataBase("default", driver.DriverName, connStr); err != nil {
 			return nil, fmt.Errorf("beego: register database: %w", err)
 		}
 		return orm.NewOrm(), nil

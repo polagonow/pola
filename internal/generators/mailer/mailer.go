@@ -53,10 +53,6 @@ var (
 // MailerGenerator scaffolds mailer structs and email templates.
 type MailerGenerator struct{}
 
-func init() {
-	generators.Register(&MailerGenerator{})
-}
-
 func (g *MailerGenerator) Name() string        { return "mailer" }
 func (g *MailerGenerator) Description() string { return "Scaffold a mailer with email templates" }
 func (g *MailerGenerator) AfterHooks() []generators.Hook {
@@ -73,8 +69,8 @@ func (g *MailerGenerator) Command() *cobra.Command {
 
 Each action argument becomes a method on the mailer and a corresponding
 template under app/mailers/<name>_mailer/.`,
-		Args:    cobra.MinimumNArgs(1),
-		RunE:    g.run,
+		Args: cobra.MinimumNArgs(1),
+		RunE: g.run,
 		Example: `  pola generate mailer User welcome reset_password
   pola generate mailer Order confirmation shipped`,
 	}

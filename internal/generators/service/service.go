@@ -28,10 +28,6 @@ var serviceTmpl = template.Must(
 // ServiceGenerator scaffolds service structs with business logic methods.
 type ServiceGenerator struct{}
 
-func init() {
-	generators.Register(&ServiceGenerator{})
-}
-
 func (g *ServiceGenerator) Name() string { return "service" }
 func (g *ServiceGenerator) Description() string {
 	return "Scaffold a service with business logic methods"

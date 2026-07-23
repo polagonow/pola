@@ -1,6 +1,6 @@
 // Package generators defines the pluggable generator interface and registry
-// for the Pola CLI. Each generator is a self-contained package that registers
-// itself via init().
+// for the Pola CLI. Each generator is a self-contained package that is registered
+// explicitly in the "all" sub-package (no init() registries).
 package generators
 
 import (

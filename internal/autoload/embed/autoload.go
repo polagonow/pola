@@ -21,11 +21,10 @@ var embedTmpl = template.Must(
 
 type autoloadImpl struct{}
 
-func init() {
-	autoload.Register(&autoloadImpl{})
-}
+// New returns this autoload stage for explicit registration in autoload/all.
+func New() autoload.Autoload { return &autoloadImpl{} }
 
-func (a *autoloadImpl) Name() string { return "embed" }
+func (a *autoloadImpl) Name() string  { return "embed" }
 func (a *autoloadImpl) Priority() int { return 950 }
 
 func (a *autoloadImpl) Contribute(ctx *autoload.Context) error {

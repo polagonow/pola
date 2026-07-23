@@ -78,7 +78,7 @@ import (
 {{- if .Database}}
 	database{{.Database}} "{{.PolaPackage}}/database/{{.Database}}"
 {{- if .DatabaseAdapter}}
-	_ "{{.PolaPackage}}/database/{{.Database}}/{{.DatabaseAdapter}}"
+	databaseadapter "{{.PolaPackage}}/database/{{.Database}}/{{.DatabaseAdapter}}"
 {{- end}}
 {{- end}}
 {{- if .HasMailer}}
@@ -210,6 +210,9 @@ var PolaPlugins = []core.Plugin{
 {{- end}}
 {{- if .Database}}
 	database{{.Database}}.Plugin(
+{{- if .DatabaseAdapterOption}}
+		{{.DatabaseAdapterOption}},
+{{- end}}
 {{- if .DatabaseAdapter}}
 		database{{.Database}}.WithAdapter(polaenv.String("POLA_DATABASE_ADAPTER", "{{.DatabaseAdapter}}")),
 {{- end}}

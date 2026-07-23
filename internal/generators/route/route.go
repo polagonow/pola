@@ -59,10 +59,6 @@ var validHTTPMethods = map[string]bool{
 // RouteGenerator scaffolds new route handlers in the routes/ directory.
 type RouteGenerator struct{}
 
-func init() {
-	generators.Register(&RouteGenerator{})
-}
-
 func (g *RouteGenerator) Name() string        { return "route" }
 func (g *RouteGenerator) Description() string { return "Scaffold a new route handler" }
 func (g *RouteGenerator) AfterHooks() []generators.Hook {

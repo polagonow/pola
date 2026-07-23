@@ -1,4 +1,4 @@
-// Package sqlite registers the SQLite driver for Beego ORM.
+// Package sqlite provides the SQLite driver for Beego ORM.
 package sqlite
 
 import (
@@ -7,6 +7,7 @@ import (
 	databasebeego "github.com/polagonow/pola/database/beego"
 )
 
-func init() {
-	databasebeego.RegisterDriver("sqlite", "sqlite3")
+// Driver returns the SQLite driver for databasebeego.WithDriver.
+func Driver() databasebeego.Driver {
+	return databasebeego.Driver{Name: "sqlite", DriverName: "sqlite3"}
 }

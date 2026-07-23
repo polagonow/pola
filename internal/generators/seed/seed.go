@@ -41,8 +41,6 @@ func Seed(ctx context.Context, r *core.Registry) error {
 // SeedGenerator scaffolds db/seeds/seeds.go.
 type SeedGenerator struct{}
 
-func init() { generators.Register(&SeedGenerator{}) }
-
 func (g *SeedGenerator) Name() string        { return "seed" }
 func (g *SeedGenerator) Description() string { return "Scaffold a database seeder (db/seeds)" }
 

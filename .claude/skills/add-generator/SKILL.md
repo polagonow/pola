@@ -4,8 +4,9 @@ description: Add a new `pola generate <x>` scaffold generator to the Pola CLI. U
 ---
 
 CLI generators are self-contained packages under `internal/generators/<name>/`
-implementing the `generators.Generator` interface, registered via `init()` and a
-blank import in `internal/generators/all/register.go`. The generate command tree
+implementing the `generators.Generator` interface, registered explicitly in the
+list in `internal/generators/all/register.go` (no `init()` registries; `Register()`
+runs once at CLI startup in `cli.Execute`). The generate command tree
 (`pola generate <x>`) is built dynamically from the registry, and generators that
 also implement the `Destroyer` interface get `pola destroy <x>` support for free.
 
@@ -13,8 +14,8 @@ also implement the `Destroyer` interface get `pola destroy <x>` support for free
 
 | File | Purpose |
 |------|---------|
-| `internal/generators/<name>/<name>.go` | Generator impl + `init() { generators.Register(...) }` |
-| `internal/generators/all/register.go` | Add the blank import (one line) |
+| `internal/generators/<name>/<name>.go` | Generator impl (exported type) |
+| `internal/generators/all/register.go` | Add the generator to the explicit list (one line; bump the count in `register_test.go`) |
 
 ---
 
@@ -40,8 +41,6 @@ import (
 
 // MyGenerator scaffolds <what it writes>.
 type MyGenerator struct{}
-
-func init() { generators.Register(&MyGenerator{}) }
 
 func (g *MyGenerator) Name() string        { return "<name>" }
 func (g *MyGenerator) Description() string { return "<one-line description>" }

@@ -1,4 +1,4 @@
-// Package postgresql registers the PostgreSQL GORM dialector.
+// Package postgresql provides the PostgreSQL GORM dialect.
 package postgresql
 
 import (
@@ -7,6 +7,7 @@ import (
 	databasegorm "github.com/polagonow/pola/database/gorm"
 )
 
-func init() {
-	databasegorm.RegisterDialector("postgresql", postgres.Open)
+// Dialect returns the PostgreSQL dialect for databasegorm.WithDialect.
+func Dialect() databasegorm.Dialect {
+	return databasegorm.Dialect{Name: "postgresql", Open: postgres.Open}
 }

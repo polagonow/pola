@@ -18,10 +18,6 @@ import (
 // ScaffoldGenerator generates a model, action, and route for a resource.
 type ScaffoldGenerator struct{}
 
-func init() {
-	generators.Register(&ScaffoldGenerator{})
-}
-
 func (g *ScaffoldGenerator) Name() string { return "scaffold" }
 func (g *ScaffoldGenerator) Description() string {
 	return "Generate model, action, and route for a resource"

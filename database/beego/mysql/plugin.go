@@ -1,4 +1,4 @@
-// Package mysql registers the MySQL driver for Beego ORM.
+// Package mysql provides the MySQL driver for Beego ORM.
 package mysql
 
 import (
@@ -7,6 +7,7 @@ import (
 	databasebeego "github.com/polagonow/pola/database/beego"
 )
 
-func init() {
-	databasebeego.RegisterDriver("mysql", "mysql")
+// Driver returns the MySQL driver for databasebeego.WithDriver.
+func Driver() databasebeego.Driver {
+	return databasebeego.Driver{Name: "mysql", DriverName: "mysql"}
 }

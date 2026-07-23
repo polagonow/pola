@@ -1,6 +1,6 @@
 // Package autoload defines the pluggable overlay interface and registry
-// for the Pola CLI. Each autoload is a self-contained package that registers
-// itself via init().
+// for the Pola CLI. Each autoload is a self-contained package that is registered
+// explicitly in the "all" sub-package (no init() registries).
 package autoload
 
 import (
@@ -135,29 +135,29 @@ type PluginOpts struct {
 	MCPVersion      string
 	MCPInstructions string
 
-	Session         bool
-	SessionStore    string
-	SessionHost     string
-	SessionPort     string
-	SessionPassword string
-	SessionDB       string
-	SessionDSN      string
-	JWT             bool
-	JWTCookie       string // JWT session cookie name (default "session")
-	JWTExpiry       string // Go duration literal for token lifetime (default "24h")
-	JWTSecretEnv    string // env var holding the signing secret (default "AUTH_SECRET")
+	Session          bool
+	SessionStore     string
+	SessionHost      string
+	SessionPort      string
+	SessionPassword  string
+	SessionDB        string
+	SessionDSN       string
+	JWT              bool
+	JWTCookie        string // JWT session cookie name (default "session")
+	JWTExpiry        string // Go duration literal for token lifetime (default "24h")
+	JWTSecretEnv     string // env var holding the signing secret (default "AUTH_SECRET")
 	Protect          bool
 	ProtectPaths     []string // protected path prefixes
 	ProtectRedirect  string   // unauthenticated redirect target
 	ProtectCookie    string   // session cookie name to verify
 	ProtectSecretEnv string   // env var holding the signing secret
-	RateLimit       bool
-	RateLimitRPS    float64
-	RateLimitBurst  int
-	Flash           bool
-	I18n            bool
-	I18nLocale      string
-	I18nDirectory   string
+	RateLimit        bool
+	RateLimitRPS     float64
+	RateLimitBurst   int
+	Flash            bool
+	I18n             bool
+	I18nLocale       string
+	I18nDirectory    string
 
 	APIOnly bool
 }

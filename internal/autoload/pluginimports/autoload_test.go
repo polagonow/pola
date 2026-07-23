@@ -53,6 +53,45 @@ func TestGenerateSource_Frameworks(t *testing.T) {
 	}
 }
 
+// TestGenerateSource_DatabaseAdapters verifies the generated wiring passes the
+// dialect/driver to the base plugin explicitly instead of blank-importing the
+// adapter sub-package for init() side effects.
+func TestGenerateSource_DatabaseAdapters(t *testing.T) {
+	optionFor := map[string]string{
+		"gorm":  "databasegorm.WithDialect(databaseadapter.Dialect())",
+		"ent":   "databaseent.WithDriver(databaseadapter.Driver())",
+		"beego": "databasebeego.WithDriver(databaseadapter.Driver())",
+	}
+	for orm, wantOption := range optionFor {
+		for _, adapter := range []string{"sqlite", "postgresql", "mysql"} {
+			opts := autoload.PluginOpts{
+				PolaPackage:     "github.com/polagonow/pola",
+				Database:        orm,
+				DatabaseAdapter: adapter,
+				APIOnly:         true,
+			}
+			src, err := GenerateSource(opts, "", nil, nil, nil, nil, nil)
+			if err != nil {
+				t.Fatalf("%s/%s: generate: %v", orm, adapter, err)
+			}
+			if _, err := parser.ParseFile(token.NewFileSet(), "pola_plugins.go", src, parser.AllErrors); err != nil {
+				t.Fatalf("%s/%s: generated source does not parse: %v\n%s", orm, adapter, err, src)
+			}
+			s := string(src)
+			adapterImport := `databaseadapter "github.com/polagonow/pola/database/` + orm + `/` + adapter + `"`
+			if !strings.Contains(s, adapterImport) {
+				t.Errorf("%s/%s: missing named adapter import %q\n%s", orm, adapter, adapterImport, s)
+			}
+			if !strings.Contains(s, wantOption) {
+				t.Errorf("%s/%s: missing adapter option %q\n%s", orm, adapter, wantOption, s)
+			}
+			if strings.Contains(s, `_ "github.com/polagonow/pola/database/`) {
+				t.Errorf("%s/%s: adapter must not be blank-imported\n%s", orm, adapter, s)
+			}
+		}
+	}
+}
+
 // TestGenerateSource_DefaultFramework ensures an empty Framework defaults to std.
 func TestGenerateSource_DefaultFramework(t *testing.T) {
 	opts := autoload.PluginOpts{PolaPackage: "github.com/polagonow/pola", APIOnly: true}

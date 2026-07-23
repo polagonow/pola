@@ -27,12 +27,11 @@ var templates embed.FS
 // PageGenerator scaffolds CRUD pages for a resource.
 type PageGenerator struct{}
 
-func init() {
-	generators.Register(&PageGenerator{})
-}
+// Name returns the generator's CLI name.
+func (g *PageGenerator) Name() string { return "page" }
 
-func (g *PageGenerator) Name() string                  { return "page" }
-func (g *PageGenerator) Description() string           { return "Scaffold CRUD pages for a resource" }
+// Description returns the one-line help shown in `pola generate`.
+func (g *PageGenerator) Description() string { return "Scaffold CRUD pages for a resource" }
 func (g *PageGenerator) AfterHooks() []generators.Hook {
 	return []generators.Hook{
 		generators.FuncHook("install form deps", func(projectDir string) error {

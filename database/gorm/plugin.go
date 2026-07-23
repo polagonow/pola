@@ -10,12 +10,12 @@ import (
 	gormpkg "gorm.io/gorm"
 )
 
-// dialectors is the adapter registry. Adapter sub-packages register themselves via init().
-var dialectors = map[string]func(string) gormpkg.Dialector{}
-
-// RegisterDialector registers a GORM dialector factory for the given adapter name.
-func RegisterDialector(adapter string, fn func(string) gormpkg.Dialector) {
-	dialectors[adapter] = fn
+// Dialect couples an adapter name with a GORM dialector factory.
+// Adapter sub-packages export a Dialect() constructor, e.g.
+// database/gorm/postgresql.Dialect().
+type Dialect struct {
+	Name string // adapter name, e.g. "postgresql"
+	Open func(dsn string) gormpkg.Dialector
 }
 
 // Option configures the GORM database plugin.
@@ -23,7 +23,13 @@ type Option func(*config)
 
 type config struct {
 	dsn.Config
+	dialects []Dialect
 }
+
+// WithDialect makes a dialect selectable by the configured adapter name.
+// May be passed multiple times (e.g. sqlite for dev, postgresql for prod,
+// selected at runtime via WithAdapter / POLA_DATABASE_ADAPTER).
+func WithDialect(d Dialect) Option { return func(c *config) { c.dialects = append(c.dialects, d) } }
 
 // WithURL sets the full connection string.
 func WithURL(url string) Option { return func(c *config) { c.URL = url } }
@@ -70,7 +76,7 @@ func (p *gormPlugin) Register(r *core.Registry) {
 		c := p.cfg.Config.WithEnvFallback()
 		connStr := dsn.Build(c)
 
-		dialector, err := dialectorFor(c.Adapter, connStr)
+		dialector, err := p.cfg.dialectorFor(c.Adapter, connStr)
 		if err != nil {
 			return nil, err
 		}
@@ -95,10 +101,15 @@ func (p *gormPlugin) Shutdown(_ context.Context) error {
 	return nil
 }
 
-func dialectorFor(adapter, connStr string) (gormpkg.Dialector, error) {
-	fn, ok := dialectors[adapter]
-	if !ok {
-		return nil, fmt.Errorf("gorm: no driver registered for adapter %q (import the adapter sub-package)", adapter)
+func (c *config) dialectorFor(adapter, connStr string) (gormpkg.Dialector, error) {
+	if adapter == "" && len(c.dialects) == 1 {
+		return c.dialects[0].Open(connStr), nil
 	}
-	return fn(connStr), nil
+	for _, d := range c.dialects {
+		if d.Name == adapter {
+			return d.Open(connStr), nil
+		}
+	}
+	return nil, fmt.Errorf(
+		"gorm: no dialect provided for adapter %q (pass databasegorm.WithDialect(<adapter>.Dialect()))", adapter)
 }

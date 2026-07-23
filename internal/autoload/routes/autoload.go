@@ -27,9 +27,8 @@ var routeInitTmpl = template.Must(
 
 type autoloadImpl struct{}
 
-func init() {
-	autoload.Register(&autoloadImpl{})
-}
+// New returns this autoload stage for explicit registration in autoload/all.
+func New() autoload.Autoload { return &autoloadImpl{} }
 
 func (a *autoloadImpl) Name() string  { return "routes" }
 func (a *autoloadImpl) Priority() int { return 200 }
