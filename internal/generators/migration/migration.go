@@ -24,14 +24,12 @@ import (
 // MigrationGenerator generates versioned migration files by diffing ORM models.
 type MigrationGenerator struct{}
 
-func init() {
-	// Register ORM diff generators.
+// New returns the migration generator, wiring the ORM diff generators it needs.
+func New() *MigrationGenerator {
 	diff.Register(&beegodiff.BeegoDiffGenerator{})
 	diff.Register(&entdiff.EntDiffGenerator{})
 	diff.Register(&gormdiff.GormDiffGenerator{})
-
-	// Register this generator with the CLI generator registry.
-	generators.Register(&MigrationGenerator{})
+	return &MigrationGenerator{}
 }
 
 func (g *MigrationGenerator) Name() string { return "migration" }

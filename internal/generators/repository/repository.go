@@ -49,10 +49,6 @@ func ormTemplate(orm string) (*template.Template, error) {
 // RepositoryGenerator scaffolds repository interfaces and implementations.
 type RepositoryGenerator struct{}
 
-func init() {
-	generators.Register(&RepositoryGenerator{})
-}
-
 func (g *RepositoryGenerator) Name() string { return "repository" }
 func (g *RepositoryGenerator) Description() string {
 	return "Scaffold a repository interface with ORM implementation"

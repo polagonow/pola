@@ -25,8 +25,6 @@ var templates embed.FS
 // DocsGenerator scaffolds a Fumadocs documentation section.
 type DocsGenerator struct{}
 
-func init() { generators.Register(&DocsGenerator{}) }
-
 func (g *DocsGenerator) Name() string        { return "docs" }
 func (g *DocsGenerator) Description() string { return "Scaffold a Fumadocs documentation section" }
 

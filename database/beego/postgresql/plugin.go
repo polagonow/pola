@@ -1,4 +1,4 @@
-// Package postgresql registers the PostgreSQL driver for Beego ORM.
+// Package postgresql provides the PostgreSQL driver for Beego ORM.
 package postgresql
 
 import (
@@ -7,6 +7,7 @@ import (
 	databasebeego "github.com/polagonow/pola/database/beego"
 )
 
-func init() {
-	databasebeego.RegisterDriver("postgresql", "postgres")
+// Driver returns the PostgreSQL driver for databasebeego.WithDriver.
+func Driver() databasebeego.Driver {
+	return databasebeego.Driver{Name: "postgresql", DriverName: "postgres"}
 }

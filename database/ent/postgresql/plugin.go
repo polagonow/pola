@@ -1,4 +1,4 @@
-// Package postgresql registers the PostgreSQL driver for Ent.
+// Package postgresql provides the PostgreSQL driver for Ent.
 package postgresql
 
 import (
@@ -7,9 +7,11 @@ import (
 	databaseent "github.com/polagonow/pola/database/ent"
 )
 
-func init() {
-	databaseent.RegisterDriver("postgresql", databaseent.DriverInfo{
+// Driver returns the PostgreSQL driver for databaseent.WithDriver.
+func Driver() databaseent.Driver {
+	return databaseent.Driver{
+		Name:       "postgresql",
 		SQLDriver:  "postgres",
 		EntDialect: "postgres",
-	})
+	}
 }

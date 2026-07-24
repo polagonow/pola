@@ -1,4 +1,4 @@
-// Package mysql registers the MySQL driver for Ent.
+// Package mysql provides the MySQL driver for Ent.
 package mysql
 
 import (
@@ -7,9 +7,12 @@ import (
 	databaseent "github.com/polagonow/pola/database/ent"
 )
 
-func init() {
-	databaseent.RegisterDriver("mysql", databaseent.DriverInfo{
-		SQLDriver:  "mysql",
-		EntDialect: "mysql",
-	})
+// Driver returns the MySQL driver for databaseent.WithDriver.
+func Driver() databaseent.Driver {
+	const name = "mysql"
+	return databaseent.Driver{
+		Name:       name,
+		SQLDriver:  name,
+		EntDialect: name,
+	}
 }

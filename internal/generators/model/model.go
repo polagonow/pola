@@ -22,13 +22,12 @@ import (
 // ModelGenerator generates ORM model/schema files using the configured ORM plugin.
 type ModelGenerator struct{}
 
-func init() {
+// New returns the model generator, wiring the ORM schema generators it needs.
+func New() *ModelGenerator {
 	// Ent is the only ORM that needs its own generated schema (its typed client
 	// is codegen'd); gorm and beego consume the neutral canonical struct directly.
 	schema.RegisterORMGenerator(&ent.EntGenerator{})
-
-	// Register this generator with the CLI generator registry.
-	generators.Register(&ModelGenerator{})
+	return &ModelGenerator{}
 }
 
 func (g *ModelGenerator) Name() string { return "model" }

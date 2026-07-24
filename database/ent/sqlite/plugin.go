@@ -1,4 +1,4 @@
-// Package sqlite registers the SQLite driver for Ent.
+// Package sqlite provides the SQLite driver for Ent.
 package sqlite
 
 import (
@@ -7,9 +7,11 @@ import (
 	databaseent "github.com/polagonow/pola/database/ent"
 )
 
-func init() {
-	databaseent.RegisterDriver("sqlite", databaseent.DriverInfo{
+// Driver returns the SQLite driver for databaseent.WithDriver.
+func Driver() databaseent.Driver {
+	return databaseent.Driver{
+		Name:       "sqlite",
 		SQLDriver:  "sqlite3",
 		EntDialect: "sqlite3",
-	})
+	}
 }

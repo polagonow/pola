@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/polagonow/pola/internal/autoload"
-	_ "github.com/polagonow/pola/internal/autoload/all" // register all autoloads
 	"github.com/polagonow/pola/internal/generators"
 	"github.com/polagonow/pola/internal/project"
 	"github.com/polagonow/pola/internal/stubpkgs"

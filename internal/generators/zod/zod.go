@@ -33,10 +33,6 @@ var schemaTestTmpl = template.Must(
 // ZodGenerator scaffolds Zod validation schemas for a resource.
 type ZodGenerator struct{}
 
-func init() {
-	generators.Register(&ZodGenerator{})
-}
-
 func (g *ZodGenerator) Name() string        { return "zod" }
 func (g *ZodGenerator) Description() string { return "Generate a Zod validation schema for a resource" }
 

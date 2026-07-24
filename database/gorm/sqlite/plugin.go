@@ -1,4 +1,4 @@
-// Package sqlite registers the SQLite GORM dialector.
+// Package sqlite provides the SQLite GORM dialect.
 package sqlite
 
 import (
@@ -7,6 +7,7 @@ import (
 	databasegorm "github.com/polagonow/pola/database/gorm"
 )
 
-func init() {
-	databasegorm.RegisterDialector("sqlite", sqlite.Open)
+// Dialect returns the SQLite dialect for databasegorm.WithDialect.
+func Dialect() databasegorm.Dialect {
+	return databasegorm.Dialect{Name: "sqlite", Open: sqlite.Open}
 }

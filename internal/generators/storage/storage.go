@@ -28,12 +28,13 @@ var blobRouteTmpl = template.Must(
 // StorageGenerator scaffolds file storage infrastructure.
 type StorageGenerator struct{}
 
-func init() {
-	generators.Register(&StorageGenerator{})
-}
+// Name returns the generator's CLI name.
+func (g *StorageGenerator) Name() string { return "storage" }
 
-func (g *StorageGenerator) Name() string        { return "storage" }
-func (g *StorageGenerator) Description() string  { return "Set up file storage models and configuration" }
+// Description returns the one-line help shown in `pola generate`.
+func (g *StorageGenerator) Description() string {
+	return "Set up file storage models and configuration"
+}
 func (g *StorageGenerator) AfterHooks() []generators.Hook { return nil }
 
 func (g *StorageGenerator) Command() *cobra.Command {

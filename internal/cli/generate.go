@@ -7,7 +7,6 @@ import (
 
 	"github.com/polagonow/pola/internal/autoload"
 	"github.com/polagonow/pola/internal/generators"
-	_ "github.com/polagonow/pola/internal/generators/all" // register all generators
 	"github.com/polagonow/pola/polafile"
 	"github.com/spf13/cobra"
 )
@@ -35,8 +34,12 @@ func init() {
 	generateCmd.PersistentFlags().Bool("force", false, "overwrite files that already exist")
 	generateCmd.PersistentFlags().Bool("skip-collision-check", false, "skip collision check entirely")
 	generateCmd.PersistentFlags().Bool("skip-tests", false, "skip generating test files")
+}
 
-	// Dynamically register all scaffold subcommands from the generator registry.
+// addGeneratorCommands attaches one scaffold subcommand per registered
+// generator. Called from Execute after the registry is populated — the
+// generator registry is filled explicitly, not via init().
+func addGeneratorCommands() {
 	for _, g := range generators.All() {
 		generateCmd.AddCommand(g.Command())
 	}

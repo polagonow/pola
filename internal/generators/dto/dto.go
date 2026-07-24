@@ -30,10 +30,11 @@ var dtoTmpl = template.Must(
 // DTOGenerator scaffolds request/response DTOs for a resource.
 type DTOGenerator struct{}
 
-func init() { generators.Register(&DTOGenerator{}) }
+// Name returns the generator's CLI name.
+func (g *DTOGenerator) Name() string { return "dto" }
 
-func (g *DTOGenerator) Name() string        { return "dto" }
-func (g *DTOGenerator) Description() string  { return "Generate request/response DTOs for a resource" }
+// Description returns the one-line help shown in `pola generate`.
+func (g *DTOGenerator) Description() string           { return "Generate request/response DTOs for a resource" }
 func (g *DTOGenerator) AfterHooks() []generators.Hook { return nil }
 
 func (g *DTOGenerator) Command() *cobra.Command {
