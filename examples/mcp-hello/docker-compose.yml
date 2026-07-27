@@ -1,0 +1,50 @@
+# Run the "mcp-hello" example against PostgreSQL.
+#
+#   docker compose -f examples/mcp-hello/docker-compose.yml up --build
+#
+# The binary is built with the pure-Go postgresql adapter and reads DATABASE_*
+# on boot to reach this database.
+#
+# NOTE: the committed migrations under db/migrations are SQLite-flavoured and do
+# not apply to Postgres as-is. Generate Postgres migrations before relying on the
+# data layer; the app boots and connects regardless.
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: pola
+      POSTGRES_PASSWORD: pola
+      POSTGRES_DB: mcp_hello
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pola -d mcp_hello"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  app:
+    build:
+      context: ../..
+      dockerfile: examples/mcp-hello/Dockerfile
+    environment:
+      PORT: "3000"
+      DATABASE_ADAPTER: postgresql
+      DATABASE_HOST: db
+      DATABASE_PORT: "5432"
+      DATABASE_USER: pola
+      DATABASE_PASSWORD: pola
+      DATABASE_NAME: mcp_hello
+      DATABASE_SSLMODE: disable
+    ports:
+      - "3000:3000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  pgdata:

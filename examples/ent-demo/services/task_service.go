@@ -4,6 +4,7 @@ import (
 	"ent-demo/db/models"
 	"ent-demo/repositories"
 
+	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/service"
 )
 
@@ -22,8 +23,10 @@ type TaskService struct {
 	repo repositories.TaskRepository
 }
 
-// NewTaskService creates a new TaskService.
-func NewTaskService(repo repositories.TaskRepository) *TaskService {
+// NewTaskService creates a new TaskService, resolving its dependencies from
+// the DI registry.
+func NewTaskService(r *core.Registry) *TaskService {
+	repo := core.MustInvoke[repositories.TaskRepository](r)
 	return &TaskService{
 		Service: service.New(repo),
 		repo:    repo,

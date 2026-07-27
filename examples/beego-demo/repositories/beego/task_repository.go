@@ -3,6 +3,7 @@ package beego
 import (
 	"github.com/beego/beego/v2/client/orm"
 
+	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/repository"
 	beegorepo "github.com/polagonow/pola/repository/beego"
 
@@ -20,7 +21,8 @@ type taskRepository struct {
 }
 
 // NewTaskRepository creates a new Beego ORM-backed TaskRepository.
-func NewTaskRepository(o orm.Ormer) repositories.TaskRepository {
+func NewTaskRepository(r *core.Registry) repositories.TaskRepository {
+	o := core.MustInvoke[orm.Ormer](r)
 	return &taskRepository{
 		Repository: beegorepo.New[models.Task, uint](o),
 		ormer:      o,

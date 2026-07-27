@@ -103,13 +103,13 @@ func (p *entPlugin) Register(r *core.Registry) {
 			return nil, err
 		}
 
+		// sql.Open does not dial the database; the connection is established
+		// lazily on first use. We deliberately do not Ping here so that wiring
+		// the DI registry (and therefore `pola build`) never requires a live
+		// database.
 		db, err := sql.Open(info.SQLDriver, connStr)
 		if err != nil {
 			return nil, fmt.Errorf("ent: sql.Open: %w", err)
-		}
-		if err := db.Ping(); err != nil {
-			db.Close()
-			return nil, fmt.Errorf("ent: ping: %w", err)
 		}
 		p.db = db
 

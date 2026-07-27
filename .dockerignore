@@ -1,0 +1,32 @@
+# The Docker build context for every example is the repository root, because the
+# examples resolve the framework through `replace github.com/polagonow/pola => ../..`.
+# Keep the context lean so builds stay fast.
+
+.git
+.github
+.idea
+.vscode
+.DS_Store
+
+# Go / build artifacts
+bin/
+dist/
+**/bin/
+*.exe
+*.test
+*.out
+
+# Node
+**/node_modules/
+
+# Pola build artifacts (regenerated inside the image by `pola build`)
+**/public/assets/
+**/public/prebuild-meta.json
+**/public/_server.js
+**/pola_plugins.go
+**/pola_embed.go
+
+# Local dev databases (a fresh DB is used at runtime)
+**/dev.db
+**/*.sqlite
+**/*.sqlite3

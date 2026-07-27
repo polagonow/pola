@@ -81,7 +81,10 @@ func (p *gormPlugin) Register(r *core.Registry) {
 			return nil, err
 		}
 
-		db, err := gormpkg.Open(dialector, &gormpkg.Config{})
+		// DisableAutomaticPing keeps Open from dialing the database, so wiring the
+		// DI registry (and therefore `pola build`) never requires a live database.
+		// The connection is established lazily on the first query.
+		db, err := gormpkg.Open(dialector, &gormpkg.Config{DisableAutomaticPing: true})
 		if err != nil {
 			return nil, fmt.Errorf("gorm open: %w", err)
 		}
