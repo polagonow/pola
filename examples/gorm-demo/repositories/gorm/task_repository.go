@@ -3,6 +3,7 @@ package gorm
 import (
 	"gorm.io/gorm"
 
+	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/repository"
 	gormrepo "github.com/polagonow/pola/repository/gorm"
 
@@ -19,7 +20,8 @@ type taskRepository struct {
 }
 
 // NewTaskRepository creates a new GORM-backed TaskRepository.
-func NewTaskRepository(db *gorm.DB) repositories.TaskRepository {
+func NewTaskRepository(r *core.Registry) repositories.TaskRepository {
+	db := core.MustInvoke[*gorm.DB](r)
 	return &taskRepository{
 		Repository: gormrepo.New[models.Task, uint](db),
 		db:         db,

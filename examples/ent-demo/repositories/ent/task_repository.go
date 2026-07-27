@@ -3,6 +3,7 @@ package ent
 import (
 	"ent-demo/db/client/ent"
 
+	"github.com/polagonow/pola/core"
 	"github.com/polagonow/pola/repository"
 	entrepo "github.com/polagonow/pola/repository/ent"
 
@@ -21,7 +22,8 @@ type taskRepository struct {
 }
 
 // NewTaskRepository creates a new Ent-backed TaskRepository.
-func NewTaskRepository(client *ent.Client) repositories.TaskRepository {
+func NewTaskRepository(r *core.Registry) repositories.TaskRepository {
+	client := core.MustInvoke[*ent.Client](r)
 	return &taskRepository{
 		Repository: entrepo.New[models.Task, uint](client),
 		client:     client,

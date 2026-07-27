@@ -39,5 +39,10 @@
     "jsdom": "^25.0.0",
     "tailwindcss": "^4.2.2",
     "vitest": "^2.1.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "brace-expansion": "^5.0.8"
+    }
   }
 }
