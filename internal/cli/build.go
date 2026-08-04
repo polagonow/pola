@@ -129,7 +129,7 @@ func runBuild(cmd *cobra.Command, _ []string) error {
 	baseOpts := autoload.PluginOpts{
 		PolaPackage:     pf.PolaPackage(),
 		Framework:       buildFlags.framework,
-		Cache:           "memory",
+		Cache:           cmp.Or(os.Getenv("POLA_CACHE"), pf.CacheAdapter("production"), "memory"),
 		CSRF:            buildFlags.csrf,
 		SecurityHeaders: buildFlags.securityHeaders,
 		ActionsDir:      generateFlags.actionsDir,

@@ -35,14 +35,14 @@ error. `Invalidate` drops every key sharing a prefix; `Clear` empties the cache.
 | Adapter | Package | Backing | Status |
 |---|---|---|---|
 | `memory` | `cache/memory` | `hashicorp/golang-lru/v2` (default size 1024) | Fully implemented |
-| `redis` | `cache/redis` | `redis/go-redis` | **Stub** — every method returns `ErrNotImplemented` |
-
-> [!WARNING]
-> The `redis` adapter in `cache/redis` is currently a stub: `New(addr)` builds a
-> value but `Get`/`Set`/`Delete`/`Invalidate`/`Clear` all return
-> `redis.ErrNotImplemented`. Use `memory` until the Redis backend lands.
+| `redis` | `cache/redis` | `redis/go-redis/v9` | Fully implemented |
 
 The memory cache expires entries lazily on `Get` and evicts by LRU once full.
+
+The `redis` adapter connects lazily (constructing it never blocks on the server)
+and namespaces every key with a `pola:cache:` prefix, so `Invalidate` and `Clear`
+only touch this app's keys — a shared Redis database is left untouched. TTLs map
+to Redis key expiry.
 
 ## Configure in `Polafile.hcl`
 
