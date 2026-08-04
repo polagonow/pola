@@ -1,0 +1,96 @@
+---
+title: Image Processing
+description: On-the-fly image optimizer — resize, crop, re-encode, and the @pola/react Image component.
+---
+
+# Image Processing
+
+The `imageprocessing/` package is an imgproxy-style optimizer. It registers an HTTP middleware that serves optimized images at a configurable path prefix, and a `RuntimeInjector` that exposes `ImageProcessing.processURL` to JS server components. Pixel work is done by an `ImageProcessor` adapter; the built-in `imaging` adapter uses `disintegration/imaging` (pure Go, no CGO).
+
+## Enabling it
+
+Turn it on with the `image_processing {}` Polafile block:
+
+```hcl
+image_processing {
+  adapter    = "imaging"
+  path       = "/_pola/image"
+  max_width  = 4096
+  max_height = 4096
+  format     = "jpeg"
+}
+```
+
+Config also resolves from environment variables (set by the CLI from Polafile defaults):
+
+| Env var | Default | Meaning |
+|---|---|---|
+| `POLA_IMAGE_PROCESSING_ENABLED` | `false` | enable the plugin |
+| `POLA_IMAGE_PROCESSING_ADAPTER` | — | processor adapter (`imaging`) |
+| `POLA_IMAGE_PROCESSING_PATH` | `/_pola/image` | URL prefix served by the middleware |
+| `POLA_IMAGE_PROCESSING_MAX_WIDTH` | `4096` | output width clamp |
+| `POLA_IMAGE_PROCESSING_MAX_HEIGHT` | `4096` | output height clamp |
+| `POLA_IMAGE_PROCESSING_FORMAT` | `jpeg` | default output format |
+
+## Operations
+
+The middleware reads operations from the query string; `POST` bodies (max 10 MB) are processed directly, while `GET` fetches a remote `?url=`.
+
+| Param | Values | Backed by |
+|---|---|---|
+| `width` / `height` | pixels (clamped to max) | resize |
+| `fit` | `cover`, `contain`, `fill` (default) | `Fill` / `Fit` / `Resize`, Lanczos |
+| `format` | `jpeg`, `png`, `gif` | re-encode (unknown → JPEG) |
+| `quality` | `1`–`100` (JPEG; default `85`) | encoder quality |
+| `blur` | float radius | Gaussian blur |
+| `sharpen` | float amount | unsharp mask |
+| `rotate` | `90`, `180`, `270` | rotate |
+
+Responses are served with `Cache-Control: public, max-age=31536000, immutable`.
+
+> [!NOTE]
+> `fit=contain` preserves aspect ratio, `cover` crops to fill, and the empty/`fill` case stretches to exact `width`×`height`. PNG output ignores `quality`.
+
+## Using it from a component
+
+The `@pola/react` `Image` component renders responsive `<img>`/`srcSet` markup whose URLs route through the optimizer path. From a server component:
+
+```tsx
+import { Image } from "@pola/react/image";
+
+export default function Gallery() {
+  const photo = "https://picsum.photos/seed/pola-1/1200/800";
+  return (
+    <>
+      {/* fixed size: /_pola/image?url=…&width=480&quality=75 */}
+      <Image src={photo} alt="Optimized" width={480} height={320} quality={75} />
+
+      {/* no width → responsive srcSet */}
+      <Image src={photo} alt="Responsive" sizes="(max-width: 600px) 100vw, 480px" />
+
+      {/* skip the optimizer entirely */}
+      <Image src={photo} alt="Raw" width={480} height={320} unoptimized />
+    </>
+  );
+}
+```
+
+A custom `loader` (to bypass `/_pola/image` for a third-party CDN) must live in a `"use client"` component — functions can't cross the RSC boundary. See `examples/image-demo` for `fill`, blur placeholders, and a `weserv.nl` loader.
+
+## Direct URLs and SSRF safety
+
+You can hit the endpoint directly:
+
+```text
+GET /_pola/image?url=https://cdn.acme.com/hero.png&width=800&fit=cover&format=jpeg&quality=80
+```
+
+Outbound fetches are hardened: only `http`/`https` on ports 80/443, `localhost` and private/reserved IP ranges blocked (re-resolved at dial time against DNS rebinding, redirects re-validated).
+
+> [!WARNING]
+> By default any *public* host may be fetched. In production, set an allowlist (`imageprocessing.WithAllowedHosts`) to eliminate SSRF exposure — it's enforced pre-dial and on redirects.
+
+<Cards>
+  <Card title="File Storage" href="/docs/file-storage">Storing and serving uploaded files.</Card>
+  <Card title="Configuration" href="/docs/configuration">Polafile.hcl blocks and env overrides.</Card>
+</Cards>

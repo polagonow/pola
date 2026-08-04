@@ -1,0 +1,129 @@
+---
+title: OpenAPI
+description: Generate and serve an OpenAPI 3 spec for your Pola routes.
+---
+
+# OpenAPI
+
+Pola's `openapi` package generates an **OpenAPI 3.0.3** document from your
+discovered API routes and serves it — plus a SwaggerUI page — so external
+consumers (mobile apps, third parties, client codegen) get a machine-readable
+contract. This complements the typed `@pola/actions` bridge, which only serves
+Pola's own frontend.
+
+> [!NOTE]
+> This is a small, focused module. It documents your **API surface** — paths,
+> HTTP methods, and path parameters — plus optional per-route summary/tags. It
+> does **not** yet infer request/response body schemas from your DTOs (see
+> [Scope](#scope) below). Treat it as a foundation to enrich, not a full spec.
+
+## Enable it
+
+There is no Polafile block and no automatic wiring — you opt in from Go code.
+Discover your routes, generate the document, and add the `Serve` middleware:
+
+```go
+specs, _ := routes.Discover(reg)
+doc := openapi.Generate(specs, openapi.Info{Title: "Shop API", Version: "1.0.0"})
+reg.AddMiddleware(openapi.Serve(doc))
+```
+
+Like `middleware/health`, `Serve` short-circuits its own two paths and passes
+everything else through, so it needs no pipeline ordering.
+
+| Endpoint | Default path | Override | Content |
+|---|---|---|---|
+| JSON spec | `/openapi.json` | `openapi.WithSpecPath("…")` | The OpenAPI 3 document |
+| SwaggerUI | `/openapi` | `openapi.WithUIPath("…")` | HTML page loading SwaggerUI from a CDN |
+
+The spec is rendered once (`doc.JSON()`) when `Serve` is constructed and served
+as a static byte slice — it is not regenerated per request.
+
+## What it derives
+
+Each `routes.RouteSpec` (from `routes.Discover`) contributes its `Method`,
+`Pattern`, and optional `Meta`:
+
+| Source | Maps to |
+|---|---|
+| `Pattern` `/users/:id` | Path `/users/{id}` |
+| Catch-all `/files/:...path` | Path `/files/{path}` |
+| `:param` segments | `parameters` (`in: path`, `required: true`, `type: string`) |
+| `Method` | Lowercased operation key (`get`, `post`, …) |
+| `Meta["summary"]` (string) | Operation `summary` |
+| `Meta["tags"]` (`[]string`) | Operation `tags` |
+| every operation | A fixed `200: { description: "OK" }` response |
+
+Per-route metadata comes from the routes package's `Metaer` interface — a route
+struct implements `Meta() map[string]any`:
+
+```go
+func (r *UserRoutes) Meta() map[string]any {
+    return map[string]any{"summary": "Manage users", "tags": []string{"users"}}
+}
+```
+
+## Example
+
+Given these discovered routes:
+
+```go
+routes.RouteSpecs{
+    {Method: "GET",  Pattern: "/users"},
+    {Method: "POST", Pattern: "/users"},
+    {Method: "GET",  Pattern: "/users/:id",
+        Meta: map[string]any{"summary": "Fetch a user", "tags": []string{"users"}}},
+    {Method: "GET",  Pattern: "/files/:...path"},
+}
+```
+
+`Generate` produces (fragment):
+
+```json
+{
+  "openapi": "3.0.3",
+  "info": { "title": "Shop API", "version": "1.0.0" },
+  "paths": {
+    "/users": {
+      "get":  { "responses": { "200": { "description": "OK" } } },
+      "post": { "responses": { "200": { "description": "OK" } } }
+    },
+    "/users/{id}": {
+      "get": {
+        "summary": "Fetch a user",
+        "tags": ["users"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": { "200": { "description": "OK" } }
+      }
+    },
+    "/files/{path}": {
+      "get": { "parameters": [ { "name": "path", "in": "path", "required": true, "schema": { "type": "string" } } ],
+               "responses": { "200": { "description": "OK" } } }
+    }
+  }
+}
+```
+
+## Scope
+
+> [!WARNING]
+> The spec has no request or response body schemas. Pola routes don't yet
+> declare their DTO types to the router, so `Generate` can't reach them. Every
+> operation carries only a generic `200 OK`.
+
+Because Pola's DTOs (`dto/`) describe responses exactly, this is a designed
+extension point rather than a hard limit: once routes surface their DTO types
+(e.g. through `Meta`), `Generate` can enrich operations with precise
+request/response schemas — an edge over generators that only infer from
+validation. Until then, the document is intentionally a surface-level contract.
+
+The `Document` type is minimal by design: `Info`, `PathItem`, `Operation`,
+`Parameter`, `Schema{Type}`, and `Response{Description}` — helpers include
+`doc.JSON()` and `doc.SortedPaths()` for deterministic output.
+
+<Cards>
+  <Card title="Routing" href="/docs/routing">How routes are discovered into RouteSpecs.</Card>
+  <Card title="DTOs" href="/docs/dto">The types that will feed future request/response schemas.</Card>
+</Cards>

@@ -1,0 +1,139 @@
+---
+title: File Storage
+description: A pluggable file storage abstraction — local filesystem or 70+ cloud backends via rclone — with a runnable multipart upload handler and the pola generate storage scaffold.
+---
+
+# File Storage
+
+Pola abstracts file storage behind `storage.Storage`, with a local filesystem
+driver and an rclone driver that reaches any backend rclone supports (S3, GCS,
+Azure, and dozens more). Configure it in `Polafile.hcl`, resolve it from the DI
+registry, and save uploads straight from a `core.Context`.
+
+## The `storage.Storage` interface
+
+```go
+type Storage interface {
+    Save(ctx context.Context, content io.Reader, path string) error
+    Stat(ctx context.Context, path string) (*Stat, error)
+    Open(ctx context.Context, path string) (io.ReadCloser, error)
+    Delete(ctx context.Context, path string) error
+    List(ctx context.Context, path string) ([]*Stat, error)
+}
+
+type Stat struct {
+    ModifiedTime time.Time `json:"modified_time"`
+    Size         int64     `json:"size"`
+    Name         string    `json:"name"`
+    Path         string    `json:"path"`
+    ContentType  string    `json:"content_type"`
+}
+```
+
+`Save` overwrites if the path exists. `Open` and `Stat` return the sentinel
+`storage.ErrNotExist` when the file is missing. Implementations are safe for
+concurrent use.
+
+## Drivers
+
+| Driver | Package | Constructor | Backends |
+|---|---|---|---|
+| `fs` | `storage/fs` | `fs.NewStorage(fs.Config{Root: "uploads"})` | Local filesystem |
+| `rclone` | `storage/rclone` | `rclone.NewStorage(driver, location)` | 70+ cloud providers |
+
+The `fs` driver creates parent directories on `Save` and rejects any path that
+escapes its root. For `rclone`, pass an inline backend and location, or a named
+remote:
+
+```go
+rclone.NewStorage("s3", "my-bucket")          // inline backend
+rclone.NewStorage("local", "/tmp/uploads")    // inline local
+rclone.NewStorage("", "myremote:bucket/path") // named remote from `rclone config`
+```
+
+> [!NOTE]
+> The rclone driver requires you to import the backends you use in your app,
+> e.g. `_ "github.com/rclone/rclone/backend/s3"`, or
+> `_ "github.com/rclone/rclone/backend/all"` for everything.
+
+## Configure in `Polafile.hcl`
+
+```hcl
+storage {
+  driver = "fs"        # "fs" or "rclone"
+  root   = "uploads"   # local dir for fs, "remote:path" for rclone
+
+  # rclone only
+  config_path = "/etc/rclone/rclone.conf"
+
+  env "production" {
+    driver = "rclone"
+    root   = "myremote:app-uploads"
+  }
+}
+```
+
+Fields map to `POLA_STORAGE_DRIVER`, `POLA_STORAGE_ROOT`, and
+`POLA_STORAGE_CONFIG_PATH`. Defaults are `driver = "fs"` and `root = "uploads"`.
+
+## Upload handler
+
+Resolve the storage from the registry and stream a multipart file into it:
+
+```go
+func NewRoute(r *core.Registry) *Route {
+    return &Route{store: core.MustInvoke[storage.Storage](r)}
+}
+
+// POST /avatars
+func (rt *Route) POST(c core.Context) error {
+    fh, err := c.FormFile("avatar")
+    if err != nil {
+        return c.JSON(http.StatusBadRequest, core.M{"error": "avatar file required"})
+    }
+    f, err := fh.Open()
+    if err != nil {
+        return c.JSON(http.StatusBadRequest, core.M{"error": err.Error()})
+    }
+    defer f.Close()
+
+    key := path.Join("avatars", uuid.New().String(), fh.Filename)
+    if err := rt.store.Save(c.Ctx(), f, key); err != nil {
+        return c.JSON(http.StatusInternalServerError, core.M{"error": err.Error()})
+    }
+    return c.JSON(http.StatusCreated, core.M{"key": key})
+}
+```
+
+`core.Context` exposes `FormFile(name)` and `MultipartForm()`, mirroring
+gin/echo, so binding stays on the JSON/form path while files come off these.
+
+## `pola generate storage`
+
+```bash
+pola generate storage
+pola generate storage --driver fs --root ./uploads
+pola generate storage --driver rclone --root myremote:bucket/path \
+  --config-path /etc/rclone/rclone.conf
+```
+
+This writes the `storage { }` block into `Polafile.hcl` and scaffolds:
+
+- a **`StorageBlob`** model + repository (`key`, `filename`, `content_type`,
+  `byte_size`, `checksum`) that records file metadata,
+- a **`StorageAttachment`** polymorphic join model linking any record to blobs,
+- a `routes/storage_blobs/route.go` that serves blobs by ID.
+
+Associate files with your own models afterward — e.g. a direct FK:
+
+```bash
+pola generate model User name:string avatar:references{StorageBlob}
+```
+
+The generator's upload routes save the file, then persist a `StorageBlob` row
+and set the owning model's `<Field>ID` to the blob's ID.
+
+<Cards>
+  <Card title="Configuration" href="/docs/configuration">The Polafile.hcl blocks and env-var overrides.</Card>
+  <Card title="Image Processing" href="/docs/image-processing">Transform and resize the files you store.</Card>
+</Cards>

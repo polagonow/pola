@@ -1,0 +1,162 @@
+---
+title: Rendering Model
+description: Server vs client components, "use server" actions, streaming with Suspense, and per-render Go-call memoization.
+---
+
+# Rendering Model
+
+Pola follows React Server Components (RSC) semantics, like Next.js's App Router:
+components are **server-first**, interactivity opts in with `"use client"`, and
+server logic reaches the browser through `"use server"` — never a hand-written
+API. This page explains what runs where, and the non-obvious behavior that falls
+out of running RSC inside a Go-embedded JS engine.
+
+## Server components (the default)
+
+Every component under `web/app/` is a **Server Component** unless it says
+otherwise. Server components run in the pooled JS engine on the server. They can
+be `async`, read data, and call Go directly through [Server
+Actions](/docs/server-actions). Their code never ships to the browser.
+
+```tsx
+// web/app/posts/page.tsx  — a Server Component
+import { Blog } from "@pola/actions";
+
+export default async function PostsPage() {
+  const posts = await Blog.listPosts();   // runs Go during render
+  return (
+    <ul>
+      {posts.map((p) => (
+        <li key={p.id}>{p.title}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+Because the component is async and executes server-side, there is no loading
+state to manage and no `fetch` to a REST endpoint — the data is already resolved
+by the time the markup is produced.
+
+## Client components (`"use client"`)
+
+A file whose first line is `"use client"` is a **Client Component**. In the RSC
+output it is emitted as a *reference* (not its source), and the browser hydrates
+it. Use client components for anything stateful: `useState`, `useEffect`, event
+handlers, browser-only libraries.
+
+```tsx
+// web/components/LikeButton.tsx
+"use client";
+import { useState } from "react";
+
+export function LikeButton({ initial }: { initial: number }) {
+  const [likes, setLikes] = useState(initial);
+  return <button onClick={() => setLikes((n) => n + 1)}>♥ {likes}</button>;
+}
+```
+
+A server component can render a client component and pass it **serializable**
+props (strings, numbers, plain objects, arrays). It cannot pass functions or
+class instances across the boundary — those don't survive serialization into the
+Flight stream.
+
+```tsx
+// server component
+import { LikeButton } from "@/components/LikeButton";
+
+export default async function Post() {
+  const post = await Blog.getPost("hello");
+  return <LikeButton initial={post.likes} />;   // props must be serializable
+}
+```
+
+> [!NOTE]
+> Only server components run in the engine. Client components are hydrated in the
+> browser, so heavy interactive libraries never touch the server VM — keeping
+> render CPU on the server low.
+
+## `"use server"` actions from client components
+
+Client components can still invoke server logic through `"use server"` functions.
+Pola compiles them to references that POST back to the framework's action
+endpoint and execute in the engine — you write no handler and no fetch.
+
+```tsx
+"use client";
+import { Blog } from "@pola/actions";
+
+export function NewPostButton() {
+  async function create() {
+    await Blog.createPost("Hello", "World");   // executes Go on the server
+  }
+  return <button onClick={create}>Create</button>;
+}
+```
+
+See [Server Actions](/docs/server-actions) for the Go side of the bridge.
+
+## Streaming & Suspense
+
+The React renderer reports `streaming` and `rsc` capabilities. Suspense
+boundaries resolve concurrently and stream to the client as they complete, using
+Go's `http.Flusher`. Responses use the `text/x-component` content type (the RSC
+Flight protocol).
+
+Wrap a slow subtree in `<Suspense>` so the shell streams immediately and the slow
+part fills in when its data resolves:
+
+```tsx
+import { Suspense } from "react";
+
+export default function Dashboard() {
+  return (
+    <>
+      <Header />                         {/* streams right away */}
+      <Suspense fallback={<Spinner />}>
+        <RevenueChart />                 {/* async; streams when ready */}
+      </Suspense>
+    </>
+  );
+}
+```
+
+`loading.tsx` and `error.tsx` files provide segment-level Suspense fallbacks and
+error boundaries — see [Routing](/docs/routing).
+
+## Data fetching & per-render memoization
+
+When a layout and the page it wraps both need the same data, they will each call
+the Go function. Pola **memoizes Go bridge calls per render pass**: a bridge
+function invoked with identical arguments during a single request returns the
+cached result instead of re-executing — the same idea as Next.js's `fetch`
+memoization.
+
+```tsx
+// Both the layout and the page call Blog.getCurrentUser() — the Go method
+// runs once per request; the second call returns the memoized result.
+const user = await Blog.getCurrentUser();
+```
+
+This is automatic and scoped to one render; there is nothing to configure. It
+means you can fetch what a component needs where it needs it, without threading
+data down through props purely to avoid duplicate Go calls.
+
+> [!TIP]
+> Memoization keys on the call arguments. Two calls with *different* arguments
+> (e.g. `getPost("a")` vs `getPost("b")`) each execute — as you'd expect.
+
+## What runs where — at a glance
+
+| Concern | Runs in | Ships to browser |
+|---------|---------|------------------|
+| Server component | JS engine (server) | No |
+| `"use client"` component | Browser (hydrated) | Yes |
+| `"use server"` function | JS engine (server) | Reference only |
+| Go action / service | Go process | Never |
+
+<Cards>
+<Card title="Architecture" href="/docs/architecture">The request lifecycle and the embedded engine.</Card>
+<Card title="Server Actions" href="/docs/server-actions">The typed Go↔React bridge.</Card>
+<Card title="Routing" href="/docs/routing">Layouts, loading, and error boundaries.</Card>
+</Cards>

@@ -1,0 +1,123 @@
+---
+title: Caching
+description: Pluggable render and data caching via the core.Cache interface — in-memory LRU or Redis, configured in Polafile.hcl, with per-route revalidation and static prerender.
+---
+
+# Caching
+
+Pola caches rendered output and any data you choose behind a single interface,
+`core.Cache`. Pick a backend in `Polafile.hcl`, then resolve it from the DI
+registry wherever you need it. Route-level render caching is driven by two
+`Route` fields — `Revalidate` (a TTL) and `Static` (build-time prerender).
+
+## The `core.Cache` interface
+
+```go
+type Cache interface {
+    Name() string
+    Get(ctx context.Context, key string) ([]byte, bool, error)
+    Set(ctx context.Context, key string, val []byte, opts CacheOptions) error
+    Delete(ctx context.Context, key string) error
+    Invalidate(ctx context.Context, prefix string) error
+    Clear(ctx context.Context) error
+}
+
+type CacheOptions struct {
+    TTL time.Duration // zero means no expiry
+}
+```
+
+`Get` returns `(value, found, err)` — a miss is `(nil, false, nil)`, not an
+error. `Invalidate` drops every key sharing a prefix; `Clear` empties the cache.
+
+## Adapters
+
+| Adapter | Package | Backing | Status |
+|---|---|---|---|
+| `memory` | `cache/memory` | `hashicorp/golang-lru/v2` (default size 1024) | Fully implemented |
+| `redis` | `cache/redis` | `redis/go-redis` | **Stub** — every method returns `ErrNotImplemented` |
+
+> [!WARNING]
+> The `redis` adapter in `cache/redis` is currently a stub: `New(addr)` builds a
+> value but `Get`/`Set`/`Delete`/`Invalidate`/`Clear` all return
+> `redis.ErrNotImplemented`. Use `memory` until the Redis backend lands.
+
+The memory cache expires entries lazily on `Get` and evicts by LRU once full.
+
+## Configure in `Polafile.hcl`
+
+```hcl
+cache {
+  enabled = true
+  adapter = "memory"   # or "redis"
+
+  # redis connection fields (used when adapter = "redis")
+  host     = "127.0.0.1"
+  port     = "6379"
+  password = ""
+  db       = "0"
+
+  # optional per-environment override
+  env "production" {
+    adapter = "redis"
+    host    = "cache.internal"
+  }
+}
+```
+
+Fields map to `POLA_CACHE_ADAPTER`, `POLA_CACHE_HOST`, `POLA_CACHE_PORT`,
+`POLA_CACHE_PASSWORD`, `POLA_CACHE_DB`, and `POLA_CACHE_ENABLED`. When `adapter`
+is unset it defaults to `memory`. The selected adapter's `Plugin()` is wired
+into the app automatically at build time.
+
+## Resolve and use it
+
+```go
+cache := core.MustInvoke[core.Cache](r)
+
+key := "post:" + slug
+if body, ok, _ := cache.Get(ctx, key); ok {
+    return body, nil
+}
+
+body := renderPost(slug)
+_ = cache.Set(ctx, key, body, core.CacheOptions{TTL: 5 * time.Minute})
+return body, nil
+```
+
+## Route render caching
+
+Routes carry cache hints on the `Route` value:
+
+```go
+type Route struct {
+    Pattern    string
+    Export     string
+    Revalidate time.Duration // 0 = no caching, >0 = stale-while-revalidate
+    Static     bool          // true = pre-rendered at build time, skip VM render
+}
+```
+
+- `Revalidate > 0` caches the rendered Flight output for that TTL and serves
+  stale content while it revalidates.
+- `Static = true` prerenders the page at build time and skips the JS VM entirely
+  at request time — ideal for content that never changes per-request.
+
+## Invalidation
+
+When a blog post changes, drop just its cached renders by prefix rather than
+clearing everything:
+
+```go
+// Bust every key under "post:my-first-post"
+_ = cache.Invalidate(ctx, "post:"+slug)
+```
+
+> [!TIP]
+> Namespace keys with a stable prefix (`post:`, `user:42:`) so `Invalidate` can
+> target a whole entity's cached fragments in one call.
+
+<Cards>
+  <Card title="Configuration" href="/docs/configuration">The Polafile.hcl blocks and env-var overrides.</Card>
+  <Card title="Data Layer" href="/docs/data-layer">Models, repositories, and services you cache around.</Card>
+</Cards>

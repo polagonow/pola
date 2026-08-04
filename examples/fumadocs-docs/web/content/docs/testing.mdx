@@ -1,0 +1,125 @@
+---
+title: Testing
+description: The framework's build-tag E2E matrix and the vitest/Go test scaffolding generated for apps you build with Pola.
+---
+
+# Testing
+
+There are two testing stories in Pola: testing **the framework itself** (a
+build-tag matrix of engine × bundler × renderer combos) and testing **apps you
+build** with it (generated Go and TypeScript tests). This page covers both.
+
+## Testing the framework
+
+The framework's test suites are parameterized over runtime combos selected with
+Go **build tags**. The default set is `goja esbuild react nextjs`, overridable
+per-run via `POLA_VM` / `POLA_BUNDLER` / `POLA_RENDERER` (and `POLA_ROUTER`).
+
+Mage targets (`magefile.go`) wrap the tag plumbing:
+
+| Command | Runs |
+|---------|------|
+| `mage test` | Unit tests, `-race`, current combo. |
+| `mage teste2e` | E2E suites under `./test/...` (builds bundles; slow). |
+| `mage testall` | `test` + `teste2e`. |
+| `mage check` | Full gate: lint + vet + race tests. |
+
+Run a single test directly with the tags spelled out:
+
+```bash
+go test -tags "goja esbuild react nextjs" -run TestServerComponentRendering ./test/e2e/...
+```
+
+Swap a layer via env — Mage folds these into the tag string:
+
+```bash
+POLA_VM=v8 POLA_RENDERER=react mage teste2e
+```
+
+The E2E harness (`test/`) drives real HTTP requests against the rendered app.
+Fixtures iterate every registered combo automatically:
+
+| Helper | What it does |
+|--------|-------------|
+| `fixture.RSC(t, f, path)` | GET with `Content-Type: text/x-component`; fails on non-200. |
+| `fixture.Page(t, f, path)` | HTML GET; fails on non-200. |
+| `fixture.FlightTree(t, body)` | Parses the root `0:` Flight row as JSON. |
+| `fixture.ForEachApp` / `ForEachReactApp` | Iterate all combos / React-only combos. |
+
+New suites go under `test/e2e/suite/` — see the `add-e2e-test` skill.
+
+## Testing apps you build
+
+When you scaffold with `pola new`, test scaffolding is controlled by the
+`--test-framework` flag (`vitest`, `jest`, or `none`, default `vitest`) and by
+the `testing {}` block in `Polafile.hcl`:
+
+```hcl
+testing {
+  generate_tests = true
+  framework      = "vitest"
+}
+```
+
+### TypeScript tests (vitest)
+
+With vitest selected, `pola new` emits `vitest.config.ts` and `vitest.setup.ts`
+into the web app, and generators emit `*.test.ts` alongside the code they
+produce (e.g. `pola generate zod` writes a schema test):
+
+```ts
+import { describe, it, expect } from "vitest";
+import { invoiceSchema } from "./invoice";
+
+describe("invoiceSchema", () => {
+  it("parses a valid object", () => {
+    const result = invoiceSchema.safeParse({ amount: 149, customer: "acme-co" });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects wrong-typed input", () => {
+    const result = invoiceSchema.safeParse({ amount: "oops" });
+    expect(result.success).toBe(false);
+  });
+});
+```
+
+The generated config runs under `jsdom` with `@vitejs/plugin-react` and picks up
+`**/*.{test,spec}.{ts,tsx}`. Run it with your package manager:
+
+```bash
+pnpm test        # vitest
+```
+
+### Go tests
+
+Go-side generators (routes, repositories, services, mailers, MCP tools) emit
+`*_test.go` smoke tests. A generated route test verifies the handler serves
+without panicking:
+
+```go
+func TestRoute_GET_DoesNotPanic(t *testing.T) {
+    fw := std.New()
+    fw.Handle("GET", "/invoices", GET)
+    w := httptest.NewRecorder()
+    req := httptest.NewRequest("GET", "/invoices", nil)
+    fw.Handler().ServeHTTP(w, req)
+    _ = w.Result()
+}
+```
+
+Run app Go tests the ordinary way — but include the runtime build tags so the
+selected engine/bundler/renderer compile in:
+
+```bash
+go test -tags "goja esbuild react nextjs" ./...
+```
+
+> [!TIP]
+> Generated tests are intentionally smoke-level (they check "doesn't panic" /
+> "parses"). Treat them as a scaffold to extend once you fill in the bodies.
+
+<Cards>
+  <Card title="CLI" href="/docs/cli">pola new, generate, dev, build.</Card>
+  <Card title="Configuration" href="/docs/configuration">The Polafile.hcl reference.</Card>
+</Cards>

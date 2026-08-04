@@ -51,6 +51,9 @@ Like Next.js's App Router, components are **server-first**:
 > Because interactive UI runs in the browser and only server components run in the
 > engine, most heavy client libraries never touch the server VM at all.
 
+For the full model — `"use server"` actions, streaming with Suspense, and
+per-render Go-call memoization — see the [Rendering Model](/docs/rendering-model).
+
 ## The JavaScript engine
 
 The renderer runs inside a pooled JS engine, selectable per project:
@@ -79,3 +82,9 @@ resolve concurrently and stream to the client as they complete, using Go's
 
 The result is one executable — copy it to a server and run it. Cross-compiled
 targets automatically use the pure-Go `goja` engine and `CGO_ENABLED=0`.
+
+<Cards>
+<Card title="Rendering Model" href="/docs/rendering-model">Server vs client components, streaming, and memoization.</Card>
+<Card title="The Stack" href="/docs/stack">Every swappable layer and how to choose.</Card>
+<Card title="Deployment" href="/docs/deployment">Build and ship the single binary.</Card>
+</Cards>

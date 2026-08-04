@@ -1,0 +1,149 @@
+---
+title: Middleware
+description: The core.Middleware interface, built-in middleware packages, ordering, and writing a custom middleware plugin.
+---
+
+# Middleware
+
+Middleware wraps the HTTP handler chain around every request. Pola ships a
+package per concern under `middleware/`, and you register your own the same way
+the built-ins do — through a plugin that calls `reg.AddMiddleware`.
+
+## The `core.Middleware` interface
+
+Every middleware implements a two-method interface (`core/interfaces.go`):
+
+```go
+type Middleware interface {
+    Name() string
+    Wrap(next http.Handler) http.Handler
+}
+```
+
+`Wrap` receives the next handler and returns a handler that runs before/after it —
+the standard `http.Handler` decorator pattern. `Name` is used for logging and
+identification.
+
+## Built-in middleware
+
+Each package exposes `New(opts ...Option) core.Middleware` and a
+`Plugin(opts ...Option) core.Plugin` that registers it. Some are wired
+declaratively from `Polafile.hcl` blocks; the rest you enable by passing the
+plugin to `pola.Use(...)`.
+
+| Package | Purpose | Enabled via |
+|---------|---------|-------------|
+| `middleware/recovery` | Panic recovery + error logging; `New(logger)` | plugin |
+| `middleware/logging` | Structured request logging via `core.Logger`; `New(logger)` | plugin |
+| `middleware/compression` | Gzip/deflate response compression | plugin |
+| `middleware/cors` | CORS incl. preflight (`OPTIONS`) | plugin |
+| `middleware/securityheaders` | Security response headers (HSTS, etc.) | `security_headers {}` block or plugin |
+| `middleware/csrf` | CSRF token protection with exempt paths | `csrf {}` block or plugin |
+| `middleware/ratelimit` | Token-bucket rate limiting per client IP | plugin |
+| `middleware/session` | Cookie / server-side sessions (see [Sessions](/docs/sessions)) | `session {}` block or plugin |
+| `middleware/flash` | One-shot flash messages (see [Flash Messages](/docs/flash)) | plugin (needs session) |
+| `middleware/locale` | Resolves request locale into context | plugin |
+| `middleware/jwt` | Signed JWT-cookie session | `jwt {}` block or plugin |
+| `middleware/requireauth` | Redirects unauthenticated requests off protected paths | `protect {}` block or plugin |
+| `middleware/health` | Liveness (`/healthz`) + readiness (`/readyz`) endpoints | plugin |
+
+> [!NOTE]
+> `middleware/auth` is an empty placeholder package — there is no auth
+> middleware there. Authentication lives in `middleware/jwt` and
+> `middleware/requireauth`. See [Authentication](/docs/auth).
+
+## Polafile-driven middleware
+
+Several middleware are enabled from `Polafile.hcl` so you never touch Go wiring.
+The blocks Pola recognizes today:
+
+```hcl
+csrf {
+  enabled = true
+  exempt  = ["/webhooks/stripe"]   # paths that bypass CSRF (own signature auth)
+}
+
+security_headers {
+  enabled = true
+}
+
+session {
+  enabled = true
+  store   = "cookie"   # or "redis" / "xorm" — see /docs/sessions
+  max_age = "24h"
+}
+
+jwt {
+  enabled    = true
+  cookie     = "session"
+  expiry     = "24h"
+  secret_env = "AUTH_SECRET"
+}
+```
+
+> [!TIP]
+> CSRF and security headers resolve per-environment (`env "production" { … }`
+> nested blocks). CSRF defaults to **enabled** when the block is absent.
+
+## Ordering
+
+Middleware runs in **registration order** — `Registry.Middleware()` returns the
+slice exactly as appended by `AddMiddleware`. If you register
+`recovery → logging → compression`, requests flow
+`recovery → logging → compression → app` and responses unwind in reverse. Register
+`recovery` first so it can catch panics from everything downstream, and `session`
+before `flash` (flash reads/clears data the session middleware stores).
+
+## Writing a custom middleware
+
+A middleware is any type with `Name()` and `Wrap`. Register it from a plugin:
+
+```go
+package requestid
+
+import (
+    "context"
+    "crypto/rand"
+    "encoding/hex"
+    "net/http"
+
+    "github.com/polagonow/pola/core"
+)
+
+type mw struct{}
+
+func (mw) Name() string { return "request-id" }
+
+func (mw) Wrap(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        buf := make([]byte, 16)
+        _, _ = rand.Read(buf)
+        id := hex.EncodeToString(buf)
+        w.Header().Set("X-Request-ID", id)
+        ctx := context.WithValue(r.Context(), "request_id", id)
+        next.ServeHTTP(w, r.WithContext(ctx))
+    })
+}
+
+// Plugin registers the middleware into the app.
+func Plugin() core.Plugin {
+    return core.PluginFunc{
+        PluginName: "request-id",
+        Fn: func(r *core.Registry) {
+            r.AddMiddleware(mw{})
+        },
+    }
+}
+```
+
+Wire it up where you build the app:
+
+```go
+pola.Use(requestid.Plugin())
+```
+
+<Cards>
+  <Card title="Authentication" href="/docs/auth">JWT sessions and route protection.</Card>
+  <Card title="Sessions" href="/docs/sessions">Cookie and server-side session stores.</Card>
+  <Card title="Configuration" href="/docs/configuration">Polafile.hcl blocks and env overrides.</Card>
+</Cards>

@@ -1,0 +1,191 @@
+---
+title: Troubleshooting & Gotchas
+description: Non-obvious behavior, edge cases, and current limitations — with the cause and the fix for each.
+---
+
+# Troubleshooting & Gotchas
+
+The behavior below is real and intentional, but surprising if you haven't hit it
+yet. Each entry is symptom → cause → fix.
+
+## Cross-compiling ignores my `--vm`/`--cgo`
+
+**Symptom.** `pola build --platform linux/amd64 --vm v8` still produces a `goja`
+binary, and `--cgo=1` seems ignored.
+
+**Cause.** Cross-compilation to a non-host target forces `CGO_ENABLED=0` and the
+pure-Go `goja` engine, so no C toolchain is needed. The CLI prints a warning when
+it overrides your choice.
+
+**Fix.** Expected — ship `goja` for cross-built targets. To build a CGO engine
+(`v8`, some `quickjs`) you must compile **on** the target platform (or in a
+matching container) with the toolchain present.
+
+## A JS feature works in the browser but breaks server-side
+
+**Symptom.** A dependency throws in the render, or a syntax feature isn't
+recognized, only during SSR.
+
+**Cause.** The default engine `goja` is a pure-Go **ES2020** engine. Newer syntax
+and some browser/native APIs aren't available in the server VM; only server
+components run there.
+
+**Fix.** Keep bleeding-edge or browser-only code in `"use client"` components (it
+runs in the browser, never the VM). If a server dependency needs a modern
+runtime, switch the engine to `v8` (`engine = "v8"`), which is CGO but full-featured.
+See [Rendering Model](/docs/rendering-model).
+
+## Do I need Node.js in production?
+
+**Symptom.** Unsure whether the server needs `node`/`node_modules`.
+
+**Cause.** Node and your package manager are used **only** to install frontend
+packages and during `pola build`. The engine, server bundle, client assets, and
+(optionally) migrations are embedded in the Go binary.
+
+**Fix.** Deploy just the binary — a `FROM scratch` image works. See
+[Deployment](/docs/deployment).
+
+## Catch-all `params.slug` is sometimes a string, sometimes an array
+
+**Symptom.** `params.slug.map(...)` throws for some URLs.
+
+**Cause.** For an optional catch-all route (`app/docs/[[...slug]]/page.tsx`), Pola
+may deliver the param as an array (`["a", "b"]`) or as a `"a/b"` string.
+
+**Fix.** Normalize it before use:
+
+```tsx
+function toSlug(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw as string[];
+  if (typeof raw === "string" && raw.length > 0) return raw.split("/").filter(Boolean);
+  return [];
+}
+```
+
+## My API route's `GET` never runs
+
+**Symptom.** A `GET` handler in `routes/` is shadowed on a path that also has a
+page.
+
+**Cause.** When a `GET` matches a page route, the **page wins**. API routes handle
+other methods and non-page paths.
+
+**Fix.** Use a distinct path for the API (e.g. under `/api/...`), or handle the
+data with a [Server Action](/docs/server-actions) instead of a `GET` endpoint.
+See [Routing](/docs/routing).
+
+## JWT signing fails / tokens rejected
+
+**Symptom.** `Sign`/`IssueToken` returns an error, or JWT-cookie sessions don't
+work.
+
+**Cause.** Pola refuses to mint weak tokens: the secret must be **≥ 32 bytes** and
+the expiry strictly positive. The `jwt {}` block reads the key from `secret_env`
+(default env var `AUTH_SECRET`).
+
+**Fix.** Set a ≥ 32-byte `AUTH_SECRET` everywhere the app runs — dev, CI, and
+production. See [Authentication](/docs/auth).
+
+## Bound fields are empty and nothing is validated
+
+**Symptom.** `ShouldBindQuery`/`ShouldBind` leaves fields at their zero value and
+no 422 is returned for bad input.
+
+**Cause.** The `ShouldBind*` family binds **without** validating; missing fields
+stay zero-valued. Only the `Bind*` ("must") family writes a 400 on bind failure
+and a 422 on validation failure.
+
+**Fix.** Use `c.Bind(&v)` (and `BindQuery`/`BindForm`/…) when you want automatic
+validation, or call `validation.Validate(v)` yourself after a `ShouldBind*`. See
+[Validation](/docs/validation).
+
+## `core.MustInvoke` panics with "not found"
+
+**Symptom.** Resolving a service panics even though a plugin registered it.
+
+**Cause.** The DI registry resolves by **exact type**. Registering a value as its
+concrete type (`*MemoryCache`) and resolving it as an interface (`core.Cache`),
+or vice-versa, are different keys.
+
+**Fix.** Register and resolve with the same type — for swappable backends,
+register as the interface: `core.ProvideValue[core.Cache](r, New())`, resolve as
+`core.MustInvoke[core.Cache](r)`. Constructors are auto-wired only when named
+`New*` and taking a single `*core.Registry`.
+
+## Redis cache does nothing
+
+**Symptom.** With `cache { adapter = "redis" }`, every `Get` misses and `Set` has
+no effect.
+
+**Cause.** The `cache/redis` adapter is currently a **stub** — its methods return
+`ErrNotImplemented`.
+
+**Fix.** Use `adapter = "memory"` until the Redis backend lands. See
+[Caching](/docs/caching).
+
+## Sessions vanish after a restart or don't work across instances
+
+**Symptom.** Users are logged out when the server restarts or behind a load
+balancer.
+
+**Cause.** The default session store signs data with a **random per-process key**,
+so cookies don't validate against a different process.
+
+**Fix.** Configure a server-side store (`session { store = "redis" }`) or pass a
+fixed-key store via `session.WithStore(...)`. See [Sessions](/docs/sessions).
+
+## `.env` values aren't picked up
+
+**Symptom.** Variables in `.env` don't reach the app; `pola dev` only lists the
+files.
+
+**Cause.** Pola **detects and prints** `.env*` files but does not auto-load them
+into the process environment.
+
+**Fix.** Export them yourself — via your shell, `direnv`, a process manager, or
+your container runtime — before starting. See [Environment & Config](/docs/env-config).
+
+## A component/import in a docs `.mdx` page doesn't render
+
+**Symptom.** JSX beyond `<Cards>`/`<Card>` or an `import` in a docs page fails.
+
+**Cause.** The docs site's content pipeline is **Markdown + GFM**, not full MDX.
+Only the `Cards`/`Card` components and GitHub-alert callouts
+(`> [!NOTE]`/`[!TIP]`/`[!WARNING]`) are available; arbitrary JSX and ESM imports
+are not.
+
+**Fix.** Stick to Markdown, fenced code blocks, tables, callouts, and
+`Cards`/`Card`. (This applies to the `pola generate docs` site — application
+`.tsx` pages are full React.)
+
+## Only one renderer/bundler/router option
+
+**Symptom.** `--renderer`/`--bundler`/`--router` seem to accept just one value.
+
+**Cause.** Today the shipped defaults are `react`, `esbuild`, and `nextjs`; the
+JS **engine** is the layer with multiple production options (`goja`, `v8`,
+`quickjs`, `sobek`). Other renderers/bundlers are extension points, not shipped
+alternatives.
+
+**Fix.** Treat renderer/bundler/router as fixed for now; add one via the
+`add-renderer` / `add-bundler` / `add-web-framework` skills. See
+[Extending Pola](/docs/extending-pola).
+
+## pprof or the image optimizer is exposed to the internet
+
+**Symptom.** Profiling data or arbitrary URL fetching is reachable in production.
+
+**Cause.** `core.Pprof` leaks heap/goroutine/CPU profiles; the image processor
+will fetch any *public* host by default (private/reserved ranges are already
+blocked).
+
+**Fix.** Guard pprof (`POLA_PPROF_TOKEN` or `WithBasicAuth`) and set an image
+host allowlist (`imageprocessing.WithAllowedHosts`). See
+[Observability](/docs/observability) and [Image Processing](/docs/image-processing).
+
+<Cards>
+<Card title="Rendering Model" href="/docs/rendering-model">What runs on the server vs the browser.</Card>
+<Card title="Extending Pola" href="/docs/extending-pola">Plugins, subsystems, and build tags.</Card>
+<Card title="Go API Reference" href="/docs/go-api">The exact Go surface referenced above.</Card>
+</Cards>

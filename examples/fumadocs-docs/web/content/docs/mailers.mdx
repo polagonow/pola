@@ -1,0 +1,131 @@
+---
+title: Mailers
+description: ActionMailer-style email composition, React/Go templates, pluggable transports, and pola generate mailer.
+---
+
+# Mailers
+
+Pola's `mailer/` package is an ActionMailer-style system: a mailer is a Go struct that embeds `mailer.Base`, and each method composes a `*mailer.Message`. Rendering is delegated to an `EmailRenderer` (react.email in the JS engine, or Go `html/template`), and delivery to a pluggable `core.MailTransport`.
+
+## Defining a mailer
+
+Embed `mailer.Base` and take it via a constructor — the DI-registered `*mailer.BaseFactory` builds it for you:
+
+```go
+package mailers
+
+import "github.com/polagonow/pola/mailer"
+
+type UserMailer struct {
+	mailer.Base
+}
+
+func NewUserMailer(base mailer.Base) *UserMailer {
+	return &UserMailer{Base: base}
+}
+
+// Welcome composes (but does not send) the welcome email.
+func (m *UserMailer) Welcome(name, email string) *mailer.Message {
+	return m.Mail(
+		mailer.To(email),
+		mailer.Subject("Welcome to Acme"),
+		mailer.Template("user_mailer/welcome", map[string]any{
+			"name": name,
+		}),
+	)
+}
+```
+
+`Mail` merges the mailer's `Defaults` (from address, layout) with the options you pass, then returns the composed message.
+
+## Message options
+
+Each builder is a `mailer.MessageOption` (`func(*Message)`):
+
+| Option | Signature | Sets |
+|---|---|---|
+| `To` | `To(addrs ...string)` | recipient addresses |
+| `CC` | `CC(addrs ...string)` | CC addresses |
+| `BCC` | `BCC(addrs ...string)` | BCC addresses |
+| `From` | `From(addr string)` | overrides default sender |
+| `ReplyTo` | `ReplyTo(addr string)` | reply-to address |
+| `Subject` | `Subject(s string)` | subject line |
+| `Template` | `Template(name string, props map[string]any)` | template path + props |
+| `Layout` | `Layout(name string)` | layout name (`""` disables) |
+| `Header` | `Header(key, value string)` | a custom header |
+
+## Delivering
+
+`Deliver` renders the template to HTML + plain text, then sends the envelope through the transport:
+
+```go
+func SendWelcome(ctx context.Context, m *mailers.UserMailer) error {
+	msg := m.Welcome("Ada Lovelace", "ada@example.com")
+	return m.Deliver(ctx, msg)
+}
+```
+
+If both HTML and text are produced, the SMTP transport builds a `multipart/alternative` MIME body; otherwise it sends whichever part exists.
+
+## Templates & layouts
+
+The template name is a path relative to `app/mailers/` — `mailers/<name>_mailer/<action>` for templates, `mailers/layouts/<name>` for layouts (default layout is `"default"`). Props from `Template(...)` are passed straight to the component/template.
+
+With the **react** renderer, templates are `.tsx` react.email components bundled and executed in the JS engine:
+
+```tsx
+import { Text, Heading, Section } from "@react-email/components";
+
+interface WelcomeProps { name: string }
+
+export default function Welcome({ name }: WelcomeProps) {
+  return (
+    <Section>
+      <Heading>Welcome, {name}!</Heading>
+      <Text>Thanks for joining Acme.</Text>
+    </Section>
+  );
+}
+```
+
+With the **tmpl** renderer, templates are Go `.html.tmpl` / `.text.tmpl` files (`.text.tmpl` is optional). The layout renders `content` as a sub-template.
+
+## Transports
+
+Configured in the `mailer {}` Polafile block (env-overridable). Renderers/transports register via `Plugin()`.
+
+| Transport | Package | Notes |
+|---|---|---|
+| `log` | `mailer/transport/log` | Logs the email via `core.Logger`; no delivery. Default for dev. |
+| `smtp` | `mailer/transport/smtp` | Real SMTP. Reads `SMTP_HOST`/`SMTP_PORT`/`SMTP_USERNAME`/`SMTP_PASSWORD`; `TLS` via config. |
+
+> [!NOTE]
+> Only `log` and `smtp` ship today. Hosted providers (SES, SendGrid, Resend, …) are added by implementing `core.MailTransport` — see the `add-mailer-transport` skill.
+
+```hcl
+mailer {
+  renderer  = "react"     # or "tmpl"
+  transport = "smtp"
+  from      = "noreply@acme.com"
+  host      = "smtp.acme.com"
+  port      = "587"
+  tls       = "true"
+
+  env "development" {
+    transport = "log"
+  }
+}
+```
+
+## pola generate mailer
+
+```bash
+pola generate mailer User welcome reset_password
+```
+
+Each action becomes a method plus a template. This creates `mailers/user_mailer.go`, templates under `app/mailers/user_mailer/`, the shared `default` layout, adds a `mailer {}` block (transport `log`) if missing, and — for the react renderer — installs `@react-email/components` and `@react-email/render`.
+
+<Cards>
+  <Card title="Configuration" href="/docs/configuration">Polafile.hcl blocks and env overrides.</Card>
+  <Card title="Data Layer" href="/docs/data-layer">Models, repositories, and services.</Card>
+</Cards>

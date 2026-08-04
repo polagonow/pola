@@ -1,19 +1,143 @@
 ---
-title: Auth & Middleware
-description: JWT sessions, password hashing, authorization, and the built-in middleware stack.
+title: Authentication
+description: Password hashing, JWT signing, API authenticators, route protection, and role-based authorization.
 ---
 
-# Auth & Middleware
+# Authentication
 
-## Authentication
+Pola ships composable auth primitives under `auth/`. You verify a credential,
+load the current user, and expose it to your handlers — or let the framework wire
+JWT-cookie sessions declaratively from `Polafile.hcl`.
 
-Pola ships auth utilities under `auth/`:
+| Package | Purpose |
+|---------|---------|
+| `auth/password` | Hash and verify passwords (bcrypt). |
+| `auth/jwt` | Sign and verify HS256 JWTs. |
+| `auth` | `Authenticator` strategies + `Middleware` for API auth. |
+| `auth/authz` | Role/permission checks and a `Policy` builder. |
 
-- **`auth/jwt`** — sign/verify JWTs.
-- **`auth/password`** — hash and verify passwords.
-- **`auth/authz`** — authorization helpers.
+## Hashing passwords
 
-JWT-cookie sessions are configured declaratively in `Polafile.hcl`:
+`auth/password` wraps bcrypt. Hash on signup, verify on login:
+
+```go
+import "github.com/polagonow/pola/auth/password"
+
+hash, err := password.Hash("s3cr3t")          // store hash on the user record
+ok, err := password.Verify("s3cr3t", hash)    // true when it matches
+```
+
+`password.HashWithCost(pw, cost)` overrides the bcrypt cost factor.
+
+## Signing tokens
+
+`auth/jwt` signs and verifies HS256 tokens. `Sign` **refuses to issue weak
+tokens** — it errors when the secret is shorter than 32 bytes or the expiry is
+not strictly positive, so Pola never mints a non-expiring or weakly-signed token.
+
+```go
+import authjwt "github.com/polagonow/pola/auth/jwt"
+
+token, err := authjwt.Sign(map[string]any{"sub": user.ID}, secret, 24*time.Hour)
+claims, err := authjwt.Verify(token, secret)   // map[string]any, or error
+```
+
+For a login handler, `auth.IssueToken` is a convenience over `Sign` that sets the
+`sub` claim and merges any extra claims:
+
+```go
+token, err := auth.IssueToken(user.Email, secret, 24*time.Hour, map[string]any{
+    "role": user.Role,
+})
+```
+
+## Protecting API routes
+
+The `auth` package authenticates *API* requests: an `Authenticator` extracts and
+validates a credential and returns the user; `auth.Middleware` runs it and injects
+the user into the request context; `auth.UserFromContext` reads it back.
+
+Provide a `UserService[T]` that loads a user by username (email, subject claim, …):
+
+```go
+// T is your user model; FindByUsername is the only method auth needs.
+type UserService[T any] interface {
+    FindByUsername(ctx context.Context, username string) (*T, error)
+}
+```
+
+Wire the built-in `JWTAuthenticator` (validates `Authorization: Bearer <jwt>`)
+into the middleware chain:
+
+```go
+func Plugin() core.Plugin {
+    return core.PluginFunc{
+        PluginName: "api-auth",
+        Fn: func(r *core.Registry) {
+            users := core.MustInvoke[repositories.UserRepository](r)
+            authn := &auth.JWTAuthenticator[models.User]{
+                Users:  users,          // implements UserService[models.User]
+                Secret: []byte(os.Getenv("AUTH_SECRET")),
+            }
+            r.AddMiddleware(auth.Middleware(authn))
+        },
+    }
+}
+```
+
+Read the authenticated user in a handler — it's `nil, false` when unauthenticated:
+
+```go
+func (c *Controller) Me(ctx core.Context) error {
+    u, ok := auth.UserFromContext[models.User](ctx.Ctx())
+    if !ok {
+        return ctx.NoContent(http.StatusUnauthorized)
+    }
+    return ctx.JSON(http.StatusOK, u)
+}
+```
+
+By default `auth.Middleware` writes `401 {"error":"unauthorized"}` on failure.
+`auth.WithOptional()` lets unauthenticated requests through (no user in context);
+`auth.WithUnauthorized(fn)` customizes the rejection. `BasicAuthenticator[T]`
+handles HTTP Basic instead of Bearer.
+
+### A complete login handler
+
+```go
+func Login(c core.Context) error {
+    var in struct {
+        Email    string `json:"email"    validate:"required,email"`
+        Password string `json:"password" validate:"required"`
+    }
+    if err := c.Bind(&in); err != nil {
+        return err // 400/422 already written
+    }
+    user, err := users.FindByUsername(c.Ctx(), in.Email)
+    if err != nil {
+        return c.JSON(http.StatusUnauthorized, core.M{"error": "invalid credentials"})
+    }
+    if ok, _ := password.Verify(in.Password, user.PasswordHash); !ok {
+        return c.JSON(http.StatusUnauthorized, core.M{"error": "invalid credentials"})
+    }
+    token, err := auth.IssueToken(user.Email, secret, 24*time.Hour, nil)
+    if err != nil {
+        return c.JSON(http.StatusInternalServerError, core.M{"error": "token error"})
+    }
+    return c.JSON(http.StatusOK, core.M{"token": token})
+}
+```
+
+> [!NOTE]
+> Return the same opaque `invalid credentials` for both "no such user" and "wrong
+> password" so an attacker can't tell them apart — the `auth` package's
+> `ErrNoCredentials`/`ErrInvalidCredentials` sentinels exist for the same reason.
+
+## JWT-cookie sessions (declarative)
+
+For a browser app, skip the wiring: configure JWT-cookie sessions in
+`Polafile.hcl` and Pola registers the `middleware/jwt` middleware (HS256, keyed
+off the named env var), storing the token in a cookie.
 
 ```hcl
 jwt {
@@ -23,49 +147,47 @@ jwt {
 }
 ```
 
-This wires the JWT session middleware (HS256, keyed off `AUTH_SECRET`), storing
-the token in the `session` cookie.
+> [!WARNING]
+> `AUTH_SECRET` must be set (≥ 32 bytes) wherever the app runs, including
+> production. A missing or short secret makes token signing fail.
 
-## Middleware
+To gate whole sections of a **page** app (redirect anonymous visitors to a sign-in
+screen rather than answering 401), use `middleware/requireauth` — that's the page
+counterpart to the API-oriented `auth.Middleware`.
 
-Middleware is composed from plugins and works unchanged across every HTTP
-framework (`std`, `gin`, `echo`, `chi`). Built-in middleware includes:
+## Authorization (roles & permissions)
 
-| Plugin | Purpose |
-|--------|---------|
-| `jwt` | JWT-cookie sessions |
-| `csrf` | CSRF protection (with path exemptions) |
-| `recovery` | Panic recovery |
-| `logging` | Structured request logging |
-| `compression` | gzip/deflate responses |
-| `securityheaders` | CSP and other security headers |
-| `requireauth` | Per-route auth requirements |
-| `ratelimit` | Rate limiting by IP/user |
-| `session` | Redis/Memcached session store |
-| `flash` | Flash messages |
-| `locale` | Internationalization |
-
-Enable/adjust several from the Polafile:
-
-```hcl
-csrf {
-  exempt = ["/api/stripe/webhook"]   # bypass CSRF for signed webhooks
-}
-
-security_headers {}
-```
-
-Register a custom middleware plugin in your app's `plugins.go`:
+`auth/authz` checks roles on any subject that exposes them (a `Roles []string`
+field or a `Roles()` method):
 
 ```go
-func init() {
-    pola.Use(core.PluginFunc{
-        PluginName: "auth-guard",
-        Fn: func(reg *core.Registry) { reg.AddMiddleware(authGuard{}) },
-    })
+import "github.com/polagonow/pola/auth/authz"
+
+if !authz.HasRole(user, "admin") {
+    return c.NoContent(http.StatusForbidden)
+}
+authz.HasAny(user, "editor", "admin")   // any of
+authz.HasAll(user, "billing", "admin")  // all of
+```
+
+For permission-based checks, build a `Policy` mapping roles to permissions:
+
+```go
+policy := authz.NewPolicy().
+    Grant("admin", "posts.write", "posts.delete").
+    Grant("editor", "posts.write")
+
+if err := policy.Require(user, "posts.delete"); err != nil {
+    return c.NoContent(http.StatusForbidden)
 }
 ```
 
 > [!TIP]
 > The `examples/saas-starter` app demonstrates JWT sessions, CSRF exemptions, and
 > a full auth flow end to end.
+
+<Cards>
+<Card title="Middleware" href="/docs/middleware">The chain auth plugs into, and how to write your own.</Card>
+<Card title="Sessions" href="/docs/sessions">Cookie and server-side session stores.</Card>
+<Card title="Server Actions" href="/docs/server-actions">Read the current user inside a server component.</Card>
+</Cards>

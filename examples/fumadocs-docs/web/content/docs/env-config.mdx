@@ -1,0 +1,106 @@
+---
+title: Environment & Config
+description: .env file detection, reading env vars in Go, and the runtime POLA_* variables that control address, port, mode, and assets.
+---
+
+# Environment & Config
+
+Pola reads its runtime configuration from `POLA_*` environment variables at
+startup, falling back to defaults baked in from `Polafile.hcl` at build time.
+This page covers **runtime/app** config. For build-time stack selection
+(`POLA_VM`, `POLA_BUNDLER`, `POLA_RENDERER`) see [The Stack](/docs/stack) and the
+[CLI](/docs/cli).
+
+## Runtime `POLA_*` variables
+
+Parsed by `core/env` into an `Env` struct:
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `POLA_ADDRESS` | `""` | Host to bind (empty = all interfaces). |
+| `PORT` | `3000` | Listen port. |
+| `POLA_ENV` | `production` | `development` enables dev mode (`IsDev()`). |
+| `POLA_WEBAPP_PATH` | `./web` | Root of the `.tsx` app. |
+| `POLA_PUBLIC_DIR` | `""` | Static assets directory. |
+| `POLA_EMBED` | `true` | Embed assets into the binary. |
+| `POLA_METRICS` / `POLA_TRACING` / `POLA_PPROF` | `false` | Toggle observability. |
+| `POLA_BUILD_ONLY` | `false` | Bundle assets, then exit (used by `pola build`). |
+| `POLA_SEED_ONLY` | `false` | Run DB seeders, then exit (used by `pola db seed`). |
+
+`pola.Addr()` composes the listen address from `POLA_ADDRESS` + `PORT`:
+
+```go
+func main() {
+    if err := pola.Ready(); err != nil {
+        log.Fatal(err)
+    }
+    log.Fatal(http.ListenAndServe(pola.Addr(), nil)) // e.g. ":3000"
+}
+```
+
+> [!NOTE]
+> `pola.Ready()` builds the app eagerly (bundling assets) so the first request
+> isn't slow. Under `POLA_BUILD_ONLY=true` it bundles and exits without serving —
+> that's how `pola build` produces artifacts.
+
+## `.env` files
+
+`pola dev` **detects** these files in your project root and prints them in the
+startup banner (precedence order, most specific last):
+
+```text
+.env
+.env.local
+.env.development
+.env.development.local
+```
+
+```text
+  Pola 1.x
+
+  - Local:        http://localhost:3000
+  - Environments: .env, .env.local
+```
+
+> [!WARNING]
+> Detection is not automatic loading. Pola lists the files it found; export the
+> variables into the process yourself (your shell, `direnv`, a process manager,
+> or your container runtime) before starting the server. Values not present in
+> the environment fall back to the built-in defaults.
+
+## Reading env vars in Go
+
+The `env` package (`github.com/polagonow/pola/env`) provides typed readers with
+fallbacks for use in plugin and app code:
+
+```go
+import "github.com/polagonow/pola/env"
+
+addr    := env.String("PAYMENTS_URL", "https://api.local")
+maxConn := env.Int("DB_MAX_CONNS", 10)
+debug   := env.Bool("VERBOSE", false)  // "true" or "1" → true
+rate    := env.Float64("SAMPLE_RATE", 0.1)
+```
+
+A `.env` you keep alongside the app:
+
+```text
+POLA_ENV=development
+PORT=8080
+PAYMENTS_URL=https://payments.staging.example.com
+DB_MAX_CONNS=25
+```
+
+## Development mode
+
+`POLA_ENV=development` flips the app into dev mode. `pola dev` sets this for you
+and enables hot reload; in production leave it at the default.
+
+```bash
+POLA_ENV=development PORT=8080 go run .
+```
+
+<Cards>
+  <Card title="Configuration" href="/docs/configuration">The Polafile.hcl reference.</Card>
+  <Card title="Deployment" href="/docs/deployment">Operating the built binary.</Card>
+</Cards>
