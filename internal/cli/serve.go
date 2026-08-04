@@ -302,16 +302,12 @@ func outboundIP() string {
 	return ""
 }
 
-// detectEnvFiles checks for common .env files in the project directory.
+// detectEnvFiles checks for common .env files in the project directory. The
+// candidate list and order mirror loadDotenv (see dotenv.go) so the banner
+// reflects exactly which files were loaded and in what precedence.
 func detectEnvFiles(projectDir string) []string {
-	candidates := []string{
-		".env",
-		".env.local",
-		".env.development",
-		".env.development.local",
-	}
 	var found []string
-	for _, name := range candidates {
+	for _, name := range envFileCandidates {
 		if _, err := os.Stat(filepath.Join(projectDir, name)); err == nil {
 			found = append(found, name)
 		}
