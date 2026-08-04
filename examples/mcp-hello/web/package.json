@@ -11,5 +11,10 @@
     "@types/react-dom": "^19.2.3",
     "tailwindcss": "^4.2.2",
     "@tailwindcss/cli": "^4.2.2"
+  },
+  "pnpm": {
+    "overrides": {
+      "fast-uri": "3.1.5"
+    }
   }
 }
