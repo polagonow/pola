@@ -1,0 +1,89 @@
+---
+title: Internationalization
+description: Translation catalogs, request-locale resolution middleware, and the i18n.T context helper.
+---
+
+# Internationalization
+
+Pola's `i18n/` package loads per-locale translation catalogs into a `Bundle` (which implements `core.Translator`) and exposes a context-aware `i18n.T` helper. The `middleware/locale` package resolves the request locale and stashes it on the request context.
+
+## Locale files
+
+A catalog is a flat map of key → message. Files live in a directory (default `locales/`) and may be `.json`, `.yaml`, or `.yml`; the filename without extension is the locale (`en.json` → `en`).
+
+```json
+{
+  "greeting": "Hello, %s!",
+  "farewell": "Goodbye, %s!",
+  "welcome": "Welcome to Acme"
+}
+```
+
+Two interpolation styles are supported by `T`:
+
+- **Positional** — `"Hello, %s!"` with string args, passed to `fmt.Sprintf`.
+- **Named** — `"Hello, {name}!"` when the first arg is a `map[string]any`.
+
+```go
+b.T("en", "greeting", "Ada")                          // "Hello, Ada!"
+b.T("en", "welcome", map[string]any{"name": "Ada"})   // named {name}
+```
+
+Lookup falls back to the default locale, then returns the key itself if still missing.
+
+## Configuration
+
+Enabling i18n via the `i18n {}` Polafile block wires **both** the `Bundle` (as `core.Translator`) and the `locale` middleware automatically:
+
+```hcl
+i18n {
+  enabled        = true
+  default_locale = "en"
+  directory      = "locales"
+}
+```
+
+Locale files are embedded into the binary at build time, so there is no runtime filesystem dependency. The plugin also sets a package-level default bundle so `i18n.T(ctx, …)` works without touching the DI container.
+
+## The locale middleware
+
+`middleware/locale` resolves the locale per request and stores it under `core.LocaleContextKey`. Detection order:
+
+| Source | Example | Wins when |
+|---|---|---|
+| `?lang=` query param | `/greet?lang=fr` | present |
+| `Accept-Language` header | `Accept-Language: fr-FR,fr;q=0.9` | no `lang` param |
+| default locale | `en` | neither present |
+
+Wire it explicitly (outside the `i18n {}` block) with:
+
+```go
+r.AddMiddleware(locale.New(locale.WithDefaultLocale("en")))
+```
+
+> [!NOTE]
+> `Accept-Language` is parsed loosely — the first tag (e.g. `fr-FR`) is used verbatim as the locale, not negotiated against your catalog set. Name your catalog files to match the tags you expect.
+
+## Reading translations
+
+From a handler, resolve the locale and translate with the context helpers:
+
+```go
+func (r *Route) GET(c core.Context) error {
+	name := c.Query("name")
+	return c.JSON(http.StatusOK, core.M{
+		"locale":   i18n.Locale(c.Ctx()),
+		"greeting": i18n.T(c.Ctx(), "greeting", name),
+	})
+}
+```
+
+`i18n.Locale(ctx)` returns the middleware-set locale (`"en"` if unset). `i18n.T(ctx, key, args...)` reads that locale from the context and translates against the default bundle. From a `.tsx` server component, call a Go action or route that returns translated strings across the bridge.
+
+> [!TIP]
+> Call `Locales()` on the bundle to enumerate loaded locales (sorted) — useful for building a language switcher.
+
+<Cards>
+  <Card title="Middleware" href="/docs/middleware">The request middleware stack.</Card>
+  <Card title="Rendering Model" href="/docs/rendering-model">How server components render and call Go.</Card>
+</Cards>

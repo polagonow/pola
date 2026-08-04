@@ -1,0 +1,123 @@
+---
+title: Sessions
+description: Enabling the session middleware, reading and writing session data, cookie vs server-side stores, and session regeneration.
+---
+
+# Sessions
+
+The `middleware/session` package provides cookie-backed and server-side sessions
+built on [gorilla/sessions](https://github.com/gorilla/sessions). It stores a
+session per request in context and persists it automatically before the response
+body is flushed.
+
+## Enabling sessions
+
+Declaratively via `Polafile.hcl`:
+
+```hcl
+session {
+  enabled = true
+  store   = "cookie"   # "cookie" (default), "redis", or "xorm"
+  max_age = "24h"
+}
+```
+
+Or register the plugin directly:
+
+```go
+import "github.com/polagonow/pola/middleware/session"
+
+pola.Use(session.Plugin())
+```
+
+`session.New(opts ...Option)` defaults to a **signed cookie store** with a random
+32-byte key, cookie name `_pola_session`, `MaxAge` 86400s, `Secure` and
+`HttpOnly` true, `SameSite=Lax`. Override with options:
+
+```go
+session.New(
+    session.WithCookieName("_myapp"),
+    session.WithMaxAge(3600),
+    session.WithSecure(true),
+    session.WithStore(myStore),   // any gorilla/sessions.Store
+)
+```
+
+> [!WARNING]
+> The default cookie store generates a **random signing key per process**, so
+> sessions do not survive a restart or scale across instances. For production,
+> pass a fixed-key store via `WithStore`.
+
+## Reading and writing session data
+
+The package exposes context-based helpers — call them from any handler using
+`c.Ctx()`:
+
+| Function | Behavior |
+|----------|----------|
+| `session.Get(ctx) map[string]any` | Copy of all session values |
+| `session.Set(ctx, key, value)` | Store a value |
+| `session.Delete(ctx, key)` | Remove one key |
+| `session.Clear(ctx)` | Remove all values |
+| `session.Regenerate(ctx)` | Rotate the session ID, carrying values over |
+
+Changes are persisted automatically: the middleware wraps the `ResponseWriter` so
+the session is saved on the first `Write`/`WriteHeader`, and again at the end of
+the request.
+
+```go
+func Login(c core.Context) error {
+    var in LoginInput
+    if err := c.Bind(&in); err != nil {
+        return err
+    }
+    user, err := users.Authenticate(c.Ctx(), in.Email, in.Password)
+    if err != nil {
+        return c.JSON(http.StatusUnauthorized, core.M{"error": "invalid credentials"})
+    }
+    session.Regenerate(c.Ctx())            // prevent session fixation
+    session.Set(c.Ctx(), "user_id", user.ID)
+    return c.Redirect(http.StatusSeeOther, "/dashboard")
+}
+
+func Logout(c core.Context) error {
+    session.Clear(c.Ctx())
+    return c.Redirect(http.StatusSeeOther, "/")
+}
+```
+
+> [!TIP]
+> Always call `session.Regenerate` on any privilege change — most importantly
+> right after a successful login — to discard any session ID an attacker may have
+> planted. With server-side stores it also deletes the old record.
+
+## Cookie vs server-side stores
+
+The default cookie store keeps all session data (signed) in the client cookie.
+For server-side storage, Pola ships two stores under `session/`, each exposing
+`NewStore`:
+
+| Store | Constructor | Backing |
+|-------|-------------|---------|
+| `session/redis` | `redis.NewStore(opts...)` | Redis |
+| `session/xorm` | `xorm.NewStore(keyPairs, opts...)` | SQL via xorm |
+
+```go
+store, err := redis.NewStore( /* opts */ )
+if err != nil {
+    log.Fatal(err)
+}
+pola.Use(session.Plugin( /* … */ ))
+// or build the middleware directly:
+session.New(session.WithStore(store))
+```
+
+When `store = "redis"` / `"xorm"` in the `session {}` block, the framework wires
+the matching store using the block's `host`/`port`/`password`/`db`/`dsn` fields
+(and their `POLA_SESSION_*` env overrides). `max_age` accepts a duration string
+like `"24h"`.
+
+<Cards>
+  <Card title="Flash Messages" href="/docs/flash">One-shot messages built on sessions.</Card>
+  <Card title="Authentication" href="/docs/auth">JWT sessions and route protection.</Card>
+</Cards>

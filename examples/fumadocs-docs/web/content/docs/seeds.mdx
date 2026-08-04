@@ -1,0 +1,119 @@
+---
+title: Database Seeds
+description: Rails-style database seeding — scaffold db/seeds/seeds.go, resolve repositories from the DI registry, and run idempotent seeders with pola db seed.
+---
+
+# Database Seeds
+
+Pola seeds the database from a single `Seed` function that runs with the full DI
+registry, so it can resolve repositories and services just like your app does.
+Seeding is Rails-style: a `db/seeds` package, one entry point, run on demand.
+
+## Scaffold
+
+```bash
+pola generate seed
+```
+
+This creates `db/seeds/seeds.go` with the required entry point:
+
+```go
+// Package seeds populates the database with initial data.
+//
+// Run it with:  pola db seed
+package seeds
+
+import (
+    "context"
+
+    "github.com/polagonow/pola/core"
+)
+
+func Seed(ctx context.Context, r *core.Registry) error {
+    _ = ctx
+    _ = r
+    return nil
+}
+```
+
+The signature is the contract — the framework wires it up automatically:
+
+```go
+func Seed(ctx context.Context, r *core.Registry) error
+```
+
+## Run
+
+```bash
+pola db seed
+```
+
+This builds the app and runs the seeders. Under the hood, `pola db seed` runs
+the binary with `POLA_SEED_ONLY=true`, which makes `pola.Ready()` invoke the
+registered seeders (with the DI registry available) and exit instead of serving
+HTTP.
+
+> [!NOTE]
+> The CLI generates a `pola_seed.go` overlay that calls `seed.Register` from an
+> `init()` when a `db/seeds` package is present, so your `Seed` function is
+> discovered without manual wiring. Seeders run in registration order and stop
+> at the first error.
+
+## A real seeder
+
+Resolve repositories with `core.MustInvoke` and guard inserts so re-running is
+idempotent (adapted from the SaaS-starter example):
+
+```go
+func Seed(ctx context.Context, r *core.Registry) error {
+    users := core.MustInvoke[repositories.UserRepository](r)
+    teams := core.MustInvoke[repositories.TeamRepository](r)
+
+    const email = "test@test.com"
+    if _, err := users.GetByEmail(ctx, email); err == nil {
+        fmt.Println("Seed: test user already exists — skipping.")
+        return nil
+    }
+
+    hash, err := password.Hash("admin123")
+    if err != nil {
+        return err
+    }
+    user := &models.User{Name: "Test User", Email: email, PasswordHash: hash, Role: "owner"}
+    if err := users.Create(ctx, user); err != nil {
+        return err
+    }
+
+    team := &models.Team{Name: "Test Team"}
+    if err := teams.Create(ctx, team); err != nil {
+        return err
+    }
+    fmt.Printf("Seed: created user %s and team %q.\n", email, team.Name)
+    return nil
+}
+```
+
+## Factories for bulk data
+
+For fixtures or large datasets, the `seed` package ships a generic factory that
+generates and persists records via a repository's `Create`:
+
+```go
+userFactory := seed.NewFactory(func() *models.User {
+    return &models.User{Name: faker.Name(), Email: faker.Email()}
+})
+
+// Generate 50 users, pin them to a team, and persist each.
+_, err := userFactory.
+    Override(func(u *models.User) { u.TeamID = team.ID }).
+    Save(ctx, users.Create, 50)
+```
+
+`Generate(n)` returns records without persisting; `Save(ctx, create, n)`
+persists each and stops at the first error. The faker is your choice — the
+factory stays dependency-free by taking a generator function.
+
+<Cards>
+  <Card title="Migrations" href="/docs/migrations">Create the schema your seeds populate.</Card>
+  <Card title="Data Layer" href="/docs/data-layer">The repositories seeders resolve from the registry.</Card>
+</Cards>

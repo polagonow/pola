@@ -1,0 +1,88 @@
+---
+title: Flash Messages
+description: One-shot messages that survive exactly one redirect, built on the session middleware.
+---
+
+# Flash Messages
+
+Flash messages are transient notices — "Post created", "Invalid password" — that
+you set before a redirect and read exactly once on the next request. Pola's
+`flash` package stores them in the session and clears them on read, so they never
+outlive a single redirect.
+
+## How it works
+
+Flashes live under the `_flash` key of the session as a `map[string]string`
+(category → message). Two layers cooperate:
+
+- **`flash.Set(ctx, category, message)`** writes into the session (`flash/flash.go`).
+- The **flash middleware** (`middleware/flash`), on each request, reads `_flash`
+  out of the session, **deletes it**, and stashes the map in request context
+  under `core.FlashContextKey`. Your handler then reads it with `flash.Get(ctx)`.
+
+Because the middleware deletes the entry as it moves it into context, a flash set
+before a redirect is delivered on the following request and gone thereafter.
+
+> [!NOTE]
+> The flash middleware depends on the session middleware — register `session`
+> **before** `flash`. Enable it with `flash.Plugin()`:
+> ```go
+> pola.Use(session.Plugin())
+> pola.Use(flash.Plugin())
+> ```
+
+## The API
+
+| Function | Location | Behavior |
+|----------|----------|----------|
+| `flash.Set(ctx, category, message)` | `flash` | Store a message under a category in the session |
+| `flash.Get(ctx) map[string]string` | `flash` | Read the flashes stashed by the middleware for this request |
+
+> [!TIP]
+> `flash` is distinct from gorilla's built-in flash API, which is also exposed as
+> `session.AddFlash(ctx, value, vars...)` / `session.Flashes(ctx, vars...)` for
+> `[]any` messages. The `flash` package's category→string map is the idiomatic
+> choice for UI notices.
+
+## Post-redirect-get pattern
+
+Set a flash, redirect, then read it after the redirect:
+
+```go
+func CreatePost(c core.Context) error {
+    var in CreatePostInput
+    if err := c.Bind(&in); err != nil {
+        flash.Set(c.Ctx(), "error", "Please fix the errors and try again.")
+        return c.Redirect(http.StatusSeeOther, "/posts/new")
+    }
+    post, err := posts.Create(c.Ctx(), in)
+    if err != nil {
+        flash.Set(c.Ctx(), "error", err.Error())
+        return c.Redirect(http.StatusSeeOther, "/posts/new")
+    }
+    flash.Set(c.Ctx(), "success", "Post published.")
+    return c.Redirect(http.StatusSeeOther, "/posts/"+post.Slug)
+}
+```
+
+Read the flashes on the destination request — in a handler or when passing props
+to a server component:
+
+```go
+func ShowPost(c core.Context) error {
+    flashes := flash.Get(c.Ctx()) // e.g. {"success": "Post published."}
+    return c.JSON(http.StatusOK, core.M{
+        "post":    post,
+        "flashes": flashes, // consumed — absent on the next request
+    })
+}
+```
+
+The returned map is nil when there are no flashes. Since the middleware already
+cleared the session entry, reading is non-destructive within the request but the
+message will not reappear on any later request.
+
+<Cards>
+  <Card title="Sessions" href="/docs/sessions">The session store flashes are built on.</Card>
+  <Card title="Middleware" href="/docs/middleware">Ordering and the middleware chain.</Card>
+</Cards>

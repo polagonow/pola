@@ -1,0 +1,119 @@
+---
+title: Logging
+description: Structured key/value logging through the core.Logger interface — the slog default, the noop backend, and how components receive a logger.
+---
+
+# Logging
+
+Every framework component logs through one interface: `core.Logger`. The concrete
+backend is a plugin, resolved from the DI registry, so swapping `slog` for `noop`
+(or your own logger) never touches call sites.
+
+## The `core.Logger` interface
+
+Defined in `core/interfaces.go`:
+
+```go
+type Logger interface {
+    Info(msg string, args ...any)
+    Error(msg string, args ...any)
+    Debug(msg string, args ...any)
+    Warn(msg string, args ...any)
+    With(args ...any) Logger // returns a logger carrying extra key/value context
+}
+```
+
+`args` are alternating key/value pairs, exactly like `log/slog`. `With` returns a
+new `Logger` that prepends those fields to every subsequent record.
+
+## Structured fields
+
+```go
+log.Info("order placed", "orderID", 4821, "customer", "acme-co", "total", 149.00)
+log.With("service", "checkout").Warn("retrying charge", "attempt", 2)
+```
+
+## Backends
+
+| Package | Notes |
+|---------|-------|
+| `logger/slog` | **Default.** Wraps `log/slog`; `New()` uses `slog.Default()`. |
+| `logger/noop` | Discards all output — useful in tests and benchmarks. |
+
+The `slog` backend also exposes `NewWith(*slog.Logger)` so you can inject a
+pre-configured handler (JSON output, custom level, etc.):
+
+```go
+import (
+    "log/slog"
+    "os"
+
+    sloglog "github.com/polagonow/pola/logger/slog"
+)
+
+h := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug})
+logger := sloglog.NewWith(slog.New(h))
+```
+
+## Selecting the backend
+
+Each backend ships a `Plugin()` that registers itself as `core.Logger`:
+
+```go
+// logger/slog/plugin.go
+func Plugin() core.Plugin {
+    return core.PluginFunc{
+        PluginName: "slog",
+        Fn: func(r *core.Registry) { core.ProvideValue[core.Logger](r, New()) },
+    }
+}
+```
+
+Wire the one you want alongside your other plugins (via generated
+`pola_plugins.go` or an explicit `pola.Use(...)`). See
+[Extending Pola](/docs/extending-pola) for the plugin model.
+
+## How components receive a logger
+
+Two paths:
+
+1. **`LogAware`** — a component that implements it gets the logger pushed to it
+   automatically after wiring:
+
+   ```go
+   type LogAware interface {
+       SetLogger(Logger)
+   }
+   ```
+
+   The pipeline calls `SetLogger` on every registered component after
+   `FillDefaults`.
+
+2. **Resolve from the registry** — pull it by type wherever you have a
+   `*core.Registry`:
+
+   ```go
+   log := core.MustInvoke[core.Logger](reg) // panics if unregistered
+   ```
+
+## Logging in a handler
+
+Resolve once (e.g. at app startup or in a service constructor), then log with
+per-request context:
+
+```go
+func GET(c core.Context) error {
+    log := core.MustInvoke[core.Logger](pola.Registry()).With("route", "/invoices")
+    log.Info("listing invoices", "tenant", c.Param("tenant"))
+    return c.JSON(http.StatusOK, core.M{"status": "ok"})
+}
+```
+
+> [!TIP]
+> Build a request-scoped logger with `With` once, then pass it down — every
+> record inherits the shared fields without repeating them.
+
+<Cards>
+  <Card title="Observability" href="/docs/observability">Metrics, tracing, and pprof.</Card>
+  <Card title="Extending Pola" href="/docs/extending-pola">The plugin and DI model.</Card>
+</Cards>

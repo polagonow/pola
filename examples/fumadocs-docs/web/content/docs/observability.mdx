@@ -1,0 +1,117 @@
+---
+title: Observability
+description: Prometheus metrics, OpenTelemetry tracing, and pprof profiling — all pluggable behind small core interfaces on the reserved /_pola namespace.
+---
+
+# Observability
+
+Pola exposes three observability layers, each a plugin behind a `core` interface:
+**metrics** (`core.Metrics`), **tracing** (`core.Tracer`/`core.Span`), and
+**pprof** (`core.Pprof`). All default to no-op / disabled and mount under the
+reserved `/_pola` namespace.
+
+## Metrics
+
+The `core.Metrics` interface (`core/interfaces.go`):
+
+```go
+type Metrics interface {
+    Name() string
+    Path() string // e.g. "/_pola/metrics"
+    RecordRequest(route, method string, statusCode int, duration time.Duration)
+    RecordRender(route string, duration time.Duration)
+    Handler() http.Handler
+}
+```
+
+| Package | Notes |
+|---------|-------|
+| `metrics/noop` | **Default.** Discards records; handler returns 404. |
+| `metrics/prometheus` | Exposes a Prometheus endpoint (default `/_pola/metrics`). |
+
+The Prometheus backend records three series, labelled by `route`, `method`, and
+`status`:
+
+| Metric | Type | Meaning |
+|--------|------|---------|
+| `pola_request_duration_seconds` | histogram | HTTP request latency |
+| `pola_requests_total` | counter | Total HTTP requests |
+| `pola_render_duration_seconds` | histogram | SSR render latency per route |
+
+Enable it:
+
+```go
+import "github.com/polagonow/pola/observability/metrics/prometheus"
+
+reg.Metrics = prometheus.New() // mounts /_pola/metrics automatically
+```
+
+Or via env: `POLA_METRICS=true` (path overridable with `POLA_METRICS_PATH`).
+
+## Tracing
+
+`core.Tracer` creates OpenTelemetry-compatible spans:
+
+```go
+type Tracer interface {
+    Name() string
+    StartSpan(ctx context.Context, name string) (context.Context, Span)
+}
+type Span interface {
+    End()
+    SetAttribute(key string, value any)
+}
+```
+
+| Package | Notes |
+|---------|-------|
+| `tracing/noop` | **Default.** Backed by `otel/trace/noop`. |
+| `tracing/otel` | Wraps the global OpenTelemetry tracer provider (`otel.Tracer("pola")`). |
+
+Enable with `POLA_TRACING=true`, or:
+
+```go
+import "github.com/polagonow/pola/observability/tracing/otel"
+
+reg.Tracer = otel.New()
+```
+
+Pola opens spans per-request, per-render, per-JS-call, and per-bundle-build. Add
+your own inside a service:
+
+```go
+func (s *CheckoutService) Charge(ctx context.Context, orderID int) error {
+    ctx, span := s.tracer.StartSpan(ctx, "checkout.charge")
+    defer span.End()
+    span.SetAttribute("orderID", orderID)
+    // ... call the payment gateway
+    return nil
+}
+```
+
+> [!NOTE]
+> Pola provides the `Tracer`, not an exporter. Configure the OpenTelemetry SDK's
+> tracer provider (OTLP endpoint, sampler) yourself in `main()` — otherwise the
+> global provider is a no-op and spans go nowhere.
+
+## Pprof
+
+`core.Pprof` serves Go profiling data (default prefix `/_pola/pprof/`), disabled
+unless you register it. Enable with `POLA_PPROF=true`, or:
+
+```go
+import "github.com/polagonow/pola/observability/pprof"
+
+reg.Pprof = pprof.New() // mounts /_pola/pprof/
+```
+
+> [!WARNING]
+> pprof leaks heap/goroutine/CPU profiles and command-line args. Never expose it
+> unauthenticated. Guard it with `pprof.WithToken("…")` / `pprof.WithBasicAuth(u, p)`
+> — or the `POLA_PPROF_TOKEN` / `POLA_PPROF_USER` + `POLA_PPROF_PASS` env vars,
+> which are honored automatically. When set, unauthenticated requests get 401.
+
+<Cards>
+  <Card title="Logging" href="/docs/logging">Structured logging via core.Logger.</Card>
+  <Card title="Deployment" href="/docs/deployment">Shipping and operating the binary.</Card>
+</Cards>

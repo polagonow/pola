@@ -1,0 +1,123 @@
+---
+title: Validation
+description: Struct-tag validation with go-playground/validator, bind-and-validate in routes, and generating matching Zod schemas.
+---
+
+# Validation
+
+Pola validates request payloads with
+[go-playground/validator](https://github.com/go-playground/validator) using
+`validate:"..."` struct tags, and generates matching client-side Zod schemas so
+the browser and server enforce the same rules.
+
+## Struct tags
+
+Add `validate` tags to your DTO or model struct. The validator is
+`validation.PlaygroundValidator`, constructed with
+`validator.WithRequiredStructEnabled()` (`validation/validation.go`):
+
+```go
+type CreatePostInput struct {
+    Title   string `json:"title"   validate:"required,min=3,max=120"`
+    Slug    string `json:"slug"    validate:"required,alphanum"`
+    Body    string `json:"body"    validate:"required"`
+    Email   string `json:"email"   validate:"required,email"`
+    Age     int    `json:"age"     validate:"omitempty,gte=0,lte=130"`
+}
+```
+
+The tag name is `validate` (go-playground's default). Any validator built-in
+(`required`, `email`, `min`, `max`, `gte`, `lte`, `alphanum`, `oneof`, …) works.
+
+## Bind and validate in a route
+
+`c.Bind(v)` (and the typed variants `BindQuery`, `BindForm`, `BindUri`,
+`BindHeader`) bind the request **and then validate**. Under the hood the adapters
+call `core.MustBindValidate(c, v, c.ShouldBind(v))`, which:
+
+- writes **400** with `{"error": …}` if binding failed,
+- writes **422 Unprocessable Entity** with `{"error": …}` if validation failed,
+- returns the first error so the handler can `return err` and stop.
+
+```go
+func CreatePost(c core.Context) error {
+    var in CreatePostInput
+    if err := c.Bind(&in); err != nil {
+        return err // 400 or 422 already written
+    }
+    // in is bound AND valid here
+    post, err := posts.Create(c.Ctx(), in)
+    if err != nil {
+        return c.JSON(http.StatusInternalServerError, core.M{"error": err.Error()})
+    }
+    return c.JSON(http.StatusCreated, post)
+}
+```
+
+> [!NOTE]
+> The `ShouldBind*` family binds **without** validating — missing fields stay at
+> their zero value. Use those when you want to validate manually with
+> `validation.Validate(v)`, or accept non-struct binds (a scalar query param)
+> that should never 422.
+
+The bind-time validator is installed by the validation plugin
+(`validation/plugin.go`), which calls `core.SetValidator`. It is always on;
+non-struct values are skipped so a scalar bind never yields a spurious 422.
+
+## `ValidationErrors`
+
+On failure the validator returns a `validation.ValidationErrors` slice — one
+entry per field, JSON-serializable:
+
+```go
+type ValidationError struct {
+    Field   string `json:"field"`
+    Tag     string `json:"tag"`
+    Value   any    `json:"value,omitempty"`
+    Message string `json:"message"`
+}
+```
+
+`validation.Validate(v)` runs the package-level default validator directly if you
+need errors outside a request handler.
+
+## Matching Zod schemas
+
+Generate a client-side [Zod](https://zod.dev) schema from the same field specs
+used by the model generator (`pola generate zod`). The schema is written to
+`app/schemas/<name>.ts` and `zod` is installed automatically:
+
+```bash
+pola generate zod Post title:string slug:string body:text views:int?
+```
+
+Produces `app/schemas/post.ts`:
+
+```ts
+import { z } from "zod";
+
+export const postSchema = z.object({
+  title: z.string(),
+  slug: z.string(),
+  body: z.string(),
+  views: z.number().int().optional(),
+});
+
+export type Post = z.infer<typeof postSchema>;
+```
+
+Type mapping is: `string`/`text` → `z.string()`, `int`/`int64` →
+`z.number().int()`, `float` → `z.number()`, `bool` → `z.boolean()`, `time` →
+`z.string().datetime({ local: true })`, `uuid` → `z.string().uuid()`, `json` →
+`z.record(z.unknown())`. A trailing `?` on the field makes it `.optional()`.
+File-upload (`StorageBlob`) references become `z.instanceof(File)` and an extra
+`…EditSchema` is emitted.
+
+> [!WARNING]
+> `pola generate zod` is not available in API-only mode (there is no `app/`
+> frontend). It errors out.
+
+<Cards>
+  <Card title="DTOs" href="/docs/dto">Request/response structs and their tags.</Card>
+  <Card title="Data Layer" href="/docs/data-layer">Models, repositories, and services.</Card>
+</Cards>

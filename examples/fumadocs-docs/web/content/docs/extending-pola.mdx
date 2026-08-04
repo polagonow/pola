@@ -1,0 +1,201 @@
+---
+title: Extending Pola
+description: The plugin and DI model, the pluggable subsystem interfaces, and how build tags select a runtime.
+---
+
+# Extending Pola
+
+Almost every layer of Pola is a plugin. A plugin registers services into the DI
+registry during app construction; the framework wires nothing through global
+`init()` registries. This page covers the plugin contract, how an app is
+assembled, the swappable subsystem interfaces, and how build tags pick a runtime.
+
+## The plugin contract
+
+A plugin implements two methods; most are written with the `PluginFunc` adapter:
+
+```go
+type Plugin interface {
+    Name() string
+    Register(r *Registry)
+}
+
+type PluginFunc struct {
+    PluginName string
+    Fn         func(*Registry)
+}
+```
+
+Inside `Register`/`Fn` you register services with the registry's three verbs:
+
+```go
+core.ProvideValue[T](r, value)       // register a pre-built singleton
+core.Provide[T](r, func() (T, error) // register a lazy constructor
+r.AddMiddleware(m)                    // add HTTP middleware
+r.AddInjector(inj)                    // expose Go to the JS runtime bridge
+```
+
+Every built-in follows this shape. A cache backend, for example:
+
+```go
+// cache/memory/plugin.go
+func Plugin() core.Plugin {
+    return core.PluginFunc{
+        PluginName: "cache:memory",
+        Fn: func(r *core.Registry) {
+            core.ProvideValue[core.Cache](r, New())
+        },
+    }
+}
+```
+
+Register the type as the **interface** (`core.Cache`) so the rest of the app can
+resolve it with `core.MustInvoke[core.Cache](r)` regardless of which backend is
+wired.
+
+## Lifecycle hooks
+
+A plugin may also implement any of these optional interfaces; the builder calls
+them at the right moment (Shutdown runs in reverse registration order):
+
+```go
+type Starter    interface{ Start(ctx context.Context) error }    // after all Register()
+type Readier    interface{ Ready(ctx context.Context) error }    // after full wiring
+type Shutdowner interface{ Shutdown(ctx context.Context) error } // on shutdown
+```
+
+Use `Start` for setup that needs other services already registered (open a
+connection pool, warm a cache); use `Shutdown` to release them.
+
+## How an app is assembled
+
+`pola.Use(...)` collects plugins; `pola.Ready()` builds the default app. The
+builder registers every plugin, runs `Start`, then wires the pipeline:
+
+```go
+// generated pola_plugins.go (simplified)
+func init() {
+    pola.Use(
+        goja.Plugin(),
+        esbuild.Plugin(),
+        react.Plugin(),
+        nextjs.Plugin(),
+        memory.Plugin(),
+        // ... your app's plugins
+    )
+}
+```
+
+The CLI generates that overlay from your `Polafile.hcl` (and flags / `POLA_*`
+env vars), so the plugin set matches your chosen stack. For explicit control,
+build through the `AppBuilder` yourself — see [Go API Reference](/docs/go-api).
+
+## A complete custom plugin
+
+Provide a service and a middleware from one plugin:
+
+```go
+package audit
+
+import (
+    "context"
+    "net/http"
+
+    "github.com/polagonow/pola/core"
+)
+
+type Recorder struct{ log core.Logger }
+
+func (r *Recorder) Record(event string) { r.log.Info("audit", "event", event) }
+
+func (r *Recorder) Wrap(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+        r.Record(req.Method + " " + req.URL.Path)
+        next.ServeHTTP(w, req)
+    })
+}
+
+func (r *Recorder) Name() string { return "audit" }
+
+func Plugin() core.Plugin {
+    return core.PluginFunc{
+        PluginName: "audit",
+        Fn: func(reg *core.Registry) {
+            rec := &Recorder{log: core.MustInvoke[core.Logger](reg)}
+            core.ProvideValue[*Recorder](reg, rec) // resolvable elsewhere
+            reg.AddMiddleware(rec)                  // also runs on every request
+        },
+    }
+}
+```
+
+```go
+pola.Use(audit.Plugin())
+```
+
+## Swappable subsystem interfaces
+
+To replace a whole layer, implement its interface (all in `core/interfaces.go`)
+and register it from a plugin:
+
+| Interface | Layer | Selected by |
+|-----------|-------|-------------|
+| `JSEngine` | JS runtime (goja, v8, quickjs, sobek) | `engine` / `--vm` / `POLA_VM` |
+| `Bundler` | JS/asset bundler (esbuild) | `bundler` / `--bundler` / `POLA_BUNDLER` |
+| `Renderer` | UI renderer (react) | `renderer` / `--renderer` / `POLA_RENDERER` |
+| `Router` | route scanning/resolution (nextjs) | `router` / `--router` / `POLA_ROUTER` |
+| `WebFramework` | HTTP engine (std, gin, echo, chi) | `framework` / `POLA_WEB_FRAMEWORK` |
+| `Cache` | cache backend | `cache {}` block |
+| `CSS` | CSS processor (tailwind, sass) | `css` / `--css` / `POLA_CSS` |
+| `MailTransport` | email delivery | `mailer {}` block |
+| `Storage` (`storage`) | file storage (fs, rclone) | `storage {}` block |
+| `Logger` / `Metrics` / `Tracer` | observability | plugin / env |
+| `Middleware` | HTTP middleware | `AddMiddleware` |
+| `RuntimeInjector` | Go→JS bridge | `AddInjector` |
+
+## Build tags select the runtime
+
+The engine, bundler, renderer, and router are chosen at compile time with Go
+**build tags** — the default set is `goja esbuild react nextjs`. Implementation
+files carry no build tags themselves; instead the tag picks which plugins the
+build compiles in. A raw `go test`/`go build` spells them out:
+
+```bash
+go test -tags "goja esbuild react nextjs" ./...
+```
+
+`pola dev` / `pola build` set the tags for you from your config, and `POLA_VM` /
+`POLA_BUNDLER` / `POLA_RENDERER` / `POLA_ROUTER` override the defaults.
+
+> [!NOTE]
+> Cross-compiling (`pola build --platform` for a non-host target) forces the
+> pure-Go `goja` engine and `CGO_ENABLED=0`, overriding a `v8`/`quickjs` choice,
+> so a Linux binary builds from a Mac with no C toolchain.
+
+## Adding a brand-new implementation
+
+Each subsystem has a dedicated skill that walks the whole checklist (interface,
+plugin, build tag, tests, wiring):
+
+| Add a… | Skill |
+|--------|-------|
+| JS engine | `add-vm` |
+| Bundler | `add-bundler` |
+| Renderer | `add-renderer` |
+| HTTP framework | `add-web-framework` |
+| Middleware | `add-middleware` |
+| Cache backend | `add-cache` |
+| Storage driver | `add-storage-driver` |
+| Session store | `add-session-store` |
+| Mail transport | `add-mailer-transport` |
+| CSS processor | `add-css-processor` |
+| Database adapter | `add-database-adapter` |
+| Observability backend | `add-observability` |
+| Web API polyfill | `add-polyfill` |
+| CLI generator | `add-generator` |
+
+<Cards>
+<Card title="Go API Reference" href="/docs/go-api">Registry, Context, Plugin, and the entrypoint.</Card>
+<Card title="The Stack" href="/docs/stack">The swappable layers and their options.</Card>
+<Card title="Middleware" href="/docs/middleware">Writing and registering HTTP middleware.</Card>
+</Cards>

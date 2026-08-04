@@ -1,0 +1,159 @@
+---
+title: MCP Server
+description: Expose your Go services, data, and prompts to LLM agents over the Model Context Protocol.
+---
+
+# MCP Server
+
+Pola can turn your app into an [MCP](https://modelcontextprotocol.io) server so
+LLM agents (Claude Desktop, IDE assistants, custom clients) can call your Go
+**tools**, read your **resources**, and pull your **prompts** — reusing the same
+services and DI container your React pages already use. The server rides on the
+official `github.com/modelcontextprotocol/go-sdk/mcp` SDK and is wired in by a
+Pola plugin (`mcp.Plugin()`), so it ships inside your single static binary.
+
+The [`examples/mcp-hello`](https://github.com/polagonow/pola) app is the
+canonical reference for everything below.
+
+## Enable MCP
+
+`pola generate mcp init` adds an `mcp { … }` block to your `Polafile.hcl`. The
+autoload wires `mcp.Plugin()` from that block on the next build:
+
+```bash
+pola generate mcp init
+```
+
+```hcl
+# Polafile.hcl
+pola {
+  # …
+  mcp {
+    transport = "http"   # "http" | "sse" | "stdio"
+    mount     = "/mcp"    # URL prefix for http/sse; ignored for stdio
+  }
+}
+```
+
+| Transport | Constant | Behavior |
+|---|---|---|
+| `http` | `mcp.TransportHTTP` | Streamable HTTP handler mounted at `mount`. Recommended for web apps. |
+| `sse` | `mcp.TransportSSE` | Legacy Server-Sent Events handler at `mount`. |
+| `stdio` | `mcp.TransportStdio` | JSON-RPC over stdin/stdout, launched as a goroutine at Start. CLI clients only. |
+
+> [!NOTE]
+> For `http`/`sse` the plugin registers a middleware that short-circuits any
+> request under `mount` (`/mcp`, `/mcp/…`) straight to the SDK handler. It is
+> placed **before** logging, recovery, and CSRF so MCP POSTs don't get 403'd and
+> SSE streams don't flood the logs.
+
+## Scaffold a tool
+
+`pola generate mcp tool <Name>` writes a tool struct under `mcp/tools/`. The
+default flavor is **DI-flavored**: the `New…Tool(*core.Registry)` constructor
+resolves services from the container. The autoload scanner discovers any
+exported `New<Name>Tool` / `New<Name>Resource` / `New<Name>Prompt` taking a
+single `*core.Registry` and registers the result with the server.
+
+```bash
+pola generate mcp tool Greeting
+```
+
+```go
+// mcp/tools/greeting_tool.go
+type GreetingTool struct {
+    svc *services.GreetingService
+}
+
+// Discovered by the mcp autoload; resolves the service via DI.
+func NewGreetingTool(r *core.Registry) *GreetingTool {
+    return &GreetingTool{svc: core.MustInvoke[*services.GreetingService](r)}
+}
+
+func (t *GreetingTool) Tool() *sdk.Tool {
+    return &sdk.Tool{
+        Name:        "greeting",
+        Description: `List greetings or create one. Pass {"create":"hi"} to create.`,
+        InputSchema: map[string]any{
+            "type": "object",
+            "properties": map[string]any{
+                "create": map[string]any{"type": "string"},
+            },
+        },
+    }
+}
+
+func (t *GreetingTool) Handle(ctx context.Context, req *sdk.CallToolRequest) (*sdk.CallToolResult, error) {
+    // … read req.Params.Arguments, call t.svc, return sdk.TextContent
+}
+```
+
+A tool implements the `mcp.ToolProvider` interface — `Tool() *sdk.Tool` and
+`Handle(ctx, *sdk.CallToolRequest) (*sdk.CallToolResult, error)`.
+Resources implement `ResourceProvider`, prompts implement `PromptProvider`; same
+shape with `sdk.Resource`/`ReadResourceRequest` and `sdk.Prompt`/`GetPromptRequest`.
+
+```bash
+pola generate mcp resource Greetings   # → mcp/resources/greetings_resource.go
+pola generate mcp prompt  Welcome      # → mcp/prompts/welcome_prompt.go
+```
+
+## `--no-di` tools
+
+`pola generate mcp tool <Name> --no-di` scaffolds a dependency-free tool that
+registers itself from `init()` via `mcp.RegisterTypedTool` — the SDK derives
+JSON Schema from typed Go structs (field tags become the schema):
+
+```go
+// mcp/tools/echo_tool.go
+type EchoIn struct {
+    Message string `json:"message" jsonschema:"the message to echo"`
+}
+type EchoOut struct {
+    Echo string `json:"echo"`
+}
+
+func init() {
+    polamcp.RegisterTypedTool[EchoIn, EchoOut](
+        &sdk.Tool{Name: "echo", Description: "Echo a message"},
+        func(_ context.Context, _ *sdk.CallToolRequest, in EchoIn) (*sdk.CallToolResult, EchoOut, error) {
+            return nil, EchoOut{Echo: in.Message}, nil
+        },
+    )
+}
+```
+
+| Flavor | Constructor | Registration | Use when |
+|---|---|---|---|
+| DI (default) | `New…Tool(*core.Registry)` | Autoload discovers it; resolves at Start | The tool needs services / repositories |
+| `--no-di` | none | `init()` → package-level registry | No dependencies; typed in/out is enough |
+
+> [!TIP]
+> `--no-di` applies to `tool` only — `resource` and `prompt` are always
+> DI-flavored. The `init()` flavor has no exported constructor, so no test is
+> generated for it.
+
+## How registration works
+
+`mcp.Plugin()` builds one `*sdk.Server` at `Register` and provides it in the DI
+container (`core.MustInvoke[*mcp.Server]`), so any plugin can grab it and add
+tools dynamically. Registration flows from two sources:
+
+1. **Package-level `init()`** via `RegisterTool`, `RegisterTypedTool`,
+   `RegisterResource`, `RegisterResourceTemplate`, `RegisterPrompt` — applied
+   when the server is built.
+2. **Autoloaded per-file plugins** for the DI-flavored constructors under
+   `mcp/tools`, `mcp/resources`, `mcp/prompts` — these resolve `*mcp.Server`
+   from the container in their own Start hook and call `AddTool` / `AddResource`
+   / `AddPrompt`.
+
+Server identity and behavior are tunable through options such as `WithName`,
+`WithVersion`, `WithInstructions`, `WithSessionTTL`, and
+`WithReceiving`/`WithSendingMiddleware`. Point an MCP client at
+`http://localhost:PORT/mcp` and your tools appear in its tool list.
+
+<Cards>
+  <Card title="Configuration" href="/docs/configuration">The Polafile.hcl blocks, including mcp {}.</Card>
+  <Card title="Data Layer" href="/docs/data-layer">The services and repositories your tools call.</Card>
+  <Card title="Server Actions" href="/docs/server-actions">Call the same Go from React instead of an LLM.</Card>
+</Cards>

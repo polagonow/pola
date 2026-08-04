@@ -1,0 +1,264 @@
+---
+title: Go API Reference
+description: The public Go surface — the pola entrypoint, the DI registry, request Context, plugins, and Metadata.
+---
+
+# Go API Reference
+
+The Go code you write against Pola touches a small, stable surface: the `pola`
+package (app entrypoint), `core.Registry` (dependency injection), `core.Context`
+(request handling), `core.Plugin` (extensibility), and `core.Metadata` (SEO).
+Signatures below are verbatim from the framework source.
+
+## Package `pola` — entrypoint
+
+The generated `main.go` uses three of these; the rest are for explicit wiring.
+
+```go
+// Use registers plugins for the default app. Call before Ready().
+// The generated pola_plugins.go calls this automatically.
+func Use(plugins ...core.Plugin)
+
+// Ready eagerly builds the default app (bundling assets) so the first request
+// isn't slow. Safe to call multiple times. Under POLA_BUILD_ONLY it builds and
+// exits; under POLA_SEED_ONLY it runs registered seeders and exits.
+func Ready(opts ...core.Option) error
+
+// Addr returns the listen address from POLA_ADDRESS and PORT (e.g. ":3000").
+func Addr() string
+
+// Registry returns the DI registry of the default app. Call after Ready().
+func Registry() *core.Registry
+
+// ListenAndServe starts the default app with graceful shutdown on SIGINT/SIGTERM
+// (drain within POLA_SHUTDOWN_TIMEOUT, default 30s).
+func ListenAndServe() error
+```
+
+A minimal `main.go`:
+
+```go
+package main
+
+import (
+    "log"
+
+    "github.com/polagonow/pola"
+)
+
+func main() {
+    if err := pola.Ready(); err != nil {
+        log.Fatal(err)
+    }
+    log.Fatal(pola.ListenAndServe())
+}
+```
+
+For explicit, non-default construction (tests, multiple apps in one process),
+build through an `AppBuilder`:
+
+```go
+// NewApp returns a builder; BuildApp runs the pipeline and returns *core.App.
+func NewApp(opts ...core.Option) *core.AppBuilder
+func BuildApp(ctx context.Context, builder *core.AppBuilder) (*core.App, error)
+```
+
+```go
+builder := pola.NewApp(core.WithDev(true))
+builder.Use(myPlugins...)
+app, err := pola.BuildApp(ctx, builder)   // app is an http.Handler
+```
+
+## App options
+
+`core.Option` values configure the app; pass them to `pola.Ready`, `pola.NewApp`,
+or `core.NewAppBuilder`.
+
+```go
+func WithWebAppDir(path string) Option  // frontend app directory
+func WithPublicDir(dir string) Option   // where compiled assets are written
+func WithHTTPPath(path string) Option   // URL path prefix (default "/")
+func WithDev(dev bool) Option           // enable dev mode / hot reload
+func WithAPIOnly(v bool) Option         // no frontend/renderer
+```
+
+## `core.Registry` — dependency injection
+
+The registry is Pola's typed DI container (backed by `samber/do`). Constructors
+named `New*` that take `*core.Registry` are auto-discovered and wired; you also
+use it directly to register and resolve services.
+
+```go
+// Register a singleton by constructor (lazy) or by value (eager).
+func Provide[T any](r *Registry, fn func() (T, error))
+func ProvideValue[T any](r *Registry, val T)
+
+// Resolve by type.
+func Invoke[T any](r *Registry) (T, error)
+func MustInvoke[T any](r *Registry) T   // panics on error
+
+// Middleware and runtime (Go↔JS) injectors.
+func (r *Registry) AddMiddleware(m Middleware)
+func (r *Registry) AddInjector(inj RuntimeInjector)
+```
+
+Resolving a repository inside a service constructor — the idiomatic pattern:
+
+```go
+func NewInvoiceService(r *core.Registry) *InvoiceService {
+    return &InvoiceService{
+        invoices: core.MustInvoke[repositories.InvoiceRepository](r),
+    }
+}
+```
+
+> [!NOTE]
+> The registry self-registers, so `core.MustInvoke[*core.Registry](r)` returns the
+> registry itself — handy in hand-written factories. Resolution is by concrete
+> type: register and resolve with the *same* interface or pointer type.
+
+## `core.Context` — request handling
+
+Route handlers (`func(core.Context) error`) are written against this
+framework-neutral interface, so switching HTTP framework (`std`/`gin`/`echo`/
+`chi`) needs no handler changes.
+
+```go
+type Context interface {
+    Request() *http.Request
+    Writer() http.ResponseWriter
+    Ctx() context.Context
+    SetContext(ctx context.Context)
+
+    Param(name string) string   // path param, e.g. :id
+    Query(name string) string   // query-string value
+    Header(name string) string  // request header
+
+    // ShouldBind* decode into v and return the error.
+    ShouldBind(v any) error       // JSON body
+    ShouldBindUri(v any) error    // path params via `uri:"..."`
+    ShouldBindHeader(v any) error // headers via `header:"..."`
+    ShouldBindQuery(v any) error  // query via `query:"..."`
+    ShouldBindForm(v any) error   // form body via `form:"..."`
+
+    // Bind* do the same but write a 400 JSON error on failure and validate.
+    Bind(v any) error
+    BindUri(v any) error
+    BindHeader(v any) error
+    BindQuery(v any) error
+    BindForm(v any) error
+
+    FormValue(name string) string
+    FormFile(name string) (*multipart.FileHeader, error)
+    MultipartForm() (*multipart.Form, error)
+
+    JSON(status int, v any) error
+    String(status int, s string) error
+    NoContent(status int) error
+    SetHeader(name, value string)
+    Redirect(status int, url string) error
+    Status() int
+}
+
+type HandlerFunc func(Context) error
+type M = map[string]any   // JSON body shorthand: c.JSON(200, core.M{"ok": true})
+```
+
+A handler using binding, validation, and a JSON response:
+
+```go
+func CreateInvoice(c core.Context) error {
+    var in dto.CreateInvoice
+    if err := c.Bind(&in); err != nil {   // 400 (bind) or 422 (validate) already written
+        return err
+    }
+    inv, err := invoices.Create(c.Ctx(), in)
+    if err != nil {
+        return c.JSON(http.StatusInternalServerError, core.M{"error": err.Error()})
+    }
+    return c.JSON(http.StatusCreated, inv)
+}
+```
+
+> [!NOTE]
+> `Bind*` validate after binding (400 on bind failure, 422 on validation
+> failure); `ShouldBind*` never validate — missing fields stay at their zero
+> value, so call `validation.Validate(v)` yourself. See [Validation](/docs/validation).
+
+## `core.Plugin` — extensibility
+
+```go
+type Plugin interface {
+    Name() string
+    Register(r *Registry)
+}
+
+// PluginFunc adapts a plain function to Plugin.
+type PluginFunc struct {
+    PluginName string
+    Fn         func(*Registry)
+}
+
+// Optional lifecycle hooks a plugin may also implement.
+type Starter    interface{ Start(ctx context.Context) error }    // after registration
+type Readier    interface{ Ready(ctx context.Context) error }    // after full wiring
+type Shutdowner interface{ Shutdown(ctx context.Context) error } // on shutdown (reverse order)
+```
+
+The one-liner plugin most app code writes:
+
+```go
+func Plugin() core.Plugin {
+    return core.PluginFunc{
+        PluginName: "audit-log",
+        Fn: func(r *core.Registry) {
+            r.AddMiddleware(auditMiddleware{})
+        },
+    }
+}
+```
+
+See [Extending Pola](/docs/extending-pola) for the full model.
+
+## `core.Metadata` — SEO
+
+Export `metadata` (or `generateMetadata`) from a page/layout in TSX; on the Go
+side the same shape is `core.Metadata`, mirroring Next.js's Metadata type. Nil
+pointer fields are omitted from the rendered HTML.
+
+```go
+type Metadata struct {
+    Title           Title
+    Description     *string
+    Keywords        []string
+    Robots          *Robots
+    Alternates      *AlternateURLs
+    Icons           *Icons
+    OpenGraph       *OpenGraph
+    Twitter         *TwitterMeta
+    Other           map[string]string
+    // ... Authors, Generator, Publisher, Verification
+}
+
+// Title resolves NextJS-style: Absolute wins; else Template's %s ← Default.
+type Title struct {
+    Absolute string
+    Default  string
+    Template string   // "%s · Acme"
+}
+```
+
+```tsx
+// web/app/layout.tsx
+export const metadata = {
+  title: { template: "%s · Acme", default: "Acme" },
+  description: "Invoicing for small teams.",
+  openGraph: { siteName: "Acme", type: "website" },
+};
+```
+
+<Cards>
+<Card title="Extending Pola" href="/docs/extending-pola">Plugins, subsystem interfaces, and build tags.</Card>
+<Card title="Data Layer" href="/docs/data-layer">Models, repositories, services, and DI wiring.</Card>
+<Card title="Routing" href="/docs/routing">Pages, layouts, and metadata exports.</Card>
+</Cards>
