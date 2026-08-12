@@ -32,7 +32,12 @@ const ENTRIES_DIR = path.join(__dirname, "entries");
 const RESULTS_DIR = path.join(__dirname, "results");
 const PORT = 41234;
 const BASE = `http://127.0.0.1:${PORT}`;
-const FLIGHT_ACCEPT = "text/x-component";
+// The Pola browser client requests Flight with `Content-Type: text/x-component`
+// (see docs/ssr-caching.md). The default `react` renderer also accepts an
+// `Accept` header, but `nativersc` keys only off Content-Type — so we send both,
+// matching a real client and satisfying every renderer.
+const FLIGHT_MIME = "text/x-component";
+const FLIGHT_HEADERS = { "content-type": FLIGHT_MIME, accept: FLIGHT_MIME };
 
 function parseArgs(argv) {
   const a = {
@@ -91,9 +96,17 @@ async function measureScenario(entry, scenarioId, args) {
   if (!sc) {
     return { scenario: scenarioId, outcome: "N/A", reason: sc === null ? "not applicable for this entry" : "not implemented" };
   }
-  const url = BASE + sc.path;
   const isRSC = entry.kind === "rsc" && entry.flight;
-  const flightHeaders = isRSC ? { accept: FLIGHT_ACCEPT } : null;
+  const flightHeaders = isRSC ? FLIGHT_HEADERS : null;
+  // Cache-bust every measured request with a unique query so we measure true
+  // RENDER cost, not server-side full-response cache hits. Pages ignore
+  // searchParams, so output is byte-identical; applied uniformly to every entry.
+  // (Pola's nativersc renderer caches Flight responses by default — TTL=0/forever
+  // — so without this its numbers would be cache-hit latency, not render latency.
+  // Default caching behavior is documented separately in FAIRNESS.md.)
+  let bustN = 0;
+  const bust = () => `${BASE}${sc.path}?__bench=${scenarioId}_${bustN++}`;
+  const url = BASE + sc.path; // for logging/reference only
 
   // --- streaming samples (doc request, and flight request for RSC) ---
   const docTtfb = [];
@@ -109,7 +122,7 @@ async function measureScenario(entry, scenarioId, args) {
   const total = args.runs;
   for (let i = 0; i < total; i++) {
     try {
-      const doc = await measureRequest(url);
+      const doc = await measureRequest(bust());
       if (i >= args.warmup) {
         docTtfb.push(doc.ttfbMs);
         docTtlb.push(doc.ttlbMs);
@@ -120,7 +133,7 @@ async function measureScenario(entry, scenarioId, args) {
         docBody = doc.body;
       }
       if (isRSC) {
-        const fl = await measureRequest(url, { headers: flightHeaders });
+        const fl = await measureRequest(bust(), { headers: flightHeaders });
         if (i >= args.warmup) {
           flTtfb.push(fl.ttfbMs);
           flTtlb.push(fl.ttlbMs);
@@ -147,16 +160,16 @@ async function measureScenario(entry, scenarioId, args) {
   };
   if (isRSC && flightBody) payload.rscFlight = sizeReport(flightBody);
 
-  // --- load test (the content-producing request) ---
-  const loadUrl = isRSC ? url : url;
+  // --- load test (the content-producing request), cache-busted uniformly ---
   const load = {
-    document: await loadTest(url, { connections: args.connections, duration: args.load }),
+    document: await loadTest(url, { connections: args.connections, duration: args.load, cacheBust: true }),
   };
   if (isRSC) {
     load.rscFlight = await loadTest(url, {
-      headers: { accept: FLIGHT_ACCEPT },
+      headers: FLIGHT_HEADERS,
       connections: args.connections,
       duration: args.load,
+      cacheBust: true,
     });
   }
 
@@ -298,9 +311,10 @@ async function benchEntry(entry, args) {
     if (loadScenario) {
       const rss = sampleRSS(started.pid, 100);
       await loadTest(BASE + loadScenario.path, {
+        cacheBust: true,
         connections: args.connections,
         duration: Math.min(args.load, 5),
-        headers: entry.kind === "rsc" && entry.flight ? { accept: FLIGHT_ACCEPT } : {},
+        headers: entry.kind === "rsc" && entry.flight ? FLIGHT_HEADERS : {},
       });
       const r = await rss.stop();
       out.memoryMiB.underLoadMax = r.maxMiB;

@@ -5,16 +5,23 @@
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
 
-export async function loadTest(url, { headers = {}, connections = 50, duration = 10 } = {}) {
+export async function loadTest(url, { headers = {}, connections = 50, duration = 10, cacheBust = false } = {}) {
   let autocannon;
   try {
     autocannon = require("autocannon");
   } catch {
     return { error: "autocannon not installed (run `pnpm install` in bench-suite/)" };
   }
+  // Cache-bust under load too: autocannon replaces `[<id>]` with a unique id per
+  // request when idReplacement is on, so every request hits a distinct URL and
+  // server-side full-response caches (e.g. Pola nativersc) don't short-circuit
+  // the render. Applied uniformly to every entry.
+  const target = cacheBust
+    ? `${url}${url.includes("?") ? "&" : "?"}__bench=[<id>]`
+    : url;
   return new Promise((resolve) => {
     const instance = autocannon(
-      { url, connections, duration, headers, excludeErrorStats: false },
+      { url: target, connections, duration, headers, idReplacement: cacheBust, excludeErrorStats: false },
       (err, result) => {
         if (err) return resolve({ error: String(err) });
         resolve({

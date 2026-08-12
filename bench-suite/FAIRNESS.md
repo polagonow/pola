@@ -42,11 +42,30 @@ server-rendered content in the first response.
   (client render from Flight via `createRoot`, not hydration of server HTML). It
   is redefined per-entry as a browser time-to-interactive mark.
 
-### Pola — default in-memory cache
-A default LRU cache exists, but the Flight tee-cache only fills when a route sets
-`Route.Revalidate > 0` (`renderer/react/react.go:225-232`). Benchmark scenarios
-set no revalidate, so pages re-render every request — comparable to the other
-entries' dynamic rendering. Recorded so it isn't mistaken for "Pola has no cache."
+### Pola — default in-memory cache (and a renderer asymmetry)
+A default LRU cache exists (`docs/ssr-caching.md`). The two Pola renderers use it
+**differently**, which materially moves the numbers:
+- **react** renderer fills the Flight tee-cache **only when `Route.Revalidate > 0`**
+  (`renderer/react/react.go:225-232`). With no revalidate set (our scenarios) it
+  re-renders every request.
+- **nativersc** renderer caches the Flight response **unconditionally**, with
+  `TTL: Route.Revalidate` = `0` = *no expiry* (`renderer/nativersc/nativersc.go:184-190`).
+  So after the first render, every repeat request to the same URL is served from
+  the LRU in microseconds.
+
+This is a real default difference, not a tuning choice. To measure **render cost**
+(what the scenarios are about) rather than cache-hit latency, the harness
+**cache-busts every measured request** with a unique `?__bench=…` query, applied
+**uniformly to every entry** (pages ignore `searchParams`, so rendered output is
+byte-identical; the control and react ignore the query and are unaffected). Under
+load, autocannon's `idReplacement` puts a unique id in each request's query for
+the same effect.
+
+Recorded as a genuine Pola capability, not hidden: **in normal operation Pola's
+default LRU serves repeat traffic from memory** (nativersc always; react when a
+route opts into `Revalidate`). The benchmark deliberately bypasses that to isolate
+render cost. A separate "warm cache / repeat visit" measurement could be added to
+show the cached path; it is not part of these render-cost numbers.
 
 ### Pola — engine is a pure-Go interpreter
 The default `goja` engine has no JIT (`engine/goja/`). This is an architectural
@@ -120,6 +139,23 @@ because it changes client JS and hydration cost.
   across entries, compare Pola's **Flight** row to the SSR entries' **document**
   row — comparing Pola's document row to an SSR document row compares a shell to
   full content and is meaningless.
+
+### pola-nativersc (goja + Go-native Flight renderer)
+- Same app source as `pola-default`, built with `--renderer nativersc`. The RSC
+  Flight payload is serialized in Go (`renderer/nativersc/flight.go`,
+  `reconciler.go`) instead of by react-server-dom-webpack inside the VM.
+- **Flight detection differs:** nativersc keys only off `Content-Type:
+  text/x-component` (`nativersc.go:106`), while the react renderer also accepts an
+  `Accept` header. The harness sends **both** headers (matching the real Pola
+  client, which sends `Content-Type`), so this is not a measurement bias.
+- **Unconditional Flight caching** (see the renderer-asymmetry note above) — the
+  reason the harness cache-busts. Without cache-busting, nativersc scenario 2/4
+  would report ~0.16 ms cache-hit latency instead of real render cost.
+- Wire format differs from the react renderer (`$L…` lazy refs, `$Sreact.suspense`
+  emitted in Go), so Flight payload byte counts are not expected to match
+  pola-default to the byte.
+- Same client runtime (`@pola/react/client`) as pola-default; client-JS
+  framework/app split uses the same filename heuristic.
 
 ## Observed load-tail behavior (recorded, not adjusted)
 - **control, scenario 2** (50 connections against a 50ms-suspense SSR stream):
