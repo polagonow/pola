@@ -262,7 +262,7 @@ func (r *Runtime) StartRender(exportName, propsJSON string) (StreamSession, erro
 }
 
 // DrainStream polls sess until done, writing decoded chunks to w.
-func (r *Runtime) DrainStream(sess StreamSession, w core.StreamWriter) (bool, error) {
+func (r *Runtime) drainSession(sess StreamSession, w core.StreamWriter) (bool, error) {
 	var wroteAny bool
 	for {
 		var done, noChunks bool

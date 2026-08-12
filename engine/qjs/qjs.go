@@ -300,7 +300,7 @@ func (r *Runtime) StartRender(exportName, propsJSON string) (RenderSession, erro
 
 // DrainStream installs a per-request __outputChunk__ Go function, then calls
 // __renderAsync__(exportName, propsJSON) and awaits the returned Promise.
-func (r *Runtime) DrainStream(sess RenderSession, w core.StreamWriter) (bool, error) {
+func (r *Runtime) drainSession(sess RenderSession, w core.StreamWriter) (bool, error) {
 	var wroteAny bool
 	var runErr error
 
