@@ -27,10 +27,10 @@ Measurement config: **7 runs** per scenario, first **2** discarded as warmup; lo
 
 ## Client JS bytes (framework runtime vs app code)
 
-| Entry | Total raw | Total gzip | Total brotli | Framework raw | App raw |
-|---|---|---|---|---|---|
-| control | 190.5 KiB | 59.3 KiB | 51.1 KiB | 187.3 KiB | 1.1 KiB |
-| pola-default | — | — | — | — | — |
+| Entry | Total raw | Total gzip | Total brotli | Framework raw | App raw | Split source |
+|---|---|---|---|---|---|---|
+| control | 190.5 KiB | 59.3 KiB | 51.1 KiB | 187.3 KiB | 1.1 KiB | metafile (exact) |
+| pola-default | 201.5 KiB | 65.1 KiB | 56.3 KiB | 199.8 KiB | 1.7 KiB | filename (heuristic) |
 
 ## Scenario 1 — Static page, no data
 

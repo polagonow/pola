@@ -69,13 +69,31 @@ p("");
 // Client JS bytes
 p("## Client JS bytes (framework runtime vs app code)");
 p("");
-p("| Entry | Total raw | Total gzip | Total brotli | Framework raw | App raw |");
-p("|---|---|---|---|---|---|");
+p("| Entry | Total raw | Total gzip | Total brotli | Framework raw | App raw | Split source |");
+p("|---|---|---|---|---|---|---|");
 for (const en of s.entries) {
-  const all = en.clientJsBytes?.all;
-  const attr = en.clientJsBytes?.attributionRawBytes;
+  const cj = en.clientJsBytes ?? {};
+  // Total = sum of all real bundle groups (exclude the attribution object).
+  let raw = 0, gzip = 0, brotli = 0, hasGroup = false;
+  for (const [k, v] of Object.entries(cj)) {
+    if (k === "attributionRawBytes" || !v || typeof v.raw !== "number") continue;
+    hasGroup = true;
+    raw += v.raw; gzip += v.gzip; brotli += v.brotli;
+  }
+  let fwRaw, appRaw, splitSrc;
+  if (cj.attributionRawBytes) {
+    fwRaw = cj.attributionRawBytes.frameworkRawBytes;
+    appRaw = cj.attributionRawBytes.appRawBytes;
+    splitSrc = "metafile (exact)";
+  } else if (cj.framework || cj.app) {
+    fwRaw = cj.framework?.raw;
+    appRaw = cj.app?.raw;
+    splitSrc = "filename (heuristic)";
+  } else {
+    splitSrc = "—";
+  }
   p(
-    `| ${en.name} | ${bytes(all?.raw)} | ${bytes(all?.gzip)} | ${bytes(all?.brotli)} | ${bytes(attr?.frameworkRawBytes)} | ${bytes(attr?.appRawBytes)} |`,
+    `| ${en.name} | ${hasGroup ? bytes(raw) : "—"} | ${hasGroup ? bytes(gzip) : "—"} | ${hasGroup ? bytes(brotli) : "—"} | ${bytes(fwRaw)} | ${bytes(appRaw)} | ${splitSrc} |`,
   );
 }
 p("");
