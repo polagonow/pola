@@ -17,7 +17,7 @@ export function rssKiB(pid) {
   });
 }
 
-// Sample RSS every `intervalMs` until `stop()` is called. Returns a nodejs-ssrler
+// Sample RSS every `intervalMs` until `stop()` is called. Returns a controller
 // with `.stop()` that resolves to { samplesMiB, minMiB, medianMiB, maxMiB }.
 export function sampleRSS(pid, intervalMs = 100) {
   const samples = [];

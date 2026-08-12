@@ -3,13 +3,13 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Reproducible benchmark harness comparing Pola (all JS engines, RSC) against Node.js SSR and RSC baselines.",
+  "description": "Reproducible benchmark harness comparing Pola (all JS engines, RSC) against a Node.js RSC baseline (react-server-dom-webpack).",
   "engines": {
     "node": ">=20"
   },
   "scripts": {
     "bench": "node bench.mjs && node report.mjs && node charts.mjs",
-    "bench:nodejs-ssr": "node bench.mjs --only nodejs-ssr && node report.mjs",
+    "bench:nodejs-rsc": "node bench.mjs --only nodejs-rsc && node report.mjs",
     "bench:pola": "node bench.mjs --only pola-goja && node report.mjs",
     "report": "node report.mjs && node charts.mjs",
     "charts": "node charts.mjs",

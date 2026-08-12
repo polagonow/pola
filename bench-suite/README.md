@@ -1,12 +1,11 @@
 # Pola benchmark suite
 
-Reproducible benchmarks comparing **Pola** (every JS engine it ships) against two
-**Node.js** baselines: a plain **SSR** baseline (`nodejs-ssr`, raw
-`react-dom/server`) and an **RSC** baseline (`nodejs-rsc`,
-`react-server-dom-webpack` — the same Flight protocol Pola uses). The RSC baseline
-is the apples-to-apples peer; the SSR one is the floor. Every number is measured on
-the machine that runs it — nothing is estimated. **No winner is declared**; read
-`FAIRNESS.md` for where the comparison is and isn't apples-to-apples.
+Reproducible benchmarks comparing **Pola** (every JS engine it ships) against a
+**Node.js RSC baseline** (`nodejs-rsc`, `react-server-dom-webpack` — the same
+Flight protocol Pola uses). Both sides are RSC, so the comparison isolates the
+**runtime**: native Node V8 vs Pola's Go-embedded JS VM. Every number is measured
+on the machine that runs it — nothing is estimated. **No winner is declared**;
+read `FAIRNESS.md` for where the comparison is and isn't apples-to-apples.
 
 > This directory is `bench-suite/` — deliberately distinct from the repo's Go
 > `benchmark/` package. `BENCHMARK/` collides with it on a case-insensitive
@@ -23,7 +22,7 @@ pnpm bench              # build + measure every entry, then regenerate RESULTS.m
 Faster iterations:
 
 ```bash
-pnpm bench:nodejs-ssr                 # just the SSR baseline
+pnpm bench:nodejs-rsc                 # just the RSC baseline
 node bench.mjs --only nodejs-rsc --quick  # 3 runs, 3s load (dev sanity)
 node bench.mjs --scenarios 1,2     # subset of scenarios
 node bench.mjs --skip-install --skip-build   # reuse prior artifacts
@@ -61,16 +60,17 @@ entries whose first response is a shell) use Playwright + CDP — see `FAIRNESS.
 1. Static page, no data — baseline render cost
 2. Server component awaiting a 50ms source, Suspense-streamed
 3. Interactive client-component island in an otherwise server tree
-4. Nested Suspense, 3 boundaries resolving at 20/50/200ms — **RSC-only**
-   (non-RSC entries are recorded **N/A**, not approximated)
+4. Nested Suspense, 3 boundaries resolving at 20/50/200ms
 
-Scenarios 1–3 have plain-SSR equivalents on the `nodejs-ssr` baseline.
+Scenario 3 (client-component island) is **N/A** for the `nodejs-rsc` baseline —
+the "use client" bundler machinery is the framework layer Pola provides that a
+raw Node RSC baseline lacks; recorded, not approximated.
 
 ## Conformance gate
 
 Before measuring, every implementation of a scenario must produce equivalent
 **normalized rendered DOM** (scripts, comments, and framework-specific attributes
-stripped). SSR entries are compared from first-response HTML; RSC entries are
+stripped). Because every entry is RSC (first response is a shell), conformance is
 compared from browser-rendered DOM after network-idle. Failures are excluded with
 an explanation (in `RESULTS.md` / `FAIRNESS.md`), never silently included.
 
@@ -82,8 +82,7 @@ bench-suite/
   report.mjs            results/summary.json → RESULTS.md
   lib/                  measure, sizes, rss, load, proc, stats, conformance, env
   entries/
-    nodejs-ssr/            Node.js + raw react-dom/server — SSR floor
-    nodejs-rsc/ Node.js + react-server-dom-webpack — RSC baseline
+    nodejs-rsc/         Node.js + react-server-dom-webpack — RSC baseline
     pola-goja/          Pola: goja engine (default) + react (RSDW) renderer
     pola-nativersc/     Pola: goja engine + Go-native Flight renderer
     pola-<engine>/      one per JS engine: sobek, v8go, moderncquickjs, quickjsgo, qjs
@@ -102,7 +101,6 @@ contract (`kind: "rsc"` + `flight` enables two-request measurement).
 
 ## Entries
 
-- **nodejs-ssr** — Node.js + raw `react-dom/server` — plain **SSR** floor (not an RSC peer)
 - **nodejs-rsc** — Node.js + `react-server-dom-webpack` — **RSC baseline** (apples-to-apples with Pola; isolates the runtime)
 - **pola-goja** — Pola, goja engine (pure-Go interpreter) + react/RSDW renderer
 - **pola-nativersc** — Pola, goja engine + Go-native Flight renderer

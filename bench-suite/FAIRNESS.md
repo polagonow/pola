@@ -10,9 +10,9 @@ difference is **recorded, not normalized away**.
 - **Production builds only.** Each entry is built with its framework's documented
   production command and served from the build output, never a dev server.
 - **React in production mode.** `NODE_ENV=production` for every React-based entry
-  (nodejs-ssr sets it at build-time define + runtime env; frameworks set it via
-  their production build). Recorded because a dev build would inflate client JS
-  and slow rendering.
+  (nodejs-rsc sets it via a build-time define for the client bundle + a runtime
+  env for the server; Pola sets it via its production build). Recorded because a
+  dev build would inflate client JS and slow rendering.
 - **No hand-tuning.** No custom caching, compression, or minifier settings beyond
   what the framework does by default — for any entry, Pola included.
 - **One entry at a time.** No concurrent servers, no shared `node_modules`; each
@@ -23,30 +23,23 @@ difference is **recorded, not normalized away**.
   recorded as those outcomes in `results/` and surfaced in `RESULTS.md`.
 - **No winner is declared.**
 
-## Two baselines: an SSR floor and an RSC peer (apples-to-apples)
+## The Node.js RSC baseline (apples-to-apples)
 
-Pola is an **RSC** framework, so comparing it only against plain **SSR** would not
-be like-for-like (SSR ships server-rendered HTML in the first response; RSC ships
-a shell then streams Flight). To keep the comparison honest there are **two**
-Node.js baselines:
+Pola is an **RSC** framework, so the baseline is RSC too — not plain SSR. Every
+entry (baseline included) runs the same RSC/Flight model, so the comparison
+isolates the one thing that actually differs: the runtime.
 
-- **`nodejs-ssr`** — raw `react-dom/server` `renderToPipeableStream`. Plain **SSR**,
-  no framework. This is the absolute **floor**, not an RSC peer. Use it to see how
-  much any RSC machinery costs versus bare-metal React SSR on Node.
 - **`nodejs-rsc`** — Node.js running **`react-server-dom-webpack`** (the *same*
   Flight protocol Pola uses), with the same Server Components, the same
-  two-request shell+Flight model, and a `createFromFetch` client. This is the
-  **apples-to-apples RSC peer**: comparing a Pola entry to `nodejs-rsc` isolates
-  the **runtime** (native Node V8 vs Pola's Go-embedded goja/v8go VM + Go
-  plumbing), because everything else (RSDW, React version, protocol, model) is
-  identical.
+  two-request shell+Flight model, and a `createFromFetch` client. Comparing a
+  Pola entry to `nodejs-rsc` isolates the **runtime** (native Node V8 vs Pola's
+  Go-embedded goja/v8go VM + Go plumbing), because everything else (RSDW, React
+  version, protocol, model) is identical.
 
-So: compare Pola ⇄ `nodejs-rsc` for the RSC-vs-RSC story; treat `nodejs-ssr` as the
-SSR reference floor. `nodejs-rsc` implements scenarios 1/2/4 (pure Server
-Components); scenario 3's client island is **N/A** for it — the "use client"
-bundler machinery (client references + manifest + chunk loading) is exactly the
-framework layer Pola provides and a raw Node RSC baseline lacks (mirrors scenario
-4 being N/A for the SSR `nodejs-ssr`).
+`nodejs-rsc` implements scenarios 1/2/4 (pure Server Components); scenario 3's
+client island is **N/A** for it — the "use client" bundler machinery (client
+references + manifest + chunk loading) is exactly the framework layer Pola
+provides and a raw Node RSC baseline lacks.
 
 ## Structural differences that move metrics (recorded, not normalized)
 
@@ -54,7 +47,7 @@ framework layer Pola provides and a raw Node RSC baseline lacks (mirrors scenari
 Pola's first response for a normal page load is an **empty HTML shell**; the page
 content arrives via a **second** request (`Accept: text/x-component`) that streams
 the RSC Flight payload, rendered client-side (`renderer/react/react.go:156-177`;
-`docs/ssr-caching.md`). The SSR baseline (like Next.js App Router) instead puts
+`docs/ssr-caching.md`). A plain-SSR framework (Next.js App Router, or bare `react-dom/server`) instead puts
 server-rendered content in the first response.
 - **Consequence:** document TTFB/TTLB for Pola measures only the shell; the
   content cost is in the Flight request. The harness therefore measures **both**
@@ -82,7 +75,7 @@ This is a real default difference, not a tuning choice. To measure **render cost
 (what the scenarios are about) rather than cache-hit latency, the harness
 **cache-busts every measured request** with a unique `?__bench=…` query, applied
 **uniformly to every entry** (pages ignore `searchParams`, so rendered output is
-byte-identical; the SSR baseline and the react renderer ignore the query and are unaffected). Under
+byte-identical; Pola pages and the Node baseline both ignore the query and are unaffected). Under
 load, autocannon's `idReplacement` puts a unique id in each request's query for
 the same effect.
 
@@ -142,15 +135,12 @@ gate and their scenario-2/4 numbers are recorded as the outcome
 - Other entries: whatever their production default is, recorded per entry. Not
   normalized.
 
-### Scenario 4 (nested RSC Suspense) is RSC-only
-Marked **N/A** for the nodejs-ssr and for React Router's non-RSC mode rather than
-approximated with plain-SSR Suspense.
-
-### Scenario 3 island on non-RSC entries
-Plain React has no partial hydration, so the nodejs-ssr (and React Router non-RSC)
-hydrate the whole document root; the "island" is one interactive component in an
-otherwise static tree. RSC entries hydrate only the client component. Recorded
-because it changes client JS and hydration cost.
+### Scenario 3 (client island) is N/A for the Node RSC baseline
+Every entry is RSC, so scenarios 1/2/4 apply to all. Scenario 3 adds a "use
+client" island, which needs the client-reference/manifest/chunk-loading machinery
+a framework provides; the raw `nodejs-rsc` baseline lacks it, so scenario 3 is
+recorded **N/A** for that entry (not approximated). Pola hydrates only the client
+component.
 
 ## Harness measurement limitations
 
@@ -168,12 +158,14 @@ because it changes client JS and hydration cost.
 
 ## Per-entry deviations
 
-### nodejs-ssr
-- Not a framework — raw `react-dom/server` `renderToPipeableStream`. It is the
-  floor, not a competitor. No router, no data layer, no client framework runtime
-  beyond React itself.
-- esbuild (`0.28.2`) is used only to transpile/bundle the nodejs-ssr's own
-  server/client code; it is not a measured "framework."
+### nodejs-rsc (Node.js RSC baseline)
+- Not a framework — Node.js + `react-server-dom-webpack/server.node` under
+  `--conditions react-server`, same Flight protocol as Pola. The apples-to-apples
+  RSC peer, not a competitor product. No router, data layer, or app framework
+  beyond React + RSDW.
+- esbuild (`0.28.2`) is used only to transpile/bundle its own server/client code;
+  it is not a measured "framework."
+- Scenario 3 (client island) is **N/A** — see above.
 
 ### pola-goja (goja + react/RSDW renderer)
 - Built with `pola build --vm goja --renderer react --bundler esbuild --router
@@ -185,23 +177,22 @@ because it changes client JS and hydration cost.
   disabling would be hand-tuning one entry.
 - **Cold vs warm build:** Go's compiler cache is process-global and is not
   cleared between cold/warm, so Pola's "cold build" reflects JS bundling +
-  linking with a warm Go cache — not a from-scratch Go compile. The nodejs-ssr's
+  linking with a warm Go cache — not a from-scratch Go compile. The nodejs-rsc
   esbuild cold/warm difference is similarly cache-limited. Neither number is a
   from-absolute-zero build; recorded as such.
 - **Client JS framework/app split is a filename heuristic** (framework =
   `_client-*` runtime + React `chunks/*` + `ErrorBoundary-*`; app = `Counter-*`
-  + route `error-*`/`global-error-*`). The nodejs-ssr's split is exact (esbuild
+  + route `error-*`/`global-error-*`). The nodejs-rsc split is exact (esbuild
   metafile). This asymmetry is a measurement limitation, not a fairness choice —
   do not compare the two splits to more than ~1 KiB precision.
 - **Every page carries an extra framework Suspense boundary** whose fallback is
   `loading.tsx` (Pola wraps pages automatically), in addition to the
-  scenario-specific boundaries. The nodejs-ssr has only the scenario's boundaries.
+  scenario-specific boundaries. The nodejs-rsc baseline has only the scenario's boundaries.
   Visible in scenario 2/4 Flight payloads.
 - **Two-request model:** the `document` load/timings measure the shell only; the
-  `RSC Flight` rows carry the render cost. When comparing "content latency"
-  across entries, compare Pola's **Flight** row to the SSR entries' **document**
-  row — comparing Pola's document row to an SSR document row compares a shell to
-  full content and is meaningless.
+  `RSC Flight` rows carry the render cost. Every entry is RSC and uses this same
+  model, so compare **Flight row to Flight row** across entries — a `document`
+  row is only a shell (near-constant), never the rendered content.
 
 ### pola-nativersc (goja + Go-native Flight renderer)
 - Same app source as `pola-goja`, built with `--renderer nativersc`. The RSC
@@ -242,12 +233,9 @@ because it changes client JS and hydration cost.
   are real datapoints, recorded not adjusted. No winner is declared.
 
 ## Observed load-tail behavior (recorded, not adjusted)
-- **nodejs-ssr, scenario 2** (50 connections against a 50ms-suspense SSR stream):
-  p50/p95 are healthy (~52/58 ms) but ~24 / 1115 requests exceeded autocannon's
-  10 s request timeout, inflating p99/max. This is a real tail characteristic of
-  Node `renderToPipeableStream` under concurrent streaming at this connection
-  count, not a harness error. Timeouts are surfaced in `RESULTS.md` (⚠ annotation)
-  rather than trimmed. Pola scenario 2 showed 0 timeouts at the same concurrency
-  but lower peak throughput on fast endpoints (VM-pool serialization).
+Under concurrent streaming at 50 connections against a 50ms-suspense endpoint,
+autocannon request timeouts can inflate p99/max even when p50/p95 stay healthy —
+a real tail characteristic of streaming under load, not a harness error. Timeouts
+are surfaced in `RESULTS.md` (⚠ annotation) rather than trimmed.
 
 <!-- Additional entries append their deviations here as they are built. -->

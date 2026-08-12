@@ -24,7 +24,6 @@ Measurement config: **7 runs** per scenario, first **2** discarded as warmup; lo
 | Entry | Kind | Outcome | Cold build (ms) | Warm build (ms) | Cold start (ms) | RSS idle (MiB) | RSS under load (MiB) |
 |---|---|---|---|---|---|---|---|
 | nodejs-rsc | rsc | ok (3/4 scenarios) | 154.476 | 154.808 | 127.143 | 64.66 | 161.38 |
-| nodejs-ssr | ssr | ok (3/4 scenarios) | 154.81 | 154.057 | 124.524 | 61.91 | 222.86 |
 | pola-goja | rsc | ok (4/4 scenarios) | 1380.797 | 458.267 | 486.901 | 25.56 | 141.11 |
 | pola-moderncquickjs | rsc | ok (4/4 scenarios) | 1378.249 | 615.343 | 487.175 | 25.44 | 115.91 |
 | pola-nativersc | rsc | ok (4/4 scenarios) | 1072.216 | 459.224 | 490.073 | 26.16 | 135.08 |
@@ -38,7 +37,6 @@ Measurement config: **7 runs** per scenario, first **2** discarded as warmup; lo
 | Entry | Total raw | Total gzip | Total brotli | Framework raw | App raw | Split source |
 |---|---|---|---|---|---|---|
 | nodejs-rsc | 214.8 KiB | 66.7 KiB | 57.3 KiB | 211.7 KiB | 712 B | metafile (exact) |
-| nodejs-ssr | 190.5 KiB | 59.3 KiB | 51.1 KiB | 187.3 KiB | 1.1 KiB | metafile (exact) |
 | pola-goja | 201.5 KiB | 65.1 KiB | 56.3 KiB | 199.8 KiB | 1.7 KiB | filename (heuristic) |
 | pola-moderncquickjs | 201.5 KiB | 65.1 KiB | 56.3 KiB | 199.8 KiB | 1.7 KiB | filename (heuristic) |
 | pola-nativersc | 201.5 KiB | 65.1 KiB | 56.3 KiB | 199.8 KiB | 1.7 KiB | filename (heuristic) |
@@ -55,7 +53,6 @@ TTFB and TTLB are milliseconds (median / p95 / p99, CoV%). For RSC entries the t
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | nodejs-rsc | document | 0.857 | 1.197 | 0.914 | 1.309 | 1.309 | 35.093 | 255 B | 203 B | 96 B | 86391.28 | 1 |
 | nodejs-rsc | RSC Flight | 0.615 | 0.702 | 0.657 | 0.739 | 0.739 | 29.734 | 175 B | 136 B | 107 B | 62683.64 | 1 |
-| nodejs-ssr | document | 0.945 | 1.582 | 0.986 | 1.678 | 1.678 | 41.617 | 319 B | 247 B | 158 B | 65937.46 | 1 |
 | pola-goja | document | 0.676 | 0.811 | 0.706 | 0.847 | 0.847 | 22.062 | 936 B | 563 B | 400 B | 46851.2 | 2 |
 | pola-goja | RSC Flight | 1.961 | 2.101 | 2.04 | 2.175 | 2.175 | 32.617 | 560 B | 326 B | 270 B | 6066.73 | 36 |
 | pola-moderncquickjs | document | 0.703 | 0.78 | 0.72 | 0.794 | 0.794 | 9.343 | 940 B | 570 B | 420 B | 2727 | 26 |
@@ -74,7 +71,6 @@ TTFB and TTLB are milliseconds (median / p95 / p99, CoV%). For RSC entries the t
 
 - **nodejs-rsc** document (1 chunk): 0.857ms/255B
 - **nodejs-rsc** RSC Flight (1 chunk): 0.615ms/175B
-- **nodejs-ssr** document (2 chunks): 0.847ms/305B → 0.855ms/14B
 - **pola-goja** document (1 chunk): 0.811ms/936B
 - **pola-goja** RSC Flight (1 chunk): 2.101ms/560B
 - **pola-moderncquickjs** document (1 chunk): 0.78ms/940B
@@ -96,7 +92,6 @@ TTFB and TTLB are milliseconds (median / p95 / p99, CoV%). For RSC entries the t
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | nodejs-rsc | document | 0.898 | 1.091 | 0.95 | 1.185 | 1.185 | 27.234 | 255 B | 203 B | 96 B | 92983.28 | 1 |
 | nodejs-rsc | RSC Flight | 0.726 | 0.842 | 52.385 | 52.525 | 52.525 | 1.264 | 269 B | 173 B | 146 B | 955 | 54 |
-| nodejs-ssr | document | 1.031 | 1.302 | 52.313 | 52.753 | 52.753 | 1.009 | 1.3 KiB | 788 B | 602 B | 955 | 55 |
 | pola-goja | document | 0.732 | 1.126 | 0.76 | 1.175 | 1.175 | 34.336 | 936 B | 564 B | 403 B | 48522.19 | 2 |
 | pola-goja | RSC Flight | 1.541 | 2.841 | 58.45 | 63.573 | 63.573 | 4.18 | 633 B | 334 B | 284 B | 861.3 | 61 |
 | pola-moderncquickjs | document | 0.883 | 0.999 | 0.905 | 1.026 | 1.026 | 20.958 | 936 B | 562 B | 406 B | 2630.28 | 28 |
@@ -114,7 +109,6 @@ TTFB and TTLB are milliseconds (median / p95 / p99, CoV%). For RSC entries the t
 
 - **nodejs-rsc** document (1 chunk): 0.998ms/255B
 - **nodejs-rsc** RSC Flight (2 chunks): 0.842ms/207B → 52.319ms/62B
-- **nodejs-ssr** document (3 chunks): 1.031ms/377B → 52.167ms/961B → 52.188ms/14B
 - **pola-goja** document (1 chunk): 0.617ms/936B
 - **pola-goja** RSC Flight (2 chunks): 1.541ms/571B → 57.534ms/62B
 - **pola-moderncquickjs** document (1 chunk): 0.629ms/936B
@@ -133,7 +127,6 @@ TTFB and TTLB are milliseconds (median / p95 / p99, CoV%). For RSC entries the t
 | Entry | Request | TTFB med | TTFB p95 | TTLB med | TTLB p95 | TTLB p99 | CoV% | Payload raw | gzip | brotli | Load req/s | Load p99 ms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | nodejs-rsc | — | `N/A` — not applicable for this entry | | | | | | | | | | |
-| nodejs-ssr | document | 0.677 | 0.862 | 0.697 | 0.896 | 0.896 | 20.978 | 521 B | 359 B | 236 B | 59143.28 | 1 |
 | pola-goja | document | 1.057 | 1.201 | 1.11 | 1.259 | 1.259 | 34.033 | 936 B | 563 B | 413 B | 49662.55 | 2 |
 | pola-goja | RSC Flight | 2.622 | 2.718 | 2.723 | 2.805 | 2.805 | 23.676 | 621 B | 345 B | 285 B | 5625.2 | 37 |
 | pola-moderncquickjs | document | 0.655 | 1.978 | 0.666 | 2.031 | 2.031 | 63.992 | 944 B | 576 B | 425 B | 2727.73 | 26 |
@@ -149,7 +142,6 @@ TTFB and TTLB are milliseconds (median / p95 / p99, CoV%). For RSC entries the t
 
 ### Scenario 3 flush timelines (representative run)
 
-- **nodejs-ssr** document (2 chunks): 0.513ms/507B → 0.516ms/14B
 - **pola-goja** document (1 chunk): 1.057ms/936B
 - **pola-goja** RSC Flight (1 chunk): 2.718ms/621B
 - **pola-moderncquickjs** document (1 chunk): 1.604ms/944B
@@ -169,7 +161,6 @@ TTFB and TTLB are milliseconds (median / p95 / p99, CoV%). For RSC entries the t
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | nodejs-rsc | document | 0.717 | 1.11 | 0.762 | 1.171 | 1.171 | 51.114 | 255 B | 203 B | 96 B | 90912 | 1 |
 | nodejs-rsc | RSC Flight | 0.567 | 0.87 | 273.969 | 274.558 | 274.558 | 0.28 | 743 B | 232 B | 213 B | 180 | 278 |
-| nodejs-ssr | — | `N/A` — not applicable for this entry | | | | | | | | | | |
 | pola-goja | document | 0.806 | 1.194 | 0.829 | 1.24 | 1.24 | 28.994 | 936 B | 562 B | 405 B | 49756.8 | 2 |
 | pola-goja | RSC Flight | 2.291 | 2.54 | 297.5 | 305.037 | 305.037 | 1.578 | 1.1 KiB | 395 B | 332 B | 165 | 306 |
 | pola-moderncquickjs | document | 0.676 | 0.83 | 0.693 | 0.855 | 0.855 | 14.771 | 936 B | 563 B | 400 B | 2591.91 | 28 |
@@ -204,9 +195,9 @@ Normalized rendered DOM must match across implementations of a scenario (scripts
 
 | Scenario | Verdict | Compared (SSR) | Pending browser capture |
 |---|---|---|---|
-| 1 | n/a (need ≥2) | nodejs-ssr | nodejs-rsc, pola-goja, pola-moderncquickjs, pola-nativersc, pola-quickjsgo, pola-sobek, pola-v8go |
-| 2 | n/a (need ≥2) | nodejs-ssr | nodejs-rsc, pola-goja, pola-moderncquickjs, pola-nativersc, pola-quickjsgo, pola-sobek, pola-v8go |
-| 3 | n/a (need ≥2) | nodejs-ssr | pola-goja, pola-moderncquickjs, pola-nativersc, pola-quickjsgo, pola-sobek, pola-v8go |
+| 1 | n/a (need ≥2) | — | nodejs-rsc, pola-goja, pola-moderncquickjs, pola-nativersc, pola-quickjsgo, pola-sobek, pola-v8go |
+| 2 | n/a (need ≥2) | — | nodejs-rsc, pola-goja, pola-moderncquickjs, pola-nativersc, pola-quickjsgo, pola-sobek, pola-v8go |
+| 3 | n/a (need ≥2) | — | pola-goja, pola-moderncquickjs, pola-nativersc, pola-quickjsgo, pola-sobek, pola-v8go |
 | 4 | n/a (need ≥2) | — | nodejs-rsc, pola-goja, pola-moderncquickjs, pola-nativersc, pola-quickjsgo, pola-sobek, pola-v8go |
 
 ## Caveats (where this isn't apples-to-apples)
@@ -215,16 +206,10 @@ See `FAIRNESS.md` for the full deviation log. Per-entry notes captured this run:
 
 **nodejs-rsc:**
 - Node.js RSC baseline: react-server-dom-webpack/server.node under --conditions react-server; same Flight wire protocol Pola uses.
-- Apples-to-apples RSC peer for the Pola entries — isolates the runtime (native Node V8 vs Pola's embedded goja/v8go VM + Go plumbing). The plain-SSR `nodejs-ssr` entry is the separate SSR floor, not an RSC peer.
+- Apples-to-apples RSC peer for the Pola entries — isolates the runtime (native Node V8 vs Pola's embedded goja/v8go VM + Go plumbing).
 - Two-request model matches Pola: `document` rows measure the shell, `RSC Flight` rows carry the render cost.
 - Scenario 3 (client island) is N/A: standalone client-reference/manifest wiring is exactly the framework machinery Pola provides and a raw Node baseline lacks.
 - No gzip/brotli on the wire (raw); the harness computes gzip/brotli offline.
-
-**nodejs-ssr:**
-- Raw react-dom/server renderToPipeableStream; no framework. The floor.
-- Scenario 3 hydrates the whole document root — plain React has no partial hydration without RSC; the interactive 'island' is one Counter in an otherwise static tree.
-- Scenario 4 (nested RSC Suspense) is N/A for a non-RSC nodejs-ssr, per the plan.
-- No gzip/brotli on the wire (raw); the harness computes gzip/brotli sizes offline from response bodies.
 
 **pola-goja:**
 - Default Pola: goja (pure-Go interpreter, no JIT) + react renderer (real react-server-dom-webpack).
