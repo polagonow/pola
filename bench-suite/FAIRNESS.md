@@ -95,8 +95,8 @@ renderer**, so only the engine differs:
 | sobek | pure-Go (grafana/sobek, goja fork) | **no** | plugin.go + SSRPoolFactory/SSRRuntime bridge | ✅ correct |
 | v8go | V8 / JIT (CGO) | **no** | plugin.go + bridge | ✅ correct |
 | moderncquickjs | QuickJS (CGO) | yes | — | ✅ correct |
-| qjs | QuickJS (**WASM**, fastschema/qjs) | **no** | plugin.go + bridge + async-render fix | renders correctly **sequentially**; **crashes under concurrent load** |
-| quickjsgo | QuickJS (CGO, buke) | yes | sync bridge + Go-driven drain | scenarios 1/2/3 render sequentially; nested Suspense ✗; **unstable under concurrent load** |
+| qjs | QuickJS (**WASM**, fastschema/qjs) | **no** | plugin.go + bridge + async-render + trailing-drain fixes | static/island ✅; async ⚠ **flaky** (~85–95%); crashes under concurrent load |
+| quickjsgo | QuickJS (CGO, buke) | yes | sync bridge + Go-driven drain + trailing-drain | static/island ✅; async ✗ (VM corrupts after one render) |
 | node | execs external `node` | no | — | **excluded** |
 
 - **Wiring added (committed framework changes):** `sobek`, `v8go`, and `qjs`
@@ -114,44 +114,44 @@ renderer**, so only the engine differs:
   no winner declared.
 
 ### Correctness gate for async rendering (and the QuickJS-binding fixes)
-The harness asserts, per scenario, that the rendered content contains a required
-marker **and** — for the async scenarios — that render time clears a floor equal
-to the source delay (scenario 2 ≥ 40 ms for a 50 ms source; scenario 4 ≥ 180 ms
-for 20+50+200 ms). Engines that return async content *without awaiting* fail this
-gate and are recorded as `async-not-honored` / `content-missing`, **not** reported
-as fast.
+The gate asserts, per scenario, that the required content marker is present **in
+every kept run** (not just one), plus — for the async scenarios — that render time
+clears a floor equal to the source delay (scenario 2 ≥ 40 ms; scenario 4 ≥ 180 ms).
+Outcomes: `ok` (all runs correct), **`flaky`** (present in some but not all runs —
+the rate is recorded), `content-missing` (present in none), `async-not-honored`
+(content but below the delay floor), `error` (request failed). The per-run design
+exists specifically so a probabilistically-unreliable engine is classified as
+flaky, not blessed/failed by a single sampled run.
 
-Both QuickJS bindings originally failed this gate. There are **two independent
-layers** here; the render layer was fixed at the framework level (committed), the
-concurrency layer is a binding limitation.
+**Timing is measured before load.** The harness now runs two passes per entry:
+pass 1 measures per-scenario timing + correctness on **clean, sequentially-driven
+VMs**; pass 2 runs the concurrent load tests. Some engines (the WASM/CGO QuickJS
+bindings) can't survive parallel load, so measuring correctness first keeps the
+render assessment accurate while the load result still records the crash.
 
-**Layer 1 — async render (fixed, verified on sequential requests):**
-- **qjs** — `Eval("__renderAsync__(...)")` returned `undefined` instead of the
-  render Promise (fastschema/qjs doesn't yield a bare call's completion value), so
-  the drain errored and the connection hung. Fixed by assigning the promise to a
-  global and awaiting that. Renders all four scenarios correctly one request at a
-  time.
-- **quickjsgo** — (1) its DI bridge was async (goroutine + `ctx.NewPromise` +
-  `Schedule`); react-server-dom-webpack closes the Flight stream before the
-  scheduled resolve lands. Made the bridge **synchronous** like
-  moderncquickjs/qjs. (2) The render was driven by `ctx.Await` over an async
-  self-poll loop, but buke's `Await` doesn't run native JS jobs; switched to a
-  **Go-driven drain** (`ctx.Loop()`). Static, 50 ms-async, and island render
-  correctly sequentially; nested Suspense (scenario 4) still closes early (needs
-  the shared `eventloop.EventLoop` model).
-
-**Layer 2 — concurrency under load (still failing; a binding limitation):** the
-harness applies a sustained 50-connection load. **fastschema/qjs is a WASM
-QuickJS** (wazero) with a shared compiled module; ~30 concurrent heavy RSC renders
-trap the runtime (`QJS_Eval: wasm error: unreachable`), and the corrupted VM then
-fails every later request — so `qjs` still shows failures in `RESULTS.md`.
-`quickjsgo` (buke, CGO) degrades similarly under load. Each engine already
-serialises its own runtime (`run()` holds a per-VM mutex); surviving the load
-would require **global** serialisation of all QuickJS work (one render at a time),
-trading throughput for stability — not applied here, so the crash is recorded as
-the honest outcome rather than hidden or worked around.
+**The QuickJS bindings — what was fixed and what remains:**
+- **qjs** (fixed → now flaky, not broken): three bugs. (a) `Eval("__renderAsync__(…)")`
+  returned `undefined` instead of the render Promise (fastschema/qjs doesn't yield a
+  bare call's completion value) → assign it to a global and await that. (b) The
+  render left react-server-dom-webpack's trailing cleanup job undrained, which
+  leaked into the next render on the pooled VM — the cause of the **alternating**
+  pass/fail flakiness → drain a microtask-tick loop after each render. This took qjs
+  from ~0 % to ~85–95 % correct; the residual flake is a deeper VM-reuse issue
+  (`flaky` in results). (c) Static/island are fully reliable.
+- **quickjsgo** (partially fixed): its DI bridge was async (goroutine +
+  `ctx.NewPromise` + `Schedule`), which RSDW closes the stream before → made
+  **synchronous** like moderncquickjs/qjs; and the render used `ctx.Await` (doesn't
+  run native jobs) → switched to a **Go-driven `ctx.Loop()` drain**. Static and
+  island now render reliably. **Async still fails**: the buke VM is corrupted after
+  a single async RSC render (subsequent async renders return empty), which draining
+  does not fix — a binding-level limitation.
+- **Concurrency under load** (separate limitation): fastschema/qjs is a **WASM**
+  QuickJS (wazero) with a shared compiled module; ~30 concurrent heavy renders trap
+  it (`QJS_Eval: wasm error: unreachable`). buke degrades similarly. Each engine
+  serialises its own runtime, but surviving this needs **global** serialisation of
+  all QuickJS work (throughput cost) — not applied; the load result records it.
 - goja, sobek, v8go, moderncquickjs clear the floor (scenario 2 ≈ 50 ms,
-  scenario 4 ≈ 270–300 ms) and pass.
+  scenario 4 ≈ 270–300 ms) and pass reliably.
 
 ### Compression on the wire
 - **Control:** no gzip/brotli on the wire (raw bytes). The harness computes

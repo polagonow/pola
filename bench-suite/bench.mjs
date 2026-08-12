@@ -130,6 +130,11 @@ async function measureScenario(entry, scenarioId, args) {
   let docBody = null;
   let flightBody = null;
   let firstError = null;
+  // Per-run content presence — so a probabilistically flaky engine (renders
+  // correctly most of the time) is classified as flaky, not by a single last run.
+  const marker = SCENARIO_MARKER[scenarioId];
+  let contentHits = 0;
+  let contentKept = 0;
 
   const total = args.runs;
   for (let i = 0; i < total; i++) {
@@ -138,6 +143,10 @@ async function measureScenario(entry, scenarioId, args) {
       if (i >= args.warmup) {
         docTtfb.push(doc.ttfbMs);
         docTtlb.push(doc.ttlbMs);
+        if (!isRSC) {
+          contentKept++;
+          if (doc.body.toString("utf8").includes(marker)) contentHits++;
+        }
       }
       // keep the representative flush timeline from the last kept run
       if (i === total - 1) {
@@ -149,6 +158,8 @@ async function measureScenario(entry, scenarioId, args) {
         if (i >= args.warmup) {
           flTtfb.push(fl.ttfbMs);
           flTtlb.push(fl.ttlbMs);
+          contentKept++;
+          if (fl.body.toString("utf8").includes(marker)) contentHits++;
         }
         if (i === total - 1) {
           repFlightFlush = fl.flush;
@@ -172,34 +183,34 @@ async function measureScenario(entry, scenarioId, args) {
   };
   if (isRSC && flightBody) payload.rscFlight = sizeReport(flightBody);
 
-  // --- load test (the content-producing request), cache-busted uniformly ---
-  const load = {
-    document: await loadTest(url, { connections: args.connections, duration: args.load, cacheBust: true }),
-  };
-  if (isRSC) {
-    load.rscFlight = await loadTest(url, {
-      headers: FLIGHT_HEADERS,
-      connections: args.connections,
-      duration: args.load,
-      cacheBust: true,
-    });
-  }
+  // NOTE: the load test is NOT run here. Concurrent load can corrupt some VMs
+  // (e.g. the WASM/CGO QuickJS bindings), so timing + correctness are captured on
+  // CLEAN, sequentially-driven VMs first; benchEntry runs the load pass afterward.
+  const load = {};
 
   // conformance capture: SSR -> doc HTML; RSC -> needs browser (flagged)
   const conformanceHtml = isRSC ? null : (docBody ? docBody.toString("utf8") : null);
 
-  // --- correctness gate (content present + async delay honored) ---
-  const checkBody = (isRSC ? flightBody : docBody);
-  const marker = SCENARIO_MARKER[scenarioId];
-  const contentPresent = checkBody ? checkBody.toString("utf8").includes(marker) : false;
+  // --- correctness gate (content present across runs + async delay honored) ---
   const floor = SCENARIO_MIN_TTLB_MS[scenarioId];
   const medTtlb = (isRSC ? summarize(flTtlb) : summarize(docTtlb)).median;
+  const contentRate = contentKept > 0 ? contentHits / contentKept : 0;
   let outcome = "ok";
   let reason = null;
-  const correctness = { marker, contentPresent, medianTtlbMs: medTtlb, floorMs: floor ?? null };
-  if (!contentPresent) {
+  const correctness = {
+    marker,
+    contentHits,
+    contentKept,
+    contentRatePct: round(contentRate * 100, 1),
+    medianTtlbMs: medTtlb,
+    floorMs: floor ?? null,
+  };
+  if (contentHits === 0) {
     outcome = "content-missing";
-    reason = `expected "${marker}" absent from ${isRSC ? "Flight" : "document"} body (render failed or incomplete)`;
+    reason = `expected "${marker}" absent from every measured ${isRSC ? "Flight" : "document"} response (render failed)`;
+  } else if (contentHits < contentKept) {
+    outcome = "flaky";
+    reason = `content present in only ${contentHits}/${contentKept} runs (${correctness.contentRatePct}%) — engine renders unreliably`;
   } else if (floor && medTtlb != null && medTtlb < floor) {
     outcome = "async-not-honored";
     reason = `median ${isRSC ? "Flight" : "doc"} TTLB ${medTtlb}ms < ${floor}ms floor — engine returned async content without awaiting the source`;
@@ -337,7 +348,19 @@ async function benchEntry(entry, args) {
     await sleep(500);
     out.memoryMiB.idle = await rssMiB(started.pid);
 
-    // sustained-load RSS: sample while hammering scenario 1 (or first available)
+    // ── Pass 1: per-scenario timing + correctness on CLEAN VMs (sequential only,
+    // no concurrent load) so engines that can't survive parallel load still get
+    // their render correctness/timing measured accurately. ───────────────────────
+    for (const id of args.scenarios) {
+      log(`  [${entry.name}] scenario ${id} (timing)`);
+      const res = await measureScenario(entry, id, args);
+      out.scenarios.push(res);
+    }
+
+    // ── Pass 2: sustained-load RSS + per-scenario load tests. These stress the
+    // server concurrently and may corrupt fragile VMs — itself a recorded outcome
+    // (errors/timeouts in the load result) — but no longer contaminate the
+    // timing/correctness captured in pass 1. ─────────────────────────────────────
     const loadScenario = entry.scenarios["1"] ?? Object.values(entry.scenarios).find(Boolean);
     if (loadScenario) {
       const rss = sampleRSS(started.pid, 100);
@@ -351,12 +374,22 @@ async function benchEntry(entry, args) {
       out.memoryMiB.underLoadMax = r.maxMiB;
       out.memoryMiB.underLoadMedian = r.medianMiB;
     }
-
-    // per-scenario measurement
-    for (const id of args.scenarios) {
-      log(`  [${entry.name}] scenario ${id}`);
-      const res = await measureScenario(entry, id, args);
-      out.scenarios.push(res);
+    for (const res of out.scenarios) {
+      if (!["ok", "flaky", "async-not-honored"].includes(res.outcome)) continue;
+      const isRSC = entry.kind === "rsc" && entry.flight;
+      const url = BASE + res.path;
+      log(`  [${entry.name}] scenario ${res.scenario} (load)`);
+      res.load = {
+        document: await loadTest(url, { connections: args.connections, duration: args.load, cacheBust: true }),
+      };
+      if (isRSC) {
+        res.load.rscFlight = await loadTest(url, {
+          headers: FLIGHT_HEADERS,
+          connections: args.connections,
+          duration: args.load,
+          cacheBust: true,
+        });
+      }
     }
   } finally {
     await stopServer(started.proc);

@@ -26,6 +26,7 @@ const C = {
   pola: "#2a78d6", // series-1 blue
   node: "#eb6834", // series-2 orange
   warn: "#d03b3b", // status critical (for broken markers, with label)
+  flaky: "#eda100", // status warning amber (renders, but unreliably)
 };
 
 const FONT = 'system-ui, -apple-system, "Segoe UI", sans-serif';
@@ -110,8 +111,10 @@ function hbar({ title, subtitle, rows, unit, valueFmt = num, refLine, legend = t
       g.push(`<text x="${gutter + 16}" y="${y + barH / 2 + 4}" font-size="11" fill="${C.warn}">✗ ${esc(r.note || "excluded")}</text>`);
     } else {
       const w = Math.max(2, x(r.value));
-      g.push(`<path d="${barPath(gutter, y, w, barH, 4)}" fill="${colorOf(r.name)}"/>`);
-      g.push(`<text x="${gutter + w + 7}" y="${y + barH / 2 + 4}" font-size="11" fill="${C.ink2}" font-variant-numeric="tabular-nums">${esc(valueFmt(r.value))}</text>`);
+      // flaky = renders correctly but not every time → amber bar + rate label.
+      g.push(`<path d="${barPath(gutter, y, w, barH, 4)}" fill="${r.flaky ? C.flaky : colorOf(r.name)}"/>`);
+      const lbl = r.flaky ? `${valueFmt(r.value)}  ⚠ flaky ${r.flaky}%` : valueFmt(r.value);
+      g.push(`<text x="${gutter + w + 7}" y="${y + barH / 2 + 4}" font-size="11" fill="${r.flaky ? C.flaky : C.ink2}" font-variant-numeric="tabular-nums">${esc(lbl)}</text>`);
     }
   });
   const defs = `<defs><pattern id="hatch" width="6" height="6" patternTransform="rotate(45)" patternUnits="userSpaceOnUse"><rect width="6" height="6" fill="${C.surface}"/><line x1="0" y1="0" x2="0" y2="6" stroke="${C.muted}" stroke-width="2"/></pattern></defs>`;
@@ -275,13 +278,22 @@ emit(
   "async-scenario2.svg",
   hbar({
     title: "Async render — Scenario 2 (awaits a 50ms source)",
-    subtitle: "median Flight TTLB, ms — a correct engine clears the 50ms line; broken engines flagged",
+    subtitle: "median Flight TTLB, ms — a correct engine clears the 50ms line; amber = flaky, ✗ = broken",
     unit: "ms",
     valueFmt: (v) => num(v) + " ms",
     refLine: 50,
     rows: entries.map((e) => {
       const x = sc(e, 2);
-      if (x && x.outcome === "ok") return { name: e.name, value: (x.timings.flightTtlbMs || x.timings.documentTtlbMs).median };
+      if (x && x.outcome === "ok") {
+        return { name: e.name, value: (x.timings.flightTtlbMs || x.timings.documentTtlbMs).median };
+      }
+      if (x && x.outcome === "flaky") {
+        return {
+          name: e.name,
+          value: (x.timings.flightTtlbMs || x.timings.documentTtlbMs).median,
+          flaky: x.correctness ? x.correctness.contentRatePct : null,
+        };
+      }
       return { name: e.name, broken: true, note: x ? x.outcome : "n/a" };
     }),
   }),
