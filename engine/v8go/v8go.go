@@ -300,8 +300,68 @@ func (r *Runtime) StartRender(exportName, propsJSON string) (RenderSession, erro
 	return sess, err
 }
 
-// DrainStream polls the stream until done, writing decoded chunks to w.
-func (r *Runtime) DrainStream(_ RenderSession, w core.StreamWriter) (bool, error) {
+// ── core.SSRRuntime / core.SSRPoolFactory bridge ────────────────────────────────
+//
+// v8go's Runtime historically exposed StartRender + DrainStream(RenderSession).
+// The current renderer contract is core.SSRRuntime (CallRenderFunction →
+// StreamHandle, DrainStream(StreamHandle)). These adapters bridge the two,
+// mirroring the goja engine so the react renderer can drive the V8 engine.
+
+// v8goStreamHandle wraps a RenderSession so it satisfies core.StreamHandle. The
+// session is a zero-size token; the actual stream lives in the __pola_stream__
+// global that drainSession pulls from.
+type v8goStreamHandle struct{ sess RenderSession }
+
+func (h *v8goStreamHandle) IsNil() bool { return h == nil }
+
+// CallRenderFunction implements core.SSRRuntime. It calls StartRender and wraps
+// the result in a v8goStreamHandle.
+func (r *Runtime) CallRenderFunction(exportName, propsJSON string) (core.StreamHandle, error) {
+	sess, err := r.StartRender(exportName, propsJSON)
+	if err != nil {
+		return nil, err
+	}
+	return &v8goStreamHandle{sess: sess}, nil
+}
+
+// DrainStream implements core.SSRRuntime. It type-asserts handle to
+// *v8goStreamHandle and drains the underlying stream.
+func (r *Runtime) DrainStream(handle core.StreamHandle, w core.StreamWriter) (bool, error) {
+	h, ok := handle.(*v8goStreamHandle)
+	if !ok {
+		return false, fmt.Errorf("v8go: DrainStream: unexpected handle type %T", handle)
+	}
+	return r.drainSession(h.sess, w)
+}
+
+// Ensure *Runtime satisfies core.SSRRuntime at compile time.
+var _ core.SSRRuntime = (*Runtime)(nil)
+
+// NewSSRPool implements core.SSRPoolFactory. It compiles the server bundle and
+// returns a pool of V8 Runtimes that implement core.SSRRuntime.
+func (e *Engine) NewSSRPool(bundle []byte) (core.SSRPool, error) {
+	pool, err := NewVMPool(string(bundle), e.logger)
+	if err != nil {
+		return nil, err
+	}
+	return &v8goSSRPool{pool: pool}, nil
+}
+
+// v8goSSRPool wraps *VMPool and implements core.SSRPool.
+type v8goSSRPool struct{ pool *VMPool }
+
+func (p *v8goSSRPool) Acquire() (core.SSRRuntime, error) { return p.pool.Acquire() }
+func (p *v8goSSRPool) Release(rt core.SSRRuntime) {
+	if r, ok := rt.(*Runtime); ok {
+		p.pool.Release(r)
+	}
+}
+
+// Ensure *Engine satisfies core.SSRPoolFactory at compile time.
+var _ core.SSRPoolFactory = (*Engine)(nil)
+
+// drainSession polls the stream until done, writing decoded chunks to w.
+func (r *Runtime) drainSession(_ RenderSession, w core.StreamWriter) (bool, error) {
 	var wroteAny bool
 	for {
 		var done, noChunks bool
