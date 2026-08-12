@@ -38,6 +38,9 @@ charts in `CHARTS.md`.
 correctness, build time, and a nested-Suspense streaming timeline (blue = Pola,
 orange = Node baseline). Regenerate standalone with `pnpm charts`.
 
+📖 **Glossary:** [`GLOSSARY.md`](GLOSSARY.md) — every short form used here (RSC,
+SSR, Flight, TTFB/TTLB, CoV, RSS, JIT, CGO, WASM, …) with reference links.
+
 ## What is measured (per scenario, per entry)
 
 - **TTFB** and **time-to-last-byte** (median / p95 / p99 + coefficient of variation)
