@@ -1,10 +1,12 @@
 # Pola benchmark suite
 
-Reproducible benchmarks comparing **Pola** against a raw **Node.js** baseline —
-Node.js as the runtime, rendering with `react-dom/server` (`renderToPipeableStream`),
-no framework. Every number here is measured on the machine that runs it — nothing
-is estimated. **No winner is declared**; read `FAIRNESS.md` for where the
-comparison is and isn't apples-to-apples.
+Reproducible benchmarks comparing **Pola** (every JS engine it ships) against two
+**Node.js** baselines: a plain **SSR** baseline (`nodejs-ssr`, raw
+`react-dom/server`) and an **RSC** baseline (`nodejs-rsc-streaming`,
+`react-server-dom-webpack` — the same Flight protocol Pola uses). The RSC baseline
+is the apples-to-apples peer; the SSR one is the floor. Every number is measured on
+the machine that runs it — nothing is estimated. **No winner is declared**; read
+`FAIRNESS.md` for where the comparison is and isn't apples-to-apples.
 
 > This directory is `bench-suite/` — deliberately distinct from the repo's Go
 > `benchmark/` package. `BENCHMARK/` collides with it on a case-insensitive
@@ -21,8 +23,8 @@ pnpm bench              # build + measure every entry, then regenerate RESULTS.m
 Faster iterations:
 
 ```bash
-pnpm bench:control                 # just the control
-node bench.mjs --only control --quick   # 3 runs, 3s load (dev sanity)
+pnpm bench:nodejs-ssr                 # just the SSR baseline
+node bench.mjs --only nodejs-rsc-streaming --quick  # 3 runs, 3s load (dev sanity)
 node bench.mjs --scenarios 1,2     # subset of scenarios
 node bench.mjs --skip-install --skip-build   # reuse prior artifacts
 node report.mjs                    # regenerate RESULTS.md from results/summary.json
@@ -57,7 +59,7 @@ entries whose first response is a shell) use Playwright + CDP — see `FAIRNESS.
 4. Nested Suspense, 3 boundaries resolving at 20/50/200ms — **RSC-only**
    (non-RSC entries are recorded **N/A**, not approximated)
 
-Scenarios 1–3 have plain-SSR equivalents for the Node.js control.
+Scenarios 1–3 have plain-SSR equivalents on the `nodejs-ssr` baseline.
 
 ## Conformance gate
 
@@ -75,7 +77,8 @@ bench-suite/
   report.mjs            results/summary.json → RESULTS.md
   lib/                  measure, sizes, rss, load, proc, stats, conformance, env
   entries/
-    control/            Node.js + raw react-dom/server (the runtime baseline)
+    nodejs-ssr/            Node.js + raw react-dom/server — SSR floor
+    nodejs-rsc-streaming/ Node.js + react-server-dom-webpack — RSC baseline
     pola-goja/          Pola: goja engine (default) + react (RSDW) renderer
     pola-nativersc/     Pola: goja engine + Go-native Flight renderer
     pola-<engine>/      one per JS engine: sobek, v8go, moderncquickjs, quickjsgo, qjs
@@ -89,13 +92,13 @@ bench-suite/
 
 Create `entries/<name>/entry.config.mjs` exporting `{ name, kind, install, build,
 start, health, scenarios, flight, clientBundles, ... }`. The orchestrator
-discovers it automatically. See `entries/control/entry.config.mjs` for the
+discovers it automatically. See `entries/pola-goja/entry.config.mjs` for the
 contract (`kind: "rsc"` + `flight` enables two-request measurement).
 
 ## Entries
 
-- **control** — Node.js + raw `react-dom/server` — plain **SSR** floor (not an RSC peer)
-- **control-rsc** — Node.js + `react-server-dom-webpack` — **RSC baseline** (apples-to-apples with Pola; isolates the runtime)
+- **nodejs-ssr** — Node.js + raw `react-dom/server` — plain **SSR** floor (not an RSC peer)
+- **nodejs-rsc-streaming** — Node.js + `react-server-dom-webpack` — **RSC baseline** (apples-to-apples with Pola; isolates the runtime)
 - **pola-goja** — Pola, goja engine (pure-Go interpreter) + react/RSDW renderer
 - **pola-nativersc** — Pola, goja engine + Go-native Flight renderer
 - **pola-v8go** — Pola, V8/JIT engine (CGO) + react renderer

@@ -1,5 +1,5 @@
 {
-  "name": "bench-control-rsc",
+  "name": "bench-nodejs-rsc-streaming",
   "version": "0.0.0",
   "private": true,
   "type": "module",

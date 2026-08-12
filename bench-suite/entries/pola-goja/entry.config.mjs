@@ -25,7 +25,7 @@ export default {
     4: { path: "/s4" }, // RSC-only nested Suspense — supported here
   },
   // Client JS shipped to the browser. Framework runtime vs app split is a
-  // filename heuristic for Pola (no metafile attribution like the control):
+  // filename heuristic for Pola (no metafile attribution like the nodejs-ssr):
   //   framework = Pola client runtime + React chunks + framework error boundary
   //   app       = the scenario's own client components (Counter) + route error UIs
   clientBundles: {

@@ -1,5 +1,5 @@
 {
-  "name": "bench-control",
+  "name": "bench-nodejs-ssr",
   "version": "0.0.0",
   "private": true,
   "type": "module",

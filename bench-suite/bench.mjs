@@ -8,8 +8,8 @@
 //
 // Usage:
 //   node bench.mjs                       # all entries, full run
-//   node bench.mjs --only control        # one entry
-//   node bench.mjs --only control,pola-goja
+//   node bench.mjs --only nodejs-ssr        # one entry
+//   node bench.mjs --only nodejs-ssr,pola-goja
 //   node bench.mjs --scenarios 1,2       # subset of scenarios
 //   node bench.mjs --runs 7 --warmup 2 --load 10 --connections 50
 //   node bench.mjs --quick               # runs=3 warmup=1 load=3 (dev)

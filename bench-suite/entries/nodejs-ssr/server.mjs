@@ -45,5 +45,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, "127.0.0.1", () => {
-  process.stdout.write(`control listening on http://127.0.0.1:${PORT}\n`);
+  process.stdout.write(`nodejs-ssr listening on http://127.0.0.1:${PORT}\n`);
 });

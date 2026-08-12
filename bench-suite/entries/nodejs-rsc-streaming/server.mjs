@@ -63,7 +63,7 @@ const server = http.createServer((req, res) => {
     if (isFlight) {
       res.statusCode = 200;
       res.setHeader("content-type", FLIGHT + "; charset=utf-8");
-      res.setHeader("cache-control", "no-store");
+      res.setHeader("cache-nodejs-ssr", "no-store");
       const { pipe } = renderToPipeableStream(factory(), MODULE_MAP, {
         onError(err) {
           process.stderr.write("rsc render error: " + String(err) + "\n");
@@ -83,5 +83,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, "127.0.0.1", () => {
-  process.stdout.write(`control-rsc listening on http://127.0.0.1:${PORT}\n`);
+  process.stdout.write(`nodejs-rsc-streaming listening on http://127.0.0.1:${PORT}\n`);
 });

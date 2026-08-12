@@ -1,4 +1,4 @@
-// Build the control entry with esbuild:
+// Build the nodejs-ssr entry with esbuild:
 //   - dist/server/index.mjs   server render (node, react kept external)
 //   - dist/client/s3.js       minified browser hydration bundle for scenario 3
 //   - dist/client/report.json framework-vs-app RAW byte attribution (from the
