@@ -8,11 +8,11 @@ Where the source does not determine something, it is marked **`unknown`** and is
 
 Commit / tree state: branch `paulgrammer/amman`. Paths are repo-relative.
 
-> **Directory note.** The benchmark suite lives at `benchmarks/` (not
-> `BENCHMARK/`) because the repo already contains a Go package `benchmark/`
-> (`benchmark/engine_bench_test.go`, run via `mage benchmark`) and this
-> filesystem is case-insensitive, so `BENCHMARK/` and `benchmark/` are the same
-> directory.
+> **Directory note.** This suite lives at `bench-suite/` — deliberately distinct
+> from the repo's Go `benchmark/` package (`benchmark/engine_bench_test.go`, run
+> via `mage benchmark`). `BENCHMARK/` would collide with it on a case-insensitive
+> filesystem, and `benchmarks/` differs by only a trailing "s", so `bench-suite/`
+> avoids both confusions.
 
 ---
 

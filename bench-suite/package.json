@@ -1,5 +1,5 @@
 {
-  "name": "pola-benchmarks",
+  "name": "pola-bench-suite",
   "version": "0.0.0",
   "private": true,
   "type": "module",

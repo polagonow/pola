@@ -10,7 +10,7 @@ export async function loadTest(url, { headers = {}, connections = 50, duration =
   try {
     autocannon = require("autocannon");
   } catch {
-    return { error: "autocannon not installed (run `pnpm install` in benchmarks/)" };
+    return { error: "autocannon not installed (run `pnpm install` in bench-suite/)" };
   }
   return new Promise((resolve) => {
     const instance = autocannon(

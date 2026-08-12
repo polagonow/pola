@@ -7,7 +7,7 @@
 
 | | |
 |---|---|
-| Captured | 2026-08-12T03:24:54.180Z |
+| Captured | 2026-08-12T03:48:58.378Z |
 | CPU | Apple M5 Pro |
 | Logical cores | 18 |
 | RAM | 48 GiB |
@@ -16,14 +16,14 @@
 | pnpm | 10.33.3 |
 | Go | go version go1.26.5 darwin/arm64 |
 
-Measurement config: **7 runs** per scenario, first **2** discarded as warmup; load = **10s** at **50** connections. Production builds only, one entry at a time.
+Measurement config: **3 runs** per scenario, first **1** discarded as warmup; load = **3s** at **50** connections. Production builds only, one entry at a time.
 
 ## Build, cold start, and memory
 
 | Entry | Kind | Outcome | Cold build (ms) | Warm build (ms) | Cold start (ms) | RSS idle (MiB) | RSS under load (MiB) |
 |---|---|---|---|---|---|---|---|
-| control | ssr | ok (3/4 scenarios) | 309.218 | 155.883 | 128.148 | 62.08 | 214.53 |
-| pola-default | rsc | ok (4/4 scenarios) | 1223.57 | 459.299 | 490.408 | 25.66 | 140.72 |
+| control | ssr | ok (3/4 scenarios) | — | — | 127.365 | 62.05 | 219.17 |
+| pola-default | rsc | ok (4/4 scenarios) | — | — | 129.113 | 26.2 | 132.7 |
 
 ## Client JS bytes (framework runtime vs app code)
 
@@ -38,15 +38,15 @@ TTFB and TTLB are milliseconds (median / p95 / p99, CoV%). For RSC entries the t
 
 | Entry | Request | TTFB med | TTFB p95 | TTLB med | TTLB p95 | TTLB p99 | CoV% | Payload raw | gzip | brotli | Load req/s | Load p99 ms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| control | document | 0.862 | 0.953 | 0.959 | 1.017 | 1.017 | 10.192 | 319 B | 247 B | 158 B | 66770.91 | 0 |
-| pola-default | document | 0.548 | 1.277 | 0.569 | 1.34 | 1.34 | 47.763 | 936 B | 564 B | 411 B | 64360.73 | 2 |
-| pola-default | RSC Flight | 1.668 | 2.641 | 1.703 | 2.772 | 2.772 | 40.082 | 560 B | 326 B | 270 B | 6549.6 | 34 |
+| control | document | 0.515 | 0.638 | 0.672 | 0.675 | 0.675 | 0.315 | 319 B | 247 B | 158 B | 63877.34 | 1 |
+| pola-default | document | 0.659 | 0.95 | 0.683 | 0.99 | 0.99 | 25.951 | 936 B | 561 B | 412 B | 65957.34 | 2 |
+| pola-default | RSC Flight | 1.854 | 2.179 | 1.88 | 2.221 | 2.221 | 11.759 | 560 B | 326 B | 270 B | 6794 | 31 |
 
 ### Scenario 1 flush timelines (representative run)
 
-- **control** document (2 chunks): 0.945ms/305B → 0.954ms/14B
-- **pola-default** document (1 chunk): 1.277ms/936B
-- **pola-default** RSC Flight (1 chunk): 2.641ms/560B
+- **control** document (2 chunks): 0.638ms/305B → 0.645ms/14B
+- **pola-default** document (1 chunk): 0.95ms/936B
+- **pola-default** RSC Flight (1 chunk): 2.179ms/560B
 
 ## Scenario 2 — Server component awaiting 50ms source, Suspense-streamed
 
@@ -54,15 +54,15 @@ TTFB and TTLB are milliseconds (median / p95 / p99, CoV%). For RSC entries the t
 
 | Entry | Request | TTFB med | TTFB p95 | TTLB med | TTLB p95 | TTLB p99 | CoV% | Payload raw | gzip | brotli | Load req/s | Load p99 ms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| control | document | 1.236 | 1.733 | 52.296 | 53.436 | 53.436 | 1.454 | 1.3 KiB | 788 B | 602 B | 557.5 | 17613 ⚠(24 to) |
-| pola-default | document | 0.902 | 1.205 | 0.932 | 1.245 | 1.245 | 21.137 | 940 B | 569 B | 413 B | 64196.37 | 2 |
-| pola-default | RSC Flight | 2.09 | 3.301 | 58.939 | 60.332 | 60.332 | 1.388 | 633 B | 334 B | 284 B | 853.7 | 62 |
+| control | document | 0.598 | 1.252 | 52.045 | 52.674 | 52.674 | 0.849 | 1.3 KiB | 788 B | 602 B | 950 | 56 |
+| pola-default | document | 0.631 | 1.078 | 0.651 | 1.117 | 1.117 | 37.275 | 940 B | 572 B | 423 B | 66021.34 | 2 |
+| pola-default | RSC Flight | 1.443 | 2.352 | 58.188 | 59.45 | 59.45 | 1.517 | 633 B | 334 B | 284 B | 850.34 | 62 |
 
 ### Scenario 2 flush timelines (representative run)
 
-- **control** document (3 chunks): 0.864ms/377B → 51.414ms/961B → 51.43ms/14B
-- **pola-default** document (1 chunk): 1.099ms/940B
-- **pola-default** RSC Flight (2 chunks): 3.301ms/571B → 60.145ms/62B
+- **control** document (3 chunks): 1.252ms/377B → 52.581ms/961B → 52.59ms/14B
+- **pola-default** document (1 chunk): 1.078ms/940B
+- **pola-default** RSC Flight (2 chunks): 2.352ms/571B → 59.325ms/62B
 
 ## Scenario 3 — Interactive client island in a server tree
 
@@ -70,15 +70,15 @@ TTFB and TTLB are milliseconds (median / p95 / p99, CoV%). For RSC entries the t
 
 | Entry | Request | TTFB med | TTFB p95 | TTLB med | TTLB p95 | TTLB p99 | CoV% | Payload raw | gzip | brotli | Load req/s | Load p99 ms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| control | document | 0.668 | 1.021 | 0.695 | 1.048 | 1.048 | 25.812 | 521 B | 359 B | 236 B | 55582.55 | 1 |
-| pola-default | document | 1.011 | 1.375 | 1.065 | 1.429 | 1.429 | 30.09 | 936 B | 564 B | 412 B | 64368 | 2 |
-| pola-default | RSC Flight | 2.529 | 3.151 | 2.59 | 3.216 | 3.216 | 21.999 | 621 B | 345 B | 285 B | 5500.8 | 39 |
+| control | document | 1.528 | 1.817 | 1.642 | 1.888 | 1.888 | 9.855 | 521 B | 359 B | 236 B | 53744 | 1 |
+| pola-default | document | 0.456 | 0.469 | 0.48 | 0.502 | 0.502 | 3.168 | 936 B | 564 B | 409 B | 66720 | 2 |
+| pola-default | RSC Flight | 1.29 | 1.605 | 1.309 | 1.637 | 1.637 | 15.745 | 621 B | 345 B | 285 B | 6120.67 | 36 |
 
 ### Scenario 3 flush timelines (representative run)
 
-- **control** document (2 chunks): 1.021ms/507B → 1.025ms/14B
-- **pola-default** document (1 chunk): 1.011ms/936B
-- **pola-default** RSC Flight (1 chunk): 3.151ms/621B
+- **control** document (2 chunks): 1.528ms/507B → 1.545ms/14B
+- **pola-default** document (1 chunk): 0.469ms/936B
+- **pola-default** RSC Flight (1 chunk): 1.605ms/621B
 
 ## Scenario 4 — Nested Suspense, 3 boundaries @ 20/50/200ms (RSC-only)
 
@@ -87,13 +87,13 @@ TTFB and TTLB are milliseconds (median / p95 / p99, CoV%). For RSC entries the t
 | Entry | Request | TTFB med | TTFB p95 | TTLB med | TTLB p95 | TTLB p99 | CoV% | Payload raw | gzip | brotli | Load req/s | Load p99 ms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | control | — | `N/A` — not applicable for this entry | | | | | | | | | | |
-| pola-default | document | 1.21 | 1.425 | 1.262 | 1.488 | 1.488 | 16.673 | 936 B | 563 B | 411 B | 62701.1 | 2 |
-| pola-default | RSC Flight | 2.565 | 2.792 | 297.932 | 303.56 | 303.56 | 0.858 | 1.1 KiB | 395 B | 332 B | 165 | 307 |
+| pola-default | document | 0.786 | 1.449 | 0.818 | 1.517 | 1.517 | 42.336 | 936 B | 564 B | 412 B | 65408 | 2 |
+| pola-default | RSC Flight | 2.065 | 3.201 | 297.938 | 299.814 | 299.814 | 0.444 | 1.1 KiB | 395 B | 332 B | 166.67 | 307 |
 
 ### Scenario 4 flush timelines (representative run)
 
-- **pola-default** document (1 chunk): 1.276ms/936B
-- **pola-default** RSC Flight (4 chunks): 2.565ms/578B → 32.51ms/207B → 89.668ms/209B → 298.91ms/113B
+- **pola-default** document (1 chunk): 1.449ms/936B
+- **pola-default** RSC Flight (4 chunks): 3.201ms/578B → 32.53ms/207B → 89.762ms/209B → 299.526ms/113B
 
 ## Conformance gate
 

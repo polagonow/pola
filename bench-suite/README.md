@@ -6,13 +6,14 @@ no framework. Every number here is measured on the machine that runs it — noth
 is estimated. **No winner is declared**; read `FAIRNESS.md` for where the
 comparison is and isn't apples-to-apples.
 
-> This directory is `benchmarks/` (not `BENCHMARK/`) because the repo already has
-> a Go package `benchmark/` and the filesystem is case-insensitive.
+> This directory is `bench-suite/` — deliberately distinct from the repo's Go
+> `benchmark/` package. `BENCHMARK/` collides with it on a case-insensitive
+> filesystem, and `benchmarks/` differs by only a trailing "s".
 
 ## Quick start
 
 ```bash
-cd benchmarks
+cd bench-suite
 pnpm install            # harness deps (autocannon)
 pnpm bench              # build + measure every entry, then regenerate RESULTS.md
 ```
@@ -69,7 +70,7 @@ an explanation (in `RESULTS.md` / `FAIRNESS.md`), never silently included.
 ## Layout
 
 ```
-benchmarks/
+bench-suite/
   bench.mjs             orchestrator (install→build→start→measure→stop)
   report.mjs            results/summary.json → RESULTS.md
   lib/                  measure, sizes, rss, load, proc, stats, conformance, env
