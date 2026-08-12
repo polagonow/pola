@@ -20,6 +20,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # golangci-lint-action's `only-new-issues` diffs the PR against its
+          # base to report just the introduced findings; that needs full history,
+          # not the default shallow (depth 1) clone. Without this the diff can't
+          # be computed and every pre-existing repo finding is reported as "new".
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
