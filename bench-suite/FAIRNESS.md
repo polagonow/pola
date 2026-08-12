@@ -157,6 +157,27 @@ because it changes client JS and hydration cost.
 - Same client runtime (`@pola/react/client`) as pola-default; client-JS
   framework/app split uses the same filename heuristic.
 
+### pola-v8go (V8/JIT engine + react/RSDW renderer)
+- Same app + react renderer as `pola-default`; only the server JS engine differs
+  (V8 with JIT instead of the goja interpreter). Isolates the engine's effect.
+- **Required a framework patch to work at all** (committed): `engine/v8go` shipped
+  without a `plugin.go` and did not implement the current `core.SSRPoolFactory` /
+  `core.SSRRuntime` contract (it exposed the older `StartRender` +
+  `DrainStream(RenderSession)`). Added `engine/v8go/plugin.go` and a bridge
+  (`CallRenderFunction` → `StreamHandle`, `DrainStream(StreamHandle)`,
+  `NewSSRPool`) mirroring the goja engine. No behavior of goja/react/nativersc
+  was changed. Disclosed here because it's a framework change made to enable one
+  entry — the diff is in the same commit series and reproducible.
+- **Requires CGO** (`CGO_ENABLED=1`, `--cgo 1`); V8 is statically linked, so the
+  binary is ~49 MB vs goja's ~17 MB and is **not** a from-scratch static binary.
+  Recorded as a real deployment difference, not normalized.
+- Uses the react renderer → does **not** cache Flight by default (Revalidate=0),
+  same as pola-default; cache-busting still applied uniformly.
+- Observed: on trivial renders V8's per-call CGO boundary cost makes it *slower*
+  than goja here; and RSS under sustained load is very high (V8 isolates in the
+  VM pool — multiple GB at 50 connections) vs the goja engines' ~130 MiB. Both
+  are real datapoints, recorded not adjusted. No winner is declared.
+
 ## Observed load-tail behavior (recorded, not adjusted)
 - **control, scenario 2** (50 connections against a 50ms-suspense SSR stream):
   p50/p95 are healthy (~52/58 ms) but ~24 / 1115 requests exceeded autocannon's
