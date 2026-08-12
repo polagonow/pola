@@ -1,0 +1,21 @@
+{
+  "name": "bench-control",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Control entry: raw react-dom/server renderToPipeableStream, no framework.",
+  "scripts": {
+    "build": "node build.mjs",
+    "start": "node server.mjs"
+  },
+  "dependencies": {
+    "react": "19.2.4",
+    "react-dom": "19.2.4"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  }
+}

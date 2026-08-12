@@ -1,0 +1,20 @@
+{
+  "name": "pola-benchmarks",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Reproducible benchmark harness comparing Pola against Next.js, React Router, and a raw react-dom/server control.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "bench": "node bench.mjs && node report.mjs",
+    "bench:control": "node bench.mjs --only control && node report.mjs",
+    "bench:pola": "node bench.mjs --only pola-default && node report.mjs",
+    "report": "node report.mjs",
+    "clean": "node -e \"import('node:fs').then(fs=>fs.rmSync('results',{recursive:true,force:true}))\""
+  },
+  "devDependencies": {
+    "autocannon": "8.0.0"
+  }
+}
