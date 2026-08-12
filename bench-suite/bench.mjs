@@ -39,6 +39,18 @@ const BASE = `http://127.0.0.1:${PORT}`;
 const FLIGHT_MIME = "text/x-component";
 const FLIGHT_HEADERS = { "content-type": FLIGHT_MIME, accept: FLIGHT_MIME };
 
+// Correctness gate: a substring that MUST appear in the rendered content, and —
+// for async scenarios — a floor the render time must exceed (the source delay).
+// An engine that returns async content without awaiting (e.g. some QuickJS
+// bindings) renders scenario 2 in ~2 ms; that is flagged, not reported as fast.
+const SCENARIO_MARKER = {
+  1: "Benchmark: Static",
+  2: "Loaded after 50ms",
+  3: "Benchmark: Island",
+  4: "Loaded after 200ms",
+};
+const SCENARIO_MIN_TTLB_MS = { 2: 40, 4: 180 }; // 50ms source; 20+50+200 sequential
+
 function parseArgs(argv) {
   const a = {
     only: null,
@@ -176,9 +188,28 @@ async function measureScenario(entry, scenarioId, args) {
   // conformance capture: SSR -> doc HTML; RSC -> needs browser (flagged)
   const conformanceHtml = isRSC ? null : (docBody ? docBody.toString("utf8") : null);
 
+  // --- correctness gate (content present + async delay honored) ---
+  const checkBody = (isRSC ? flightBody : docBody);
+  const marker = SCENARIO_MARKER[scenarioId];
+  const contentPresent = checkBody ? checkBody.toString("utf8").includes(marker) : false;
+  const floor = SCENARIO_MIN_TTLB_MS[scenarioId];
+  const medTtlb = (isRSC ? summarize(flTtlb) : summarize(docTtlb)).median;
+  let outcome = "ok";
+  let reason = null;
+  const correctness = { marker, contentPresent, medianTtlbMs: medTtlb, floorMs: floor ?? null };
+  if (!contentPresent) {
+    outcome = "content-missing";
+    reason = `expected "${marker}" absent from ${isRSC ? "Flight" : "document"} body (render failed or incomplete)`;
+  } else if (floor && medTtlb != null && medTtlb < floor) {
+    outcome = "async-not-honored";
+    reason = `median ${isRSC ? "Flight" : "doc"} TTLB ${medTtlb}ms < ${floor}ms floor — engine returned async content without awaiting the source`;
+  }
+
   return {
     scenario: scenarioId,
-    outcome: "ok",
+    outcome,
+    reason,
+    correctness,
     path: sc.path,
     kind: entry.kind,
     twoRequest: !!isRSC,

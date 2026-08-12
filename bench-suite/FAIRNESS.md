@@ -67,10 +67,48 @@ route opts into `Revalidate`). The benchmark deliberately bypasses that to isola
 render cost. A separate "warm cache / repeat visit" measurement could be added to
 show the cached path; it is not part of these render-cost numbers.
 
-### Pola — engine is a pure-Go interpreter
-The default `goja` engine has no JIT (`engine/goja/`). This is an architectural
-property, not a tuning choice; a V8/JIT variant (`v8go`) is measured separately
-so the interpreter-vs-JIT gap is visible rather than hidden.
+### Pola — all JS engines are benched (and several needed wiring)
+Every JS engine Pola ships is measured, each with the **same app + react
+renderer**, so only the engine differs:
+
+| Engine | Kind | plugin.go shipped? | Wiring added | Async RSC (scenarios 2 & 4) |
+|---|---|---|---|---|
+| goja | pure-Go interpreter, no JIT | yes | — | ✅ correct |
+| sobek | pure-Go (grafana/sobek, goja fork) | **no** | plugin.go + SSRPoolFactory/SSRRuntime bridge | ✅ correct |
+| v8go | V8 / JIT (CGO) | **no** | plugin.go + bridge | ✅ correct |
+| moderncquickjs | QuickJS (CGO) | yes | — | ✅ correct |
+| quickjsgo | QuickJS (CGO) | yes | — | ❌ **broken** (see below) |
+| qjs | QuickJS (CGO) | **no** | plugin.go + bridge | ❌ **broken** (see below) |
+| node | execs external `node` | no | — | **excluded** |
+
+- **Wiring added (committed framework changes):** `sobek`, `v8go`, and `qjs`
+  shipped without a `plugin.go` and implemented an older render contract
+  (`StartRender` + `DrainStream(RenderSession)`). Each got a `plugin.go` and a
+  `CallRenderFunction`/`DrainStream(StreamHandle)`/`NewSSRPool` bridge mirroring
+  goja. No behavior of the already-wired engines changed. Disclosed because it is
+  a framework change made to enable benchmarking; the diffs are in this commit
+  series.
+- **`node` is excluded**, not benched: the `node` engine shells out to an
+  external Node.js binary, which contradicts Pola's single-static-binary premise
+  and has no `plugin.go`. Recorded as an outcome, not silently dropped.
+- **JIT vs interpreter is visible:** goja/sobek are pure-Go interpreters (no
+  JIT); v8go is V8 (JIT); the QuickJS bindings are bytecode VMs. Numbers exposed,
+  no winner declared.
+
+### Correctness gate for async rendering (why quickjsgo & qjs are flagged)
+The harness asserts, per scenario, that the rendered content contains a required
+marker **and** — for the async scenarios — that render time clears a floor equal
+to the source delay (scenario 2 ≥ 40 ms for a 50 ms source; scenario 4 ≥ 180 ms
+for 20+50+200 ms). Engines that return async content *without awaiting* fail this
+gate and their scenario-2/4 numbers are recorded as the outcome
+`async-not-honored` (or `content-missing` when flaky), **not** reported as fast:
+- **quickjsgo** and **qjs** render scenario 2 in ~1–2 ms instead of ~50 ms; `qjs`
+  additionally logs `render await: expected JS Promise, got Undefined`. Their
+  event-loop/promise handling does not drive the async Server Component +
+  Suspense path correctly. Static (scenario 1) and the island (scenario 3) render
+  fine; the async scenarios are excluded with this explanation.
+- goja, sobek, v8go, moderncquickjs clear the floor (scenario 2 ≈ 50 ms,
+  scenario 4 ≈ 270–300 ms) and pass.
 
 ### Compression on the wire
 - **Control:** no gzip/brotli on the wire (raw bytes). The harness computes

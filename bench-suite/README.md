@@ -91,8 +91,20 @@ start, health, scenarios, flight, clientBundles, ... }`. The orchestrator
 discovers it automatically. See `entries/control/entry.config.mjs` for the
 contract (`kind: "rsc"` + `flight` enables two-request measurement).
 
-## Status
+## Entries
 
-Built and measured: **control** (Node.js baseline) and **pola-default**.
-Pending: Pola **v8go** and **nativersc** variants. Each is committed once it
-builds and passes conformance.
+- **control** — Node.js + raw `react-dom/server` (the runtime baseline)
+- **pola-default** — Pola, goja engine (pure-Go interpreter) + react/RSDW renderer
+- **pola-nativersc** — Pola, goja engine + Go-native Flight renderer
+- **pola-v8go** — Pola, V8/JIT engine (CGO) + react renderer
+- **pola-sobek** — Pola, sobek engine (pure-Go goja fork) + react renderer
+- **pola-moderncquickjs** — Pola, QuickJS engine (CGO) + react renderer
+- **pola-quickjsgo** — Pola, QuickJS (quickjs-go, CGO) — async RSC currently broken
+- **pola-qjs** — Pola, QuickJS (fastschema/qjs, CGO) — async RSC currently broken
+
+Every Pola JS engine is benched with the same app + react renderer, so only the
+engine differs. The `node` engine is **excluded** (it shells out to an external
+Node.js binary, contradicting the single-binary premise). Engines whose async
+rendering doesn't honor the source delay are flagged `async-not-honored` /
+`content-missing` by the correctness gate, not reported as fast — see
+`FAIRNESS.md`.
