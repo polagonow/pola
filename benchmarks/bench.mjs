@@ -265,10 +265,16 @@ async function benchEntry(entry, args) {
   }
 
   // 4. start server (cold start = spawn -> first successful response)
+  // Resolve a relative launcher (e.g. "./server-bin") against the entry dir —
+  // child_process.spawn otherwise resolves it against the harness cwd.
+  let startCmd = entry.start.cmd;
+  if (startCmd.startsWith("./") || startCmd.startsWith("../")) {
+    startCmd = path.resolve(entry.dir, startCmd);
+  }
   let started;
   try {
     started = await startServer({
-      cmd: entry.start.cmd,
+      cmd: startCmd,
       args: entry.start.args,
       cwd: entry.dir,
       env: { ...entry.start.env, PORT: String(PORT) },

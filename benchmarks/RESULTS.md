@@ -7,7 +7,7 @@
 
 | | |
 |---|---|
-| Captured | 2026-08-12T03:09:34.100Z |
+| Captured | 2026-08-12T03:24:54.180Z |
 | CPU | Apple M5 Pro |
 | Logical cores | 18 |
 | RAM | 48 GiB |
@@ -16,19 +16,21 @@
 | pnpm | 10.33.3 |
 | Go | go version go1.26.5 darwin/arm64 |
 
-Measurement config: **3 runs** per scenario, first **1** discarded as warmup; load = **3s** at **50** connections. Production builds only, one entry at a time.
+Measurement config: **7 runs** per scenario, first **2** discarded as warmup; load = **10s** at **50** connections. Production builds only, one entry at a time.
 
 ## Build, cold start, and memory
 
 | Entry | Kind | Outcome | Cold build (ms) | Warm build (ms) | Cold start (ms) | RSS idle (MiB) | RSS under load (MiB) |
 |---|---|---|---|---|---|---|---|
-| control | ssr | ok (3/4 scenarios) | 153.724 | 154.397 | 127.745 | 62.03 | 208.02 |
+| control | ssr | ok (3/4 scenarios) | 309.218 | 155.883 | 128.148 | 62.08 | 214.53 |
+| pola-default | rsc | ok (4/4 scenarios) | 1223.57 | 459.299 | 490.408 | 25.66 | 140.72 |
 
 ## Client JS bytes (framework runtime vs app code)
 
 | Entry | Total raw | Total gzip | Total brotli | Framework raw | App raw |
 |---|---|---|---|---|---|
 | control | 190.5 KiB | 59.3 KiB | 51.1 KiB | 187.3 KiB | 1.1 KiB |
+| pola-default | — | — | — | — | — |
 
 ## Scenario 1 — Static page, no data
 
@@ -36,11 +38,15 @@ TTFB and TTLB are milliseconds (median / p95 / p99, CoV%). For RSC entries the t
 
 | Entry | Request | TTFB med | TTFB p95 | TTLB med | TTLB p95 | TTLB p99 | CoV% | Payload raw | gzip | brotli | Load req/s | Load p99 ms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| control | document | 0.519 | 0.651 | 0.574 | 0.694 | 0.694 | 13.384 | 319 B | 247 B | 158 B | 64186.67 | 1 |
+| control | document | 0.862 | 0.953 | 0.959 | 1.017 | 1.017 | 10.192 | 319 B | 247 B | 158 B | 66770.91 | 0 |
+| pola-default | document | 0.548 | 1.277 | 0.569 | 1.34 | 1.34 | 47.763 | 936 B | 564 B | 411 B | 64360.73 | 2 |
+| pola-default | RSC Flight | 1.668 | 2.641 | 1.703 | 2.772 | 2.772 | 40.082 | 560 B | 326 B | 270 B | 6549.6 | 34 |
 
 ### Scenario 1 flush timelines (representative run)
 
-- **control** document (2 chunks): 0.651ms/305B → 0.661ms/14B
+- **control** document (2 chunks): 0.945ms/305B → 0.954ms/14B
+- **pola-default** document (1 chunk): 1.277ms/936B
+- **pola-default** RSC Flight (1 chunk): 2.641ms/560B
 
 ## Scenario 2 — Server component awaiting 50ms source, Suspense-streamed
 
@@ -48,11 +54,15 @@ TTFB and TTLB are milliseconds (median / p95 / p99, CoV%). For RSC entries the t
 
 | Entry | Request | TTFB med | TTFB p95 | TTLB med | TTLB p95 | TTLB p99 | CoV% | Payload raw | gzip | brotli | Load req/s | Load p99 ms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| control | document | 0.498 | 1.326 | 51.834 | 53.139 | 53.139 | 1.758 | 1.3 KiB | 788 B | 602 B | 950 | 56 |
+| control | document | 1.236 | 1.733 | 52.296 | 53.436 | 53.436 | 1.454 | 1.3 KiB | 788 B | 602 B | 557.5 | 17613 ⚠(24 to) |
+| pola-default | document | 0.902 | 1.205 | 0.932 | 1.245 | 1.245 | 21.137 | 940 B | 569 B | 413 B | 64196.37 | 2 |
+| pola-default | RSC Flight | 2.09 | 3.301 | 58.939 | 60.332 | 60.332 | 1.388 | 633 B | 334 B | 284 B | 853.7 | 62 |
 
 ### Scenario 2 flush timelines (representative run)
 
-- **control** document (3 chunks): 1.326ms/377B → 52.972ms/961B → 52.99ms/14B
+- **control** document (3 chunks): 0.864ms/377B → 51.414ms/961B → 51.43ms/14B
+- **pola-default** document (1 chunk): 1.099ms/940B
+- **pola-default** RSC Flight (2 chunks): 3.301ms/571B → 60.145ms/62B
 
 ## Scenario 3 — Interactive client island in a server tree
 
@@ -60,11 +70,15 @@ TTFB and TTLB are milliseconds (median / p95 / p99, CoV%). For RSC entries the t
 
 | Entry | Request | TTFB med | TTFB p95 | TTLB med | TTLB p95 | TTLB p99 | CoV% | Payload raw | gzip | brotli | Load req/s | Load p99 ms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| control | document | 1.351 | 1.729 | 1.437 | 1.869 | 1.869 | 18.48 | 521 B | 359 B | 236 B | 54064 | 1 |
+| control | document | 0.668 | 1.021 | 0.695 | 1.048 | 1.048 | 25.812 | 521 B | 359 B | 236 B | 55582.55 | 1 |
+| pola-default | document | 1.011 | 1.375 | 1.065 | 1.429 | 1.429 | 30.09 | 936 B | 564 B | 412 B | 64368 | 2 |
+| pola-default | RSC Flight | 2.529 | 3.151 | 2.59 | 3.216 | 3.216 | 21.999 | 621 B | 345 B | 285 B | 5500.8 | 39 |
 
 ### Scenario 3 flush timelines (representative run)
 
-- **control** document (2 chunks): 1.351ms/507B → 1.359ms/14B
+- **control** document (2 chunks): 1.021ms/507B → 1.025ms/14B
+- **pola-default** document (1 chunk): 1.011ms/936B
+- **pola-default** RSC Flight (1 chunk): 3.151ms/621B
 
 ## Scenario 4 — Nested Suspense, 3 boundaries @ 20/50/200ms (RSC-only)
 
@@ -73,9 +87,13 @@ TTFB and TTLB are milliseconds (median / p95 / p99, CoV%). For RSC entries the t
 | Entry | Request | TTFB med | TTFB p95 | TTLB med | TTLB p95 | TTLB p99 | CoV% | Payload raw | gzip | brotli | Load req/s | Load p99 ms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | control | — | `N/A` — not applicable for this entry | | | | | | | | | | |
+| pola-default | document | 1.21 | 1.425 | 1.262 | 1.488 | 1.488 | 16.673 | 936 B | 563 B | 411 B | 62701.1 | 2 |
+| pola-default | RSC Flight | 2.565 | 2.792 | 297.932 | 303.56 | 303.56 | 0.858 | 1.1 KiB | 395 B | 332 B | 165 | 307 |
 
 ### Scenario 4 flush timelines (representative run)
 
+- **pola-default** document (1 chunk): 1.276ms/936B
+- **pola-default** RSC Flight (4 chunks): 2.565ms/578B → 32.51ms/207B → 89.668ms/209B → 298.91ms/113B
 
 ## Conformance gate
 
@@ -83,10 +101,10 @@ Normalized rendered DOM must match across implementations of a scenario (scripts
 
 | Scenario | Verdict | Compared (SSR) | Pending browser capture |
 |---|---|---|---|
-| 1 | n/a (need ≥2) | control | — |
-| 2 | n/a (need ≥2) | control | — |
-| 3 | n/a (need ≥2) | control | — |
-| 4 | n/a (need ≥2) | — | — |
+| 1 | n/a (need ≥2) | control | pola-default |
+| 2 | n/a (need ≥2) | control | pola-default |
+| 3 | n/a (need ≥2) | control | pola-default |
+| 4 | n/a (need ≥2) | — | pola-default |
 
 ## Caveats (where this isn't apples-to-apples)
 
@@ -97,6 +115,13 @@ See `FAIRNESS.md` for the full deviation log. Per-entry notes captured this run:
 - Scenario 3 hydrates the whole document root — plain React has no partial hydration without RSC; the interactive 'island' is one Counter in an otherwise static tree.
 - Scenario 4 (nested RSC Suspense) is N/A for a non-RSC control, per the plan.
 - No gzip/brotli on the wire (raw); the harness computes gzip/brotli sizes offline from response bodies.
+
+**pola-default:**
+- Default Pola: goja (pure-Go interpreter, no JIT) + react renderer (real react-server-dom-webpack).
+- Two-request model: `document` rows measure the shell; `RSC Flight` rows measure the streamed payload. TTFB of the document is shell-only and not comparable to SSR entries' content TTFB — compare the Flight request for render cost.
+- Client JS framework/app split is a filename heuristic (not exact metafile attribution); the Pola client runtime bundles React + the Flight parser into _client-*.js.
+- CSRF + security headers are ON (Pola production defaults) — GET scenarios are unaffected; recorded in FAIRNESS.md.
+- Every page is wrapped in a Suspense boundary whose fallback is loading.tsx (framework default), in addition to scenario-specific boundaries.
 
 Harness-level caveats:
 - Build peak-RSS is unreliable for sub-second builds and for bundlers that run as a child service process (e.g. esbuild) — the single-pid `ps` sampler under-counts. Treat build memory as indicative only.

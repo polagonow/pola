@@ -18,6 +18,16 @@ const L = [];
 const p = (x = "") => L.push(x);
 
 const num = (x) => (x == null ? "—" : String(x));
+// Load p99 cell, annotated with timeouts/errors so a capped tail isn't misread.
+function loadP99(l) {
+  if (!l || l.error) return l?.error ? "err" : "—";
+  const p99 = l.latencyMs?.p99;
+  const flags = [];
+  if (l.timeouts) flags.push(`${l.timeouts} to`);
+  if (l.non2xx) flags.push(`${l.non2xx} non2xx`);
+  if (l.errors && l.errors !== l.timeouts) flags.push(`${l.errors} err`);
+  return `${num(p99)}${flags.length ? ` ⚠(${flags.join(", ")})` : ""}`;
+}
 const bytes = (x) => (x == null ? "—" : x >= 1024 ? `${(x / 1024).toFixed(1)} KiB` : `${x} B`);
 
 p("# Benchmark Results");
@@ -95,13 +105,13 @@ for (const id of ["1", "2", "3", "4"]) {
     const dt = sc.timings.documentTtfbMs, dl = sc.timings.documentTtlbMs;
     const dp = sc.payloadBytes.document, dloadObj = sc.load.document;
     p(
-      `| ${en.name} | document | ${num(dt.median)} | ${num(dt.p95)} | ${num(dl.median)} | ${num(dl.p95)} | ${num(dl.p99)} | ${num(dl.cvPct)} | ${bytes(dp.raw)} | ${bytes(dp.gzip)} | ${bytes(dp.brotli)} | ${num(dloadObj?.requests?.perSec)} | ${num(dloadObj?.latencyMs?.p99)} |`,
+      `| ${en.name} | document | ${num(dt.median)} | ${num(dt.p95)} | ${num(dl.median)} | ${num(dl.p95)} | ${num(dl.p99)} | ${num(dl.cvPct)} | ${bytes(dp.raw)} | ${bytes(dp.gzip)} | ${bytes(dp.brotli)} | ${num(dloadObj?.requests?.perSec)} | ${loadP99(dloadObj)} |`,
     );
     if (sc.twoRequest && sc.timings.flightTtfbMs) {
       const ft = sc.timings.flightTtfbMs, fl = sc.timings.flightTtlbMs;
       const fp = sc.payloadBytes.rscFlight, floadObj = sc.load.rscFlight;
       p(
-        `| ${en.name} | RSC Flight | ${num(ft.median)} | ${num(ft.p95)} | ${num(fl.median)} | ${num(fl.p95)} | ${num(fl.p99)} | ${num(fl.cvPct)} | ${bytes(fp?.raw)} | ${bytes(fp?.gzip)} | ${bytes(fp?.brotli)} | ${num(floadObj?.requests?.perSec)} | ${num(floadObj?.latencyMs?.p99)} |`,
+        `| ${en.name} | RSC Flight | ${num(ft.median)} | ${num(ft.p95)} | ${num(fl.median)} | ${num(fl.p95)} | ${num(fl.p99)} | ${num(fl.cvPct)} | ${bytes(fp?.raw)} | ${bytes(fp?.gzip)} | ${bytes(fp?.brotli)} | ${num(floadObj?.requests?.perSec)} | ${loadP99(floadObj)} |`,
       );
     }
   }

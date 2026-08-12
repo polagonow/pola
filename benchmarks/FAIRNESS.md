@@ -93,4 +93,41 @@ because it changes client JS and hydration cost.
 - esbuild (`0.28.2`) is used only to transpile/bundle the control's own
   server/client code; it is not a measured "framework."
 
+### pola-default (goja + react/RSDW renderer)
+- Built with `pola build --vm goja --renderer react --bundler esbuild --router
+  nextjs --css none --cgo 0` → single static binary; served by running the
+  binary. Documented Pola production flow.
+- **CSRF + security headers ON** (Pola's `pola new` defaults). GET scenarios are
+  unaffected functionally; the shell carries a CSRF `<meta>` and a CSP nonce,
+  which add a few bytes to the document (not the Flight payload). Not disabled —
+  disabling would be hand-tuning one entry.
+- **Cold vs warm build:** Go's compiler cache is process-global and is not
+  cleared between cold/warm, so Pola's "cold build" reflects JS bundling +
+  linking with a warm Go cache — not a from-scratch Go compile. The control's
+  esbuild cold/warm difference is similarly cache-limited. Neither number is a
+  from-absolute-zero build; recorded as such.
+- **Client JS framework/app split is a filename heuristic** (framework =
+  `_client-*` runtime + React `chunks/*` + `ErrorBoundary-*`; app = `Counter-*`
+  + route `error-*`/`global-error-*`). The control's split is exact (esbuild
+  metafile). This asymmetry is a measurement limitation, not a fairness choice —
+  do not compare the two splits to more than ~1 KiB precision.
+- **Every page carries an extra framework Suspense boundary** whose fallback is
+  `loading.tsx` (Pola wraps pages automatically), in addition to the
+  scenario-specific boundaries. The control has only the scenario's boundaries.
+  Visible in scenario 2/4 Flight payloads.
+- **Two-request model:** the `document` load/timings measure the shell only; the
+  `RSC Flight` rows carry the render cost. When comparing "content latency"
+  across entries, compare Pola's **Flight** row to the SSR entries' **document**
+  row — comparing Pola's document row to an SSR document row compares a shell to
+  full content and is meaningless.
+
+## Observed load-tail behavior (recorded, not adjusted)
+- **control, scenario 2** (50 connections against a 50ms-suspense SSR stream):
+  p50/p95 are healthy (~52/58 ms) but ~24 / 1115 requests exceeded autocannon's
+  10 s request timeout, inflating p99/max. This is a real tail characteristic of
+  Node `renderToPipeableStream` under concurrent streaming at this connection
+  count, not a harness error. Timeouts are surfaced in `RESULTS.md` (⚠ annotation)
+  rather than trimmed. Pola scenario 2 showed 0 timeouts at the same concurrency
+  but lower peak throughput on fast endpoints (VM-pool serialization).
+
 <!-- Additional entries append their deviations here as they are built. -->
