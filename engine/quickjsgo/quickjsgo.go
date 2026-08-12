@@ -419,6 +419,14 @@ func (r *Runtime) drainStream(exportName, propsJSON string, w core.StreamWriter)
 			time.Sleep(200 * time.Microsecond)
 		}
 
+		// Drain trailing jobs (react-server-dom-webpack cleanup that runs after the
+		// stream closes) before pooling. This makes the SYNCHRONOUS scenarios
+		// reliable across VM reuse; the ASYNC scenarios still corrupt the buke VM
+		// after one render (a binding limitation — recorded in FAIRNESS.md).
+		for i := 0; i < 16; i++ {
+			r.ctx.Loop()
+		}
+
 		// Clear the per-request sink + stream globals.
 		clearRet := r.ctx.Eval(fmt.Sprintf("%s = undefined; globalThis.%s = undefined; globalThis.%s = undefined;",
 			globals.OutputChunk, rscStreamVar, rscDecVar), quickjs.EvalFileName("clear_output.js"))

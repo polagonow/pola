@@ -351,7 +351,22 @@ func (r *Runtime) drainSession(sess RenderSession, w core.StreamWriter) (bool, e
 			return
 		}
 
-		_, _ = r.ctx.Eval("clear_output.js", qjslib.Code(globals.OutputChunk+" = undefined;"))
+		// Drain trailing jobs. react-server-dom-webpack schedules cleanup work
+		// (resetting its module-level "current request") that runs AFTER the
+		// top-level render promise settles. If it isn't drained before this VM is
+		// pooled, it leaks into the NEXT render on the same VM, which then aborts
+		// immediately — the cause of the alternating pass/fail flakiness. Awaiting a
+		// microtask-tick loop lets those jobs run now.
+		if dv, derr := r.ctx.Eval("drain.js", qjslib.Code("(async function(){ for (var i = 0; i < 256; i++) { await Promise.resolve(); } })()")); derr == nil {
+			if dv.IsPromise() {
+				if dr, _ := dv.Await(); dr != nil {
+					dr.Free()
+				}
+			}
+			dv.Free()
+		}
+
+		_, _ = r.ctx.Eval("clear_render.js", qjslib.Code(globals.OutputChunk+" = undefined; globalThis."+renderPromiseVar+" = undefined;"))
 	})
 
 	return wroteAny, runErr
