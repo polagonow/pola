@@ -94,7 +94,8 @@ contract (`kind: "rsc"` + `flight` enables two-request measurement).
 
 ## Entries
 
-- **control** — Node.js + raw `react-dom/server` (the runtime baseline)
+- **control** — Node.js + raw `react-dom/server` — plain **SSR** floor (not an RSC peer)
+- **control-rsc** — Node.js + `react-server-dom-webpack` — **RSC baseline** (apples-to-apples with Pola; isolates the runtime)
 - **pola-goja** — Pola, goja engine (pure-Go interpreter) + react/RSDW renderer
 - **pola-nativersc** — Pola, goja engine + Go-native Flight renderer
 - **pola-v8go** — Pola, V8/JIT engine (CGO) + react renderer

@@ -23,6 +23,31 @@ difference is **recorded, not normalized away**.
   recorded as those outcomes in `results/` and surfaced in `RESULTS.md`.
 - **No winner is declared.**
 
+## Two baselines: an SSR floor and an RSC peer (apples-to-apples)
+
+Pola is an **RSC** framework, so comparing it only against plain **SSR** would not
+be like-for-like (SSR ships server-rendered HTML in the first response; RSC ships
+a shell then streams Flight). To keep the comparison honest there are **two**
+Node.js baselines:
+
+- **`control`** — raw `react-dom/server` `renderToPipeableStream`. Plain **SSR**,
+  no framework. This is the absolute **floor**, not an RSC peer. Use it to see how
+  much any RSC machinery costs versus bare-metal React SSR on Node.
+- **`control-rsc`** — Node.js running **`react-server-dom-webpack`** (the *same*
+  Flight protocol Pola uses), with the same Server Components, the same
+  two-request shell+Flight model, and a `createFromFetch` client. This is the
+  **apples-to-apples RSC peer**: comparing a Pola entry to `control-rsc` isolates
+  the **runtime** (native Node V8 vs Pola's Go-embedded goja/v8go VM + Go
+  plumbing), because everything else (RSDW, React version, protocol, model) is
+  identical.
+
+So: compare Pola ⇄ `control-rsc` for the RSC-vs-RSC story; treat `control` as the
+SSR reference floor. `control-rsc` implements scenarios 1/2/4 (pure Server
+Components); scenario 3's client island is **N/A** for it — the "use client"
+bundler machinery (client references + manifest + chunk loading) is exactly the
+framework layer Pola provides and a raw Node RSC baseline lacks (mirrors scenario
+4 being N/A for the SSR `control`).
+
 ## Structural differences that move metrics (recorded, not normalized)
 
 ### Pola — two-request model (the big one)
