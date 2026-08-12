@@ -1,10 +1,10 @@
 # Pola benchmark suite
 
-Reproducible benchmarks comparing **Pola** against Next.js (App Router),
-React Router (RSC and plain framework modes), and a raw `react-dom/server`
-control. Every number here is measured on the machine that runs it — nothing is
-estimated. **No winner is declared**; read `FAIRNESS.md` for where the comparison
-is and isn't apples-to-apples.
+Reproducible benchmarks comparing **Pola** against a raw **Node.js** baseline —
+Node.js as the runtime, rendering with `react-dom/server` (`renderToPipeableStream`),
+no framework. Every number here is measured on the machine that runs it — nothing
+is estimated. **No winner is declared**; read `FAIRNESS.md` for where the
+comparison is and isn't apples-to-apples.
 
 > This directory is `benchmarks/` (not `BENCHMARK/`) because the repo already has
 > a Go package `benchmark/` and the filesystem is case-insensitive.
@@ -56,8 +56,7 @@ entries whose first response is a shell) use Playwright + CDP — see `FAIRNESS.
 4. Nested Suspense, 3 boundaries resolving at 20/50/200ms — **RSC-only**
    (non-RSC entries are recorded **N/A**, not approximated)
 
-Scenarios 1–3 have plain-SSR equivalents for the control and React Router's
-non-RSC mode.
+Scenarios 1–3 have plain-SSR equivalents for the Node.js control.
 
 ## Conformance gate
 
@@ -75,9 +74,9 @@ benchmarks/
   report.mjs            results/summary.json → RESULTS.md
   lib/                  measure, sizes, rss, load, proc, stats, conformance, env
   entries/
-    control/            raw react-dom/server (the floor) — built
-    ...                 pola-default, pola-v8go, pola-nativersc, nextjs,
-                        react-router-rsc, react-router-ssr (added incrementally)
+    control/            Node.js + raw react-dom/server (the runtime baseline) — built
+    pola-default/       Pola: goja engine + react (RSDW) renderer — built
+    ...                 pola-v8go, pola-nativersc (Pola variants, added incrementally)
   results/              raw per-run JSON (gitignored)
   CAPABILITIES.md       Pola capabilities, source-cited (Phase 0)
   FAIRNESS.md           deviation log
@@ -93,6 +92,6 @@ contract (`kind: "rsc"` + `flight` enables two-request measurement).
 
 ## Status
 
-Built and measured: **control**. Pending: Pola (default / v8go / nativersc),
-Next.js App Router, React Router (RSC + plain). Each is committed once it builds
-and passes conformance.
+Built and measured: **control** (Node.js baseline) and **pola-default**.
+Pending: Pola **v8go** and **nativersc** variants. Each is committed once it
+builds and passes conformance.
