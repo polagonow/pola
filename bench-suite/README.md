@@ -107,8 +107,8 @@ contract (`kind: "rsc"` + `flight` enables two-request measurement).
 - **pola-v8go** — Pola, V8/JIT engine (CGO) + react renderer
 - **pola-sobek** — Pola, sobek engine (pure-Go goja fork) + react renderer
 - **pola-moderncquickjs** — Pola, QuickJS engine (CGO) + react renderer
-- **pola-quickjsgo** — Pola, QuickJS (quickjs-go, CGO) — async RSC currently broken
-- **pola-qjs** — Pola, QuickJS (fastschema/qjs, CGO) — async RSC currently broken
+- **pola-qjs** — Pola, QuickJS (fastschema/qjs, **WASM**) — renders correctly sequentially; crashes under concurrent load
+- **pola-quickjsgo** — Pola, QuickJS (quickjs-go, CGO) — renders sequentially (except nested Suspense); unstable under concurrent load
 
 Every Pola JS engine is benched with the same app + react renderer, so only the
 engine differs. The `node` engine is **excluded** (it shells out to an external

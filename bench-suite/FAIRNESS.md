@@ -95,8 +95,8 @@ renderer**, so only the engine differs:
 | sobek | pure-Go (grafana/sobek, goja fork) | **no** | plugin.go + SSRPoolFactory/SSRRuntime bridge | ✅ correct |
 | v8go | V8 / JIT (CGO) | **no** | plugin.go + bridge | ✅ correct |
 | moderncquickjs | QuickJS (CGO) | yes | — | ✅ correct |
-| quickjsgo | QuickJS (CGO) | yes | — | ❌ **broken** (see below) |
-| qjs | QuickJS (CGO) | **no** | plugin.go + bridge | ❌ **broken** (see below) |
+| qjs | QuickJS (**WASM**, fastschema/qjs) | **no** | plugin.go + bridge + async-render fix | renders correctly **sequentially**; **crashes under concurrent load** |
+| quickjsgo | QuickJS (CGO, buke) | yes | sync bridge + Go-driven drain | scenarios 1/2/3 render sequentially; nested Suspense ✗; **unstable under concurrent load** |
 | node | execs external `node` | no | — | **excluded** |
 
 - **Wiring added (committed framework changes):** `sobek`, `v8go`, and `qjs`
@@ -113,18 +113,43 @@ renderer**, so only the engine differs:
   JIT); v8go is V8 (JIT); the QuickJS bindings are bytecode VMs. Numbers exposed,
   no winner declared.
 
-### Correctness gate for async rendering (why quickjsgo & qjs are flagged)
+### Correctness gate for async rendering (and the QuickJS-binding fixes)
 The harness asserts, per scenario, that the rendered content contains a required
 marker **and** — for the async scenarios — that render time clears a floor equal
 to the source delay (scenario 2 ≥ 40 ms for a 50 ms source; scenario 4 ≥ 180 ms
 for 20+50+200 ms). Engines that return async content *without awaiting* fail this
-gate and their scenario-2/4 numbers are recorded as the outcome
-`async-not-honored` (or `content-missing` when flaky), **not** reported as fast:
-- **quickjsgo** and **qjs** render scenario 2 in ~1–2 ms instead of ~50 ms; `qjs`
-  additionally logs `render await: expected JS Promise, got Undefined`. Their
-  event-loop/promise handling does not drive the async Server Component +
-  Suspense path correctly. Static (scenario 1) and the island (scenario 3) render
-  fine; the async scenarios are excluded with this explanation.
+gate and are recorded as `async-not-honored` / `content-missing`, **not** reported
+as fast.
+
+Both QuickJS bindings originally failed this gate. There are **two independent
+layers** here; the render layer was fixed at the framework level (committed), the
+concurrency layer is a binding limitation.
+
+**Layer 1 — async render (fixed, verified on sequential requests):**
+- **qjs** — `Eval("__renderAsync__(...)")` returned `undefined` instead of the
+  render Promise (fastschema/qjs doesn't yield a bare call's completion value), so
+  the drain errored and the connection hung. Fixed by assigning the promise to a
+  global and awaiting that. Renders all four scenarios correctly one request at a
+  time.
+- **quickjsgo** — (1) its DI bridge was async (goroutine + `ctx.NewPromise` +
+  `Schedule`); react-server-dom-webpack closes the Flight stream before the
+  scheduled resolve lands. Made the bridge **synchronous** like
+  moderncquickjs/qjs. (2) The render was driven by `ctx.Await` over an async
+  self-poll loop, but buke's `Await` doesn't run native JS jobs; switched to a
+  **Go-driven drain** (`ctx.Loop()`). Static, 50 ms-async, and island render
+  correctly sequentially; nested Suspense (scenario 4) still closes early (needs
+  the shared `eventloop.EventLoop` model).
+
+**Layer 2 — concurrency under load (still failing; a binding limitation):** the
+harness applies a sustained 50-connection load. **fastschema/qjs is a WASM
+QuickJS** (wazero) with a shared compiled module; ~30 concurrent heavy RSC renders
+trap the runtime (`QJS_Eval: wasm error: unreachable`), and the corrupted VM then
+fails every later request — so `qjs` still shows failures in `RESULTS.md`.
+`quickjsgo` (buke, CGO) degrades similarly under load. Each engine already
+serialises its own runtime (`run()` holds a per-VM mutex); surviving the load
+would require **global** serialisation of all QuickJS work (one render at a time),
+trading throughput for stability — not applied here, so the crash is recorded as
+the honest outcome rather than hidden or worked around.
 - goja, sobek, v8go, moderncquickjs clear the floor (scenario 2 ≈ 50 ms,
   scenario 4 ≈ 270–300 ms) and pass.
 
