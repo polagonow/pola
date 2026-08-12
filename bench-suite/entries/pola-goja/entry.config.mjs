@@ -5,7 +5,7 @@
 // kind:"rsc" + flight:true makes the harness measure BOTH requests.
 
 export default {
-  name: "pola-default",
+  name: "pola-goja",
   kind: "rsc",
   flight: true, // enable two-request (document + RSC Flight) measurement
   // Frontend deps install; the Go binary build happens in the build step.

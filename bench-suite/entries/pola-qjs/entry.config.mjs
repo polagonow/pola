@@ -17,6 +17,6 @@ export default {
   notes: [
     "Pola qjs: fastschema/qjs engine (QuickJS binding, CGO).",
     "engine/qjs needed framework wiring (plugin.go + SSRPoolFactory/SSRRuntime bridge); requires CGO (--cgo 1).",
-    "Same app + react renderer as pola-default; only the server JS engine differs. Does not cache Flight by default (Revalidate=0); cache-busting applied uniformly.",
+    "Same app + react renderer as pola-goja; only the server JS engine differs. Does not cache Flight by default (Revalidate=0); cache-busting applied uniformly.",
   ],
 };

@@ -150,7 +150,7 @@ because it changes client JS and hydration cost.
 - esbuild (`0.28.2`) is used only to transpile/bundle the control's own
   server/client code; it is not a measured "framework."
 
-### pola-default (goja + react/RSDW renderer)
+### pola-goja (goja + react/RSDW renderer)
 - Built with `pola build --vm goja --renderer react --bundler esbuild --router
   nextjs --css none --cgo 0` → single static binary; served by running the
   binary. Documented Pola production flow.
@@ -179,7 +179,7 @@ because it changes client JS and hydration cost.
   full content and is meaningless.
 
 ### pola-nativersc (goja + Go-native Flight renderer)
-- Same app source as `pola-default`, built with `--renderer nativersc`. The RSC
+- Same app source as `pola-goja`, built with `--renderer nativersc`. The RSC
   Flight payload is serialized in Go (`renderer/nativersc/flight.go`,
   `reconciler.go`) instead of by react-server-dom-webpack inside the VM.
 - **Flight detection differs:** nativersc keys only off `Content-Type:
@@ -191,12 +191,12 @@ because it changes client JS and hydration cost.
   would report ~0.16 ms cache-hit latency instead of real render cost.
 - Wire format differs from the react renderer (`$L…` lazy refs, `$Sreact.suspense`
   emitted in Go), so Flight payload byte counts are not expected to match
-  pola-default to the byte.
-- Same client runtime (`@pola/react/client`) as pola-default; client-JS
+  pola-goja to the byte.
+- Same client runtime (`@pola/react/client`) as pola-goja; client-JS
   framework/app split uses the same filename heuristic.
 
 ### pola-v8go (V8/JIT engine + react/RSDW renderer)
-- Same app + react renderer as `pola-default`; only the server JS engine differs
+- Same app + react renderer as `pola-goja`; only the server JS engine differs
   (V8 with JIT instead of the goja interpreter). Isolates the engine's effect.
 - **Required a framework patch to work at all** (committed): `engine/v8go` shipped
   without a `plugin.go` and did not implement the current `core.SSRPoolFactory` /
@@ -210,7 +210,7 @@ because it changes client JS and hydration cost.
   binary is ~49 MB vs goja's ~17 MB and is **not** a from-scratch static binary.
   Recorded as a real deployment difference, not normalized.
 - Uses the react renderer → does **not** cache Flight by default (Revalidate=0),
-  same as pola-default; cache-busting still applied uniformly.
+  same as pola-goja; cache-busting still applied uniformly.
 - Observed: on trivial renders V8's per-call CGO boundary cost makes it *slower*
   than goja here; and RSS under sustained load is very high (V8 isolates in the
   VM pool — multiple GB at 50 connections) vs the goja engines' ~130 MiB. Both

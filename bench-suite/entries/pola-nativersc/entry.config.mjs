@@ -1,11 +1,11 @@
 // Pola (nativersc variant: goja engine + Go-native Flight renderer) descriptor.
 //
-// Same app source as pola-default, built with `--renderer nativersc`. Instead of
+// Same app source as pola-goja, built with `--renderer nativersc`. Instead of
 // running Meta's react-server-dom-webpack inside the VM, nativersc walks the
 // React element tree and serializes the Flight wire format in Go
 // (renderer/nativersc/flight.go, reconciler.go). Same two-request model and the
 // same client runtime (@pola/react/client), so the harness measures it exactly
-// like pola-default.
+// like pola-goja.
 
 export default {
   name: "pola-nativersc",
@@ -37,8 +37,8 @@ export default {
   notes: [
     "Pola nativersc: goja engine + Go-native Flight renderer (renderer/nativersc). The RSC payload is serialized in Go, not by react-server-dom-webpack in the VM.",
     "Flight requests are detected by `Content-Type: text/x-component` only (nativersc.go:106) — the harness sends both Content-Type and Accept, matching the real Pola client.",
-    "Two-request model identical to pola-default: `document` rows measure the shell, `RSC Flight` rows carry render cost.",
-    "Client runtime is the same @pola/react/client bundle as pola-default; client JS framework/app split is the same filename heuristic.",
+    "Two-request model identical to pola-goja: `document` rows measure the shell, `RSC Flight` rows carry render cost.",
+    "Client runtime is the same @pola/react/client bundle as pola-goja; client JS framework/app split is the same filename heuristic.",
     "CSRF + security headers ON (Pola production defaults).",
   ],
 };

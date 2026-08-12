@@ -10,7 +10,7 @@
   "scripts": {
     "bench": "node bench.mjs && node report.mjs",
     "bench:control": "node bench.mjs --only control && node report.mjs",
-    "bench:pola": "node bench.mjs --only pola-default && node report.mjs",
+    "bench:pola": "node bench.mjs --only pola-goja && node report.mjs",
     "report": "node report.mjs",
     "clean": "node -e \"import('node:fs').then(fs=>fs.rmSync('results',{recursive:true,force:true}))\""
   },

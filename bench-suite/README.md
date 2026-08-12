@@ -75,9 +75,10 @@ bench-suite/
   report.mjs            results/summary.json → RESULTS.md
   lib/                  measure, sizes, rss, load, proc, stats, conformance, env
   entries/
-    control/            Node.js + raw react-dom/server (the runtime baseline) — built
-    pola-default/       Pola: goja engine + react (RSDW) renderer — built
-    ...                 pola-v8go, pola-nativersc (Pola variants, added incrementally)
+    control/            Node.js + raw react-dom/server (the runtime baseline)
+    pola-goja/          Pola: goja engine (default) + react (RSDW) renderer
+    pola-nativersc/     Pola: goja engine + Go-native Flight renderer
+    pola-<engine>/      one per JS engine: sobek, v8go, moderncquickjs, quickjsgo, qjs
   results/              raw per-run JSON (gitignored)
   CAPABILITIES.md       Pola capabilities, source-cited (Phase 0)
   FAIRNESS.md           deviation log
@@ -94,7 +95,7 @@ contract (`kind: "rsc"` + `flight` enables two-request measurement).
 ## Entries
 
 - **control** — Node.js + raw `react-dom/server` (the runtime baseline)
-- **pola-default** — Pola, goja engine (pure-Go interpreter) + react/RSDW renderer
+- **pola-goja** — Pola, goja engine (pure-Go interpreter) + react/RSDW renderer
 - **pola-nativersc** — Pola, goja engine + Go-native Flight renderer
 - **pola-v8go** — Pola, V8/JIT engine (CGO) + react renderer
 - **pola-sobek** — Pola, sobek engine (pure-Go goja fork) + react renderer

@@ -17,5 +17,5 @@ results/
 *.log
 
 # Pola single-binary build output
-entries/pola-default/server-bin
+entries/pola-goja/server-bin
 entries/**/server-bin

@@ -17,6 +17,6 @@ export default {
   notes: [
     "Pola sobek: grafana/sobek engine (a maintained goja fork, pure Go, no JIT, no CGO).",
     "engine/sobek needed framework wiring (plugin.go + core.SSRPoolFactory/SSRRuntime bridge mirroring goja); no CGO, static binary.",
-    "Same app + react renderer as pola-default; only the server JS engine differs. Does not cache Flight by default (Revalidate=0); cache-busting applied uniformly.",
+    "Same app + react renderer as pola-goja; only the server JS engine differs. Does not cache Flight by default (Revalidate=0); cache-busting applied uniformly.",
   ],
 };

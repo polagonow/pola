@@ -17,6 +17,6 @@ export default {
   notes: [
     "Pola moderncquickjs: QuickJS engine (moderncquickjs binding, CGO).",
     "engine/moderncquickjs already shipped plugin.go + SSRPoolFactory; requires CGO (--cgo 1).",
-    "Same app + react renderer as pola-default; only the server JS engine differs. Does not cache Flight by default (Revalidate=0); cache-busting applied uniformly.",
+    "Same app + react renderer as pola-goja; only the server JS engine differs. Does not cache Flight by default (Revalidate=0); cache-busting applied uniformly.",
   ],
 };
