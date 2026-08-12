@@ -19,7 +19,7 @@ import https from "node:https";
 const nowNs = () => process.hrtime.bigint();
 const msSince = (startNs) => Number(nowNs() - startNs) / 1e6;
 
-export function measureRequest(url, { headers = {}, timeoutMs = 30000 } = {}) {
+export function measureRequest(url, { headers = {}, timeoutMs = 15000 } = {}) {
   return new Promise((resolve, reject) => {
     const u = new URL(url);
     const mod = u.protocol === "https:" ? https : http;

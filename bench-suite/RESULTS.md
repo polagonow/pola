@@ -7,7 +7,7 @@
 
 | | |
 |---|---|
-| Captured | 2026-08-12T04:16:06.948Z |
+| Captured | 2026-08-12T04:26:04.580Z |
 | CPU | Apple M5 Pro |
 | Logical cores | 18 |
 | RAM | 48 GiB |
@@ -16,20 +16,20 @@
 | pnpm | 10.33.3 |
 | Go | go version go1.26.5 darwin/arm64 |
 
-Measurement config: **3 runs** per scenario, first **1** discarded as warmup; load = **3s** at **50** connections. Production builds only, one entry at a time.
+Measurement config: **7 runs** per scenario, first **2** discarded as warmup; load = **10s** at **50** connections. Production builds only, one entry at a time.
 
 ## Build, cold start, and memory
 
 | Entry | Kind | Outcome | Cold build (ms) | Warm build (ms) | Cold start (ms) | RSS idle (MiB) | RSS under load (MiB) |
 |---|---|---|---|---|---|---|---|
-| control | ssr | ok (3/4 scenarios) | — | — | 127.804 | 62.22 | 216.86 |
-| pola-default | rsc | ok (4/4 scenarios) | — | — | 125.815 | 26.08 | 145.59 |
-| pola-moderncquickjs | rsc | ok (4/4 scenarios) | — | — | 127.442 | 25.52 | 113.97 |
-| pola-nativersc | rsc | ok (4/4 scenarios) | — | — | 128.384 | 25.89 | 130.23 |
-| pola-qjs | rsc | ok (1/4 scenarios) | — | — | 372.782 | 90.73 | 2020.97 |
-| pola-quickjsgo | rsc | ok (2/4 scenarios) | — | — | 129.496 | 20.56 | 871.83 |
-| pola-sobek | rsc | ok (4/4 scenarios) | — | — | 126.943 | 26.84 | 481.66 |
-| pola-v8go | rsc | ok (4/4 scenarios) | — | — | 129.454 | 28.25 | 3248.75 |
+| control | ssr | ok (3/4 scenarios) | 464.506 | 153.551 | 127.701 | 62.14 | 216.86 |
+| pola-default | rsc | ok (4/4 scenarios) | 2461.491 | 921.126 | 490.63 | 26.05 | 136.53 |
+| pola-moderncquickjs | rsc | ok (4/4 scenarios) | 1390.621 | 611.664 | 489.792 | 25.53 | 115 |
+| pola-nativersc | rsc | ok (4/4 scenarios) | 1385.301 | 459.187 | 489.033 | 26.05 | 126.67 |
+| pola-qjs | rsc | ok (1/4 scenarios) | 1846.714 | 766.972 | 731.128 | 90.73 | 3157.48 |
+| pola-quickjsgo | rsc | ok (1/4 scenarios) | 2306.23 | 459.037 | 488.471 | 21.05 | 1463 |
+| pola-sobek | rsc | ok (4/4 scenarios) | 2166.509 | 459.286 | 490.498 | 26.48 | 572.89 |
+| pola-v8go | rsc | ok (4/4 scenarios) | 2155.294 | 612.566 | 611.077 | 27.84 | 4475.58 |
 
 ## Client JS bytes (framework runtime vs app code)
 
@@ -50,39 +50,39 @@ TTFB and TTLB are milliseconds (median / p95 / p99, CoV%). For RSC entries the t
 
 | Entry | Request | TTFB med | TTFB p95 | TTLB med | TTLB p95 | TTLB p99 | CoV% | Payload raw | gzip | brotli | Load req/s | Load p99 ms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| control | document | 0.67 | 0.681 | 0.728 | 0.737 | 0.737 | 0.869 | 319 B | 247 B | 158 B | 65056 | 1 |
-| pola-default | document | 0.473 | 1.01 | 0.49 | 1.053 | 1.053 | 51.601 | 936 B | 564 B | 411 B | 51738.67 | 2 |
-| pola-default | RSC Flight | 1.604 | 2.439 | 1.621 | 2.52 | 2.52 | 30.702 | 560 B | 326 B | 270 B | 6614 | 34 |
-| pola-moderncquickjs | document | 0.653 | 0.934 | 0.692 | 0.969 | 0.969 | 23.584 | 936 B | 564 B | 412 B | 2707.67 | 27 |
-| pola-moderncquickjs | RSC Flight | 1.783 | 2.287 | 1.821 | 2.358 | 2.358 | 18.173 | 560 B | 326 B | 270 B | 725 | 112 |
-| pola-nativersc | document | 0.448 | 0.533 | 0.471 | 0.558 | 0.558 | 11.957 | 936 B | 563 B | 412 B | 48837.34 | 2 |
-| pola-nativersc | RSC Flight | 0.289 | 0.311 | 0.335 | 0.354 | 0.354 | 3.9 | 498 B | 306 B | 260 B | 36848 | 4 |
-| pola-qjs | document | 0.849 | 1.286 | 0.866 | 1.314 | 1.314 | 29.063 | 936 B | 562 B | 400 B | 8021.67 | 29 ⚠(118 non2xx) |
-| pola-qjs | RSC Flight | 1.269 | 1.695 | 1.319 | 1.766 | 1.766 | 20.491 | 560 B | 326 B | 270 B | 0 | 0 |
-| pola-quickjsgo | document | 0.677 | 0.758 | 0.702 | 0.783 | 0.783 | 7.714 | 940 B | 575 B | 415 B | 45573.34 | 2 |
-| pola-quickjsgo | RSC Flight | 1.085 | 1.409 | 1.122 | 1.452 | 1.452 | 18.131 | 560 B | 326 B | 270 B | 16192 | 9 |
-| pola-sobek | document | 0.427 | 0.516 | 0.441 | 0.536 | 0.536 | 13.751 | 936 B | 562 B | 411 B | 46256 | 2 |
-| pola-sobek | RSC Flight | 1.032 | 1.18 | 1.046 | 1.204 | 1.204 | 9.931 | 560 B | 326 B | 270 B | 6758 | 46 |
-| pola-v8go | document | 0.642 | 0.653 | 0.664 | 0.674 | 0.674 | 1.057 | 936 B | 564 B | 402 B | 10542.67 | 30 |
-| pola-v8go | RSC Flight | 0.919 | 1.132 | 1.081 | 1.36 | 1.36 | 16.164 | 560 B | 326 B | 270 B | 4991.34 | 44 |
+| control | document | 1.123 | 1.127 | 1.182 | 1.192 | 1.192 | 15.01 | 319 B | 247 B | 158 B | 66122.19 | 1 |
+| pola-default | document | 1.199 | 1.427 | 1.262 | 1.494 | 1.494 | 15.369 | 936 B | 564 B | 412 B | 50701.1 | 2 |
+| pola-default | RSC Flight | 2.665 | 8.213 | 2.793 | 8.305 | 8.305 | 63.817 | 560 B | 326 B | 270 B | 6288.55 | 34 |
+| pola-moderncquickjs | document | 1.611 | 1.747 | 1.663 | 1.813 | 1.813 | 31.944 | 940 B | 574 B | 420 B | 2707.73 | 26 |
+| pola-moderncquickjs | RSC Flight | 3.213 | 3.371 | 3.312 | 3.453 | 3.453 | 21.133 | 560 B | 326 B | 270 B | 784.7 | 104 |
+| pola-nativersc | document | 1.248 | 1.622 | 1.289 | 1.68 | 1.68 | 19.419 | 936 B | 563 B | 413 B | 51612.8 | 2 |
+| pola-nativersc | RSC Flight | 0.824 | 1.034 | 0.924 | 1.213 | 1.213 | 17.283 | 498 B | 306 B | 260 B | 36844 | 4 |
+| pola-qjs | document | 1.751 | 3.62 | 1.766 | 3.684 | 3.684 | 39.842 | 936 B | 562 B | 411 B | 9097.6 | 36 ⚠(560 non2xx) |
+| pola-qjs | RSC Flight | 2.572 | 3.785 | 2.668 | 3.856 | 3.856 | 31.211 | 560 B | 326 B | 270 B | 6002.37 | 52 |
+| pola-quickjsgo | document | 0.951 | 1.655 | 0.982 | 1.743 | 1.743 | 44.823 | 940 B | 571 B | 422 B | 45155.2 | 2 |
+| pola-quickjsgo | RSC Flight | 1.717 | 2.816 | 1.775 | 2.888 | 2.888 | 36.579 | 560 B | 326 B | 270 B | 16112 | 9 |
+| pola-sobek | document | 0.715 | 1.064 | 0.74 | 1.116 | 1.116 | 25.845 | 936 B | 563 B | 412 B | 47303.28 | 2 |
+| pola-sobek | RSC Flight | 2.231 | 4.726 | 2.294 | 4.761 | 4.761 | 49.012 | 560 B | 326 B | 270 B | 5938.8 | 48 |
+| pola-v8go | document | 1.441 | 1.972 | 1.482 | 2.036 | 2.036 | 37.496 | 936 B | 565 B | 410 B | 8481.28 | 37 |
+| pola-v8go | RSC Flight | 1.763 | 2.105 | 2.017 | 2.318 | 2.318 | 24.503 | 560 B | 326 B | 270 B | 3901.64 | 52 |
 
 ### Scenario 1 flush timelines (representative run)
 
-- **control** document (2 chunks): 0.681ms/305B → 0.691ms/14B
-- **pola-default** document (1 chunk): 1.01ms/936B
-- **pola-default** RSC Flight (1 chunk): 2.439ms/560B
-- **pola-moderncquickjs** document (1 chunk): 0.934ms/936B
-- **pola-moderncquickjs** RSC Flight (1 chunk): 2.287ms/560B
-- **pola-nativersc** document (1 chunk): 0.533ms/936B
-- **pola-nativersc** RSC Flight (2 chunks): 0.311ms/57B → 0.327ms/441B
-- **pola-qjs** document (1 chunk): 1.286ms/936B
-- **pola-qjs** RSC Flight (1 chunk): 1.695ms/560B
-- **pola-quickjsgo** document (1 chunk): 0.758ms/940B
-- **pola-quickjsgo** RSC Flight (1 chunk): 1.409ms/560B
-- **pola-sobek** document (1 chunk): 0.427ms/936B
-- **pola-sobek** RSC Flight (1 chunk): 1.032ms/560B
-- **pola-v8go** document (1 chunk): 0.653ms/936B
-- **pola-v8go** RSC Flight (1 chunk): 1.132ms/560B
+- **control** document (2 chunks): 1.127ms/305B → 1.139ms/14B
+- **pola-default** document (1 chunk): 1.427ms/936B
+- **pola-default** RSC Flight (1 chunk): 2.665ms/560B
+- **pola-moderncquickjs** document (1 chunk): 1.7ms/940B
+- **pola-moderncquickjs** RSC Flight (1 chunk): 3.213ms/560B
+- **pola-nativersc** document (1 chunk): 1.248ms/936B
+- **pola-nativersc** RSC Flight (2 chunks): 0.659ms/57B → 0.735ms/441B
+- **pola-qjs** document (1 chunk): 2.532ms/936B
+- **pola-qjs** RSC Flight (1 chunk): 3.443ms/560B
+- **pola-quickjsgo** document (1 chunk): 1.655ms/940B
+- **pola-quickjsgo** RSC Flight (1 chunk): 2.195ms/560B
+- **pola-sobek** document (1 chunk): 0.715ms/936B
+- **pola-sobek** RSC Flight (1 chunk): 1.623ms/560B
+- **pola-v8go** document (1 chunk): 1.191ms/936B
+- **pola-v8go** RSC Flight (1 chunk): 1.763ms/560B
 
 ## Scenario 2 — Server component awaiting 50ms source, Suspense-streamed
 
@@ -90,33 +90,33 @@ TTFB and TTLB are milliseconds (median / p95 / p99, CoV%). For RSC entries the t
 
 | Entry | Request | TTFB med | TTFB p95 | TTLB med | TTLB p95 | TTLB p99 | CoV% | Payload raw | gzip | brotli | Load req/s | Load p99 ms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| control | document | 0.484 | 2.013 | 52.048 | 52.064 | 52.064 | 0.022 | 1.3 KiB | 788 B | 602 B | 950 | 56 |
-| pola-default | document | 0.612 | 1.255 | 0.632 | 1.305 | 1.305 | 49.136 | 940 B | 570 B | 422 B | 52282.67 | 2 |
-| pola-default | RSC Flight | 1.516 | 2.928 | 57.814 | 59.39 | 59.39 | 1.902 | 633 B | 334 B | 284 B | 836.34 | 64 |
-| pola-moderncquickjs | document | 0.767 | 1.075 | 0.79 | 1.104 | 1.104 | 23.446 | 936 B | 564 B | 411 B | 2670.34 | 27 |
-| pola-moderncquickjs | RSC Flight | 53.083 | 53.988 | 53.44 | 54.38 | 54.38 | 1.233 | 633 B | 334 B | 284 B | 595.67 | 133 |
-| pola-nativersc | document | 0.314 | 0.849 | 0.33 | 0.888 | 0.888 | 64.789 | 936 B | 561 B | 410 B | 46896 | 2 |
-| pola-nativersc | RSC Flight | 0.22 | 1.028 | 51.764 | 52.824 | 52.824 | 1.433 | 585 B | 314 B | 269 B | 966.67 | 56 |
-| pola-qjs | — | `error` — Error: request timeout after 30000ms: http://127.0.0.1:41234 | | | | | | | | | | |
+| control | document | 1.351 | 1.549 | 52.067 | 52.867 | 52.867 | 0.947 | 1.3 KiB | 788 B | 602 B | 958.7 | 54 |
+| pola-default | document | 1.105 | 1.209 | 1.173 | 1.283 | 1.283 | 10.414 | 936 B | 560 B | 412 B | 48598.4 | 2 |
+| pola-default | RSC Flight | 2.896 | 3.081 | 59.249 | 59.897 | 59.897 | 1.132 | 633 B | 334 B | 284 B | 857.9 | 61 |
+| pola-moderncquickjs | document | 1.556 | 2.163 | 1.607 | 2.233 | 2.233 | 19.951 | 936 B | 564 B | 410 B | 2679.19 | 27 |
+| pola-moderncquickjs | RSC Flight | 54.7 | 55.49 | 55.175 | 55.991 | 55.991 | 0.749 | 633 B | 334 B | 284 B | 620.82 | 119 |
+| pola-nativersc | document | 0.617 | 0.77 | 0.635 | 0.795 | 0.795 | 17.389 | 940 B | 568 B | 410 B | 48423.28 | 2 |
+| pola-nativersc | RSC Flight | 0.435 | 0.489 | 51.703 | 51.857 | 51.857 | 0.851 | 585 B | 314 B | 269 B | 975 | 53 |
+| pola-qjs | — | `async-not-honored` — median Flight TTLB 6.122ms < 40ms floor — engine returned as | | | | | | | | | | |
 | pola-quickjsgo | — | `content-missing` — expected "Loaded after 50ms" absent from Flight body (render | | | | | | | | | | |
-| pola-sobek | document | 0.571 | 1.109 | 0.591 | 1.157 | 1.157 | 45.792 | 936 B | 560 B | 412 B | 45946.67 | 2 |
-| pola-sobek | RSC Flight | 1.271 | 2.534 | 51.819 | 53.723 | 53.723 | 2.551 | 633 B | 334 B | 284 B | 900 | 62 |
-| pola-v8go | document | 0.924 | 1.249 | 0.945 | 1.285 | 1.285 | 21.562 | 940 B | 570 B | 423 B | 8764 | 34 |
-| pola-v8go | RSC Flight | 1.421 | 1.689 | 52.286 | 53.154 | 53.154 | 1.164 | 633 B | 334 B | 284 B | 934 | 63 |
+| pola-sobek | document | 1.144 | 1.487 | 1.2 | 1.554 | 1.554 | 16.994 | 936 B | 564 B | 411 B | 45574.4 | 2 |
+| pola-sobek | RSC Flight | 3.124 | 3.836 | 54.938 | 57.195 | 57.195 | 2.623 | 633 B | 334 B | 284 B | 910 | 63 |
+| pola-v8go | document | 1.871 | 1.997 | 1.927 | 2.044 | 2.044 | 37 | 936 B | 560 B | 403 B | 6616.55 | 41 |
+| pola-v8go | RSC Flight | 1.765 | 2.889 | 53.899 | 55.882 | 55.882 | 1.965 | 633 B | 334 B | 284 B | 585.8 | 235 |
 
 ### Scenario 2 flush timelines (representative run)
 
-- **control** document (3 chunks): 2.013ms/377B → 51.839ms/961B → 51.861ms/14B
-- **pola-default** document (1 chunk): 1.255ms/940B
-- **pola-default** RSC Flight (2 chunks): 2.928ms/571B → 59.218ms/62B
-- **pola-moderncquickjs** document (1 chunk): 1.075ms/936B
-- **pola-moderncquickjs** RSC Flight (2 chunks): 53.988ms/571B → 54.113ms/62B
-- **pola-nativersc** document (1 chunk): 0.849ms/936B
-- **pola-nativersc** RSC Flight (3 chunks): 1.028ms/57B → 1.24ms/466B → 52.657ms/62B
-- **pola-sobek** document (1 chunk): 1.109ms/936B
-- **pola-sobek** RSC Flight (2 chunks): 2.534ms/571B → 53.55ms/62B
-- **pola-v8go** document (1 chunk): 1.249ms/940B
-- **pola-v8go** RSC Flight (2 chunks): 1.689ms/571B → 52.868ms/62B
+- **control** document (3 chunks): 1.052ms/377B → 52.229ms/961B → 52.24ms/14B
+- **pola-default** document (1 chunk): 1.042ms/936B
+- **pola-default** RSC Flight (2 chunks): 2.342ms/571B → 59.119ms/62B
+- **pola-moderncquickjs** document (1 chunk): 1.949ms/936B
+- **pola-moderncquickjs** RSC Flight (2 chunks): 55.49ms/571B → 55.728ms/62B
+- **pola-nativersc** document (1 chunk): 0.544ms/940B
+- **pola-nativersc** RSC Flight (3 chunks): 0.489ms/57B → 0.511ms/466B → 51.79ms/62B
+- **pola-sobek** document (1 chunk): 1.04ms/936B
+- **pola-sobek** RSC Flight (2 chunks): 2.648ms/571B → 53.124ms/62B
+- **pola-v8go** document (1 chunk): 0.95ms/936B
+- **pola-v8go** RSC Flight (2 chunks): 1.376ms/571B → 53.297ms/62B
 
 ## Scenario 3 — Interactive client island in a server tree
 
@@ -124,36 +124,33 @@ TTFB and TTLB are milliseconds (median / p95 / p99, CoV%). For RSC entries the t
 
 | Entry | Request | TTFB med | TTFB p95 | TTLB med | TTLB p95 | TTLB p99 | CoV% | Payload raw | gzip | brotli | Load req/s | Load p99 ms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| control | document | 1.614 | 1.682 | 1.708 | 1.761 | 1.761 | 2.161 | 521 B | 359 B | 236 B | 59664 | 1 |
-| pola-default | document | 0.464 | 0.51 | 0.489 | 0.528 | 0.528 | 5.423 | 936 B | 562 B | 414 B | 51941.34 | 2 |
-| pola-default | RSC Flight | 1.274 | 1.486 | 1.3 | 1.524 | 1.524 | 11.218 | 621 B | 345 B | 285 B | 5895.34 | 37 |
-| pola-moderncquickjs | document | 0.535 | 0.817 | 0.553 | 0.839 | 0.839 | 29.056 | 936 B | 565 B | 411 B | 2663 | 27 |
-| pola-moderncquickjs | RSC Flight | 1.432 | 1.72 | 1.466 | 1.758 | 1.758 | 12.809 | 621 B | 345 B | 285 B | 745.34 | 106 |
-| pola-nativersc | document | 0.693 | 1.264 | 0.724 | 1.33 | 1.33 | 41.724 | 936 B | 563 B | 413 B | 46096 | 2 |
-| pola-nativersc | RSC Flight | 0.453 | 0.742 | 0.598 | 0.89 | 0.89 | 27.752 | 562 B | 335 B | 295 B | 35088 | 4 |
-| pola-qjs | — | `error` — Error: request timeout after 30000ms: http://127.0.0.1:41234 | | | | | | | | | | |
-| pola-quickjsgo | document | 0.483 | 0.491 | 0.498 | 0.512 | 0.512 | 1.96 | 936 B | 559 B | 412 B | 42384 | 2 |
-| pola-quickjsgo | RSC Flight | 1.057 | 1.285 | 1.083 | 1.317 | 1.317 | 13.789 | 621 B | 345 B | 285 B | 15334.67 | 11 |
-| pola-sobek | document | 0.595 | 1.125 | 0.623 | 1.164 | 1.164 | 42.814 | 936 B | 562 B | 401 B | 48773.34 | 2 |
-| pola-sobek | RSC Flight | 1.927 | 2.596 | 1.983 | 2.669 | 2.669 | 20.854 | 621 B | 345 B | 285 B | 6292.67 | 57 |
-| pola-v8go | document | 0.632 | 0.867 | 0.652 | 0.892 | 0.892 | 21.983 | 936 B | 563 B | 404 B | 8306.67 | 35 |
-| pola-v8go | RSC Flight | 1.115 | 1.392 | 1.232 | 1.502 | 1.502 | 13.966 | 621 B | 345 B | 285 B | 4255.34 | 56 |
+| control | document | 0.914 | 1.458 | 0.953 | 1.51 | 1.51 | 39.204 | 521 B | 359 B | 236 B | 59090.91 | 1 |
+| pola-default | document | 0.639 | 1.133 | 0.69 | 1.186 | 1.186 | 31.159 | 940 B | 567 B | 423 B | 49409.46 | 2 |
+| pola-default | RSC Flight | 2.387 | 3.046 | 2.577 | 3.088 | 3.088 | 21.858 | 621 B | 345 B | 285 B | 5641.64 | 37 |
+| pola-moderncquickjs | document | 1.554 | 1.669 | 1.59 | 1.732 | 1.732 | 48.33 | 936 B | 564 B | 414 B | 2757 | 25 |
+| pola-moderncquickjs | RSC Flight | 3.043 | 3.4 | 3.114 | 3.458 | 3.458 | 26.565 | 621 B | 345 B | 285 B | 766.4 | 105 |
+| pola-nativersc | document | 1.209 | 1.262 | 1.241 | 1.308 | 1.308 | 15.64 | 940 B | 572 B | 420 B | 51593.6 | 2 |
+| pola-nativersc | RSC Flight | 0.591 | 1.001 | 0.719 | 1.187 | 1.187 | 25.414 | 562 B | 335 B | 295 B | 34105.46 | 4 |
+| pola-qjs | — | `error` — Error: request timeout after 15000ms: http://127.0.0.1:41234 | | | | | | | | | | |
+| pola-quickjsgo | — | `content-missing` — expected "Benchmark: Island" absent from Flight body (render | | | | | | | | | | |
+| pola-sobek | document | 1.054 | 1.309 | 1.105 | 1.362 | 1.362 | 36.134 | 936 B | 562 B | 399 B | 50951.28 | 2 |
+| pola-sobek | RSC Flight | 2.164 | 3.453 | 2.191 | 3.555 | 3.555 | 38.58 | 621 B | 345 B | 285 B | 6240.91 | 47 |
+| pola-v8go | document | 0.952 | 1.073 | 0.971 | 1.095 | 1.095 | 12.873 | 936 B | 561 B | 412 B | 6048 | 46 |
+| pola-v8go | RSC Flight | 15.487 | 20.724 | 15.663 | 20.904 | 20.904 | 28.976 | 621 B | 345 B | 285 B | 832.3 | 329 |
 
 ### Scenario 3 flush timelines (representative run)
 
-- **control** document (2 chunks): 1.614ms/507B → 1.623ms/14B
-- **pola-default** document (1 chunk): 0.51ms/936B
-- **pola-default** RSC Flight (1 chunk): 1.274ms/621B
-- **pola-moderncquickjs** document (1 chunk): 0.817ms/936B
-- **pola-moderncquickjs** RSC Flight (1 chunk): 1.72ms/621B
-- **pola-nativersc** document (1 chunk): 1.264ms/936B
-- **pola-nativersc** RSC Flight (3 chunks): 0.742ms/57B → 0.78ms/51B → 0.829ms/454B
-- **pola-quickjsgo** document (1 chunk): 0.491ms/936B
-- **pola-quickjsgo** RSC Flight (1 chunk): 1.285ms/621B
-- **pola-sobek** document (1 chunk): 1.125ms/936B
-- **pola-sobek** RSC Flight (1 chunk): 2.596ms/621B
-- **pola-v8go** document (1 chunk): 0.867ms/936B
-- **pola-v8go** RSC Flight (1 chunk): 1.392ms/621B
+- **control** document (2 chunks): 0.704ms/507B → 0.712ms/14B
+- **pola-default** document (1 chunk): 0.639ms/940B
+- **pola-default** RSC Flight (1 chunk): 2.945ms/621B
+- **pola-moderncquickjs** document (1 chunk): 1.598ms/936B
+- **pola-moderncquickjs** RSC Flight (1 chunk): 3.27ms/621B
+- **pola-nativersc** document (1 chunk): 0.866ms/940B
+- **pola-nativersc** RSC Flight (3 chunks): 0.591ms/57B → 0.607ms/51B → 0.622ms/454B
+- **pola-sobek** document (1 chunk): 1.309ms/936B
+- **pola-sobek** RSC Flight (1 chunk): 2.98ms/621B
+- **pola-v8go** document (1 chunk): 1.024ms/936B
+- **pola-v8go** RSC Flight (1 chunk): 11.994ms/621B
 
 ## Scenario 4 — Nested Suspense, 3 boundaries @ 20/50/200ms (RSC-only)
 
@@ -162,31 +159,31 @@ TTFB and TTLB are milliseconds (median / p95 / p99, CoV%). For RSC entries the t
 | Entry | Request | TTFB med | TTFB p95 | TTLB med | TTLB p95 | TTLB p99 | CoV% | Payload raw | gzip | brotli | Load req/s | Load p99 ms |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
 | control | — | `N/A` — not applicable for this entry | | | | | | | | | | |
-| pola-default | document | 1.207 | 1.234 | 1.259 | 1.305 | 1.305 | 2.537 | 936 B | 562 B | 411 B | 50842.67 | 2 |
-| pola-default | RSC Flight | 2.494 | 2.962 | 296.923 | 298.276 | 298.276 | 0.321 | 1.1 KiB | 395 B | 332 B | 166.67 | 308 |
-| pola-moderncquickjs | document | 0.825 | 1.467 | 0.846 | 1.551 | 1.551 | 41.595 | 940 B | 571 B | 418 B | 2687.67 | 27 |
-| pola-moderncquickjs | RSC Flight | 23.061 | 25.422 | 279.652 | 279.708 | 279.708 | 0.014 | 1.1 KiB | 395 B | 332 B | 154.67 | 390 |
-| pola-nativersc | document | 1.301 | 1.417 | 1.361 | 1.479 | 1.479 | 5.876 | 936 B | 560 B | 400 B | 49989.34 | 2 |
-| pola-nativersc | RSC Flight | 0.651 | 0.741 | 273.877 | 274.481 | 274.481 | 0.156 | 1.1 KiB | 369 B | 343 B | 166.67 | 282 |
-| pola-qjs | — | `error` — Error: request timeout after 30000ms: http://127.0.0.1:41234 | | | | | | | | | | |
+| pola-default | document | 1.237 | 1.551 | 1.284 | 1.613 | 1.613 | 30.083 | 940 B | 571 B | 421 B | 47963.64 | 2 |
+| pola-default | RSC Flight | 2.909 | 3.097 | 300.955 | 303.612 | 303.612 | 0.651 | 1.1 KiB | 395 B | 332 B | 165 | 309 |
+| pola-moderncquickjs | document | 1.763 | 2.101 | 1.803 | 2.154 | 2.154 | 13.734 | 940 B | 574 B | 425 B | 2771.37 | 25 |
+| pola-moderncquickjs | RSC Flight | 24.808 | 25.063 | 281.01 | 281.369 | 281.369 | 0.062 | 1.1 KiB | 395 B | 332 B | 168.6 | 380 |
+| pola-nativersc | document | 1.16 | 6.663 | 1.201 | 6.704 | 6.704 | 113.142 | 940 B | 569 B | 410 B | 48914.91 | 2 |
+| pola-nativersc | RSC Flight | 0.614 | 0.734 | 273.617 | 275.324 | 275.324 | 0.328 | 1.1 KiB | 369 B | 343 B | 180 | 278 |
+| pola-qjs | — | `error` — Error: request timeout after 15000ms: http://127.0.0.1:41234 | | | | | | | | | | |
 | pola-quickjsgo | — | `content-missing` — expected "Loaded after 200ms" absent from Flight body (rende | | | | | | | | | | |
-| pola-sobek | document | 0.648 | 1.221 | 0.669 | 1.268 | 1.268 | 43.733 | 936 B | 562 B | 413 B | 45861.34 | 2 |
-| pola-sobek | RSC Flight | 1.788 | 3.099 | 277.802 | 282.121 | 282.121 | 1.091 | 1.1 KiB | 395 B | 332 B | 166.67 | 300 |
-| pola-v8go | document | 1.702 | 1.909 | 1.751 | 1.978 | 1.978 | 8.609 | 936 B | 561 B | 402 B | 7539.34 | 40 |
-| pola-v8go | RSC Flight | 2.26 | 2.762 | 280.7 | 284.294 | 284.294 | 0.9 | 1.1 KiB | 395 B | 332 B | 166.67 | 298 |
+| pola-sobek | document | 1.177 | 1.278 | 1.23 | 1.33 | 1.33 | 23.099 | 936 B | 562 B | 403 B | 47838.55 | 2 |
+| pola-sobek | RSC Flight | 2.891 | 3.094 | 281.184 | 284.491 | 284.491 | 0.732 | 1.1 KiB | 395 B | 332 B | 175 | 306 |
+| pola-v8go | document | 2.275 | 2.715 | 2.323 | 2.773 | 2.773 | 10.182 | 940 B | 571 B | 421 B | 813.9 | 34 ⚠(296098 err) |
+| pola-v8go | RSC Flight | 18.12 | 30.815 | 297.769 | 323.256 | 323.256 | 5.255 | 1.1 KiB | 395 B | 332 B | 0 | 0 ⚠(368750 err) |
 
 ### Scenario 4 flush timelines (representative run)
 
-- **pola-default** document (1 chunk): 1.234ms/936B
-- **pola-default** RSC Flight (4 chunks): 2.962ms/578B → 32.323ms/207B → 89.596ms/209B → 298.037ms/113B
-- **pola-moderncquickjs** document (1 chunk): 1.467ms/940B
-- **pola-moderncquickjs** RSC Flight (4 chunks): 25.422ms/578B → 77.309ms/207B → 279.232ms/209B → 279.485ms/113B
-- **pola-nativersc** document (1 chunk): 1.417ms/936B
-- **pola-nativersc** RSC Flight (5 chunks): 0.741ms/57B → 0.892ms/473B → 21.642ms/221B → 73.082ms/223B → 274.216ms/105B
-- **pola-sobek** document (1 chunk): 1.221ms/936B
-- **pola-sobek** RSC Flight (4 chunks): 3.099ms/578B → 26.89ms/207B → 78.932ms/209B → 281.866ms/113B
-- **pola-v8go** document (1 chunk): 1.909ms/936B
-- **pola-v8go** RSC Flight (4 chunks): 2.762ms/578B → 26.233ms/207B → 78.134ms/209B → 280.285ms/113B
+- **pola-default** document (1 chunk): 0.618ms/940B
+- **pola-default** RSC Flight (4 chunks): 1.464ms/578B → 29.954ms/207B → 92.779ms/209B → 300.812ms/113B
+- **pola-moderncquickjs** document (1 chunk): 2.008ms/940B
+- **pola-moderncquickjs** RSC Flight (4 chunks): 24.969ms/578B → 77.613ms/207B → 280.316ms/209B → 280.759ms/113B
+- **pola-nativersc** document (1 chunk): 0.554ms/940B
+- **pola-nativersc** RSC Flight (5 chunks): 0.384ms/57B → 0.436ms/473B → 21.047ms/221B → 71.845ms/223B → 273.441ms/105B
+- **pola-sobek** document (1 chunk): 1.188ms/936B
+- **pola-sobek** RSC Flight (4 chunks): 3.024ms/578B → 26.752ms/207B → 78.636ms/209B → 280.977ms/113B
+- **pola-v8go** document (1 chunk): 2.275ms/940B
+- **pola-v8go** RSC Flight (4 chunks): 30.815ms/578B → 63.821ms/207B → 115.407ms/209B → 322.83ms/113B
 
 ## Conformance gate
 
@@ -195,7 +192,7 @@ Normalized rendered DOM must match across implementations of a scenario (scripts
 | Scenario | Verdict | Compared (SSR) | Pending browser capture |
 |---|---|---|---|
 | 1 | n/a (need ≥2) | control | pola-default, pola-moderncquickjs, pola-nativersc, pola-qjs, pola-quickjsgo, pola-sobek, pola-v8go |
-| 2 | n/a (need ≥2) | control | pola-default, pola-moderncquickjs, pola-nativersc, pola-quickjsgo, pola-sobek, pola-v8go |
+| 2 | n/a (need ≥2) | control | pola-default, pola-moderncquickjs, pola-nativersc, pola-qjs, pola-quickjsgo, pola-sobek, pola-v8go |
 | 3 | n/a (need ≥2) | control | pola-default, pola-moderncquickjs, pola-nativersc, pola-quickjsgo, pola-sobek, pola-v8go |
 | 4 | n/a (need ≥2) | — | pola-default, pola-moderncquickjs, pola-nativersc, pola-quickjsgo, pola-sobek, pola-v8go |
 
