@@ -8,10 +8,11 @@
     "node": ">=20"
   },
   "scripts": {
-    "bench": "node bench.mjs && node report.mjs",
+    "bench": "node bench.mjs && node report.mjs && node charts.mjs",
     "bench:nodejs-ssr": "node bench.mjs --only nodejs-ssr && node report.mjs",
     "bench:pola": "node bench.mjs --only pola-goja && node report.mjs",
-    "report": "node report.mjs",
+    "report": "node report.mjs && node charts.mjs",
+    "charts": "node charts.mjs",
     "clean": "node -e \"import('node:fs').then(fs=>fs.rmSync('results',{recursive:true,force:true}))\""
   },
   "devDependencies": {

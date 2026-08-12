@@ -83,5 +83,5 @@ const server = http.createServer((req, res) => {
 });
 
 server.listen(PORT, "127.0.0.1", () => {
-  process.stdout.write(`nodejs-rsc-streaming listening on http://127.0.0.1:${PORT}\n`);
+  process.stdout.write(`nodejs-rsc listening on http://127.0.0.1:${PORT}\n`);
 });

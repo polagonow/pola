@@ -4,7 +4,7 @@
 // Go JS VM). The plain-SSR `nodejs-ssr` entry remains the separate SSR floor.
 
 export default {
-  name: "nodejs-rsc-streaming",
+  name: "nodejs-rsc",
   kind: "rsc",
   flight: true,
   install: { cmd: "pnpm", args: ["install"] },

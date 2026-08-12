@@ -2,7 +2,7 @@
 
 Reproducible benchmarks comparing **Pola** (every JS engine it ships) against two
 **Node.js** baselines: a plain **SSR** baseline (`nodejs-ssr`, raw
-`react-dom/server`) and an **RSC** baseline (`nodejs-rsc-streaming`,
+`react-dom/server`) and an **RSC** baseline (`nodejs-rsc`,
 `react-server-dom-webpack` — the same Flight protocol Pola uses). The RSC baseline
 is the apples-to-apples peer; the SSR one is the floor. Every number is measured on
 the machine that runs it — nothing is estimated. **No winner is declared**; read
@@ -24,7 +24,7 @@ Faster iterations:
 
 ```bash
 pnpm bench:nodejs-ssr                 # just the SSR baseline
-node bench.mjs --only nodejs-rsc-streaming --quick  # 3 runs, 3s load (dev sanity)
+node bench.mjs --only nodejs-rsc --quick  # 3 runs, 3s load (dev sanity)
 node bench.mjs --scenarios 1,2     # subset of scenarios
 node bench.mjs --skip-install --skip-build   # reuse prior artifacts
 node report.mjs                    # regenerate RESULTS.md from results/summary.json
@@ -32,7 +32,12 @@ node report.mjs                    # regenerate RESULTS.md from results/summary.
 
 `pnpm bench` reproduces everything from clean: for each entry it installs,
 cold-builds, warm-builds, starts the server, measures, and stops it — one entry
-at a time, no shared `node_modules`.
+at a time, no shared `node_modules`. It then regenerates `RESULTS.md` and the
+charts in `CHARTS.md`.
+
+📊 **Charts:** [`CHARTS.md`](CHARTS.md) — throughput, latency, memory, async
+correctness, build time, and a nested-Suspense streaming timeline (blue = Pola,
+orange = Node baseline). Regenerate standalone with `pnpm charts`.
 
 ## What is measured (per scenario, per entry)
 
@@ -78,7 +83,7 @@ bench-suite/
   lib/                  measure, sizes, rss, load, proc, stats, conformance, env
   entries/
     nodejs-ssr/            Node.js + raw react-dom/server — SSR floor
-    nodejs-rsc-streaming/ Node.js + react-server-dom-webpack — RSC baseline
+    nodejs-rsc/ Node.js + react-server-dom-webpack — RSC baseline
     pola-goja/          Pola: goja engine (default) + react (RSDW) renderer
     pola-nativersc/     Pola: goja engine + Go-native Flight renderer
     pola-<engine>/      one per JS engine: sobek, v8go, moderncquickjs, quickjsgo, qjs
@@ -98,7 +103,7 @@ contract (`kind: "rsc"` + `flight` enables two-request measurement).
 ## Entries
 
 - **nodejs-ssr** — Node.js + raw `react-dom/server` — plain **SSR** floor (not an RSC peer)
-- **nodejs-rsc-streaming** — Node.js + `react-server-dom-webpack` — **RSC baseline** (apples-to-apples with Pola; isolates the runtime)
+- **nodejs-rsc** — Node.js + `react-server-dom-webpack` — **RSC baseline** (apples-to-apples with Pola; isolates the runtime)
 - **pola-goja** — Pola, goja engine (pure-Go interpreter) + react/RSDW renderer
 - **pola-nativersc** — Pola, goja engine + Go-native Flight renderer
 - **pola-v8go** — Pola, V8/JIT engine (CGO) + react renderer

@@ -33,16 +33,16 @@ Node.js baselines:
 - **`nodejs-ssr`** — raw `react-dom/server` `renderToPipeableStream`. Plain **SSR**,
   no framework. This is the absolute **floor**, not an RSC peer. Use it to see how
   much any RSC machinery costs versus bare-metal React SSR on Node.
-- **`nodejs-rsc-streaming`** — Node.js running **`react-server-dom-webpack`** (the *same*
+- **`nodejs-rsc`** — Node.js running **`react-server-dom-webpack`** (the *same*
   Flight protocol Pola uses), with the same Server Components, the same
   two-request shell+Flight model, and a `createFromFetch` client. This is the
-  **apples-to-apples RSC peer**: comparing a Pola entry to `nodejs-rsc-streaming` isolates
+  **apples-to-apples RSC peer**: comparing a Pola entry to `nodejs-rsc` isolates
   the **runtime** (native Node V8 vs Pola's Go-embedded goja/v8go VM + Go
   plumbing), because everything else (RSDW, React version, protocol, model) is
   identical.
 
-So: compare Pola ⇄ `nodejs-rsc-streaming` for the RSC-vs-RSC story; treat `nodejs-ssr` as the
-SSR reference floor. `nodejs-rsc-streaming` implements scenarios 1/2/4 (pure Server
+So: compare Pola ⇄ `nodejs-rsc` for the RSC-vs-RSC story; treat `nodejs-ssr` as the
+SSR reference floor. `nodejs-rsc` implements scenarios 1/2/4 (pure Server
 Components); scenario 3's client island is **N/A** for it — the "use client"
 bundler machinery (client references + manifest + chunk loading) is exactly the
 framework layer Pola provides and a raw Node RSC baseline lacks (mirrors scenario
