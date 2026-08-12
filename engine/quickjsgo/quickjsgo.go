@@ -18,6 +18,7 @@ import (
 	"strings"
 	"sync"
 	"text/template"
+	"time"
 
 	quickjs "github.com/buke/quickjs-go"
 
@@ -29,6 +30,16 @@ import (
 
 // renderAsyncFn is the async JS helper that drives the render loop in quickjsgo.
 const renderAsyncFn = "__renderAsync__"
+
+// Globals holding the in-progress RSC stream + decoder for the Go-driven,
+// synchronous drain (see drainStream). buke's ctx.Await does not run native JS
+// jobs, so async Server Components never resolve under the old async self-poll;
+// instead Go drives ctx.Loop() (which pumps native + Go jobs) between synchronous
+// pulls.
+const (
+	rscStreamVar = "__qjsgoStream__"
+	rscDecVar    = "__qjsgoDec__"
+)
 
 // ── JS templates ──────────────────────────────────────────────────────────────
 
@@ -288,8 +299,13 @@ func (r *Runtime) SetRequestContext(ctx map[string]any) error {
 	return runErr
 }
 
-// SetDependencyInjection installs async bridge functions on __DEPENDENCY_INJECTION__.
-// Each function returns a Promise; results are delivered via ctx.Schedule.
+// SetDependencyInjection installs bridge functions on __DEPENDENCY_INJECTION__.
+// The bridge is SYNCHRONOUS: the host call blocks while the Go function runs and
+// returns the value directly (like moderncquickjs/qjs). An async Promise bridge
+// (goroutine + ctx.Schedule) does not integrate with react-server-dom-webpack's
+// Suspense — RSDW closes the stream before the scheduled resolve lands, dropping
+// the async content. A synchronous bridge means the only async is the React
+// component wrapper, which the Go drain loop (ctx.Loop) resolves.
 func (r *Runtime) SetDependencyInjection(funcs map[string]func(args []any) (any, error)) error {
 	r.run(func() {
 		// Clear existing keys.
@@ -302,36 +318,18 @@ func (r *Runtime) SetDependencyInjection(funcs map[string]func(args []any) (any,
 		for name, fn := range funcs {
 			fn := fn // capture
 			bridgeFn := r.ctx.NewFunction(func(qCtx *quickjs.Context, this *quickjs.Value, args []*quickjs.Value) *quickjs.Value {
-				goArgs := exportArgs(args)
-
-				var resolveFn, rejectFn func(*quickjs.Value)
-				p := qCtx.NewPromise(func(resolve, reject func(*quickjs.Value)) {
-					resolveFn = resolve
-					rejectFn = reject
-				})
-
-				go func() {
-					result, err := fn(goArgs)
-					qCtx.Schedule(func(innerCtx *quickjs.Context) {
-						if err != nil {
-							errVal := innerCtx.NewString(err.Error())
-							rejectFn(errVal)
-							errVal.Free()
-						} else {
-							val, marshalErr := innerCtx.Marshal(result)
-							if marshalErr != nil {
-								errVal := innerCtx.NewString(marshalErr.Error())
-								rejectFn(errVal)
-								errVal.Free()
-								return
-							}
-							resolveFn(val)
-							val.Free()
-						}
-					})
-				}()
-
-				return p
+				result, err := fn(exportArgs(args))
+				if err != nil {
+					return qCtx.ThrowError(err)
+				}
+				if result == nil {
+					return qCtx.NewNull()
+				}
+				val, marshalErr := qCtx.Marshal(result)
+				if marshalErr != nil {
+					return qCtx.ThrowError(marshalErr)
+				}
+				return val
 			})
 			r.jsi.Set(name, bridgeFn) //nolint:errcheck
 			// Do NOT free bridgeFn: Set transfers ownership.
@@ -377,26 +375,53 @@ func (r *Runtime) drainStream(exportName, propsJSON string, w core.StreamWriter)
 
 		exportLit, _ := json.Marshal(exportName)
 		propsLit, _ := json.Marshal(propsJSON)
-		script := renderAsyncFn + "(" + string(exportLit) + ", " + string(propsLit) + ")"
 
-		promise := r.ctx.Eval(script, quickjs.EvalFileName("render.js"))
-		defer promise.Free()
-		if promise.IsException() {
-			runErr = fmt.Errorf("quickjsgo: render eval: %w", r.ctx.Exception())
+		// Start the render synchronously: __render__ returns the RSC ReadableStream,
+		// which we stash on a global for the pull loop.
+		startScript := fmt.Sprintf("globalThis.%s = %s(%s, %s); globalThis.%s = new TextDecoder(); void 0;",
+			rscStreamVar, globals.RenderFn, string(exportLit), string(propsLit), rscDecVar)
+		start := r.ctx.Eval(startScript, quickjs.EvalFileName("start.js"))
+		if start.IsException() {
+			runErr = fmt.Errorf("quickjsgo: render start: %w", r.ctx.Exception())
+			start.Free()
 			return
 		}
+		start.Free()
 
-		// ctx.Await drives the event loop: runs JS_ExecutePendingJob (native
-		// Promise continuations) and ProcessJobs (Go-scheduled callbacks).
-		result := r.ctx.Await(promise)
-		defer result.Free()
-		if result.IsException() {
-			runErr = fmt.Errorf("quickjsgo: render await: %w", r.ctx.Exception())
-			return
+		// One synchronous pull batch: drains the polyfill microtask queue, pulls
+		// whatever chunks are ready, writes them, and reports done.
+		pullScript := fmt.Sprintf(
+			`(function(){ %s(); var s=%s(globalThis.%s); var d=globalThis.%s; for(var i=0;i<s.chunks.length;i++){ %s(d.decode(s.chunks[i])); } %s(); return s.done; })()`,
+			globals.DrainMicrotasksFn, globals.PullStreamFn, rscStreamVar, rscDecVar, globals.OutputChunk, globals.DrainMicrotasksFn)
+
+		// Go-driven drain: ctx.Loop() pumps native JS jobs (async/await
+		// continuations) AND Go-scheduled bridge resolves; then we pull. Repeat
+		// until the stream closes. The brief sleep lets async bridge goroutines
+		// (e.g. a 50ms source) schedule their resolve.
+		deadline := time.Now().Add(15 * time.Second)
+		for {
+			r.ctx.Loop()
+			doneVal := r.ctx.Eval(pullScript, quickjs.EvalFileName("pull.js"))
+			if doneVal.IsException() {
+				runErr = fmt.Errorf("quickjsgo: render pull: %w", r.ctx.Exception())
+				doneVal.Free()
+				return
+			}
+			done := doneVal.Bool()
+			doneVal.Free()
+			if done {
+				break
+			}
+			if time.Now().After(deadline) {
+				runErr = fmt.Errorf("quickjsgo: render drain timed out after 15s")
+				break
+			}
+			time.Sleep(200 * time.Microsecond)
 		}
 
-		// Clear the per-request sink.
-		clearRet := r.ctx.Eval(globals.OutputChunk+" = undefined;", quickjs.EvalFileName("clear_output.js"))
+		// Clear the per-request sink + stream globals.
+		clearRet := r.ctx.Eval(fmt.Sprintf("%s = undefined; globalThis.%s = undefined; globalThis.%s = undefined;",
+			globals.OutputChunk, rscStreamVar, rscDecVar), quickjs.EvalFileName("clear_output.js"))
 		clearRet.Free()
 	})
 

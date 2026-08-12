@@ -27,6 +27,10 @@ import (
 // renderAsyncFn is the async JS helper that drives the render loop in qjs.
 const renderAsyncFn = "__renderAsync__"
 
+// renderPromiseVar is the global the render promise is assigned to so Go can
+// read it back as a real Promise (Eval doesn't return the call's value).
+const renderPromiseVar = "__renderPromise__"
+
 var (
 	renderAsyncJSTmpl = template.Must(template.New("renderAsync").Parse(`
 globalThis.{{.RenderAsyncFn}} = async function(exportName, propsJSON) {
@@ -320,14 +324,23 @@ func (r *Runtime) drainSession(sess RenderSession, w core.StreamWriter) (bool, e
 
 		exportLit, _ := json.Marshal(sess.ExportName)
 		propsLit, _ := json.Marshal(sess.PropsJSON)
-		script := fmt.Sprintf("%s(%s, %s)", renderAsyncFn, string(exportLit), string(propsLit))
+		// Store the render promise on a global. fastschema/qjs's Eval does not
+		// return the completion value of a bare call expression (it yields
+		// Undefined), so we can't Await the Eval result directly; assign it to a
+		// global and read it back as a real Promise.
+		script := fmt.Sprintf("globalThis.%s = %s(%s, %s);", renderPromiseVar, renderAsyncFn, string(exportLit), string(propsLit))
 
-		promise, evalErr := r.ctx.Eval("render.js", qjslib.Code(script))
-		if evalErr != nil {
+		if _, evalErr := r.ctx.Eval("render.js", qjslib.Code(script)); evalErr != nil {
 			runErr = fmt.Errorf("qjs: render eval: %w", evalErr)
 			return
 		}
+
+		promise := r.ctx.Global().GetPropertyStr(renderPromiseVar)
 		defer promise.Free()
+		if !promise.IsPromise() {
+			runErr = fmt.Errorf("qjs: render did not return a Promise (got %s)", promise.String())
+			return
+		}
 
 		result, awaitErr := promise.Await()
 		if result != nil {
