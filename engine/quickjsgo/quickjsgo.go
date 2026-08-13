@@ -316,21 +316,21 @@ func (r *Runtime) SetDependencyInjection(funcs map[string]func(args []any) (any,
 		clearRet.Free()
 
 		for name, fn := range funcs {
-			fn := fn // capture
-			bridgeFn := r.ctx.NewFunction(func(qCtx *quickjs.Context, this *quickjs.Value, args []*quickjs.Value) *quickjs.Value {
-				result, err := fn(exportArgs(args))
-				if err != nil {
-					return qCtx.ThrowError(err)
-				}
-				if result == nil {
-					return qCtx.NewNull()
-				}
-				val, marshalErr := qCtx.Marshal(result)
-				if marshalErr != nil {
-					return qCtx.ThrowError(marshalErr)
-				}
-				return val
-			})
+			bridgeFn := r.ctx.NewFunction(
+				func(qCtx *quickjs.Context, this *quickjs.Value, args []*quickjs.Value) *quickjs.Value {
+					result, err := fn(exportArgs(args))
+					if err != nil {
+						return qCtx.ThrowError(err)
+					}
+					if result == nil {
+						return qCtx.NewNull()
+					}
+					val, marshalErr := qCtx.Marshal(result)
+					if marshalErr != nil {
+						return qCtx.ThrowError(marshalErr)
+					}
+					return val
+				})
 			r.jsi.Set(name, bridgeFn) //nolint:errcheck
 			// Do NOT free bridgeFn: Set transfers ownership.
 		}
@@ -391,8 +391,10 @@ func (r *Runtime) drainStream(exportName, propsJSON string, w core.StreamWriter)
 		// One synchronous pull batch: drains the polyfill microtask queue, pulls
 		// whatever chunks are ready, writes them, and reports done.
 		pullScript := fmt.Sprintf(
-			`(function(){ %s(); var s=%s(globalThis.%s); var d=globalThis.%s; for(var i=0;i<s.chunks.length;i++){ %s(d.decode(s.chunks[i])); } %s(); return s.done; })()`,
-			globals.DrainMicrotasksFn, globals.PullStreamFn, rscStreamVar, rscDecVar, globals.OutputChunk, globals.DrainMicrotasksFn)
+			`(function(){ %s(); var s=%s(globalThis.%s); var d=globalThis.%s; `+
+				`for(var i=0;i<s.chunks.length;i++){ %s(d.decode(s.chunks[i])); } %s(); return s.done; })()`,
+			globals.DrainMicrotasksFn, globals.PullStreamFn, rscStreamVar, rscDecVar,
+			globals.OutputChunk, globals.DrainMicrotasksFn)
 
 		// Go-driven drain: ctx.Loop() pumps native JS jobs (async/await
 		// continuations) AND Go-scheduled bridge resolves; then we pull. Repeat
@@ -407,7 +409,7 @@ func (r *Runtime) drainStream(exportName, propsJSON string, w core.StreamWriter)
 				doneVal.Free()
 				return
 			}
-			done := doneVal.Bool()
+			done := doneVal.ToBool()
 			doneVal.Free()
 			if done {
 				break
@@ -437,7 +439,7 @@ func (r *Runtime) drainStream(exportName, propsJSON string, w core.StreamWriter)
 }
 
 // clearState removes per-request data before the Runtime is returned to the pool.
-func (r *Runtime) clearState() error {
+func (r *Runtime) clearState() {
 	r.run(func() {
 		clearRet := r.ctx.Eval(
 			globals.RequestContext+" = undefined; "+
@@ -448,7 +450,6 @@ func (r *Runtime) clearState() error {
 		)
 		clearRet.Free()
 	})
-	return nil
 }
 
 // Ensure *Runtime satisfies core.SSRRuntime at compile time.
@@ -480,7 +481,7 @@ func newVMPool(serverBundle string, logger core.Logger) (*vmpool.Pool[*Runtime],
 	return vmpool.New(
 		vmpool.Config{MinSize: 1, MaxSize: 64},
 		func() (*Runtime, error) { return newRuntime(serverBundle, logger) },
-		func(r *Runtime) { _ = r.clearState() },
+		func(r *Runtime) { r.clearState() },
 	)
 }
 

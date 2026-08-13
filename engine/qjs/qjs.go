@@ -264,7 +264,6 @@ func (r *Runtime) SetDependencyInjection(funcs map[string]func(args []any) (any,
 		defer jsi.Free()
 
 		for name, fn := range funcs {
-			fn := fn // capture
 			jsFn := r.ctx.Function(func(this *qjslib.This) (*qjslib.Value, error) {
 				goArgs := exportArgs(this.Args())
 				ch := make(chan bridgeResult, 1)
@@ -328,7 +327,8 @@ func (r *Runtime) drainSession(sess RenderSession, w core.StreamWriter) (bool, e
 		// return the completion value of a bare call expression (it yields
 		// Undefined), so we can't Await the Eval result directly; assign it to a
 		// global and read it back as a real Promise.
-		script := fmt.Sprintf("globalThis.%s = %s(%s, %s);", renderPromiseVar, renderAsyncFn, string(exportLit), string(propsLit))
+		script := fmt.Sprintf("globalThis.%s = %s(%s, %s);",
+			renderPromiseVar, renderAsyncFn, string(exportLit), string(propsLit))
 
 		if _, evalErr := r.ctx.Eval("render.js", qjslib.Code(script)); evalErr != nil {
 			runErr = fmt.Errorf("qjs: render eval: %w", evalErr)
@@ -357,7 +357,8 @@ func (r *Runtime) drainSession(sess RenderSession, w core.StreamWriter) (bool, e
 		// pooled, it leaks into the NEXT render on the same VM, which then aborts
 		// immediately — the cause of the alternating pass/fail flakiness. Awaiting a
 		// microtask-tick loop lets those jobs run now.
-		if dv, derr := r.ctx.Eval("drain.js", qjslib.Code("(async function(){ for (var i = 0; i < 256; i++) { await Promise.resolve(); } })()")); derr == nil {
+		drainScript := "(async function(){ for (var i = 0; i < 256; i++) { await Promise.resolve(); } })()"
+		if dv, derr := r.ctx.Eval("drain.js", qjslib.Code(drainScript)); derr == nil {
 			if dv.IsPromise() {
 				if dr, _ := dv.Await(); dr != nil {
 					dr.Free()
@@ -366,7 +367,8 @@ func (r *Runtime) drainSession(sess RenderSession, w core.StreamWriter) (bool, e
 			dv.Free()
 		}
 
-		_, _ = r.ctx.Eval("clear_render.js", qjslib.Code(globals.OutputChunk+" = undefined; globalThis."+renderPromiseVar+" = undefined;"))
+		clearScript := globals.OutputChunk + " = undefined; globalThis." + renderPromiseVar + " = undefined;"
+		_, _ = r.ctx.Eval("clear_render.js", qjslib.Code(clearScript))
 	})
 
 	return wroteAny, runErr
