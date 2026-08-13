@@ -15,7 +15,7 @@ require (
 	github.com/magefile/mage v1.17.1 // indirect
 	github.com/samber/do/v2 v2.0.0 // indirect
 	github.com/samber/go-type-to-string v1.8.0 // indirect
-	golang.org/x/text v0.39.0 // indirect
+	golang.org/x/text v0.40.0 // indirect
 )
 
 replace github.com/polagonow/pola => ../..
