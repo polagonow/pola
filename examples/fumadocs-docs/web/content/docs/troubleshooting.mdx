@@ -113,16 +113,20 @@ register as the interface: `core.ProvideValue[core.Cache](r, New())`, resolve as
 `core.MustInvoke[core.Cache](r)`. Constructors are auto-wired only when named
 `New*` and taking a single `*core.Registry`.
 
-## Redis cache does nothing
+## Redis cache errors or misses everything
 
-**Symptom.** With `cache { adapter = "redis" }`, every `Get` misses and `Set` has
-no effect.
+**Symptom.** With `cache { adapter = "redis" }`, `Get`/`Set` return connection
+errors, or every `Get` misses.
 
-**Cause.** The `cache/redis` adapter is currently a **stub** — its methods return
-`ErrNotImplemented`.
+**Cause.** The `cache/redis` adapter connects lazily, so a wrong
+`host`/`port`/`password`/`db` (or an unreachable server) only surfaces as an
+error on the first operation, not at startup. Keys are namespaced with a
+`pola:cache:` prefix, so entries written by another client (without that prefix)
+won't be found.
 
-**Fix.** Use `adapter = "memory"` until the Redis backend lands. See
-[Caching](/docs/caching).
+**Fix.** Verify the `POLA_CACHE_HOST`/`POLA_CACHE_PORT`/`POLA_CACHE_PASSWORD`/
+`POLA_CACHE_DB` settings reach a running Redis, and read/write through the cache
+API so the namespace prefix is applied consistently. See [Caching](/docs/caching).
 
 ## Sessions vanish after a restart or don't work across instances
 

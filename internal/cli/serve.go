@@ -120,7 +120,7 @@ func runServe(cmd *cobra.Command, _ []string) error {
 		opts := autoload.PluginOpts{
 			PolaPackage:     pf.PolaPackage(),
 			Framework:       serveFlags.framework,
-			Cache:           "memory",
+			Cache:           cmp.Or(os.Getenv("POLA_CACHE"), pf.CacheAdapter("development"), "memory"),
 			CSRF:            serveFlags.csrf,
 			SecurityHeaders: serveFlags.securityHeaders,
 			ImageProcessing: serveFlags.imageProcessing,

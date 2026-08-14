@@ -9,6 +9,7 @@ require (
 	entgo.io/ent v0.14.6
 	github.com/AlecAivazis/survey/v2 v2.3.7
 	github.com/alecthomas/chroma/v2 v2.27.0
+	github.com/alicebob/miniredis/v2 v2.38.0
 	github.com/beego/beego/v2 v2.3.9
 	github.com/buke/quickjs-go v0.6.11
 	github.com/caarlos0/env/v6 v6.10.1
@@ -183,6 +184,7 @@ require (
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20240726163527-a2c0da244d78 // indirect
+	github.com/yuin/gopher-lua v1.1.1 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zclconf/go-cty-yaml v1.1.0 // indirect
 	github.com/zeebo/assert v1.3.1 // indirect
