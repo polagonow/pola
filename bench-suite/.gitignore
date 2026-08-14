@@ -1,0 +1,21 @@
+# Dependencies (each entry keeps its own — never shared)
+node_modules/
+**/node_modules/
+
+# Per-entry build artifacts
+entries/*/dist/
+entries/*/.next/
+entries/*/build/
+entries/*/bin/
+entries/*/public/
+entries/*/.pola/
+
+# Raw run output (RESULTS.md is the committed, generated summary)
+results/
+
+# Logs
+*.log
+
+# Pola single-binary build output
+entries/pola-goja/server-bin
+entries/**/server-bin
