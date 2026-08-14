@@ -20,21 +20,34 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Full history so golangci-lint can compute the merge-base for
+          # new-issue detection locally (see the lint step below).
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
 
+      # golangci-lint's git-based --new-from-merge-base needs the base branch
+      # present as a local ref with enough history to reach the merge-base.
+      - name: Fetch base branch
+        if: github.event_name == 'pull_request'
+        run: git fetch --no-tags origin +refs/heads/${{ github.base_ref }}:refs/remotes/origin/${{ github.base_ref }}
+
       # .golangci.yml is v2-format config; action v8 installs the v2 series.
-      # The repo carries pre-existing lint findings, so PRs gate only on
-      # issues introduced by the diff; push builds skip this step.
+      # The repo carries pre-existing lint findings, so PRs gate only on issues
+      # introduced by the diff; push builds skip this step. We use golangci-lint's
+      # git-based --new-from-merge-base rather than the action's only-new-issues
+      # (which fetches the PR patch from the GitHub API and silently reports ALL
+      # repo issues when a diff exceeds the API's 20k-line limit).
       - name: golangci-lint (new issues only)
         if: github.event_name == 'pull_request'
         uses: golangci/golangci-lint-action@v8
         with:
           version: latest
-          only-new-issues: true
+          args: --new-from-merge-base=origin/${{ github.base_ref }}
 
       - name: go vet (with build tags)
         run: go run mage.go vet

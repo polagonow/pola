@@ -27,6 +27,10 @@ import (
 // renderAsyncFn is the async JS helper that drives the render loop in qjs.
 const renderAsyncFn = "__renderAsync__"
 
+// renderPromiseVar is the global the render promise is assigned to so Go can
+// read it back as a real Promise (Eval doesn't return the call's value).
+const renderPromiseVar = "__renderPromise__"
+
 var (
 	renderAsyncJSTmpl = template.Must(template.New("renderAsync").Parse(`
 globalThis.{{.RenderAsyncFn}} = async function(exportName, propsJSON) {
@@ -260,7 +264,6 @@ func (r *Runtime) SetDependencyInjection(funcs map[string]func(args []any) (any,
 		defer jsi.Free()
 
 		for name, fn := range funcs {
-			fn := fn // capture
 			jsFn := r.ctx.Function(func(this *qjslib.This) (*qjslib.Value, error) {
 				goArgs := exportArgs(this.Args())
 				ch := make(chan bridgeResult, 1)
@@ -300,7 +303,7 @@ func (r *Runtime) StartRender(exportName, propsJSON string) (RenderSession, erro
 
 // DrainStream installs a per-request __outputChunk__ Go function, then calls
 // __renderAsync__(exportName, propsJSON) and awaits the returned Promise.
-func (r *Runtime) DrainStream(sess RenderSession, w core.StreamWriter) (bool, error) {
+func (r *Runtime) drainSession(sess RenderSession, w core.StreamWriter) (bool, error) {
 	var wroteAny bool
 	var runErr error
 
@@ -320,14 +323,24 @@ func (r *Runtime) DrainStream(sess RenderSession, w core.StreamWriter) (bool, er
 
 		exportLit, _ := json.Marshal(sess.ExportName)
 		propsLit, _ := json.Marshal(sess.PropsJSON)
-		script := fmt.Sprintf("%s(%s, %s)", renderAsyncFn, string(exportLit), string(propsLit))
+		// Store the render promise on a global. fastschema/qjs's Eval does not
+		// return the completion value of a bare call expression (it yields
+		// Undefined), so we can't Await the Eval result directly; assign it to a
+		// global and read it back as a real Promise.
+		script := fmt.Sprintf("globalThis.%s = %s(%s, %s);",
+			renderPromiseVar, renderAsyncFn, string(exportLit), string(propsLit))
 
-		promise, evalErr := r.ctx.Eval("render.js", qjslib.Code(script))
-		if evalErr != nil {
+		if _, evalErr := r.ctx.Eval("render.js", qjslib.Code(script)); evalErr != nil {
 			runErr = fmt.Errorf("qjs: render eval: %w", evalErr)
 			return
 		}
+
+		promise := r.ctx.Global().GetPropertyStr(renderPromiseVar)
 		defer promise.Free()
+		if !promise.IsPromise() {
+			runErr = fmt.Errorf("qjs: render did not return a Promise (got %s)", promise.String())
+			return
+		}
 
 		result, awaitErr := promise.Await()
 		if result != nil {
@@ -338,7 +351,24 @@ func (r *Runtime) DrainStream(sess RenderSession, w core.StreamWriter) (bool, er
 			return
 		}
 
-		_, _ = r.ctx.Eval("clear_output.js", qjslib.Code(globals.OutputChunk+" = undefined;"))
+		// Drain trailing jobs. react-server-dom-webpack schedules cleanup work
+		// (resetting its module-level "current request") that runs AFTER the
+		// top-level render promise settles. If it isn't drained before this VM is
+		// pooled, it leaks into the NEXT render on the same VM, which then aborts
+		// immediately — the cause of the alternating pass/fail flakiness. Awaiting a
+		// microtask-tick loop lets those jobs run now.
+		drainScript := "(async function(){ for (var i = 0; i < 256; i++) { await Promise.resolve(); } })()"
+		if dv, derr := r.ctx.Eval("drain.js", qjslib.Code(drainScript)); derr == nil {
+			if dv.IsPromise() {
+				if dr, _ := dv.Await(); dr != nil {
+					dr.Free()
+				}
+			}
+			dv.Free()
+		}
+
+		clearScript := globals.OutputChunk + " = undefined; globalThis." + renderPromiseVar + " = undefined;"
+		_, _ = r.ctx.Eval("clear_render.js", qjslib.Code(clearScript))
 	})
 
 	return wroteAny, runErr

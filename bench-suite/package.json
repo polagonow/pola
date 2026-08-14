@@ -1,0 +1,21 @@
+{
+  "name": "pola-bench-suite",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Reproducible benchmark harness comparing Pola (all JS engines, RSC) against a Node.js RSC baseline (react-server-dom-webpack).",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "bench": "node bench.mjs && node report.mjs && node charts.mjs",
+    "bench:nodejs-rsc": "node bench.mjs --only nodejs-rsc && node report.mjs",
+    "bench:pola": "node bench.mjs --only pola-goja && node report.mjs",
+    "report": "node report.mjs && node charts.mjs",
+    "charts": "node charts.mjs",
+    "clean": "node -e \"import('node:fs').then(fs=>fs.rmSync('results',{recursive:true,force:true}))\""
+  },
+  "devDependencies": {
+    "autocannon": "8.0.0"
+  }
+}

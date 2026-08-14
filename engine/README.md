@@ -9,15 +9,22 @@ compiled server bundle. The engine declares which polyfills it needs via
 
 ## Available engines
 
+Status legend:
+
+- **SSR** — implements `NewSSRPool` and ships a `Plugin()`, so it can be selected
+  to render Server Components. These are the production engines.
+- **Experimental** — has a working VM (via `NewVMPool`) for evaluating JS, but no
+  SSR pool and no `Plugin()`, so it cannot yet drive RSC rendering.
+
 | Package | Build tag | Status | Notes |
 |---------|-----------|--------|-------|
-| `engine/goja` | `goja` | **FULL** | Default engine; pure Go; uses `goja_nodejs` event loop |
-| `engine/sobek` | `sobek` | stub | Fork of goja |
-| `engine/v8go` | `v8go` | stub | Requires CGO |
-| `engine/qjs` | `qjs` | stub | QuickJS |
-| `engine/moderncquickjs` | `moderncquickjs` | stub | Modern C QuickJS |
-| `engine/quickjsgo` | `quickjsgo` | stub | QuickJS Go bindings |
-| `engine/node` | — | FULL | Runs `node` binary via exec; no single-binary |
+| `engine/goja` | `goja` | **SSR** | Default engine; pure Go; uses `goja_nodejs` event loop |
+| `engine/moderncquickjs` | `moderncquickjs` | **SSR** | Modern C QuickJS (CGO) |
+| `engine/quickjsgo` | `quickjsgo` | **SSR** | QuickJS Go bindings |
+| `engine/sobek` | `sobek` | Experimental | Fork of goja; VM pool only, no SSR pool |
+| `engine/v8go` | `v8go` | Experimental | V8 via CGO; VM pool only, no SSR pool |
+| `engine/qjs` | `qjs` | Experimental | QuickJS; VM pool only, no SSR pool |
+| `engine/node` | — | Experimental | Spawns the `node` binary via exec (no single-binary, no SSR pool) |
 
 ## Sub-packages
 

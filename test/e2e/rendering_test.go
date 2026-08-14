@@ -19,7 +19,9 @@ import (
 	"github.com/polagonow/pola/internal/stubpkgs"
 	_ "github.com/polagonow/pola/test/combo"
 	bundlersuite "github.com/polagonow/pola/test/e2e/bundler"
+	enginesuite "github.com/polagonow/pola/test/e2e/engine"
 	reactsuite "github.com/polagonow/pola/test/e2e/renderer/react"
+	routersuite "github.com/polagonow/pola/test/e2e/router"
 	"github.com/polagonow/pola/test/e2e/suite"
 	"github.com/polagonow/pola/test/fixture"
 	_ "github.com/polagonow/pola/test/vm"
@@ -77,3 +79,9 @@ func TestLayoutComposition(t *testing.T) { reactsuite.RunLayoutCompositionTests(
 
 // Bundler suites.
 func TestClientBundle(t *testing.T) { bundlersuite.RunClientBundleTests(t) }
+
+// Engine suites.
+func TestPolyfills(t *testing.T) { enginesuite.RunPolyfillTests(t) }
+
+// Router suites.
+func TestNextJSRouter(t *testing.T) { routersuite.RunNextJSRouterTests(t) }
