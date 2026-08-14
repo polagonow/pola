@@ -137,14 +137,17 @@ fixed-key store via `session.WithStore(...)`. See [Sessions](/docs/sessions).
 
 ## `.env` values aren't picked up
 
-**Symptom.** Variables in `.env` don't reach the app; `pola dev` only lists the
-files.
+**Symptom.** A variable you set in `.env` doesn't reach the app even though the
+CLI lists the file in its banner.
 
-**Cause.** Pola **detects and prints** `.env*` files but does not auto-load them
-into the process environment.
+**Cause.** A variable already exported in your shell **overrides** the `.env`
+file value — the file is only consulted when the variable is unset. You may also
+be reading it from a file the CLI doesn't load (only `.env`, `.env.local`,
+`.env.development`, `.env.development.local` are loaded, from the project root).
 
-**Fix.** Export them yourself — via your shell, `direnv`, a process manager, or
-your container runtime — before starting. See [Environment & Config](/docs/env-config).
+**Fix.** Unset the shell variable (`unset FOO`) so the file value applies, or put
+the value in a loaded file at the project root. See
+[Environment & Config](/docs/env-config).
 
 ## A component/import in a docs `.mdx` page doesn't render
 

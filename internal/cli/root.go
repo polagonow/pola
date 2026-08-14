@@ -28,17 +28,25 @@ var rootCmd = &cobra.Command{
 	SilenceErrors: true,
 	Version:       version,
 	PersistentPreRunE: func(cmd *cobra.Command, _ []string) error {
-		if cwd == "" {
-			return nil
-		}
-		// For "new", the --cwd directory may not exist yet; create it.
-		if cmd.Name() == "new" {
-			if err := os.MkdirAll(cwd, 0o755); err != nil {
-				return fmt.Errorf("create directory %q: %w", cwd, err)
+		if cwd != "" {
+			// For "new", the --cwd directory may not exist yet; create it.
+			if cmd.Name() == "new" {
+				if err := os.MkdirAll(cwd, 0o755); err != nil {
+					return fmt.Errorf("create directory %q: %w", cwd, err)
+				}
+			}
+			if err := os.Chdir(cwd); err != nil {
+				return fmt.Errorf("change directory to %q: %w", cwd, err)
 			}
 		}
-		if err := os.Chdir(cwd); err != nil {
-			return fmt.Errorf("change directory to %q: %w", cwd, err)
+		// Load .env files for project-scoped commands. "new" scaffolds a fresh
+		// project, so loading a parent project's .env would be misleading.
+		if cmd.Name() != "new" {
+			if root, err := findProjectRoot(); err == nil {
+				if _, err := loadDotenv(root); err != nil {
+					return fmt.Errorf("load .env: %w", err)
+				}
+			}
 		}
 		return nil
 	},

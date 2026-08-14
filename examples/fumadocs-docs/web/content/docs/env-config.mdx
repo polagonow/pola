@@ -45,8 +45,9 @@ func main() {
 
 ## `.env` files
 
-`pola dev` **detects** these files in your project root and prints them in the
-startup banner (precedence order, most specific last):
+The Pola CLI **loads** these files from your project root and prints the ones it
+found in the startup banner. They are applied in ascending precedence order, so
+the most specific file wins:
 
 ```text
 .env
@@ -62,11 +63,16 @@ startup banner (precedence order, most specific last):
   - Environments: .env, .env.local
 ```
 
-> [!WARNING]
-> Detection is not automatic loading. Pola lists the files it found; export the
-> variables into the process yourself (your shell, `direnv`, a process manager,
-> or your container runtime) before starting the server. Values not present in
-> the environment fall back to the built-in defaults.
+Loading happens for every project-scoped command (`pola dev`, `pola build`,
+`pola db`, `pola generate`, …). Under `pola dev` the values are inherited by the
+`go run` child, so your routes, actions, and plugins see them via
+`os.Getenv` / the `env` package with no extra setup.
+
+> [!NOTE]
+> Variables already exported in your shell always win over `.env` files — the
+> file value is only used when the variable is unset. This lets you override a
+> committed default without editing the file. Keep secrets in `.env.local` (git
+> ignored), not `.env`.
 
 ## Reading env vars in Go
 
