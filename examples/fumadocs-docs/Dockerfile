@@ -15,9 +15,13 @@ ENV GOFLAGS=-mod=mod
 RUN apk add --no-cache git nodejs npm ca-certificates tzdata \
  && npm install -g pnpm@10
 
+# Pola release the docs are built for (e.g. v1.2.3); CI passes the release tag.
+ARG POLA_VERSION=dev
+
 WORKDIR /src
 COPY . .
-RUN go build -o /usr/local/bin/pola ./cmd/pola
+RUN go build -ldflags "-X github.com/polagonow/pola/internal/cli.version=${POLA_VERSION}" \
+      -o /usr/local/bin/pola ./cmd/pola
 
 # Bundle assets + compile a pure-Go static binary. Building the binary does not
 # require a database connection (the DB connects lazily on first query).
@@ -25,6 +29,7 @@ WORKDIR /src/examples/fumadocs-docs
 RUN pola build --cgo 0 -o /app
 
 FROM scratch
+ARG POLA_VERSION=dev
 COPY --from=build /usr/share/zoneinfo /usr/share/zoneinfo
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/
 COPY --from=build /etc/passwd /etc/passwd
@@ -33,5 +38,7 @@ COPY --from=build /app /app
 
 # pola listens on PORT (default 3000); POLA_ADDRESS overrides the bind host.
 ENV PORT=3000
+# Read by Server.getPolaVersion() to show the release in the docs nav.
+ENV POLA_VERSION=${POLA_VERSION}
 EXPOSE 3000
 CMD ["/app"]
