@@ -1,7 +1,9 @@
 package actions
 
 import (
+	"cmp"
 	"fmt"
+	"os"
 	"runtime"
 	"time"
 )
@@ -24,6 +26,10 @@ type ServerInfo struct {
 	Time      string `json:"time"`
 }
 
+type PolaVersion struct {
+	Version string `json:"version"`
+}
+
 type Greeting struct {
 	Message string `json:"message"`
 }
@@ -36,6 +42,12 @@ func (s *Server) GetServerInfo() (*ServerInfo, error) {
 		Arch:      runtime.GOARCH,
 		Time:      time.Now().Format(time.RFC3339),
 	}, nil
+}
+
+// GetPolaVersion returns the Pola release these docs were built for, taken from
+// POLA_VERSION (set by the docs image build). Becomes Server.getPolaVersion() in JS.
+func (s *Server) GetPolaVersion() (*PolaVersion, error) {
+	return &PolaVersion{Version: cmp.Or(os.Getenv("POLA_VERSION"), "dev")}, nil
 }
 
 // Greet returns a greeting message. Becomes Server.greet(name) in JS.
